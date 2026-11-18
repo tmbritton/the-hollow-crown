@@ -4,6 +4,24 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Oxfmt and Oxlint tooling update — 2026-11-18
+
+Installed **Oxfmt 0.79.0** and **Oxlint 1.94.0**, the npm `latest` releases at the time of
+installation, as exact development dependencies. Oxfmt replaces Prettier with the existing
+single-quote and 100-column settings. Oxlint enables correctness checks for source, tests,
+and Vite configuration, with warnings failing the npm lint command.
+
+Verified on Node.js 26.0.0:
+
+- `npm run format` and `npm run format:check`: pass across all 78 configured files.
+- `npm run lint`: passes with no diagnostics.
+- `npm test`: strict type checking and all **96 pure/model tests** pass.
+- `npm run build`: strict type checking and production bundling pass; Vite reports its
+  large-chunk size warning.
+
+The formatting/linting runs required no source or test changes. Browser, screenshot, and
+hardware checks retain their previously recorded baselines below.
+
 ### Jump and movement-driven animation refinement
 
 **Space now jumps; X cancels travel and combat.** Jumping preserves keyboard movement, running, click routes and selected targets, with one jump per press. The trajectory has a two-frame preload and exact constant-gravity integration; changes in stair support preserve world-space flight. Landing speed drives a damped compression spring. Ground-navigation clearance remains active through flight; airborne elevation affects melee/projectile hit tests and ground hazards. Focus loss, menus, inspection, teleport, death and regeneration clear airborne state.
@@ -31,7 +49,8 @@ This update passes **79 pure/model tests**, **12 Chromium combat checks**, **11 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passes with `strict`, unused-code checks, and erasable TypeScript syntax across source, tests, and Vite configuration |
-| `npm run format:check` | All TypeScript files and the TypeScript configuration pass Prettier checks |
+| `npm run format:check` | All 78 configured files pass Oxfmt checks; earlier updates used Prettier |
+| `npm run lint` | Oxlint correctness checks pass with no diagnostics |
 | `npm test` | 96 passing tests: generation, ECS/combat, occupancy, navigation, inspection, locomotion/action poses, jumping, springs, leg solving, statechart invariants/model coverage, and social gathering behavior |
 | `npm run test:models` | 19 checks: every production machine covered, all 75 declared atomic states and 155 transition branches reached, invariants checked on generated traces, and negative fixtures proving missed coverage fails |
 | `npm run build` | Strict type checking and production build succeed |

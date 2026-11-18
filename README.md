@@ -117,7 +117,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/engine.ts` | Babylon engine with a typed effect-cache diagnostic |
 | `src/ui.ts` / `src/dom.ts` / `src/style.css` | HUD, minimap, typed DOM access, menus, responsive layout |
 
-### Type checking and formatting
+### Type checking, formatting, and linting
 
 `tsconfig.json` enables `strict`, unused-code checks, and `verbatimModuleSyntax` for all application code, tests, and `vite.config.ts`. Type-only imports keep domain contracts out of runtime bundles. Entity types narrow on `entity.type`; for example, only doors have a lock and only portraits have royal identity data. Rendering references are optional until scene construction, with explicit checks where required.
 
@@ -127,7 +127,15 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 npm run typecheck
 npm run format
 npm run format:check
+npm run lint
+npm run lint:fix
 ```
+
+Oxfmt formats source/test TypeScript, Vite and TypeScript configuration, and the Oxfmt/Oxlint
+JSON configs. `.oxfmtrc.json` preserves single quotes and a 100-column print width. Oxlint
+checks source, tests, and Vite configuration using correctness rules; warnings fail the lint
+command. `.oxlintrc.json` enables browser globals and Node globals for tests and Vite config.
+`npm run lint:fix` applies safe automatic fixes; review them and run formatting afterward.
 
 Both `npm test` and `npm run build` run the type checker. Vite handles browser transpilation; Node executes test `.ts` files directly, without injecting helpers into Playwright's serialized browser callbacks. `erasableSyntaxOnly` enforces that compatibility. Dependency declarations are skipped with `skipLibCheck`; project code and tests are fully checked.
 
@@ -225,6 +233,7 @@ Gameplay key handlers cancel native letter-key text actions, including repeats, 
 ```sh
 npm run typecheck
 npm run format:check
+npm run lint
 npm test
 npm run test:models
 npx playwright install chromium firefox

@@ -229,7 +229,7 @@ tests/
 
 Generated dungeon data is the source of truth for geometry, collision, interactions, and validation. Rendering must not silently redefine which tiles are walkable.
 
-The demo uses shared world, rendering, game, and inspection contracts with discriminated entity types. Unit/browser/profile checks also use TypeScript. Prettier keeps formatting consistent, and `npm run typecheck` checks the whole project in strict mode. This keeps the small demo navigable while preserving the data/rendering split.
+The demo uses shared world, rendering, game, and inspection contracts with discriminated entity types. Unit/browser/profile checks also use TypeScript. Oxfmt keeps formatting consistent, Oxlint checks correctness, and `npm run typecheck` checks the whole project in strict mode. This keeps the small demo navigable while preserving the data/rendering split.
 
 ## 8. Implementation milestones
 

@@ -310,7 +310,7 @@ Begin with three authored motifs built from implemented mechanics:
 
 ### Checks to use as implementation lands
 
-Existing checks: `npm test`, `npm run typecheck`, `npm run format:check`, and `npm run build`; targeted `test:movement`, `test:jump`, `test:combat`, `test:social`, `test:inspection`, and `test:animation` as the affected systems change. Run production/full-browser checks for shipped renderer or progression changes, and the hardware profiler for material increases in scene cost.
+Existing checks: `npm test`, `npm run typecheck`, `npm run format:check`, `npm run lint`, and `npm run build`; targeted `test:movement`, `test:jump`, `test:combat`, `test:social`, `test:inspection`, and `test:animation` as the affected systems change. Run production/full-browser checks for shipped renderer or progression changes, and the hardware profiler for material increases in scene cost.
 
 Proposed additions: pure tests for identity/history consistency, independent RNG streams, recipe placement/fallbacks, discovery persistence, adventure dependencies, and the seed-gallery/reporting tool. New state machines require the repository's existing model-based specifications. These additional tools/tests are planned, not currently available commands.
 

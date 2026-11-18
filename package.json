@@ -10,8 +10,10 @@
     "dev": "vite --host 0.0.0.0",
     "build": "npm run typecheck && vite build",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts' vite.config.ts tsconfig.json",
-    "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts' vite.config.ts tsconfig.json",
+    "format": "oxfmt --write 'src/**/*.ts' 'tests/**/*.ts' vite.config.ts tsconfig.json .oxfmtrc.json .oxlintrc.json",
+    "format:check": "oxfmt --check 'src/**/*.ts' 'tests/**/*.ts' vite.config.ts tsconfig.json .oxfmtrc.json .oxlintrc.json",
+    "lint": "oxlint --max-warnings=0 src tests vite.config.ts",
+    "lint:fix": "npm run lint -- --fix",
     "preview": "vite preview --host 0.0.0.0",
     "test": "npm run typecheck && node --test tests/*.test.ts",
     "test:models": "npm run typecheck && node --test tests/models.test.ts",
@@ -35,7 +37,8 @@
     "@babylonjs/inspector": "9.37.0",
     "@playwright/test": "1.65.1",
     "@types/node": "22.20.5",
-    "prettier": "3.10.1",
+    "oxfmt": "0.79.0",
+    "oxlint": "1.94.0",
     "typescript": "7.0.2",
     "vite": "8.3.8"
   }

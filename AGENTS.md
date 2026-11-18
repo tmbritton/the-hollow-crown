@@ -25,6 +25,7 @@ npm install
 npm run dev             # http://localhost:5173 by default
 npm run typecheck       # source, tests, and Vite config
 npm run format:check
+npm run lint            # Oxlint correctness checks; warnings fail
 npm test               # typecheck, then all tests/*.test.ts, including model tests
 npm run test:models    # focused model-coverage run; also typechecks
 npm run build          # typecheck, then production bundle in dist/
@@ -33,9 +34,11 @@ npm run preview        # http://localhost:4173 by default
 
 - Run a focused pure test with `node --test tests/navigation.test.ts` (substitute the relevant
   file). Direct Node test commands do not typecheck.
-- `npm run format` formats all source/test TypeScript, `vite.config.ts`, and `tsconfig.json`.
-  For a small change, format only edited files to keep the diff focused. The format scripts
-  do not cover Markdown, HTML, or CSS.
+- `npm run format` uses Oxfmt for all source/test TypeScript, `vite.config.ts`, `tsconfig.json`,
+  and the Oxfmt/Oxlint JSON configs. For a small change, format only edited files to keep the
+  diff focused. The format scripts do not cover Markdown, HTML, or CSS.
+- `npm run lint` uses Oxlint for source, tests, and Vite config; `npm run lint:fix` applies
+  safe automatic fixes. Review fixes, then format and rerun checks.
 - Pure tests use `node:test` and `node:assert/strict`. Browser suites are standalone Node
   scripts using Playwright, invoked through the npm scripts below.
 
@@ -95,8 +98,9 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
 
 ### TypeScript
 
-- Follow `.prettierrc.json`: single quotes, 100-column print width, and default Prettier
-  conventions. Use explicit `.ts` extensions for local imports and `import type` for types.
+- Follow `.oxfmtrc.json`: single quotes, 100-column print width, and Oxfmt formatting.
+  `.oxlintrc.json` configures correctness checks and browser/Node environments. Use explicit
+  `.ts` extensions for local imports and `import type` for types.
 - Keep strict typing, unused-code checks, and `erasableSyntaxOnly` intact. Avoid syntax
   requiring runtime TypeScript transforms, such as enums and constructor parameter properties.
 - Narrow discriminated entities on `entity.type` and check optional render references.
@@ -149,9 +153,9 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
 
 ## Verification and repository hygiene
 
-- For code changes, run `npm run format:check`, `npm test`, and `npm run build`, plus the
-  targeted browser suite for affected behavior. Pure/model tests already run under `npm test`;
-  use the focused model command during statechart iteration.
+- For code changes, run `npm run format:check`, `npm run lint`, `npm test`, and `npm run build`,
+  plus the targeted browser suite for affected behavior. Pure/model tests already run under
+  `npm test`; use the focused model command during statechart iteration.
 - Add meaningful regression coverage for changed gameplay or generation invariants. For
   rendering/input changes, exercise the real browser path and inspect relevant captures.
 - For documentation-only changes, check commands, paths, and claims against current files.
