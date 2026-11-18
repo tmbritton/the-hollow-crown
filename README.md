@@ -286,6 +286,13 @@ The opt-in `?debug` query exposes a small `window.__dungeon` harness **only in d
 
 ## Planning documents
 
+The generator also provides a pure `generateDungeonWithReport(seed)` API in `src/world.ts`.
+It returns the accepted world and a JSON-safe trace with seed, generator/content versions,
+zero-based attempt numbers, and placement/validation rejection reasons. A `GenerationError`
+retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
+`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v2` / `demo-v1`;
+this records the existing seed interpretation rather than changing it.
+
 Design roadmaps live in [`docs/`](docs/README.md):
 
 - [Procedural content improvement plan](docs/procedural-content-improvement-plan.md) — shared keep identities, scene recipes, memorable inhabitants, discoveries, adventure structure, and generator review tools.

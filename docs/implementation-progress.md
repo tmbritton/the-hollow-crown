@@ -6,13 +6,14 @@ Execution record for [implementation path](implementation-path.md). Started **20
 
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
-- **Next: G1 — versioned generation identity and bounded attempt diagnostics.**
+- Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
+- **G1 verified and reviewed; committing next. G2 follows.**
 
 ## Feature tracker
 
 | ID | Status | Test-first evidence | Verification / review | Commit |
 | --- | --- | --- | --- | --- |
-| G1 | Next | Pending | Pending | — |
+| G1 | Verified; ready to commit | Four contract tests failed on missing API, then passed; historical first-attempt/retry geometry digests | 101 tests, typecheck, lint, format, build pass; independent review cleared, two test improvements applied | Pending |
 | G2 | Queued | Pending | Pending | — |
 | G3 | Queued | Pending | Pending | — |
 | I1–I2 | Planned | Pending | Pending | — |
@@ -30,6 +31,15 @@ Execution record for [implementation path](implementation-path.md). Started **20
   test-first → implementation → checks → independent review → fixes → commit loop.
 
 ## Follow-ups and blockers
+
+### G1 — versioned diagnostics
+
+- Added `generateDungeonWithReport`, explicit `layout-v2` / `demo-v1` identity, bounded
+  attempt traces and `GenerationError`. Normal generation retains the same default budget.
+- Test-first command: `node --test tests/generation.test.ts` failed before implementation.
+- Review compared 103 seeds against the prior implementation with no world differences.
+  Tightened the known rejection reason and retrying-seed digest as requested.
+- Full checks passed; review also ran generation/world tests (13 checks).
 
 - No implementation blockers currently identified.
 - Fresh hardware performance numbers remain a separate Phase 0 requirement; historical

@@ -4,6 +4,19 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Versioned generation diagnostics — 2026-11-18
+
+- Test-first diagnostic contract failed before implementation (missing API/module), then all
+  four new checks passed. Historical world digests cover both a first-attempt seed and a
+  retrying seed; `trial-27` records its exact failed furniture-clearance constraint.
+- `npm run check`: **101 tests** and strict type checking pass; lint and formatting pass.
+- `npm run build`: passes with the existing large-chunk warning.
+- Independent sub-agent review found no blocking issues and compared **103 seeds** against
+  the preceding generator implementation with identical worlds. Both suggested test
+  improvements (exact rejection and retry-world digest) were incorporated.
+- No runtime rendering/input behavior changed; the new API is pure generation diagnostics.
+  Browser and hardware results below retain their stated earlier baselines.
+
 ### Mouse movement routing fix — 2026-11-18
 
 Reproduced fresh-world floor clicks reporting “No clear route” with living enemies present.

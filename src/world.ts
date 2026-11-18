@@ -1,6 +1,12 @@
 import { generateRoyalPortrait } from './royalty.ts';
 import { required } from './assert.ts';
 import { hasApproach } from './worldTypes.ts';
+import {
+  GenerationError,
+  generationIdentity,
+  MAX_GENERATION_ATTEMPTS,
+} from './generation/identity.ts';
+import type { GenerationTrace } from './generation/identity.ts';
 import type {
   AltarEntity,
   ThroneEntity,
@@ -118,7 +124,7 @@ interface PlacementOptions {
   candidates?: Point[];
 }
 
-function buildAttempt(seed: string, attempt: number): World | null {
+function buildAttempt(seed: string, attempt: number): World | string[] {
   const random = randomFrom(`${seed}:layout-v2:${attempt}`);
   const integer = (a: number, b: number) => a + Math.floor(random() * (b - a + 1));
   const pick = <T>(values: readonly T[]): T => values[integer(0, values.length - 1)];
@@ -462,7 +468,11 @@ function buildAttempt(seed: string, attempt: number): World | null {
     interactive: true,
     clearance: 1.5,
   });
-  if (!altarPlacement || !thronePlacement) return null;
+  if (!altarPlacement || !thronePlacement)
+    return [
+      ...(!altarPlacement ? ['Cannot place altar with reachable approach'] : []),
+      ...(!thronePlacement ? ['Cannot place throne with reachable approach'] : []),
+    ];
   const altar: AltarEntity = {
     ...altarPlacement,
     id: 'altar',
@@ -497,7 +507,8 @@ function buildAttempt(seed: string, attempt: number): World | null {
         approach: required(chest.approach, 'Missing chest approach'),
       });
   }
-  if (entities.filter((e) => e.type === 'chest').length !== 3) return null;
+  if (entities.filter((e) => e.type === 'chest').length !== 3)
+    return ['Cannot place three reliquaries with reachable approaches'];
 
   for (const r of rooms) {
     const add = (type: PropType, w: number, d: number, options?: PlacementOptions): Prop | null => {
@@ -506,23 +517,27 @@ function buildAttempt(seed: string, attempt: number): World | null {
       return p;
     };
     if (r.id === 'butchery') {
-      if (!add('butcher-block', 2.7, 1.9) || !add('meat-rack', 3, 1.6)) return null;
+      if (!add('butcher-block', 2.7, 1.9) || !add('meat-rack', 3, 1.6))
+        return ['Cannot place required butchery furnishings'];
       add('butcher-block', 2.7, 1.9);
       add('barrel', 1.3, 1.3);
     }
     if (r.id === 'smithy') {
-      if (!add('furnace', 2.7, 2.5) || !add('anvil', 1.6, 1.25)) return null;
+      if (!add('furnace', 2.7, 2.5) || !add('anvil', 1.6, 1.25))
+        return ['Cannot place required smithy furnishings'];
       add('anvil', 1.6, 1.25);
       add('tool-bench', 2.8, 1.4);
       add('quench', 1.5, 1.5);
     }
     if (r.id === 'bakery') {
-      if (!add('bread-oven', 2.9, 2.7) || !add('bread-table', 2.8, 1.6)) return null;
+      if (!add('bread-oven', 2.9, 2.7) || !add('bread-table', 2.8, 1.6))
+        return ['Cannot place required bakery furnishings'];
       add('bread-rack', 2.1, 1.4);
       add('flour-sacks', 1.7, 1.5);
     }
     if (r.id === 'stable') {
-      if (!add('lizard-stall', 4.4, 5.6) || !add('lizard-stall', 4.4, 5.6)) return null;
+      if (!add('lizard-stall', 4.4, 5.6) || !add('lizard-stall', 4.4, 5.6))
+        return ['Cannot place two lizard stalls'];
       add('feed-trough', 2.4, 1.2);
       add('tack-rack', 2, 1.4);
       add('hay-bales', 1.8, 1.5);
@@ -611,11 +626,35 @@ function buildAttempt(seed: string, attempt: number): World | null {
 }
 
 export function generateDungeon(seed = 'MOURNING-731'): World {
-  for (let attempt = 0; attempt < 40; attempt++) {
+  return generateDungeonWithReport(seed).world;
+}
+
+/** Initial generation only: plain data, no timing samples or runtime actor/door state. */
+export function generateDungeonWithReport(
+  seed = 'MOURNING-731',
+  { maxAttempts = MAX_GENERATION_ATTEMPTS }: { maxAttempts?: number } = {},
+): { world: World; report: GenerationTrace } {
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > MAX_GENERATION_ATTEMPTS)
+    throw new RangeError(`maxAttempts must be an integer from 1 to ${MAX_GENERATION_ATTEMPTS}`);
+  const report: GenerationTrace = {
+    identity: generationIdentity(seed),
+    acceptedAttempt: null,
+    attempts: [],
+  };
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const world = buildAttempt(seed, attempt);
-    if (world && validateDungeon(world).length === 0) return world;
+    if (Array.isArray(world)) {
+      report.attempts.push({ attempt, stage: 'placement', reasons: world });
+      continue;
+    }
+    const reasons = validateDungeon(world);
+    report.attempts.push({ attempt, stage: reasons.length ? 'validation' : 'accepted', reasons });
+    if (!reasons.length) {
+      report.acceptedAttempt = attempt;
+      return { world, report };
+    }
   }
-  throw new Error(`Could not construct a traversable dungeon for seed ${seed}`);
+  throw new GenerationError(report);
 }
 
 export function reachableTiles(world: World, unlocked = false): Set<string> {
