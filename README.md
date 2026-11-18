@@ -30,7 +30,8 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 | Click a closed door | Approach and open it if unlocked |
 | WASD / arrow keys | Move relative to the camera |
 | Shift | Run |
-| Space | Cancel travel, pursuit, and attacks |
+| Space | Jump (one jump per press) |
+| X | Cancel travel, pursuit, and attacks |
 | E | Open/close doors, open a chest, activate the altar, inspect a portrait, claim the throne |
 | E / Escape while inspecting | Return to the overhead view |
 | Q / R | Rotate the overhead camera by 90° |
@@ -45,7 +46,11 @@ The route changes with the seed: explore the branching passages and watch the mi
 
 Click movement routes around furniture, walls, and lava, and respects closed/locked doors. **Click a closed door** to approach and open it, or use **E** in reach. Enemy pursuit can open intervening unlocked doors automatically. A new floor click replaces the command; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
 
-The adventurer pushes off and leans forward when starting, blends into a travel-driven stride, then braces and plants the feet while the cape settles on stopping. Living actors block each other regardless of allegiance: enemies can be cornered, allies cannot stack, and click/AI routes go around occupied space when possible. Corpses are passable but slow both the player and enemies to **52% speed**, the same as water; overlapping corpses and water do not stack the slowdown. Pause, inspection, focus loss, and regeneration clear pending travel and momentum.
+The adventurer briefly loads against travel before pushing off, then braces, recoils and settles on stopping. Running blends into a **longer stride**, forward lean, bent-elbow arm pumps and opposing torso twist, with a short flight phase and compressed landings. Both gaits advance from measured travel and share a continuous phase. Local-axis squash/stretch preserves apparent volume; the cape follows through behind the action. Living actors block each other regardless of allegiance: enemies can be cornered, allies cannot stack, and click/AI routes go around occupied space when possible. Corpses are passable but slow both the player and enemies to **52% speed**, the same as water; overlapping corpses and water do not stack the slowdown. Pause, inspection, focus loss, and regeneration clear pending travel, momentum and deformed poses.
+
+**Space jumps while preserving movement, a click route, or the selected enemy.** A two-frame preload leads into a constant-gravity arc, about 1.02 units high with 0.64 seconds of flight. You can steer and run in the air; holding Space produces one jump. Takeoff interrupts an unresolved attack while keeping its target, and pursuit/attacking resumes on landing. Airborne elevation is used by melee/projectile hit tests; water/corpse slowdown and lava contact damage resume when grounded. Jumping keeps the existing ground-navigation clearance for furniture, living actors, walls, doors and void edges. **X** cancels travel and combat; a jump already in flight still lands normally. Menus, inspection, focus loss, teleport and respawn reset flight safely.
+
+Characters turn toward measured velocity and lean into acceleration, braking and turns. Articulated knees and two-bone leg solving keep stance feet near sampled ground heights, with short world-space foot plants released at reach limits or action changes. Running bounce follows cadence and gravity. Analytic damped springs absorb landing speed, ease cover crouches, and carry cape motion through interruptions. Sword interpolation carries velocity through contact instead of stopping at every intermediate pose. The overhead camera and ground ring follow the support plane through jumps.
 
 ### Enemies and combat
 
@@ -57,9 +62,11 @@ Each dungeon seeds **21 enemies** outside the entrance and altar rooms:
 
 Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
 
-Clicking an enemy locks onto it: the player follows its changing position, stops in melee reach, and blends from movement into wind-up, sword strike, and recovery. Holding the button keeps that target even as the enemy and camera move; releasing retains the command. Click another enemy to retarget, or click the floor / press WASD or Space to cancel. A red ground ring and health display identify the target.
+Clicking an enemy locks onto it: the player follows its changing position, stops in melee reach, and blends from movement into wind-up, sword strike, and recovery. Holding the button keeps that target even as the enemy and camera move; releasing retains the command. Click another enemy to retarget, or click the floor / press WASD or X to cancel. A red ground ring and health display identify the target.
 
 Damage occurs at the strike's impact, with range and cover checked again. Living characters emit red blood fragments; skeletons emit pale bone dust. Dead enemies collapse into persistent, non-blocking corpses until regeneration. Death returns the player to the checkpoint with 2.5 seconds of protection. Chests and the altar still restore health.
+
+Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths buckle before falling, compress on contact and rebound briefly into their final corpse pose. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These render-only curves keep controls, collision and damage timing authoritative.
 
 ## What is procedural?
 
@@ -69,7 +76,7 @@ Damage occurs at the strike's impact, with range and cover checked again. Living
 - Directional furnishings—including thrones, ovens, furnaces, shrines, racks, and stalls—face toward the room center. Placement reserves reachable space in front and retries positions that cannot fit an inward orientation.
 - Floors, masonry, pillars, door frames, stairs, bridges, throne, altar, sarcophagi, chests, barrels, crates, bones, and character geometry.
 - Stone variation, tile seams, wood grain, graphic lighting bands, water ripples/foam, animated lava fissures, fire, embers, and altar runes.
-- Shared walk/start/stop/attack/death animation, enemy models, blood and dust particles, crossbow bolts, door hinges, chest lids, floating votives, and flickering lights.
+- Shared walk/run/start/stop/jump/attack/death animation, enemy models, blood and dust particles, crossbow bolts, door hinges, chest lids, floating votives, and flickering lights.
 - Four themed workspaces: a butchery, blacksmith, bakery, and underground lizard stable. Furnishings include hanging cuts, cleavers, furnaces, anvils, bread ovens, loaves, flour sacks, feed troughs, tack, and two animated saddled lizards.
 - Framed 32 × 40 pixel-art royal portraits. **E** moves the camera to an eye-level close-up and switches the same artwork to **128 × 160** with finer facial features, hair strands, jewelry, embroidery, and canvas texture. The monarch's identity remains the same. Movement pauses during inspection; **E**, **Escape**, or the return button restores the overhead view.
 
@@ -102,6 +109,9 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
 | `src/occupancy.ts` | Swept actor-body collision, sliding, live route occupancy, and corpse-ground overlap queries |
 | `src/locomotion.ts` | Movement speeds, acceleration/deceleration, and procedural start/travel/stop animation |
+| `src/jump.ts` | Frame-rate-independent jump trajectory, preload, airborne elevation and landing impacts |
+| `src/footPlacement.ts` | Bounded stance anchors, floor sampling and two-bone leg solving |
+| `src/animationCurves.ts` / `src/actionPoses.ts` | Smooth/velocity-continuous curves, analytic springs, volume-preserving deformation, jump/attack/death/social poses |
 | `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
 | `src/engine.ts` | Babylon engine with a typed effect-cache diagnostic |
@@ -224,6 +234,8 @@ npm run build && npm run test:production
 npm run test:portraits
 npm run test:inspection
 npm run test:movement
+npm run test:animation
+npm run test:jump
 BROWSER=firefox npm run test:movement
 npm run test:combat
 BROWSER=firefox npm run test:combat
@@ -233,6 +245,8 @@ npm run test:social
 The browser check starts a development server if needed, exercises the full game loop, completes three different seeds, and writes screenshots and JSON reports to `test-results/`. Chromium's automated smoke test explicitly uses software rendering for reproducibility; its FPS is not a hardware performance result.
 
 The movement suite expects a running dev server. It sends real pointer/keyboard events, checks high-DPI and low-quality floor picking, routes around furniture and over stairs, checks doors and modal cancellation, and captures the destination marker and start/stop poses. Pure navigation and locomotion tests run with `npm test`.
+
+The animation suite also expects a dev server. It samples the production rigs in a stationary close-up fixture, checks deformation volume, distinct run poses, attack/recoil timing, jump/landing poses and focus-loss cleanup, and writes a 24-pose comparison sheet to `test-results/chromium-animation-poses.png`. The jump browser suite uses real Space presses to check short taps, held-key behavior, click routes, running flight, gates, airborne lava protection, and modal/teleport/regeneration cleanup. Pure tests cover ballistic integration across tick rates, stairs, spring continuity, leg solving, moving-actor facing, anticipation, recovery, and the continuous hacky-sack handoff. Animation reference: [Animation Bootcamp: An Indie Approach to Procedural Animation](https://www.youtube.com/watch?v=LNidsMesxSE); the retrieved, timestamped English auto-caption transcript is in the local reference folder at `ref/procedural-animation-bootcamp-transcript.md`.
 
 The combat suite also expects a dev server. It uses real clicks/holds to verify pursuit, retargeting, attack poses, repeated damage, corpses, hit particles, cancellations, door clicks, respawn and regeneration. Pure ECS/AI tests cover skeleton hostility, goblin cover/flight/projectiles, kobold flanking, shared movement/doors, and bounded effect lifetimes. The floor-movement suite hides and freezes enemies to isolate floor selection; the full-route autopilot keeps AI active but grants the test player immunity during landmark traversal. Damage and death are checked separately.
 
@@ -245,6 +259,15 @@ npm run profile
 The profiler requires a running dev server and a graphical desktop. It opens Chromium on the local GPU, samples ten areas at 1920 × 1080, captures all four camera orientations and a grayscale view, and checks that the Inspector opens and closes. The portrait check also expects a dev server and captures four head-on paintings to verify that their GPU-rendered appearances differ. See `VERIFICATION.md` for the recorded results.
 
 The opt-in `?debug` query exposes a small `window.__dungeon` harness **only in development builds**. Tests use the same movement, collision, and interaction functions as normal play, advancing fixed simulation steps to make full-route checks deterministic.
+
+## Planning documents
+
+Design roadmaps live in [`docs/`](docs/README.md):
+
+- [Procedural content improvement plan](docs/procedural-content-improvement-plan.md) — shared keep identities, scene recipes, memorable inhabitants, discoveries, adventure structure, and generator review tools.
+- [Dungeon demo plan](docs/dungeon-demo-plan.md) — demo goals, art direction, architecture, and milestones.
+- [4e incorporation plan](docs/4e-incorporation-plan.md) — tactical abilities, encounters, exploration systems, and rewards.
+- [Monster roster plan](docs/monster-roster-plan.md) — creature catalog, faction/squad behavior, and implementation waves.
 
 ## Demo scope
 

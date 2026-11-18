@@ -1,12 +1,12 @@
 # Procedural Voxel Dungeon — Implementation Plan
 
-> Implementation: **The Hollow Crown**, playable in this directory. See `README.md` for controls and run instructions, and `VERIFICATION.md` for acceptance results. The implementation decisions recorded below supersede the initial prototype choices where noted.
+> Implementation: **The Hollow Crown**, playable from the repository root. See the [project README](../README.md) for controls and run instructions, and [VERIFICATION.md](../VERIFICATION.md) for acceptance results. The implementation decisions recorded below supersede the initial prototype choices where noted.
 
 ### Combat / ECS extension
 
 The demo now uses a typed, indexed entity/component registry for characters, generated world objects, render batches, projectiles, and hit particles. Player and enemies share movement, pathfinding, door capabilities, attack timing, damage/death, collision adapters, and rig animation; input and AI provide intents. Generated data is registered by reference so navigation and interaction state remain consistent.
 
-Seed 8 wandering skeletons, 4 cover-seeking ranged goblins, and 3 packs of 3 flanking kobolds. Skeletons attack living species; goblins evade the player and other species; kobolds share alerts and approach distinct target slots. Preserve corpses and use bounded procedural blood/bone-dust effects. Enemy click/hold locks pursuit and repeats melee strikes until death; floor/WASD/Space and modal transitions cancel the command. Clicking an unlocked door approaches and opens it; capable actors can also open doors during pursuit. Locks remain progression-controlled.
+Seed 8 wandering skeletons, 4 cover-seeking ranged goblins, and 3 packs of 3 flanking kobolds. Skeletons attack living species; goblins evade the player and other species; kobolds share alerts and approach distinct target slots. Preserve corpses and use bounded procedural blood/bone-dust effects. Enemy click/hold locks pursuit and repeats melee strikes until death; floor/WASD/X and modal transitions cancel the command. Clicking an unlocked door approaches and opens it; capable actors can also open doors during pursuit. Locks remain progression-controlled.
 
 ## 1. Demo goal
 
@@ -157,7 +157,8 @@ Decoration placement respects reserved routes, stair landings, door swing space,
 
 - **WASD / arrow keys:** camera-relative movement.
 - **Left-click the floor:** follow a clearance-checked tile route to the destination ring. Hold left mouse to steer continuously; keyboard movement takes priority. Closed doors and lava block automatic routes.
-- **Space:** cancel click travel and ease to a stop.
+- **Space:** jump while preserving movement and click travel.
+- **X:** cancel click travel and attacks, easing movement to a stop.
 - **E:** interact with the closest valid object in range and line of sight.
 - **Shift:** move faster.
 - Normal travel is 4.8 units/second; running is 7.4. Use short frame-rate-independent acceleration/deceleration and arrival braking, with immediate intent reset on pause, inspection, focus loss, and regeneration.
@@ -292,7 +293,7 @@ Implement **one polished, code-generated Babylon.js room containing the player, 
 - [x] HUD, explored-room map, pause menu, shareable seeds, regeneration, quality presets, and development Inspector.
 - [x] 100-seed generation validation, complete playthrough checks on three seeds in both target browsers, production-build smoke testing, and resource-lifecycle checks.
 - [x] Themed workspaces, two animated lizard steeds, and seeded shader-generated royal portraits.
-- [x] Filtered shadow/lighting edges and verified character shadow casting and colored-light response. Current performance and visual-review results are recorded in `VERIFICATION.md`.
+- [x] Filtered shadow/lighting edges and verified character shadow casting and colored-light response. Current performance and visual-review results are recorded in [VERIFICATION.md](../VERIFICATION.md).
 
 ## Technical references
 

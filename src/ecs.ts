@@ -1,12 +1,13 @@
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Navigator } from './navigation.ts';
-import type { Locomotion } from './locomotion.ts';
+import type { Locomotion, LocomotionPose } from './locomotion.ts';
 import type { Attack } from './machines/actors/attack.ts';
 import type { Health } from './machines/actors/health.ts';
 import type { MonsterBehavior, BrainState } from './machines/monsters/index.ts';
 import type { SocialGroup } from './social.ts';
 import type { BodySize } from './occupancy.ts';
+import type { Jump } from './jump.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
 import type {
   DoorEntity,
@@ -32,7 +33,10 @@ export interface Components {
     animation: Locomotion;
     actualSpeed: number;
     wantsMovement: boolean;
+    velocity: Point;
+    acceleration: Point;
   };
+  jump: Jump;
   navigation: Navigator;
   attack: Attack;
   brain: {
@@ -57,10 +61,16 @@ export interface Components {
     root: TransformNode;
     body: TransformNode;
     arms: TransformNode[];
+    forearms: TransformNode[];
     legs: TransformNode[];
+    knees: TransformNode[];
+    feet: TransformNode[];
+    footPlants: { anchor: Spawn | null }[];
     cape?: TransformNode;
     attackBlend: number;
-    attackTime: number;
+    attackPose: LocomotionPose | null;
+    socialBlend: number;
+    socialPose: LocomotionPose | null;
     equipment?: AbstractMesh[];
   };
   tile: Tile;

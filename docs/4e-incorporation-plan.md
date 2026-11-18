@@ -4,9 +4,9 @@
 
 Adapt 4e's **tactical choices, power structure, and exploration rewards** to the existing solo, real-time dungeon crawler. The best first expansion is a small martial ability kit with recovery, crowd control, and positional attacks. Follow that with budgeted, terrain-aware encounters, one interactive trap, and meaningful reliquary rewards.
 
-References are the June 2008 first-printing **Dungeons & Dragons 4th Edition Player's Handbook** (PHB), `ref/4e.pdf`, and **Dungeon Master's Guide** (DMG), `ref/dmg.pdf`. Unqualified page references refer to the PHB; DMG references are labeled explicitly. All references use printed book pages. The proposed names, timings, numerical tuning, encounter compositions, and real-time conversions are design suggestions for this game.
+References are the June 2008 first-printing **Dungeons & Dragons 4th Edition Player's Handbook** (PHB), [local reference](../ref/4e.pdf), and **Dungeon Master's Guide** (DMG), [local reference](../ref/dmg.pdf). Unqualified page references refer to the PHB; DMG references are labeled explicitly. All references use printed book pages. The proposed names, timings, numerical tuning, encounter compositions, and real-time conversions are design suggestions for this game.
 
-The companion [low-level monster roster](monster-roster-plan.md) draws from `ref/Monster Manual.pdf`: **16 selected types at book levels 1–5**, with a first implementation milestone of 12 playable types. It records source pages, real-time adaptations, room assignments, factions, and low-to-high-effort implementation waves.
+The companion [low-level monster roster](monster-roster-plan.md) draws from the [local Monster Manual](../ref/Monster%20Manual.pdf): **16 selected types at book levels 1–5**, with a first implementation milestone of 12 playable types. It records source pages, real-time adaptations, room assignments, factions, and low-to-high-effort implementation waves.
 
 Its [raider squad behavior](monster-roster-plan.md#raider-squad-behavior-goblins-forward-hobgoblins-behind) specifies the goblin–hobgoblin relationship: hobgoblins order healthy goblins into melee and throw projectiles from behind them; bloodied goblins retreat and shoot; once the goblin front line has retreated or fallen, hobgoblins advance into melee. This coordination belongs with the initial faction/monster expansion and uses ordinary AI orders alongside the cooldown-based power system.
 
@@ -167,7 +167,7 @@ First abilities:
 | Hamstring, after item 9 | Catch a retreating archer or disengage from a pursuer | Steel Serpent Strike, p. 78 |
 | Shield Drive, after item 10 | Move an enemy out of cover or toward a hazard | Tide of Iron, p. 77 |
 
-**Implementation:** introduce `src/abilities.ts` for definitions/resolution and ability state in `src/ecs.ts`; connect input, AI, animation, and HUD to that shared path. Add per-ability timers alongside the existing shared attack cooldown. Ability recharge is independent of item 8. Keys `1–4` are available; `Q/R` already rotate the camera and Space cancels movement/attacks.
+**Implementation:** introduce `src/abilities.ts` for definitions/resolution and ability state in `src/ecs.ts`; connect input, AI, animation, and HUD to that shared path. Add per-ability timers alongside the existing shared attack cooldown. Ability recharge is independent of item 8. Keys `1–4` are available; `Q/R` already rotate the camera, Space jumps, and X cancels movement/attacks.
 
 **Real-time translation:** use the cooldown mapping above, with 60 seconds as the encounter-power baseline. Each ability should create a different decision about timing, target, or position. Strong powers should be worth using when available, while the repeatable kit keeps the player active between cooldowns.
 

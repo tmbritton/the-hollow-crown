@@ -308,7 +308,7 @@ try {
     'Target lock follows a moving enemy rather than steering toward the original cursor position',
   );
 
-  for (const action of ['Space', 'KeyW', 'floor', 'pause', 'blur'] as const) {
+  for (const action of ['KeyX', 'KeyW', 'floor', 'pause', 'blur'] as const) {
     const id = await fixture('skeleton', 1.3);
     await clickEnemy(id);
     await step(4);
@@ -332,7 +332,7 @@ try {
     assert.equal(cancelled.target, null, action);
     assert.equal(cancelled.health, 48, action);
   }
-  pass('Floor commands, WASD, Space, pause and focus loss cancel pursuit and unresolved attacks');
+  pass('Floor commands, WASD, X, pause and focus loss cancel pursuit and unresolved attacks');
 
   await fixture('skeleton', 1000);
   const door = await page.evaluate(() => {

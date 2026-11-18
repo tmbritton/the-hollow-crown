@@ -4,7 +4,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { part } from './geometry.ts';
 import { tileAt, heightAt } from './world.ts';
 import { createActor, moveActor, stopActor, teleportActor } from './actors.ts';
-import { bindActorCollision } from './actorRendering.ts';
+import { bindActorCollision, resetActorRig } from './actorRendering.ts';
 import type { ECS } from './ecs.ts';
 import { MOVEMENT_KEYS, RUN_SPEED, WALK_SPEED } from './locomotion.ts';
 import type { Scene } from '@babylonjs/core/scene';
@@ -30,6 +30,7 @@ export function createPlayer(
   root.position.set(spawn.x, spawn.h, spawn.z);
   const body = new TransformNode('body', scene);
   body.parent = root;
+  body.setPivotPoint(new Vector3(0, 0.55, 0));
   const p = (mat: MaterialName, name: string, size: Triple, pos: Triple, parent = body) =>
     part(scene, materials[mat], name, size, pos, parent, shadow);
   p('dark', 'robe', [0.68, 0.73, 0.43], [0, 0.93, 0]);
@@ -48,26 +49,44 @@ export function createPlayer(
     p('gold', 'shoulder trim', [0.31, 0.07, 0.5], [x, 1.4, 0]);
   }
   const arms: TransformNode[] = [],
-    legs: TransformNode[] = [];
+    forearms: TransformNode[] = [],
+    legs: TransformNode[] = [],
+    knees: TransformNode[] = [],
+    feet: TransformNode[] = [];
   for (const sign of [-1, 1]) {
     const arm = new TransformNode('arm', scene);
     arm.parent = body;
     arm.position.set(sign * 0.48, 1.18, 0);
-    p('dark', 'sleeve', [0.21, 0.4, 0.26], [0, -0.18, 0], arm);
-    p('skin', 'glove', [0.23, 0.23, 0.27], [0, -0.46, 0], arm);
+    p('dark', 'sleeve', [0.21, 0.3, 0.26], [0, -0.14, 0], arm);
+    const forearm = new TransformNode('forearm', scene);
+    forearm.parent = arm;
+    forearm.position.y = -0.28;
+    p('skin', 'glove', [0.23, 0.29, 0.27], [0, -0.15, 0], forearm);
     arms.push(arm);
+    forearms.push(forearm);
     const leg = new TransformNode('leg', scene);
     leg.parent = root;
-    leg.position.set(sign * 0.2, 0.5, 0);
-    p('dark', 'boot', [0.28, 0.42, 0.4], [0, -0.24, 0.06], leg);
-    p('iron', 'greave', [0.29, 0.23, 0.13], [0, -0.13, 0.23], leg);
+    leg.position.set(sign * 0.2, 0.55, 0);
+    p('dark', 'thigh', [0.24, 0.25, 0.26], [0, -0.125, 0], leg);
+    const knee = new TransformNode('knee', scene);
+    knee.parent = leg;
+    knee.position.y = -0.25;
+    p('dark', 'shin', [0.23, 0.25, 0.24], [0, -0.125, 0], knee);
+    p('iron', 'greave', [0.25, 0.23, 0.1], [0, -0.125, 0.15], knee);
+    const foot = new TransformNode('foot', scene);
+    foot.parent = knee;
+    foot.position.y = -0.25;
+    p('dark', 'boot', [0.28, 0.14, 0.4], [0, 0.02, 0.06], foot);
     legs.push(leg);
+    knees.push(knee);
+    feet.push(foot);
   }
-  const shield = p('iron', 'shield', [0.14, 0.7, 0.55], [-0.17, -0.3, 0.07], arms[0]);
-  p('gold', 'shield boss', [0.08, 0.17, 0.17], [-0.27, -0.3, 0.07], arms[0]);
-  p('iron', 'sword blade', [0.12, 0.83, 0.055], [0, -0.78, 0.14], arms[1]);
-  p('gold', 'sword guard', [0.33, 0.08, 0.12], [0, -0.39, 0.14], arms[1]);
+  const shield = p('iron', 'shield', [0.14, 0.7, 0.55], [-0.17, -0.02, 0.07], forearms[0]);
+  p('gold', 'shield boss', [0.08, 0.17, 0.17], [-0.27, -0.02, 0.07], forearms[0]);
+  p('iron', 'sword blade', [0.12, 0.83, 0.055], [0, -0.5, 0.14], forearms[1]);
+  p('gold', 'sword guard', [0.33, 0.08, 0.12], [0, -0.11, 0.14], forearms[1]);
   const cape = p('cloth', 'cape', [0.71, 0.91, 0.12], [0, 0.91, -0.31]);
+  cape.setPivotPoint(new Vector3(0, 0.455, 0));
   cape.rotation.x = -0.16;
   shield.enableEdgesRendering();
   const proxy = bindActorCollision(actor, scene, world);
@@ -96,6 +115,7 @@ export function createPlayer(
   }
   const teleport = (x: number, z: number, world: World) => {
     teleportActor(actor, world, { x, z });
+    resetActorRig(actor.entity.require('rig'));
     destinationMarker.setEnabled(false);
     const position = actor.position;
     root.position.set(position.x, position.h, position.z);
@@ -110,7 +130,10 @@ export function createPlayer(
     navigator,
     motion,
     arms,
+    forearms,
     legs,
+    knees,
+    feet,
     cape,
     shadowMeshes,
     teleport,
@@ -129,7 +152,21 @@ export function createPlayer(
     },
   };
   actor.entity.add('render', { root, meshes: shadowMeshes });
-  actor.entity.add('rig', { root, body, arms, legs, cape, attackBlend: 0, attackTime: 0 });
+  actor.entity.add('rig', {
+    root,
+    body,
+    arms,
+    forearms,
+    legs,
+    knees,
+    feet,
+    footPlants: [{ anchor: null }, { anchor: null }],
+    cape,
+    attackBlend: 0,
+    attackPose: null,
+    socialBlend: 0,
+    socialPose: null,
+  });
   root.rotation.y = player.heading;
   return player;
 }
@@ -139,12 +176,8 @@ export function stopPlayer(player: Player): void {
   stopActor(player.actor);
   player.destinationMarker.setEnabled(false);
   player.moving = false;
-  player.body.rotation.x = 0;
-  player.body.rotation.y = 0;
-  player.body.position.y = 0;
-  for (const limb of [...player.arms, ...player.legs]) limb.rotation.x = 0;
-  player.cape.rotation.x = -0.16;
-  player.actor.entity.require('rig').attackBlend = 0;
+  resetActorRig(player.actor.entity.require('rig'));
+  player.root.position.y = player.actor.position.h;
 }
 
 export function movePlayer(

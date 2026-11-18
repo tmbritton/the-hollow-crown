@@ -62,12 +62,17 @@ try {
       const g = window.__dungeon.game;
       return members.map((id) => {
         const actor = g.combat.actor(id)!;
+        const rig = actor.entity.require('rig');
         return {
           state: actor.brain!.state,
           x: actor.position.x,
           z: actor.position.z,
           home: actor.brain!.home,
           equipment: actor.entity.require('rig').equipment!.some((mesh) => mesh.isEnabled()),
+          soles: rig.feet.map((foot) => {
+            foot.computeWorldMatrix(true);
+            return foot.getAbsolutePosition().y - 0.05 * rig.root.scaling.y - actor.position.h;
+          }),
         };
       });
     }, fixture.group.members);
@@ -78,6 +83,11 @@ try {
     assert.ok(
       resting.every((actor) => Math.hypot(actor.x - actor.home.x, actor.z - actor.home.z) < 0.2),
     );
+    if (activity !== 'hackysack')
+      assert.ok(
+        resting.every((actor) => actor.soles.every((height) => Math.abs(height) < 0.04)),
+        'relaxed and seated feet stay on the floor',
+      );
     if (activity === 'hackysack') {
       const positions = await page.evaluate((id) => {
         const d = window.__dungeon,

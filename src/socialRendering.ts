@@ -7,6 +7,7 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { SocialGroup } from './social.ts';
 import { part } from './geometry.ts';
 import { hackySackPass, isSocializing } from './social.ts';
+import { sampleCurve, volumeScale } from './animationCurves.ts';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 /** Shared props remain after an interrupted game; hand props and smoke follow activity. */
@@ -21,13 +22,13 @@ export function createSocialRendering(
     participants.map((actor) => [actor.brain!.social!.id, actor.brain!.social!]),
   );
   const held = participants.map((actor) => {
-    const hand = actor.entity.require('rig').arms[1];
+    const hand = actor.entity.require('rig').forearms[1];
     const card = part(
       scene,
       materials.bone,
       `${actor.id}:held card`,
       [0.17, 0.025, 0.24],
-      [0, -0.45, 0.1],
+      [0, -0.17, 0.1],
       hand,
       shadow,
     );
@@ -36,7 +37,7 @@ export function createSocialRendering(
       materials.wood,
       `${actor.id}:pipe`,
       [0.22, 0.045, 0.045],
-      [-0.08, -0.45, 0.16],
+      [-0.08, -0.17, 0.16],
       hand,
       shadow,
     );
@@ -45,7 +46,7 @@ export function createSocialRendering(
       materials.eyes,
       `${actor.id}:pipe ember`,
       [0.055, 0.05, 0.055],
-      [-0.18, -0.43, 0.16],
+      [-0.18, -0.15, 0.16],
       hand,
     );
     return { actor, card, pipe, ember };
@@ -132,6 +133,7 @@ export function createSocialRendering(
         const pass = hackySackPass(group, combat.ecs, combat.time);
         if (!pass) {
           mesh.position.y = group.center.h + 0.1;
+          mesh.scaling.setAll(1);
           continue;
         }
         const from = combat.actor(pass.from)!.position;
@@ -139,10 +141,24 @@ export function createSocialRendering(
         const u = pass.progress;
         mesh.position.set(
           from.x * (1 - u) + to.x * u + (group.center.x - (from.x * (1 - u) + to.x * u)) * 0.2,
-          group.center.h + 0.15 + Math.sin(u * Math.PI) * 0.85,
+          group.center.h + 0.15 + 4 * u * (1 - u) * 0.85,
           from.z * (1 - u) + to.z * u + (group.center.z - (from.z * (1 - u) + to.z * u)) * 0.2,
         );
-        mesh.rotation.x = combat.time * 5;
+        // Stretch along the parabolic flight tangent, rather than a spinning local axis.
+        const dx = (to.x - from.x) * 0.8,
+          dz = (to.z - from.z) * 0.8;
+        mesh.rotation.y = Math.atan2(dx, dz);
+        mesh.rotation.x = Math.atan2(Math.hypot(dx, dz), 3.4 * (1 - 2 * u));
+        const stretch = sampleCurve(u, [
+          [0, 0.78],
+          [0.08, 1.18],
+          [0.3, 1],
+          [0.75, 1],
+          [0.93, 1.12],
+          [1, 0.78],
+        ]);
+        const scale = volumeScale(stretch, 1 / Math.sqrt(stretch));
+        mesh.scaling.set(scale.x, scale.y, scale.z);
       }
     },
   };

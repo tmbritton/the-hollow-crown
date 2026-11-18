@@ -8,6 +8,7 @@ import { Attack } from './machines/actors/attack.ts';
 import { createMonsterBehavior } from './machines/monsters/index.ts';
 import { Health } from './machines/actors/health.ts';
 import { Occupancy } from './occupancy.ts';
+import { Jump } from './jump.ts';
 
 /** A checked view over components, not a second copy of actor state. */
 export class Actor {
@@ -32,6 +33,12 @@ export class Actor {
   }
   get navigator() {
     return this.entity.require('navigation');
+  }
+  get jump() {
+    return this.entity.require('jump');
+  }
+  get elevation() {
+    return this.position.h + this.jump.height;
   }
   get attack() {
     return this.entity.require('attack');
@@ -98,7 +105,10 @@ export function createActor(
         animation: createLocomotion(),
         actualSpeed: 0,
         wantsMovement: false,
+        velocity: { x: 0, z: 0 },
+        acceleration: { x: 0, z: 0 },
       })
+      .add('jump', new Jump())
       .add('navigation', new Navigator(world, occupancy))
       .add('attack', new Attack()),
   );
@@ -108,13 +118,24 @@ export function cancelAttack(actor: Actor): void {
   actor.attack.cancel();
 }
 
+export function requestJump(actor: Actor): boolean {
+  if (!actor.alive || !actor.jump.request()) return false;
+  // Preserve pursuit and floor commands, but do not resolve an interrupted sword strike.
+  actor.attack.interrupt();
+  return true;
+}
+
 export function stopActor(actor: Actor, cancelCombat = true): void {
   actor.navigator.cancel();
   actor.motion.speed = 0;
   actor.motion.actualSpeed = 0;
   actor.motion.wantsMovement = false;
   actor.motion.direction = { x: 0, z: 0 };
+  actor.motion.velocity = { x: 0, z: 0 };
+  actor.motion.acceleration = { x: 0, z: 0 };
   actor.motion.animation = createLocomotion();
+  actor.entity.add('jump', new Jump());
+  actor.entity.get('collision')?.sync?.(actor.position);
   if (cancelCombat) cancelAttack(actor);
   actor.attack.releaseInteraction();
 }
@@ -146,9 +167,18 @@ export function moveActor(
 ): void {
   const p = actor.position,
     motion = actor.motion;
+  const sampleVelocity = (x: number, z: number) => {
+    motion.acceleration = { x: (x - motion.velocity.x) / dt, z: (z - motion.velocity.z) / dt };
+    motion.velocity = { x, z };
+    motion.actualSpeed = Math.hypot(x, z);
+    if (motion.actualSpeed > 0.08) p.heading = Math.atan2(x, z);
+  };
   if (!actor.alive || intent.locked) {
     motion.speed = motion.actualSpeed = 0;
     motion.wantsMovement = false;
+    sampleVelocity(0, 0);
+    if (actor.alive) actor.jump.advance(dt);
+    actor.entity.get('collision')?.sync?.(p);
     return;
   }
   const navigating = actor.navigator.active;
@@ -160,11 +190,11 @@ export function moveActor(
   motion.wantsMovement = length > 1e-5;
   if (length > 1e-5) {
     motion.direction = { x: direction.x / length, z: direction.z / length };
-    p.heading = Math.atan2(direction.x, direction.z);
   }
   if (navigating && !steering) motion.speed = 0;
   const slowed =
-    tileAt(world, p.x, p.z)?.surface === 'water' || actor.navigator.occupancy?.slowedAt(p);
+    !actor.jump.airborne &&
+    (tileAt(world, p.x, p.z)?.surface === 'water' || actor.navigator.occupancy?.slowedAt(p));
   const speed = (intent.speed ?? actor.entity.require('actor').speed) * (slowed ? 0.52 : 1);
   const desired = length > 1e-5 ? Math.min(speed, steering ? steering.remaining * 9 : Infinity) : 0;
   motion.speed = easeSpeed(motion.speed, desired, dt);
@@ -186,9 +216,11 @@ export function moveActor(
     ? actor.navigator.occupancy.move(p, displacement, terrainMove)
     : terrainMove(p, displacement);
   const moved = Math.hypot(next.x - p.x, next.z - p.z);
+  sampleVelocity((next.x - p.x) / dt, (next.z - p.z) / dt);
+  const ground = heightAt(world, next.x, next.z) ?? p.h;
+  actor.jump.advance(dt, ground - p.h);
   Object.assign(p, { x: next.x, z: next.z, h: heightAt(world, next.x, next.z) ?? p.h });
   collision?.sync?.(p);
-  motion.actualSpeed = moved / dt;
   if (travel > 0.001 && moved < travel * 0.05) motion.speed = 0;
   if (!actor.navigator.waitingForDoor) actor.navigator.recordProgress(moved, dt);
   if (steering?.final && Math.hypot(p.x - steering.point.x, p.z - steering.point.z) < 0.015) {

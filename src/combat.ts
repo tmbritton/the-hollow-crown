@@ -182,12 +182,19 @@ export class CombatSystem {
   inMelee(actor: Actor, target: Actor): boolean {
     return (
       distance(actor.position, target.position) <= MELEE_RANGE &&
+      Math.abs(actor.elevation - target.elevation) < 0.9 &&
       clearSight(this.world, actor.position, target.position)
     );
   }
 
   startAttack(actor: Actor, target: Actor, ranged = false): boolean {
-    if (!actor.alive || !target.alive || actor.attack.swing || actor.attack.cooldown > 0)
+    if (
+      !actor.alive ||
+      !target.alive ||
+      actor.jump.active ||
+      actor.attack.swing ||
+      actor.attack.cooldown > 0
+    )
       return false;
     if (
       ranged
@@ -229,6 +236,7 @@ export class CombatSystem {
       }
       return !!actor.attack.swing;
     }
+    if (actor.jump.active) return false;
     if (actor.attack.swing) return true;
     if (this.inMelee(actor, target)) {
       actor.navigator.cancel();
@@ -519,7 +527,7 @@ export class CombatSystem {
       const duration = kind === 'dust' ? 0.65 + this.random() * 0.4 : 0.4 + this.random() * 0.3;
       this.ecs
         .create()
-        .add('transform', { ...target.position, h: target.position.h + 1 })
+        .add('transform', { ...target.position, h: target.elevation + 1 })
         .add('particle', {
           kind,
           vx: (dx / length) * 2 + (this.random() - 0.5) * 3.5,
@@ -536,11 +544,11 @@ export class CombatSystem {
     if (this.ecs.query('projectile').length >= 32) return;
     const dx = target.position.x - actor.position.x,
       dz = target.position.z - actor.position.z;
-    const dy = target.position.h - actor.position.h,
+    const dy = target.elevation - actor.elevation,
       length = Math.max(0.1, Math.hypot(dx, dy, dz));
     this.ecs
       .create()
-      .add('transform', { ...actor.position, h: actor.position.h + 0.85 })
+      .add('transform', { ...actor.position, h: actor.elevation + 0.85 })
       .add('projectile', {
         owner: actor.id,
         vx: (dx / length) * 10,
@@ -655,7 +663,7 @@ export class CombatSystem {
           (a) =>
             hostile(owner, a) &&
             distance(a.position, p) < 0.48 &&
-            Math.abs(a.position.h + 0.85 - p.h) < 0.75,
+            Math.abs(a.elevation + 0.85 - p.h) < 0.75,
         );
         if (target) {
           this.damage(target, shot.damage, owner);

@@ -4,7 +4,7 @@
 
 Build toward **16 monster types**, retaining the existing skeleton, ranged goblin, and pack-fighting kobold and adding **13 types**. The first implementation milestone for roster breadth is **12 playable types**; the final four add more specialized behavior.
 
-Source: **Dungeons & Dragons 4th Edition Monster Manual**, first printing, June 2008, `ref/Monster Manual.pdf`. The level index on printed p. 284 provides the low-level shortlist; the selections below were checked against their individual statistics and tactics. All page references are printed book pages.
+Source: **Dungeons & Dragons 4th Edition Monster Manual**, first printing, June 2008, [local reference](../ref/Monster%20Manual.pdf). The level index on printed p. 284 provides the low-level shortlist; the selections below were checked against their individual statistics and tactics. All page references are printed book pages.
 
 Interpret “fairly low-level” as **levels 1–5**, with level 1–3 creatures providing most regular opposition and level 4–5 creatures appearing as later threats or room champions. Book levels and roles describe the source entries. Health, damage, attack timing, control durations, and population sizes need tuning for this game's single real-time hero.
 
@@ -74,7 +74,7 @@ Follow the recharge distinctions on Monster Manual p. 7:
 | Event-recharged powers | Keep the relevant event, bounded by the actor's action timers; for example, Vanish enables the imp's next sting. |
 | First-bloodied transformations | Preserve the one-time threshold trigger. A cooldown expiring does not create a second “first bloodied” event or let split offspring reproduce indefinitely. |
 
-Start powers ready when enemies become available for combat, then require valid target selection and a wind-up. Stagger decisions and openings so a group does not discharge every special attack simultaneously. Timers use simulation time and freeze when gameplay pauses, as described in `4e-incorporation-plan.md`.
+Start powers ready when enemies become available for combat, then require valid target selection and a wind-up. Stagger decisions and openings so a group does not discharge every special attack simultaneously. Timers use simulation time and freeze when gameplay pauses, as described in the [4e incorporation plan](4e-incorporation-plan.md).
 
 For a single low-level hero:
 

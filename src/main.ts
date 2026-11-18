@@ -24,7 +24,7 @@ import { pickGround } from './navigation.ts';
 import { MOVEMENT_KEYS } from './locomotion.ts';
 import { ECS } from './ecs.ts';
 import { CombatSystem, seedEnemies } from './combat.ts';
-import { cancelAttack } from './actors.ts';
+import { cancelAttack, requestJump } from './actors.ts';
 import { animateActors } from './actorRendering.ts';
 import { createEnemyRendering } from './enemyRendering.ts';
 import { registerWorld, registerDungeonRendering, updateDoors } from './worldEntities.ts';
@@ -60,6 +60,7 @@ const gameKeys = new Set([
   'ShiftLeft',
   'ShiftRight',
   'Space',
+  'KeyX',
 ]);
 const editingText = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -336,7 +337,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     loading.classList.add('done');
     canvas.focus();
     ui.toast(
-      'Click an enemy to pursue and attack. Click doors to open. WASD / Space cancels.',
+      'Click an enemy to pursue and attack. Space jumps. X cancels travel and attacks.',
       6500,
     );
   });
@@ -465,6 +466,9 @@ function tick(dt: number): void {
   game.playTime += dt;
   game.steps++;
   const healthBefore = game.player.health;
+  const jump = game.player.actor.jump;
+  if (keys.has('Space') && !jump.held) requestJump(game.player.actor);
+  jump.held = keys.has('Space');
   if ([...MOVEMENT_KEYS].some((key) => keys.has(key))) {
     cancelAttack(game.player.actor);
   }
@@ -472,11 +476,11 @@ function tick(dt: number): void {
   const locked = game.combat.pursue(game.player.actor, dt);
   const tile = movePlayer(game.player, game.world, keys, game.camera, dt, locked);
   game.combat.update(dt);
-  animateActors(game.ecs, dt, game.time);
+  animateActors(game.ecs, dt, game.time, game.world);
   game.enemyRendering.update();
   if (tile?.room) ui.room(game.world.roomById[tile.room]);
   game.damageCooldown -= dt;
-  if (tile?.surface === 'lava' && game.damageCooldown <= 0) {
+  if (tile?.surface === 'lava' && !game.player.actor.jump.airborne && game.damageCooldown <= 0) {
     game.combat.damage(game.player.actor, 18);
     game.damageCooldown = 0.6;
   }
@@ -507,7 +511,8 @@ function renderUpdate(dt: number): void {
   else {
     camera.alpha += (game.desiredAlpha - camera.alpha) * (1 - Math.exp(-7 * dt));
     camera.radius += (game.desiredRadius - camera.radius) * (1 - Math.exp(-8 * dt));
-    const target = player.root.position.add(new Vector3(0, 0.75, 0));
+    const p = player.actor.position;
+    const target = new Vector3(p.x, p.h + 0.75, p.z);
     Vector3.LerpToRef(camera.target, target, 1 - Math.exp(-7 * dt), camera.target);
   }
   sun.position.copyFrom(player.root.position).addInPlace(new Vector3(14, 20, 8));
@@ -645,7 +650,7 @@ window.addEventListener('keydown', (event) => {
       cancelAttack(game.player.actor);
     }
   }
-  if (event.code === 'Space') {
+  if (event.code === 'KeyX') {
     keys.clear();
     pointer.send({ type: 'CANCEL' });
     game?.player.navigator.cancel();
@@ -656,6 +661,7 @@ window.addEventListener('keydown', (event) => {
   }
   keys.add(event.code);
   if (event.repeat || !game) return;
+  if (event.code === 'Space') requestJump(game.player.actor);
   if (event.code === 'KeyE') interact();
   if (event.code === 'KeyQ') game.desiredAlpha -= Math.PI / 2;
   if (event.code === 'KeyR') game.desiredAlpha += Math.PI / 2;

@@ -2,6 +2,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Ray } from '@babylonjs/core/Culling/ray';
@@ -27,6 +28,7 @@ export function createEnemyRendering(
     const root = new TransformNode(actor.id, scene),
       body = new TransformNode(`${actor.id}:body`, scene);
     body.parent = root;
+    body.setPivotPoint(new Vector3(0, 0.55, 0));
     root.position.set(actor.position.x, actor.position.h, actor.position.z);
     const skeleton = actor.kind === 'skeleton',
       goblin = actor.kind === 'goblin';
@@ -58,40 +60,71 @@ export function createEnemyRendering(
       }
     }
     const arms: TransformNode[] = [],
-      legs: TransformNode[] = [];
+      forearms: TransformNode[] = [],
+      legs: TransformNode[] = [],
+      knees: TransformNode[] = [],
+      feet: TransformNode[] = [];
     for (const sign of [-1, 1]) {
       const arm = new TransformNode(`${actor.id}:arm`, scene);
       arm.parent = body;
       arm.position.set(sign * (skeleton ? 0.35 : 0.37), skeleton ? 1.22 : 1.02, 0);
-      p(skin, 'arm', [skeleton ? 0.12 : 0.18, 0.55, 0.18], [0, -0.25, 0], arm);
+      p(skin, 'arm', [skeleton ? 0.12 : 0.18, 0.3, 0.18], [0, -0.13, 0], arm);
+      const forearm = new TransformNode(`${actor.id}:forearm`, scene);
+      forearm.parent = arm;
+      forearm.position.y = -0.28;
+      p(skin, 'forearm', [skeleton ? 0.1 : 0.16, 0.27, 0.17], [0, -0.12, 0], forearm);
       arms.push(arm);
+      forearms.push(forearm);
       const leg = new TransformNode(`${actor.id}:leg`, scene);
       leg.parent = root;
       leg.position.set(sign * 0.18, 0.55, 0);
-      p(skin, 'shin', [skeleton ? 0.12 : 0.19, 0.45, 0.19], [0, -0.22, 0], leg);
-      p(skeleton ? 'bone' : 'wood', 'foot', [0.22, 0.13, 0.34], [0, -0.48, 0.08], leg);
+      p(skin, 'thigh', [skeleton ? 0.12 : 0.19, 0.25, 0.19], [0, -0.125, 0], leg);
+      const knee = new TransformNode(`${actor.id}:knee`, scene);
+      knee.parent = leg;
+      knee.position.y = -0.25;
+      p(skin, 'shin', [skeleton ? 0.12 : 0.19, 0.25, 0.19], [0, -0.125, 0], knee);
+      const foot = new TransformNode(`${actor.id}:foot`, scene);
+      foot.parent = knee;
+      foot.position.y = -0.25;
+      p(skeleton ? 'bone' : 'wood', 'foot', [0.22, 0.14, 0.34], [0, 0.02, 0.08], foot);
       legs.push(leg);
+      knees.push(knee);
+      feet.push(foot);
     }
     const equipment = [];
     if (goblin) {
-      equipment.push(p('wood', 'crossbow', [0.66, 0.11, 0.15], [0, -0.39, 0.24], arms[1]));
-      equipment.push(p('iron', 'crossbow stock', [0.1, 0.13, 0.5], [0, -0.4, 0.23], arms[1]));
+      equipment.push(p('wood', 'crossbow', [0.66, 0.11, 0.15], [0, -0.11, 0.24], forearms[1]));
+      equipment.push(p('iron', 'crossbow stock', [0.1, 0.13, 0.5], [0, -0.12, 0.23], forearms[1]));
+      // The raised forearm points local -Y forward; keep the muzzle on that firing line.
+      for (const mesh of equipment) mesh.rotation.x = Math.PI / 2;
     } else {
-      equipment.push(p('wood', 'weapon haft', [0.09, 0.7, 0.09], [0, -0.58, 0.12], arms[1]));
+      equipment.push(p('wood', 'weapon haft', [0.09, 0.7, 0.09], [0, -0.3, 0.12], forearms[1]));
       equipment.push(
         p(
           'iron',
           skeleton ? 'rusted blade' : 'spear tip',
           [0.14, skeleton ? 0.55 : 0.32, 0.07],
-          [0, -1.03, 0.12],
-          arms[1],
+          [0, -0.75, 0.12],
+          forearms[1],
         ),
       );
     }
     const meshes = root.getChildMeshes();
-    actor.entity
-      .add('render', { root, meshes })
-      .add('rig', { root, body, arms, legs, equipment, attackBlend: 0, attackTime: 0 });
+    actor.entity.add('render', { root, meshes }).add('rig', {
+      root,
+      body,
+      arms,
+      forearms,
+      legs,
+      knees,
+      feet,
+      footPlants: [{ anchor: null }, { anchor: null }],
+      equipment,
+      attackBlend: 0,
+      attackPose: null,
+      socialBlend: 0,
+      socialPose: null,
+    });
     bindActorCollision(actor, scene, combat.world);
     const pick = MeshBuilder.CreateBox(
       `${actor.id}:selection`,

@@ -207,11 +207,11 @@ try {
   const running = await state();
   assert.ok(walking.speed > 4.6 && running.speed > 7.1 && running.x > walking.x * 1.45);
   await click({ x: 0, z: 3 });
-  await page.keyboard.press('Space');
+  await page.keyboard.press('KeyX');
   await step([], 40);
   assert.equal((await state()).destination, null);
   assert.equal((await state()).speed, 0);
-  pass('Faster walking and Shift-running retain easing; Space cancels travel');
+  pass('Faster walking and Shift-running retain easing; X cancels travel');
 
   const obstacle = await page.evaluate(() => {
     const g = window.__dungeon.game,
