@@ -4,6 +4,30 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Development reports and visual seed gallery — 2026-11-18
+
+- `npm run check`: **108 tests**, type checking, lint and formatting pass.
+- `npm run build` and `npm run test:production`: pass; production retains no debug harness.
+- Test-first `npm run test:generation` initially failed because the report method was absent.
+  It now passes normal-load isolation, browser/Node agreement, detached initial state even
+  after live blueprint changes, and replacement on regeneration.
+- `npm run gallery:generation`: **12 seeds / 48 views**, color/grayscale overviews and five
+  repeated `MOURNING-731` regenerations pass. The five samples each contain **2,100 meshes,
+  28 materials, 4 textures, 48 cached effects and 34 generated shader sources**.
+- Reviewed the overview sheets and individual smithy/altar captures. Increased the fixed
+  radius from 32 to 40 after initial review showed cropped near-side altars. Broad floor
+  paths and room landmarks are now visible in color and grayscale.
+- Cross-engine social placement differs by floating-point roundoff; agreement checks use
+  a `1e-9` position tolerance and exact comparisons for all other report data.
+- Independent review's two findings were fixed: excluded stale FPS/accumulating draw-call
+  counters from manually rendered gallery metadata, and strengthened initial-state coverage.
+- **Broader-suite follow-up:** `npm run test:browser` passed its first eleven checks, then
+  its static keyboard landmark autopilot hit physical collision twice at different route
+  waypoints with live actors. Full-suite completion is not claimed for this update; the
+  traversal driver is the next investigation. Existing full-browser passes below are historical.
+
+Artifacts: `test-results/generation-gallery/{index.html,report.json,overview.png,overview-grayscale.png}`.
+
 ### Generation analysis and seed corpus — 2026-11-18
 
 - `npm run check`: **106 tests**, strict type checking, lint and formatting pass.

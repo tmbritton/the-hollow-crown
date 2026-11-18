@@ -19,6 +19,7 @@ import type { CombatSystem } from './combat.ts';
 import type { EnemyRendering } from './enemyRendering.ts';
 import type { Statechart } from './machines/statechart.ts';
 import type { progressionMachine } from './machines/world/interactions.ts';
+import type { GenerationReport } from './generation/report.ts';
 
 export interface Game {
   scene: Scene;
@@ -80,4 +81,5 @@ export interface DungeonDebug {
   regenerate(seed: string, options?: { pinSeed?: boolean }): void;
   step(codes: string[], frames?: number): void;
   snapshot(): Snapshot;
+  generationReport(): GenerationReport;
 }

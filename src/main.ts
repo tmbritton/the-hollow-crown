@@ -16,7 +16,9 @@ import { FxaaPostProcess } from '@babylonjs/core/PostProcesses/fxaaPostProcess';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Layers/effectLayerSceneComponent';
 import { CustomMaterial } from '@babylonjs/materials/custom/customMaterial';
-import { generateDungeon, validateDungeon, tileAt, heightAt } from './world.ts';
+import { generateDungeonWithReport, validateDungeon, tileAt, heightAt } from './world.ts';
+import { createGenerationReport } from './generation/report.ts';
+import type { GenerationReport } from './generation/report.ts';
 import { createMaterials } from './materials.ts';
 import { buildDungeon } from './buildDungeon.ts';
 import { createPlayer, movePlayer, stopPlayer } from './player.ts';
@@ -66,6 +68,7 @@ const editingText = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || !!target.closest('input,textarea,select'));
 let engine: DungeonEngine, game: Game;
+let initialGenerationReport: GenerationReport | null = null;
 let last = performance.now(),
   accumulator = 0,
   uiClock = 0;
@@ -149,6 +152,7 @@ function applyQuality() {
   engine.resize();
 }
 function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
+  initialGenerationReport = null;
   ui.transition({ type: 'LOAD' });
   resetMovement();
   accumulator = 0;
@@ -169,9 +173,11 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       delete Effect.ShadersStore[`${name}PixelShader`];
     }
   }
-  const world = generateDungeon(seed),
-    errors = validateDungeon(world);
+  const { world, report } = generateDungeonWithReport(seed);
+  const errors = validateDungeon(world);
   if (errors.length) throw new Error(`Dungeon validation failed: ${errors.join(', ')}`);
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug'))
+    initialGenerationReport = createGenerationReport(world, report);
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.044, 0.065, 0.075, 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
@@ -834,6 +840,9 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
     },
     interact,
     regenerate: start,
+    generationReport() {
+      return structuredClone(required(initialGenerationReport, 'Generation report unavailable'));
+    },
     step(codes, frames = 1) {
       keys.clear();
       for (const code of codes) keys.add(code);

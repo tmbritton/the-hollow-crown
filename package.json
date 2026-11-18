@@ -20,6 +20,8 @@
     "test": "npm run typecheck && node --test tests/*.test.ts",
     "test:models": "npm run typecheck && node --test tests/models.test.ts",
     "report:generation": "npm run typecheck && node tests/generation-corpus.ts",
+    "test:generation": "node tests/generation-browser.ts",
+    "gallery:generation": "npm run typecheck && node tests/generation-gallery.ts",
     "test:browser": "node tests/browser.ts",
     "test:production": "node tests/production.ts",
     "test:portraits": "node tests/portraits.ts",

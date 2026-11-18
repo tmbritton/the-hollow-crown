@@ -309,6 +309,24 @@ times and exclude live actor occupancy. `openAreaTiles` counts safe 3×3 room-fl
 neighborhoods as a conservative geometry proxy, not a combat-space or difficulty rating.
 The JSON keeps individual measurements available for distribution/outlier analysis.
 
+With the development server running:
+
+```sh
+npm run test:generation
+npm run gallery:generation
+```
+
+`window.__dungeon.generationReport()` is available only in development with `?debug` and
+returns a detached snapshot of initial generation, preserved through gameplay and replaced
+on regeneration. The gallery captures twelve seeds sequentially, with entrance, smithy,
+bakery and altar views at a fixed camera/viewport. Open
+`test-results/generation-gallery/index.html` for labeled comparisons and a grayscale toggle.
+The folder also contains color/grayscale overview images and `report.json`, including five
+repeat-regeneration resource checks. The gallery advances one explicit simulation step per
+view and excludes FPS/draw-call timing; it is a visual fixture rather than a hardware profile.
+Both tools accept `DEMO_URL` and require an already-running server. Chromium captures can
+take several minutes under software rendering.
+
 ## Planning documents
 
 Design roadmaps live in [`docs/`](docs/README.md):
