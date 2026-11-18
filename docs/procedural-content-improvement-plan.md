@@ -15,6 +15,10 @@ The first success question is: **can players recognize, describe, and remember t
 ### Design references
 
 - Kate Compton, [Practical Procedural Generation for Everyone](https://www.youtube.com/watch?v=WumyfLEa6bU). The local [timestamped transcript](../ref/practical-procedural-generation-for-everyone-transcript.md) contains automatic captions and may have recognition errors.
+- Jon Ingold, [Narrative Sorcery: Coherent Storytelling in an Open World](https://www.youtube.com/watch?v=HZft_U4Fc-U). See the [encounter narrative design notes](encounter-narrative-design-notes.md) for order-independent scenes, defensive logic, and separate player-knowledge tracking, with a local transcript and proposed scenario prototype.
+- [Castle Ravenloft board-game adventure book](../ref/ravenloft.pdf). See the [Ravenloft scenario design notes](ravenloft-scenario-design-notes.md) for bounded reveal order, compound objectives, pressure transitions, remote weaknesses, and alternative encounter resolutions.
+- John Harper / One Seven Design, [Blades in the Dark SRD](https://github.com/amazingrando/blades-in-the-dark-srd-content/blob/main/Blades-in-the-Dark-SRD.md). See the [progress-clock design notes](progress-clock-design-notes.md) for event-driven objectives, danger, linked stages, and the Last Ember clock prototype.
+- [Competing objectives design](competing-objectives-design.md): user-directed multi-objective levels with visible monster agendas, conditional player opportunities, races, and disruption through combat or world interactions.
 - [Dungeon demo plan](dungeon-demo-plan.md): graphic art direction, topology-first generation, supported traversal, and rendering constraints.
 - [4e incorporation plan](4e-incorporation-plan.md): encounter budgets, dependable clues, reward parcels, traps, and optional objectives.
 - [Monster roster plan](monster-roster-plan.md): creature identities, faction relationships, squad behavior, and roster expansion.
@@ -73,7 +77,9 @@ Introduce a small generated-run blueprint around the existing world data. Keep a
 | `ScenePlacement` | Actual selected recipe, anchors, placed objects, linked facts, and placement/fallback reasons. |
 | `InhabitantIdentity` | Name, species, group/home IDs, visual motif, authored behavioral profile, and associated facts. |
 | `EncounterPlan` | Members, room/approach requirements, role and threat metadata, and permitted composition. Align with the existing combat roadmap. |
-| `AdventurePlan` | Progression dependencies, optional branches, rewards, route alternatives, and prerequisite capabilities. Initially describes the current altar route. |
+| `ScenarioClockDefinition` | Obstacle/danger label, segment capacity, eligible domain events, effect amounts, activation/outcome links, and visibility policy. Mutable progress belongs to runtime ECS scenario state. |
+| `LevelObjectivePlan` | Player/monster-owned goals, eligibility and activation conditions, bounded executor assignments, work sites/resources, objective relationships, clock references, and disruption/outcome policies. |
+| `AdventurePlan` | Progression dependencies, level objective plan, optional branches, rewards, route alternatives, and prerequisite capabilities. Initially preserves the current altar route. |
 | `DiscoveryRecord` / `RunEvent` | Player-observed facts and actual events, stored separately from the initial generated blueprint. |
 | `GenerationReport` | Rejections, fallback choices, distributions, resource counts, and reproducible diagnostics. |
 
@@ -260,6 +266,8 @@ Begin with three authored motifs built from implemented mechanics:
 
 - Represent progression dependencies separately from room geometry. Limit rewrite depth and total nodes; embed a bounded adventure plan into the existing room-role catalog.
 - Give each motif explicit entry/exit conditions, room requirements, minimum clear space, reward slots, and capability requirements.
+- For multi-step objectives and accumulating danger, use the [scenario-clock contract](progress-clock-design-notes.md#proposed-runtime-contract). The [competing-objective slice](competing-objectives-design.md#6-first-playable-objective-system-slice) starts with player restoration versus actual monster profanation work, then adds an independent rival plan. Define simultaneous outcomes, once-only contributions, and respawn persistence.
+- Generate several participant-owned objectives with explicit availability, activation, relationships, and work-site requirements. Keep active competing monster clocks visible and give the player reachable ways to delay or thwart them through combat and environmental interactions.
 - Reserve safe approach/escape space and distribute quiet areas, teaching fights, pressure, and recovery along accessible route depth.
 - Integrate the encounter selector with [4e encounter budgets](4e-incorporation-plan.md#17-budgeted-encounter-generation-and-pacing). Account for nearby groups joining a fight and budget qualitative pressure such as ranged lanes or control.
 - Preserve the [roster expansion targets](monster-roster-plan.md#dungeon-population-and-example-fights) when those waves ship. Dominant keep identity must coexist with the required breadth of available monster types.
@@ -279,6 +287,8 @@ Begin with three authored motifs built from implemented mechanics:
 - Optional failure, a missed discovery, or unavailable future abilities cannot make the required route impossible.
 - Players can explain a different route or encounter decision across the three motifs.
 - Encounter placements satisfy threat, geometry, cover, approach, and population constraints together.
+- Scenario clocks reflect actual committed actions and world events; duplicate delivery, retreat, and respawn cannot repeat progress or rewards, and joint outcomes are independent of actor iteration order.
+- Autonomous objective work requires living, capable executors and available dependencies. Eliminating a unique executor or disabling an essential focus thwarts the relevant plan; unrelated plans continue, and optional losses preserve a valid required route.
 - Generation cannot loop indefinitely; reports identify why a motif was simplified or rejected.
 
 **Likely touchpoints:** `src/world.ts`, `src/navigation.ts`, interaction/progression machines, and proposed `src/generation/adventure.ts`. Reuse the encounter/reward systems from the combat plan rather than creating parallel implementations.

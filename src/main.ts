@@ -122,7 +122,7 @@ function navigatePointer(clientX: number, clientY: number, feedback = false): vo
     cancelAttack(game.player.actor);
   }
   const point = pickGround(game.world, ray);
-  const accepted = point && game.player.navigator.goTo(game.player.root.position, point);
+  const accepted = point && game.player.navigator.goTo(game.player.actor.position, point);
   if (!accepted) {
     game.player.navigator.cancel();
     if (feedback)

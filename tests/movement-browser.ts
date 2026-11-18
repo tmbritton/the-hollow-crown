@@ -124,6 +124,29 @@ try {
   await page.evaluate(() => {
     window.movementTestLoops = [...window.__dungeon.engine.activeRenderLoops];
     window.__dungeon.engine.stopRenderLoop();
+  });
+  assert.equal(
+    await page.evaluate(() => window.__dungeon.game.player.navigator.occupancy!.bodies().length),
+    21,
+  );
+  const liveTarget = { x: 3.2, z: 1.1 };
+  await click(liveTarget);
+  const liveCommand = await state();
+  assert.ok(
+    liveCommand.destination &&
+      Math.hypot(
+        liveCommand.destination.x - liveTarget.x,
+        liveCommand.destination.z - liveTarget.z,
+      ) < 0.04,
+    'a fresh-world floor click must work with enemy collision bodies present',
+  );
+  await step([], 6);
+  await page.evaluate(() => window.__dungeon.game.scene.render());
+  await page.screenshot({ path: `test-results/${browserName}-movement-live-actors.png` });
+  await arrive(liveTarget);
+  pass('Fresh-world floor click routes and arrives with all living actor bodies present');
+
+  await page.evaluate(() => {
     // Isolate floor navigation; the combat suite checks rendered actor collision and corpse slowing.
     for (const enemy of window.__dungeon.game.combat.enemies) {
       enemy.entity.remove('brain');

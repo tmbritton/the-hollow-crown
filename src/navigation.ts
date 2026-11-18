@@ -157,7 +157,9 @@ export class Navigator {
   private bodyClear(point: Point, bodies?: readonly CollisionBody[]): boolean {
     const h = heightAt(this.world, point.x, point.z);
     return (
-      !this.occupancy || !bodies || (h !== null && this.occupancy.canStand({ ...point, h }, bodies))
+      !this.occupancy ||
+      !bodies ||
+      (h !== null && this.occupancy.canStand({ x: point.x, z: point.z, h }, bodies))
     );
   }
 
@@ -194,7 +196,8 @@ export class Navigator {
     const steps = Math.max(1, Math.ceil(distance(from, to) / SAMPLE_SPACING));
     let previous = heightAt(this.world, from.x, from.z);
     if (previous === null) return false;
-    let previousPoint = { ...from, h: previous };
+    // Point-compatible vectors may expose coordinates through prototype accessors.
+    let previousPoint = { x: from.x, z: from.z, h: previous };
     for (let i = 1; i <= steps; i++) {
       const point = {
         x: from.x + ((to.x - from.x) * i) / steps,
@@ -223,7 +226,9 @@ export class Navigator {
     // Snapshot once per search; moving actors must never enter the static-cell cache.
     const bodies = this.occupancy?.bodies();
     // Near a wall edge, use the clicked tile's center rather than an unsafe offset.
-    const goal = this.canStand(requested, true) ? { ...requested } : { x: tile.x, z: tile.z };
+    const goal = this.canStand(requested, true)
+      ? { x: requested.x, z: requested.z }
+      : { x: tile.x, z: tile.z };
     if (!this.canOccupy(goal, true, bodies)) return false;
     if (distance(from, goal) < 0.025) return true;
     if (this.segmentClear(from, goal, true, bodies)) {

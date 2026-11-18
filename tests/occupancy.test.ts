@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { ECS } from '../src/ecs.ts';
 import { createActor, moveActor, teleportActor } from '../src/actors.ts';
 import type { Actor } from '../src/actors.ts';
@@ -102,6 +103,33 @@ test('click routes detour around living actors and reject occupied destinations'
     assertSeparated(mover, blocker);
   }
   assert.ok(Math.hypot(mover.position.x - 4, mover.position.z) < 0.04);
+});
+
+test('render-vector route endpoints preserve coordinates with live occupancy', () => {
+  const f = fixture(),
+    mover = f.actor('player', -4, -1),
+    blocker = f.actor('goblin', 0, 3);
+  const from = new Vector3(mover.position.x, mover.position.h, mover.position.z);
+  const target = { x: 4, z: -1 };
+  assert.equal(mover.navigator.occupancy!.bodies().length, 1, 'exclude the moving actor itself');
+  assert.ok(mover.navigator.goTo(from, target), 'a distant actor must not block a clear route');
+  assert.deepEqual(mover.navigator.path, [target]);
+  assert.ok(mover.navigator.canOccupy(from));
+
+  const goal = new Vector3(target.x, 0, target.z);
+  assert.ok(mover.navigator.goTo(from, goal));
+  goal.x = 6;
+  assert.deepEqual(mover.navigator.destination, target, 'snapshot the requested coordinates');
+
+  blocker.position.z = -1;
+  assert.equal(mover.navigator.goTo(from, new Vector3(0, 0, -1)), false);
+  assert.ok(mover.navigator.goTo(from, new Vector3(target.x, 0, target.z)));
+  assert.ok(mover.navigator.path.length > 1, 'still detour around a body on the route');
+  for (let i = 0; i < 240; i++) {
+    moveActor(mover, f.world, {}, 1 / 60);
+    assertSeparated(mover, blocker);
+  }
+  assert.ok(Math.hypot(mover.position.x - target.x, mover.position.z - target.z) < 0.04);
 });
 
 test('moving blockers invalidate routes and leaving/dying releases occupancy immediately', () => {

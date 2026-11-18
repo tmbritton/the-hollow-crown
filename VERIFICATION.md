@@ -4,6 +4,33 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Mouse movement routing fix — 2026-11-18
+
+Reproduced fresh-world floor clicks reporting “No clear route” with living enemies present.
+The player was already excluded from its own occupancy query. The click handler passed a
+Babylon `Vector3` into navigation, where object spread omitted its accessor-backed `x`/`z`
+coordinates and caused swept occupancy checks to reject otherwise clear routes.
+
+Click routing now uses the authoritative actor transform. Navigation explicitly copies
+coordinate values for route origins, destinations, and occupancy probes. Added a regression
+using real Babylon vectors with a distant actor, an occupied destination, and a body detour;
+the browser suite now checks a fresh-world click and arrival before removing enemy bodies.
+Both new regressions failed before the fix and pass afterwards.
+
+- `npm run format:check`: passes across 78 configured files.
+- `npm run lint`: passes with no diagnostics.
+- `npm test`: strict type checking and all **97 pure/model tests** pass.
+- `npm run build`: passes with Vite's large-chunk size warning.
+- `npm run test:movement` and `BROWSER=firefox npm run test:movement`: **12 checks each** pass,
+  including the new live-occupancy click, held steering, furniture, stairs, gates, and resets.
+- `npm run test:combat`: all **12 Chromium checks** pass, including body separation,
+  pursuit, floor-command cancellation, and door interactions.
+
+Reviewed `test-results/chromium-movement-live-actors.png`,
+`test-results/firefox-movement-live-actors.png`, and `test-results/chromium-movement-route.png`:
+the player starts toward the visible destination ring on clear entrance floor. Other browser,
+production-smoke, and hardware results below retain their earlier baselines.
+
 ### Pre-commit hook update — 2026-11-18
 
 Added **simple-git-hooks 2.14.0** with a version-controlled pre-commit configuration in
@@ -65,7 +92,7 @@ This update passes **79 pure/model tests**, **12 Chromium combat checks**, **11 
 | `npm run typecheck` | Passes with `strict`, unused-code checks, and erasable TypeScript syntax across source, tests, and Vite configuration |
 | `npm run format:check` | All 78 configured files pass Oxfmt checks; earlier updates used Prettier |
 | `npm run lint` | Oxlint correctness checks pass with no diagnostics |
-| `npm test` | 96 passing tests: generation, ECS/combat, occupancy, navigation, inspection, locomotion/action poses, jumping, springs, leg solving, statechart invariants/model coverage, and social gathering behavior |
+| `npm test` | 97 passing tests: generation, ECS/combat, occupancy (including render-vector route endpoints), navigation, inspection, locomotion/action poses, jumping, springs, leg solving, statechart invariants/model coverage, and social gathering behavior |
 | `npm run test:models` | 19 checks: every production machine covered, all 75 declared atomic states and 155 transition branches reached, invariants checked on generated traces, and negative fixtures proving missed coverage fails |
 | `npm run build` | Strict type checking and production build succeed |
 | `npm run test:production` | Built shaders, rendering, seed changes, menus, and quality settings work; development hooks are absent |
@@ -73,10 +100,10 @@ This update passes **79 pure/model tests**, **12 Chromium combat checks**, **11 
 | `BROWSER=firefox npm run test:browser` | 22 passing Firefox gameplay/rendering/resource checks |
 | `npm run test:portraits` | Earlier dedicated portrait baseline; current full-browser and inspection suites also verify portrait behavior |
 | `npm run test:inspection` | 11 passing checks for held-key handling, text editing, close-up detail, camera restoration, resizing, cancellation, and regeneration |
-| `npm run test:movement` | 11 passing Chromium checks for real clicks, hold-to-steer, keyboard override, eased stopping, obstacles, stairs, doors, modal/focus cancellation, and high-DPI/low-quality picking |
+| `npm run test:movement` | 12 passing Chromium checks for fresh-world clicks with live occupancy, real clicks, hold-to-steer, keyboard override, eased stopping, obstacles, stairs, doors, modal/focus cancellation, and high-DPI/low-quality picking |
 | `npm run test:animation` | 24 rendered pose captures; jump/landing, foot contact, volume preservation, run-specific mechanics, weapon alignment, recovery and focus-loss reset pass |
 | `npm run test:jump` | 8 checks: Space taps/holds, flight/body synchronization, routes, running, sealed gates, lava, modal/focus cleanup, teleport and regeneration |
-| `BROWSER=firefox npm run test:movement` | Earlier dedicated Firefox baseline; the current full Firefox route suite passes |
+| `BROWSER=firefox npm run test:movement` | The same 12 movement checks pass in Firefox, including fresh-world clicks with live occupancy |
 | `npm run test:combat` | 12 passing real-input ECS/combat checks, including actor blocking, allied separation, corpse slowdown, held pursuit, repeated strikes, effects, moving targets, cancellation, door clicks/locks, death and regeneration |
 | `BROWSER=firefox npm run test:combat` | Earlier dedicated Firefox baseline; the current full Firefox route and social-alert suites pass |
 | `npm run test:social` | 9 passing Chromium checks: stable gatherings, visible activity props, threat interruption/weapon drawing, and return to each activity |
