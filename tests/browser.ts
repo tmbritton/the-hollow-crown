@@ -150,11 +150,13 @@ async function walkTo(x: number, z: number) {
       const route: number[][] = [];
       for (let at: string | null = goal; at !== null; at = parents.get(at) ?? null)
         route.unshift(at.split(',').map(Number));
-      for (const [tx, tz] of route) {
+      for (const [index, [tx, tz]] of route.entries()) {
+        const finalWaypoint = index === route.length - 1;
         let reached = false,
           stuck = 0;
         for (let i = 0; i < 150; i++) {
-          if (Math.hypot(tx - p.x, tz - p.z) < 0.075) {
+          const remaining = Math.hypot(tx - p.x, tz - p.z);
+          if (remaining < 0.075 && (!finalWaypoint || g.player.motion.speed === 0)) {
             reached = true;
             break;
           }
@@ -171,6 +173,9 @@ async function walkTo(x: number, z: number) {
           else if (tx - p.x < -0.045) codes.push('KeyA');
           if (tz - p.z > 0.045) codes.push('KeyW');
           else if (tz - p.z < -0.045) codes.push('KeyS');
+          // Release before the final waypoint and let the real controller brake.
+          // Merely passing the point at full speed is no longer a settled arrival.
+          if (finalWaypoint && remaining < g.player.motion.speed * 0.06 + 0.03) codes.length = 0;
           const old = p.clone();
           d.step(codes, 1);
           if (old.subtract(p).lengthSquared() < 1e-7) stuck++;

@@ -9,7 +9,7 @@
     <title>The Hollow Crown · A Procedural Dungeon</title>
   </head>
   <body>
-    <canvas id="game" aria-label="The Hollow Crown, a keyboard-controlled 3D dungeon" tabindex="0"></canvas>
+    <canvas id="game" aria-label="The Hollow Crown, a 3D dungeon controlled by clicking the floor or using WASD" tabindex="0"></canvas>
     <div id="loading"><span class="sigil">♜</span><p>Carving the hollow…</p></div>
     <header class="masthead">
       <div class="brand-mark" aria-hidden="true">♜</div>
@@ -37,7 +37,7 @@
     <div id="interaction" class="interaction" hidden><kbd>E</kbd><span id="interaction-label"></span></div>
     <footer class="bottom-bar">
       <div class="vitals"><div class="portrait" aria-hidden="true">♟</div><div><div class="vital-title">THE WANDERER <span id="health-text">100 / 100</span></div><div class="health-track"><div id="health-fill"></div></div><div class="vital-subtitle">A little flame against the dark.</div></div></div>
-      <div class="controls"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span><span><kbd>E</kbd> Interact</span><span><kbd>Q</kbd><kbd>R</kbd> Rotate</span><span><kbd>⇧</kbd> Run</span><span class="extra-control">Scroll to zoom</span></div>
+      <div class="controls"><span>Click / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span><span><kbd>E</kbd> Interact</span><span><kbd>Q</kbd><kbd>R</kbd> Rotate</span><span><kbd>⇧</kbd> Run</span><span class="extra-control"><kbd>Space</kbd> Stop</span></div>
       <div class="world-status"><span class="live-dot"></span> SEED-BORN WORLD <small id="fps"></small></div>
     </footer>
     <div id="damage-flash"></div>
@@ -52,7 +52,7 @@
     <dialog id="menu">
       <form method="dialog" class="menu-card">
         <div class="eyebrow">A MOMENT IN THE DARK</div><h2>The keep can wait.</h2>
-        <p>WASD or arrows to move · Shift to run<br />E to interact · Q / R to rotate · Scroll to zoom<br />M to show the map · Escape to pause</p>
+        <p>Click the floor or use WASD / arrows to move<br />Hold left mouse to steer · Shift to run · Space to stop<br />E to interact · Q / R to rotate · Scroll to zoom<br />M to show the map · Escape to pause</p>
         <label for="seed-input">DUNGEON SEED</label><input id="seed-input" maxlength="40" autocomplete="off" spellcheck="false" />
         <div class="menu-actions"><button type="button" id="rebuild">Enter this seed</button><button type="button" id="regenerate">New dungeon</button></div>
         <label class="quality-label">RENDER QUALITY <select id="quality"><option value="high">High · shadows & glow</option><option value="low">Low · lighter rendering</option></select></label>

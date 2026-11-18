@@ -18,6 +18,7 @@
     "test:production": "node tests/production.ts",
     "test:portraits": "node tests/portraits.ts",
     "test:inspection": "node tests/inspection-browser.ts",
+    "test:movement": "node tests/movement-browser.ts",
     "profile": "node tests/profile.ts"
   },
   "dependencies": {

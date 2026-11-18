@@ -140,7 +140,7 @@ Decoration placement respects reserved routes, stair landings, door swing space,
 ### Character
 
 - Generate a recognizable adventurer from voxel body parts: head, torso, boots, arms, helmet, and a small shield or backpack.
-- Animate walking, idle motion, and facing direction mathematically.
+- Animate idle, push-off/start, travel, and planted-stop poses mathematically. Drive stride from measured movement, blending torso lean, arms, feet, and cape follow-through.
 - Use an invisible ellipsoid collision proxy with Babylon's `moveWithCollisions` against simplified collision meshes. The visible voxel character follows the proxy.
 - Implement grounded state, downward motion, camera-relative velocity, and stable support heights explicitly; camera gravity settings do not implement a third-person character controller.
 - Use ramp colliders beneath visual stair steps and downward support probes to maintain stable contact. Verify wall sliding, stair descent, and movement at different frame rates early.
@@ -150,8 +150,11 @@ Decoration placement respects reserved routes, stair landings, door swing space,
 ### Controls
 
 - **WASD / arrow keys:** camera-relative movement.
+- **Left-click the floor:** follow a clearance-checked tile route to the destination ring. Hold left mouse to steer continuously; keyboard movement takes priority. Closed doors and lava block automatic routes.
+- **Space:** cancel click travel and ease to a stop.
 - **E:** interact with the closest valid object in range and line of sight.
 - **Shift:** move faster.
+- Normal travel is 4.8 units/second; running is 7.4. Use short frame-rate-independent acceleration/deceleration and arrival braking, with immediate intent reset on pause, inspection, focus loss, and regeneration.
 - **Q / R:** rotate camera in 90° increments.
 - **Mouse wheel:** zoom within a limited range.
 - **Escape:** pause and show controls.
@@ -195,6 +198,8 @@ src/
   royalty.ts
   portraits.ts
   player.ts
+  navigation.ts
+  locomotion.ts
   inspection.ts
   ui.ts
   dom.ts
@@ -204,9 +209,12 @@ src/
 tests/
   world.test.ts
   inspection.test.ts
+  navigation.test.ts
+  locomotion.test.ts
   browser.ts
   browserTypes.ts
   inspection-browser.ts
+  movement-browser.ts
   portraits.ts
   production.ts
   profile.ts

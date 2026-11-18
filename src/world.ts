@@ -94,10 +94,10 @@ function inwardRotations(room: Room, position: Point): number[] {
   const best = Math.max(...scores);
   return [0, 1, 2, 3].filter((quarter) => scores[quarter] >= best - 1e-9);
 }
-export function tileAt(world: World, x: number, z: number): Tile | undefined {
+export function tileAt(world: Pick<World, 'tiles'>, x: number, z: number): Tile | undefined {
   return world.tiles.get(key(Math.round(x), Math.round(z)));
 }
-export function heightAt(world: World, x: number, z: number): number | null {
+export function heightAt(world: Pick<World, 'tiles'>, x: number, z: number): number | null {
   const tile = tileAt(world, x, z);
   if (!tile) return null;
   if (tile.ramp) {

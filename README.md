@@ -24,8 +24,11 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 
 | Input | Action |
 | --- | --- |
+| Left-click the floor | Follow a safe path to the gold destination ring |
+| Hold left mouse | Continuously steer toward the cursor |
 | WASD / arrow keys | Move relative to the camera |
 | Shift | Run |
+| Space | Cancel click travel and ease to a stop |
 | E | Open/close doors, open a chest, activate the altar, inspect a portrait, claim the throne |
 | E / Escape while inspecting | Return to the overhead view |
 | Q / R | Rotate the overhead camera by 90° |
@@ -37,6 +40,10 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 **Objective:** find and kindle the violet altar, pass through the newly unsealed throne-room gate, and claim the Hollow Crown. Water slows you down; lava damages you. Death returns you to the entrance, or to the altar after activation. Three optional reliquaries restore health and count toward the completion summary.
 
 The route changes with the seed: explore the branching passages and watch the minimap for unexplored chambers. Activating the altar reveals the throne's crown marker. The minimap is north-up even when the camera rotates and automatically fits each generated layout.
+
+Click movement routes around furniture, walls, and lava, and respects closed/locked doors. **E** opens an unlocked door before you click through it. A new click replaces the destination; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
+
+The adventurer pushes off and leans forward when starting, blends into a travel-driven stride, then braces and plants the feet while the cape settles on stopping. Pause, inspection, focus loss, and regeneration clear pending travel and momentum.
 
 ## What is procedural?
 
@@ -68,7 +75,9 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/royalty.ts` / `src/portraits.ts` | Seeded royal identities, pixel-art shader, and wall-mounted frames |
 | `src/inspection.ts` | Typed inspection targets, camera transitions, framing, lifecycle, and camera restoration |
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
-| `src/player.ts` | Voxel adventurer, camera-relative movement, collisions, animation |
+| `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
+| `src/locomotion.ts` | Movement speeds, acceleration/deceleration, and procedural start/travel/stop animation |
+| `src/player.ts` | Voxel adventurer, keyboard/click steering, collision movement, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
 | `src/engine.ts` | Babylon engine with a typed effect-cache diagnostic |
 | `src/ui.ts` / `src/dom.ts` / `src/style.css` | HUD, minimap, typed DOM access, menus, responsive layout |
@@ -139,9 +148,13 @@ BROWSER=firefox npm run test:browser
 npm run build && npm run test:production
 npm run test:portraits
 npm run test:inspection
+npm run test:movement
+BROWSER=firefox npm run test:movement
 ```
 
 The browser check starts a development server if needed, exercises the full game loop, completes three different seeds, and writes screenshots and JSON reports to `test-results/`. Chromium's automated smoke test explicitly uses software rendering for reproducibility; its FPS is not a hardware performance result.
+
+The movement suite expects a running dev server. It sends real pointer/keyboard events, checks high-DPI and low-quality floor picking, routes around furniture and over stairs, checks doors and modal cancellation, and captures the destination marker and start/stop poses. Pure navigation and locomotion tests run with `npm test`.
 
 ```sh
 npm run profile

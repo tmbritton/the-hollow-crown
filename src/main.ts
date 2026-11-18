@@ -4,7 +4,8 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { DungeonEngine } from './engine.ts';
 import { Scene } from '@babylonjs/core/scene';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import '@babylonjs/core/Culling/ray';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
@@ -18,7 +19,9 @@ import { CustomMaterial } from '@babylonjs/materials/custom/customMaterial';
 import { generateDungeon, validateDungeon, tileAt, heightAt } from './world.ts';
 import { createMaterials } from './materials.ts';
 import { buildDungeon } from './buildDungeon.ts';
-import { createPlayer, movePlayer } from './player.ts';
+import { createPlayer, movePlayer, stopPlayer } from './player.ts';
+import { pickGround } from './navigation.ts';
+import { MOVEMENT_KEYS } from './locomotion.ts';
 import { UI } from './ui.ts';
 import { InspectionController } from './inspection.ts';
 import { required } from './assert.ts';
@@ -58,6 +61,35 @@ let last = performance.now(),
   ready = false;
 let quality: 'high' | 'low' = 'high';
 let inspectorToken: ReturnType<typeof ShowInspector> | null = null;
+let heldPointer: { id: number; x: number; y: number } | null = null;
+let lastPointerRoute = 0;
+
+function resetMovement(): void {
+  keys.clear();
+  heldPointer = null;
+  if (game) stopPlayer(game.player);
+}
+
+function navigatePointer(clientX: number, clientY: number, feedback = false): void {
+  if (!ready || paused() || game.inspection.active) return;
+  const rect = canvas.getBoundingClientRect();
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom)
+    return;
+  const ray = game.scene.createPickingRay(
+    clientX - rect.left,
+    clientY - rect.top,
+    Matrix.Identity(),
+    game.camera,
+  );
+  const point = pickGround(game.world, ray);
+  const accepted = point && game.player.navigator.goTo(game.player.root.position, point);
+  if (!accepted) {
+    game.player.navigator.cancel();
+    if (feedback)
+      ui.toast('No clear route there. Open doors with E; choose a safe floor tile.', 2400);
+  }
+  lastPointerRoute = performance.now();
+}
 
 function freshSeed() {
   return `ASH-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36).toUpperCase().slice(0, 6)}`;
@@ -78,7 +110,7 @@ function applyQuality() {
 }
 function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
   ready = false;
-  keys.clear();
+  resetMovement();
   accumulator = 0;
   last = performance.now();
   inspectorToken?.dispose();
@@ -151,7 +183,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   const fxaa = new FxaaPostProcess('edge antialiasing', 1, camera);
   const materials = createMaterials(scene);
   const dungeon = buildDungeon(scene, world, materials, shadow, glow);
-  const player = createPlayer(scene, materials, shadow, world.spawn);
+  const player = createPlayer(scene, materials, shadow, world);
   const shadowMap = required(shadow.getShadowMap(), 'Shadow map unavailable');
   const shadowCasters = [...(shadowMap.renderList ?? [])];
   for (const mesh of scene.meshes)
@@ -171,7 +203,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       footer: ui.inspection.getBoundingClientRect().height + 48,
     }),
     onOpen: (target) => {
-      keys.clear();
+      resetMovement();
       accumulator = 0;
       playerVisibility = { root: player.root.isEnabled(), marker: player.marker.isEnabled() };
       player.root.setEnabled(false);
@@ -231,7 +263,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     ready = true;
     loading.classList.add('done');
     canvas.focus();
-    ui.toast('Your pilgrimage begins. Move with WASD. Open doors with E.', 5500);
+    ui.toast('Click the floor or use WASD to move. Hold Shift to run. Open doors with E.', 5500);
   });
 }
 
@@ -333,7 +365,7 @@ function interact() {
       return;
     }
     game.complete = true;
-    keys.clear();
+    resetMovement();
     ui.complete(game.playTime, game.chests);
   } else if (e.type === 'chest' && !e.open) {
     e.open = true;
@@ -454,7 +486,7 @@ function renderUpdate(dt: number): void {
 }
 
 function toggleMenu() {
-  keys.clear();
+  resetMovement();
   if (ui.victory.open) return;
   game?.inspection.close({ immediate: true });
   if (ui.menu.open) {
@@ -465,7 +497,7 @@ function toggleMenu() {
 window.addEventListener('keydown', (event) => {
   if (import.meta.env.DEV && event.code === 'F2') {
     event.preventDefault();
-    keys.clear();
+    resetMovement();
     if (inspectorToken) {
       inspectorToken.dispose();
       inspectorToken = null;
@@ -495,6 +527,16 @@ window.addEventListener('keydown', (event) => {
   // Cancel native text/press-and-hold actions on every event, including repeats.
   // Keep editable fields and browser shortcuts outside gameplay input handling.
   if (gameKeys.has(event.code)) event.preventDefault();
+  if (MOVEMENT_KEYS.has(event.code)) {
+    heldPointer = null;
+    game?.player.navigator.cancel();
+  }
+  if (event.code === 'Space') {
+    keys.clear();
+    heldPointer = null;
+    game?.player.navigator.cancel();
+    return;
+  }
   keys.add(event.code);
   if (event.repeat || !game) return;
   if (event.code === 'KeyE') interact();
@@ -506,15 +548,15 @@ window.addEventListener('keydown', (event) => {
   }
 });
 window.addEventListener('keyup', (event) => keys.delete(event.code));
-window.addEventListener('blur', () => keys.clear());
+window.addEventListener('blur', resetMovement);
 window.addEventListener('pagehide', (event) => {
-  keys.clear();
+  resetMovement();
   // Release GPU resources promptly on a real reload/navigation. A page retained
   // by the back/forward cache keeps its engine so it can resume normally.
   if (!event.persisted) engine?.dispose();
 });
 document.addEventListener('visibilitychange', () => {
-  keys.clear();
+  resetMovement();
   last = performance.now();
   accumulator = 0;
 });
@@ -530,7 +572,30 @@ canvas.addEventListener(
   },
   { passive: false },
 );
-canvas.addEventListener('pointerdown', () => canvas.focus());
+canvas.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || !event.isPrimary || event.ctrlKey || event.metaKey || event.altKey)
+    return;
+  if (!ready || paused() || game.inspection.active) return;
+  event.preventDefault();
+  canvas.focus();
+  heldPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  navigatePointer(event.clientX, event.clientY, true);
+});
+window.addEventListener('pointermove', (event) => {
+  if (heldPointer?.id !== event.pointerId) return;
+  if (!(event.buttons & 1)) {
+    heldPointer = null;
+    return;
+  }
+  heldPointer.x = event.clientX;
+  heldPointer.y = event.clientY;
+});
+window.addEventListener('pointerup', (event) => {
+  if (heldPointer?.id === event.pointerId) heldPointer = null;
+});
+window.addEventListener('pointercancel', (event) => {
+  if (heldPointer?.id === event.pointerId) resetMovement();
+});
 window.addEventListener('resize', () => engine?.resize());
 html('menu-button').onclick = toggleMenu;
 html('inspection-close').onclick = () => game?.inspection.close();
@@ -592,6 +657,12 @@ try {
     if (ready && !paused()) {
       if (game.inspection.active) accumulator = 0;
       else {
+        if (
+          heldPointer &&
+          now - lastPointerRoute >= 120 &&
+          document.elementFromPoint(heldPointer.x, heldPointer.y) === canvas
+        )
+          navigatePointer(heldPointer.x, heldPointer.y);
         accumulator += dt;
         while (accumulator >= 1 / 60) {
           tick(1 / 60);
