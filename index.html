@@ -9,7 +9,7 @@
     <title>The Hollow Crown · A Procedural Dungeon</title>
   </head>
   <body>
-    <canvas id="game" aria-label="The Hollow Crown, a 3D dungeon controlled by clicking the floor or using WASD" tabindex="0"></canvas>
+    <canvas id="game" aria-label="The Hollow Crown. Click the floor to move, enemies to attack, or doors to open. WASD also moves." tabindex="0"></canvas>
     <div id="loading"><span class="sigil">♜</span><p>Carving the hollow…</p></div>
     <header class="masthead">
       <div class="brand-mark" aria-hidden="true">♜</div>
@@ -35,6 +35,7 @@
     <div id="room-title" class="room-title"><div class="eyebrow" id="room-kicker">I · THE THRESHOLD</div><h2 id="room-name">The Ashen Vestibule</h2><p id="room-description">Even the stones remember.</p></div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="interaction" class="interaction" hidden><kbd>E</kbd><span id="interaction-label"></span></div>
+    <div id="combat-target" hidden role="status"></div>
     <footer class="bottom-bar">
       <div class="vitals"><div class="portrait" aria-hidden="true">♟</div><div><div class="vital-title">THE WANDERER <span id="health-text">100 / 100</span></div><div class="health-track"><div id="health-fill"></div></div><div class="vital-subtitle">A little flame against the dark.</div></div></div>
       <div class="controls"><span>Click / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span><span><kbd>E</kbd> Interact</span><span><kbd>Q</kbd><kbd>R</kbd> Rotate</span><span><kbd>⇧</kbd> Run</span><span class="extra-control"><kbd>Space</kbd> Stop</span></div>
@@ -52,7 +53,7 @@
     <dialog id="menu">
       <form method="dialog" class="menu-card">
         <div class="eyebrow">A MOMENT IN THE DARK</div><h2>The keep can wait.</h2>
-        <p>Click the floor or use WASD / arrows to move<br />Hold left mouse to steer · Shift to run · Space to stop<br />E to interact · Q / R to rotate · Scroll to zoom<br />M to show the map · Escape to pause</p>
+        <p>Click the floor or use WASD / arrows to move<br />Click / hold an enemy to pursue and repeatedly attack<br />Click a door to approach and open it · E to interact<br />Hold floor to steer · Shift to run · Space to cancel<br />Q / R to rotate · Scroll to zoom · M for map · Escape to pause</p>
         <label for="seed-input">DUNGEON SEED</label><input id="seed-input" maxlength="40" autocomplete="off" spellcheck="false" />
         <div class="menu-actions"><button type="button" id="rebuild">Enter this seed</button><button type="button" id="regenerate">New dungeon</button></div>
         <label class="quality-label">RENDER QUALITY <select id="quality"><option value="high">High · shadows & glow</option><option value="low">Low · lighter rendering</option></select></label>

@@ -2,6 +2,12 @@
 
 > Implementation: **The Hollow Crown**, playable in this directory. See `README.md` for controls and run instructions, and `VERIFICATION.md` for acceptance results. The implementation decisions recorded below supersede the initial prototype choices where noted.
 
+### Combat / ECS extension
+
+The demo now uses a typed, indexed entity/component registry for characters, generated world objects, render batches, projectiles, and hit particles. Player and enemies share movement, pathfinding, door capabilities, attack timing, damage/death, collision adapters, and rig animation; input and AI provide intents. Generated data is registered by reference so navigation and interaction state remain consistent.
+
+Seed 8 wandering skeletons, 4 cover-seeking ranged goblins, and 3 packs of 3 flanking kobolds. Skeletons attack living species; goblins evade the player and other species; kobolds share alerts and approach distinct target slots. Preserve corpses and use bounded procedural blood/bone-dust effects. Enemy click/hold locks pursuit and repeats melee strikes until death; floor/WASD/Space and modal transitions cancel the command. Clicking an unlocked door approaches and opens it; capable actors can also open doors during pursuit. Locks remain progression-controlled.
+
 ## 1. Demo goal
 
 Build a playable browser-based dungeon using **Babylon.js and an HTML canvas**, with a visible, controllable voxel adventurer viewed through an overhead third-person camera.

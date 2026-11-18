@@ -25,10 +25,12 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 | Input | Action |
 | --- | --- |
 | Left-click the floor | Follow a safe path to the gold destination ring |
-| Hold left mouse | Continuously steer toward the cursor |
+| Hold left mouse on the floor | Continuously steer toward the cursor |
+| Click / hold an enemy | Pathfind into reach and repeatedly attack until it dies |
+| Click a closed door | Approach and open it if unlocked |
 | WASD / arrow keys | Move relative to the camera |
 | Shift | Run |
-| Space | Cancel click travel and ease to a stop |
+| Space | Cancel travel, pursuit, and attacks |
 | E | Open/close doors, open a chest, activate the altar, inspect a portrait, claim the throne |
 | E / Escape while inspecting | Return to the overhead view |
 | Q / R | Rotate the overhead camera by 90° |
@@ -41,9 +43,21 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 
 The route changes with the seed: explore the branching passages and watch the minimap for unexplored chambers. Activating the altar reveals the throne's crown marker. The minimap is north-up even when the camera rotates and automatically fits each generated layout.
 
-Click movement routes around furniture, walls, and lava, and respects closed/locked doors. **E** opens an unlocked door before you click through it. A new click replaces the destination; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
+Click movement routes around furniture, walls, and lava, and respects closed/locked doors. **Click a closed door** to approach and open it, or use **E** in reach. Enemy pursuit can open intervening unlocked doors automatically. A new floor click replaces the command; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
 
 The adventurer pushes off and leans forward when starting, blends into a travel-driven stride, then braces and plants the feet while the cape settles on stopping. Pause, inspection, focus loss, and regeneration clear pending travel and momentum.
+
+### Enemies and combat
+
+Each dungeon seeds **21 enemies** outside the entrance and altar rooms:
+
+- **8 skeletons:** slow, simple wanderers. They pursue nearby living characters, including goblins and kobolds, but ignore other skeletons. They cannot operate doors.
+- **4 goblins:** ranged skirmishers that retreat from nearby threats of other species, break line of sight using cover, crouch while hiding, and peek out to fire crossbow bolts. Bolts travel through the world and can be dodged or stopped by walls, furniture, and doors.
+- **9 kobolds in three packs:** share threat alerts, regroup when separated, and approach distinct front/side/rear positions around their target. Pack members have staggered attack cooldowns.
+
+Clicking an enemy locks onto it: the player follows its changing position, stops in melee reach, and blends from movement into wind-up, sword strike, and recovery. Holding the button keeps that target even as the enemy and camera move; releasing retains the command. Click another enemy to retarget, or click the floor / press WASD or Space to cancel. A red ground ring and health display identify the target.
+
+Damage occurs at the strike's impact, with range and cover checked again. Living characters emit red blood fragments; skeletons emit pale bone dust. Dead enemies collapse into persistent, non-blocking corpses until regeneration. Death returns the player to the checkpoint with 2.5 seconds of protection. Chests and the altar still restore health.
 
 ## What is procedural?
 
@@ -53,7 +67,7 @@ The adventurer pushes off and leans forward when starting, blends into a travel-
 - Directional furnishings—including thrones, ovens, furnaces, shrines, racks, and stalls—face toward the room center. Placement reserves reachable space in front and retries positions that cannot fit an inward orientation.
 - Floors, masonry, pillars, door frames, stairs, bridges, throne, altar, sarcophagi, chests, barrels, crates, bones, and character geometry.
 - Stone variation, tile seams, wood grain, graphic lighting bands, water ripples/foam, animated lava fissures, fire, embers, and altar runes.
-- Walk/idle animation, door hinges, chest lids, floating votives, and flickering lights.
+- Shared walk/start/stop/attack/death animation, enemy models, blood and dust particles, crossbow bolts, door hinges, chest lids, floating votives, and flickering lights.
 - Four themed workspaces: a butchery, blacksmith, bakery, and underground lizard stable. Furnishings include hanging cuts, cleavers, furnaces, anvils, bread ovens, loaves, flour sacks, feed troughs, tack, and two animated saddled lizards.
 - Framed 32 × 40 pixel-art royal portraits. **E** moves the camera to an eye-level close-up and switches the same artwork to **128 × 160** with finer facial features, hair strands, jewelry, embroidery, and canvas texture. The monarch's identity remains the same. Movement pauses during inspection; **E**, **Escape**, or the return button restores the overhead view.
 
@@ -69,6 +83,12 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | --- | --- |
 | `src/worldTypes.ts` | Rooms, tiles, connections, props, and discriminated entity types |
 | `src/world.ts` | Deterministic generation, tile heights, room graph, progression validation |
+| `src/ecs.ts` | Typed component registry, entity lifecycle and indexed component queries |
+| `src/worldEntities.ts` | Generated world registration and shared door animation/collision system |
+| `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
+| `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
+| `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
+| `src/enemyRendering.ts` | Procedural enemy rigs, selection, health bars and pooled effect rendering |
 | `src/geometry.ts` | Exposed-face box batching, mesh parts, thin instances |
 | `src/buildDungeon.ts` / `src/renderTypes.ts` | Procedural architecture/props, collision proxies, typed lights and animations |
 | `src/themedProps.ts` | Workshop furnishings, ovens, stable fixtures, and animated lizard steeds |
@@ -77,7 +97,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
 | `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
 | `src/locomotion.ts` | Movement speeds, acceleration/deceleration, and procedural start/travel/stop animation |
-| `src/player.ts` | Voxel adventurer, keyboard/click steering, collision movement, and destination marker |
+| `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
 | `src/engine.ts` | Babylon engine with a typed effect-cache diagnostic |
 | `src/ui.ts` / `src/dom.ts` / `src/style.css` | HUD, minimap, typed DOM access, menus, responsive layout |
@@ -95,6 +115,29 @@ npm run format:check
 ```
 
 Both `npm test` and `npm run build` run the type checker. Vite handles browser transpilation; Node executes test `.ts` files directly, without injecting helpers into Playwright's serialized browser callbacks. `erasableSyntaxOnly` enforces that compatibility. Dependency declarations are skipped with `skipLibCheck`; project code and tests are fully checked.
+
+### Entity/component architecture
+
+`game.ecs` is the runtime registry. Player, enemies, doors, interactables, props, obstacles, rooms, tiles, render batches, projectiles, and hit particles have entity IDs and attachable components. Generated world data is registered **by reference**, preserving the existing pure generation/validation pipeline and preventing duplicate door or interaction state. A batched mesh can render many logical floor/prop entities efficiently.
+
+Components describe transform, health, actor capabilities, movement, navigation, attack state, AI, interaction intent, corpse state, collision adapters, render rigs, and effects. Indexed queries visit only entities with the requested components; adding/removing components updates those indexes immediately. `Actor` is a checked view over these components, not an inheritance hierarchy or another copy of state.
+
+```ts
+const entity = game.ecs.create('breakable-urn')
+  .add('transform', { x: 3, z: 2, h: 0, heading: 0 })
+  .add('health', { current: 20, max: 20, invulnerable: 0 });
+
+for (const candidate of game.ecs.query('transform', 'health')) {
+  const health = candidate.require('health');
+  // A system can now operate on every matching entity.
+}
+entity.remove('health');
+game.ecs.remove(entity.id);
+```
+
+`createActor` composes the standard character components. Player input and AI supply intents to the same movement/pathfinding/door and combat systems. Babylon collision and visual rigs are separate adapters. A door-opening capability distinguishes clever actors from skeletons; locked gates block everyone. New component types belong in the `Components` interface, with systems querying the combinations they require.
+
+The fixed-step order is door state → player intent/pursuit → shared movement → enemy decisions/movement and shared attacks → projectiles/particles → shared rig animation. Menus and inspection suspend simulation. Blood/dust are capped at 192 live particle entities and bolts at 32; fixed thin-instance pools render them without allocating new meshes per hit. Corpse entities retain their original meshes.
 
 ### Rendering choices
 
@@ -150,11 +193,15 @@ npm run test:portraits
 npm run test:inspection
 npm run test:movement
 BROWSER=firefox npm run test:movement
+npm run test:combat
+BROWSER=firefox npm run test:combat
 ```
 
 The browser check starts a development server if needed, exercises the full game loop, completes three different seeds, and writes screenshots and JSON reports to `test-results/`. Chromium's automated smoke test explicitly uses software rendering for reproducibility; its FPS is not a hardware performance result.
 
 The movement suite expects a running dev server. It sends real pointer/keyboard events, checks high-DPI and low-quality floor picking, routes around furniture and over stairs, checks doors and modal cancellation, and captures the destination marker and start/stop poses. Pure navigation and locomotion tests run with `npm test`.
+
+The combat suite also expects a dev server. It uses real clicks/holds to verify pursuit, retargeting, attack poses, repeated damage, corpses, hit particles, cancellations, door clicks, respawn and regeneration. Pure ECS/AI tests cover skeleton hostility, goblin cover/flight/projectiles, kobold flanking, shared movement/doors, and bounded effect lifetimes. The floor-movement suite hides and freezes enemies to isolate floor selection; the full-route autopilot keeps AI active but grants the test player immunity during landmark traversal. Damage and death are checked separately.
 
 ```sh
 npm run profile
@@ -166,4 +213,4 @@ The opt-in `?debug` query exposes a small `window.__dungeon` harness **only in d
 
 ## Demo scope
 
-This release implements the exploration demo: traversal, interactions, hazards, checkpoints, procedural visuals, and a completion state. Combat, enemies, inventory, mobile touch controls, and sound would be separate extensions.
+This release includes exploration and combat: traversal, three enemy archetypes, melee/ranged attacks, interactions, hazards, checkpoints, procedural visuals, and a completion state. Inventory, mobile touch controls, and sound remain future extensions.

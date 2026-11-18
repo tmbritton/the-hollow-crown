@@ -19,6 +19,7 @@
     "test:portraits": "node tests/portraits.ts",
     "test:inspection": "node tests/inspection-browser.ts",
     "test:movement": "node tests/movement-browser.ts",
+    "test:combat": "node tests/combat-browser.ts",
     "profile": "node tests/profile.ts"
   },
   "dependencies": {

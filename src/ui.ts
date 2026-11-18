@@ -2,6 +2,7 @@ import { element, html as $ } from './dom.ts';
 import { required } from './assert.ts';
 import type { InspectionTarget } from './inspection.ts';
 import type { Player } from './player.ts';
+import type { Actor } from './actors.ts';
 import type { Room, RoomId, World } from './worldTypes.ts';
 
 export class UI {
@@ -69,6 +70,12 @@ export class UI {
   setHealth(health: number): void {
     $('health-fill').style.width = `${health}%`;
     $('health-text').textContent = `${Math.ceil(health)} / 100`;
+  }
+  combatTarget(actor: Actor | null): void {
+    const panel = $('combat-target');
+    panel.hidden = !actor?.alive;
+    if (actor)
+      panel.textContent = `${actor.kind.toUpperCase()} · ${Math.ceil(actor.health.current)} / ${actor.health.max} · ${actor.brain?.state ?? 'attack'}`;
   }
   damage(): void {
     const flash = $('damage-flash');

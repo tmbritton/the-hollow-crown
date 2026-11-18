@@ -124,6 +124,11 @@ try {
   await page.evaluate(() => {
     window.movementTestLoops = [...window.__dungeon.engine.activeRenderLoops];
     window.__dungeon.engine.stopRenderLoop();
+    // This suite targets floor navigation; hostile selection/combat has its own real-input suite.
+    for (const enemy of window.__dungeon.game.combat.enemies) {
+      enemy.entity.remove('brain');
+      enemy.entity.require('render').root?.setEnabled(false);
+    }
   });
   await reset();
   const target = { x: 3.2, z: 1.1 };
@@ -293,7 +298,16 @@ try {
     d.step([], 60);
   }, gate.id);
   await click(gate.to);
-  assert.ok((await state()).destination);
+  assert.ok(
+    (await state()).destination,
+    JSON.stringify(
+      await page.evaluate(() => ({
+        target: window.__dungeon.game.player.actor.attack.target,
+        interaction: window.__dungeon.game.player.actor.entity.get('interactionIntent'),
+        doors: window.__dungeon.snapshot().doors,
+      })),
+    ),
+  );
   await page.evaluate((id) => {
     const e = window.__dungeon.game.world.entities.find((e) => e.id === id);
     if (e?.type !== 'door' || !e.collider) throw new Error('Missing gate collider');

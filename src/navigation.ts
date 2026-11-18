@@ -1,5 +1,5 @@
 import { heightAt, key, tileAt } from './world.ts';
-import type { DoorEntity, Point, World } from './worldTypes.ts';
+import type { DoorEntity, Footprint, Point, World } from './worldTypes.ts';
 
 export type NavigationWorld = Pick<World, 'tiles' | 'blockers' | 'entities'>;
 interface Point3 extends Point {
@@ -25,6 +25,28 @@ const CARDINALS = [
   [0, -1],
 ] as const;
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
+
+/** Exact slab intersection avoids tunnelling through thin cover or clipping corners. */
+export function segmentIntersectsBox(from: Point, to: Point, box: Footprint, padding = 0): boolean {
+  let enter = 0,
+    exit = 1;
+  for (const axis of ['x', 'z'] as const) {
+    const half = (axis === 'x' ? box.w : box.d) / 2 + padding;
+    const delta = to[axis] - from[axis],
+      low = box[axis] - half,
+      high = box[axis] + half;
+    if (Math.abs(delta) < 1e-10) {
+      if (from[axis] <= low || from[axis] >= high) return false;
+    } else {
+      const a = (low - from[axis]) / delta,
+        b = (high - from[axis]) / delta;
+      enter = Math.max(enter, Math.min(a, b));
+      exit = Math.min(exit, Math.max(a, b));
+      if (enter >= exit) return false;
+    }
+  }
+  return enter < exit;
+}
 
 /** Pick the actual tile elevations, including stepped landings and liquid surfaces.
  * Decorative meshes and camera cutaways do not change the navigation surface. */
@@ -59,6 +81,8 @@ export class Navigator {
   private route: Point[] = [];
   private next = 0;
   private stuckTime = 0;
+  private opensDoors = false;
+  waitingForDoor = false;
 
   constructor(world: NavigationWorld) {
     this.world = world;
@@ -79,6 +103,7 @@ export class Navigator {
     this.route = [];
     this.next = 0;
     this.stuckTime = 0;
+    this.waitingForDoor = false;
   }
 
   private staticClear(point: Point): boolean {
@@ -97,10 +122,11 @@ export class Navigator {
     );
   }
 
-  private doorsClear(point: Point): boolean {
+  private doorsClear(point: Point, planning = false): boolean {
     return !this.doors.some((door) => {
       // An opening door remains solid until its physical collider is released.
       if (!door.locked && door.open && !door.collider?.checkCollisions) return false;
+      if (planning && this.opensDoors && !door.locked) return false;
       const w = door.axis === 'x' ? 0.35 : 2.95;
       const d = door.axis === 'x' ? 2.95 : 0.35;
       return (
@@ -110,8 +136,8 @@ export class Navigator {
     });
   }
 
-  canStand(point: Point): boolean {
-    return this.staticClear(point) && this.doorsClear(point);
+  canStand(point: Point, planning = false): boolean {
+    return this.staticClear(point) && this.doorsClear(point, planning);
   }
 
   private cellClear(point: Point): boolean {
@@ -121,10 +147,12 @@ export class Navigator {
       clear = this.staticClear(point);
       this.staticCells.set(id, clear);
     }
-    return clear && this.doorsClear(point);
+    return clear && this.doorsClear(point, true);
   }
 
-  segmentClear(from: Point, to: Point): boolean {
+  segmentClear(from: Point, to: Point, planning = false): boolean {
+    if (this.world.blockers.some((box) => segmentIntersectsBox(from, to, box, CLEARANCE)))
+      return false;
     const steps = Math.max(1, Math.ceil(distance(from, to) / SAMPLE_SPACING));
     let previous = heightAt(this.world, from.x, from.z);
     if (previous === null) return false;
@@ -134,27 +162,28 @@ export class Navigator {
         z: from.z + ((to.z - from.z) * i) / steps,
       };
       const height = heightAt(this.world, point.x, point.z);
-      if (!this.canStand(point) || height === null || Math.abs(height - previous) > 0.65)
+      if (!this.canStand(point, planning) || height === null || Math.abs(height - previous) > 0.65)
         return false;
       previous = height;
     }
     return true;
   }
 
-  goTo(from: Point, requested: Point): boolean {
+  goTo(from: Point, requested: Point, options: { openDoors?: boolean } = {}): boolean {
     this.cancel();
+    this.opensDoors = options.openDoors ?? false;
     const tile = tileAt(this.world, requested.x, requested.z);
     if (!tile) return false;
     // Near a wall edge, use the clicked tile's center rather than an unsafe offset.
-    const goal = this.canStand(requested) ? { ...requested } : { x: tile.x, z: tile.z };
-    if (!this.canStand(goal)) return false;
+    const goal = this.canStand(requested, true) ? { ...requested } : { x: tile.x, z: tile.z };
+    if (!this.canStand(goal, true)) return false;
     if (distance(from, goal) < 0.025) return true;
-    if (this.segmentClear(from, goal)) {
+    if (this.segmentClear(from, goal, true)) {
       this.route = [goal];
       return true;
     }
     const start = { x: Math.round(from.x), z: Math.round(from.z) };
-    if (!this.segmentClear(from, start)) return false;
+    if (!this.segmentClear(from, start, true)) return false;
     const startKey = key(start.x, start.z),
       goalKey = key(tile.x, tile.z);
     const parents = new Map<string, string | null>([[startKey, null]]);
@@ -182,7 +211,7 @@ export class Navigator {
     let anchor = from;
     for (let i = 0; i < points.length;) {
       let farthest = points.length - 1;
-      while (farthest >= i && !this.segmentClear(anchor, points[farthest])) farthest--;
+      while (farthest >= i && !this.segmentClear(anchor, points[farthest], true)) farthest--;
       if (farthest < i) {
         this.cancel();
         return false;
@@ -195,6 +224,7 @@ export class Navigator {
   }
 
   steer(position: Point): SteeringTarget | null {
+    this.waitingForDoor = false;
     while (this.next < this.route.length - 1 && distance(position, this.route[this.next]) < 0.015)
       this.next++;
     if (!this.active) return null;
@@ -207,6 +237,13 @@ export class Navigator {
       z: position.z + (point.z - position.z) * fraction,
     };
     if (!this.segmentClear(position, ahead)) {
+      if (this.opensDoors && this.segmentClear(position, ahead, true)) {
+        for (const door of this.doors) {
+          if (!door.locked && distance(position, door) < 2.2) door.open = true;
+        }
+        this.waitingForDoor = true;
+        return null;
+      }
       this.cancel();
       return null;
     }

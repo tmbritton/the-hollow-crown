@@ -22,6 +22,12 @@ import { buildDungeon } from './buildDungeon.ts';
 import { createPlayer, movePlayer, stopPlayer } from './player.ts';
 import { pickGround } from './navigation.ts';
 import { MOVEMENT_KEYS } from './locomotion.ts';
+import { ECS } from './ecs.ts';
+import { CombatSystem, seedEnemies } from './combat.ts';
+import { cancelAttack } from './actors.ts';
+import { animateActors } from './actorRendering.ts';
+import { createEnemyRendering } from './enemyRendering.ts';
+import { registerWorld, registerDungeonRendering, updateDoors } from './worldEntities.ts';
 import { UI } from './ui.ts';
 import { InspectionController } from './inspection.ts';
 import { required } from './assert.ts';
@@ -61,13 +67,17 @@ let last = performance.now(),
   ready = false;
 let quality: 'high' | 'low' = 'high';
 let inspectorToken: ReturnType<typeof ShowInspector> | null = null;
-let heldPointer: { id: number; x: number; y: number } | null = null;
+let heldPointer: { id: number; x: number; y: number; mode: 'floor' | 'target' } | null = null;
 let lastPointerRoute = 0;
 
 function resetMovement(): void {
   keys.clear();
   heldPointer = null;
-  if (game) stopPlayer(game.player);
+  if (game) {
+    stopPlayer(game.player);
+    game.enemyRendering.update();
+    ui.combatTarget(null);
+  }
 }
 
 function navigatePointer(clientX: number, clientY: number, feedback = false): void {
@@ -81,6 +91,32 @@ function navigatePointer(clientX: number, clientY: number, feedback = false): vo
     Matrix.Identity(),
     game.camera,
   );
+  if (feedback) {
+    const enemy = game.enemyRendering.pick(ray);
+    const doors = game.ecs
+      .query('door')
+      .map((entity) => entity.require('door'))
+      .filter((door) => !door.open || door.collider?.checkCollisions);
+    const doorHit = game.scene.pickWithRay(ray, (mesh) =>
+      doors.some((door) => door.collider === mesh),
+    );
+    const door = doors.find((door) => door.collider === doorHit?.pickedMesh);
+    if (door && (!enemy || (doorHit?.distance ?? Infinity) < enemy.distance)) {
+      if (heldPointer) heldPointer.mode = 'target';
+      if (!game.combat.requestDoor(game.player.actor, door.id)) {
+        resetMovement();
+        ui.toast('The gate remembers an oath. Kindle the violet altar.');
+      }
+      return;
+    }
+    if (enemy) {
+      if (heldPointer) heldPointer.mode = 'target';
+      game.combat.target(game.player.actor, enemy.actor);
+      return;
+    }
+    cancelAttack(game.player.actor);
+    game.player.actor.entity.remove('interactionIntent');
+  }
   const point = pickGround(game.world, ray);
   const accepted = point && game.player.navigator.goTo(game.player.root.position, point);
   if (!accepted) {
@@ -183,7 +219,24 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   const fxaa = new FxaaPostProcess('edge antialiasing', 1, camera);
   const materials = createMaterials(scene);
   const dungeon = buildDungeon(scene, world, materials, shadow, glow);
-  const player = createPlayer(scene, materials, shadow, world);
+  const ecs = new ECS();
+  registerWorld(ecs, world);
+  registerDungeonRendering(ecs, dungeon);
+  const player = createPlayer(scene, materials, shadow, world, ecs);
+  const combat = new CombatSystem(
+    ecs,
+    world,
+    [player.actor, ...seedEnemies(ecs, world)],
+    world.seed,
+  );
+  const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
+  // Render batches can serve many logical tiles/props without duplicating geometry.
+  const actorMeshes = new Set(
+    ecs.query('render').flatMap((entity) => entity.require('render').meshes),
+  );
+  for (const mesh of scene.meshes)
+    if (!actorMeshes.has(mesh))
+      ecs.create(`render:${mesh.uniqueId}`).add('render', { root: null, meshes: [mesh] });
   const shadowMap = required(shadow.getShadowMap(), 'Shadow map unavailable');
   const shadowCasters = [...(shadowMap.renderList ?? [])];
   for (const mesh of scene.meshes)
@@ -236,6 +289,9 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     materials,
     dungeon,
     player,
+    ecs,
+    combat,
+    enemyRendering,
     inspection,
     time: 0,
     playTime: 0,
@@ -263,7 +319,10 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     ready = true;
     loading.classList.add('done');
     canvas.focus();
-    ui.toast('Click the floor or use WASD to move. Hold Shift to run. Open doors with E.', 5500);
+    ui.toast(
+      'Click an enemy to pursue and attack. Click doors to open. WASD / Space cancels.',
+      6500,
+    );
   });
 }
 
@@ -288,7 +347,9 @@ function lineOfSight(entity: Entity): boolean {
 function findInteraction(): Entity | null {
   const p = game.player.root.position;
   return (
-    game.world.entities
+    game.ecs
+      .query('interaction')
+      .map((entity) => entity.require('interaction'))
       .map((e) => ({ e, d: Math.hypot(e.x - p.x, e.z - p.z) }))
       .filter(
         ({ e, d }) =>
@@ -328,7 +389,14 @@ function interact() {
     }
     const p = game.player.root.position;
     // Reserve the full swing area, not just the doorway plane.
-    if (e.open && Math.abs(p.x - e.x) < 1.9 && Math.abs(p.z - e.z) < 1.9) {
+    if (
+      e.open &&
+      ((Math.abs(p.x - e.x) < 1.9 && Math.abs(p.z - e.z) < 1.9) ||
+        game.combat.enemies.some(
+          (a) =>
+            a.alive && Math.abs(a.position.x - e.x) < 1.9 && Math.abs(a.position.z - e.z) < 1.9,
+        ))
+    ) {
       ui.toast('Step clear of the doorway before closing it.');
       return;
     }
@@ -381,31 +449,39 @@ function tick(dt: number): void {
   game.time += dt;
   game.playTime += dt;
   game.steps++;
-  const tile = movePlayer(game.player, game.world, keys, game.camera, dt);
+  const healthBefore = game.player.health;
+  if ([...MOVEMENT_KEYS].some((key) => keys.has(key))) {
+    cancelAttack(game.player.actor);
+    game.player.actor.entity.remove('interactionIntent');
+  }
+  updateDoors(game.ecs, dt);
+  const locked = game.combat.pursue(game.player.actor, dt);
+  const tile = movePlayer(game.player, game.world, keys, game.camera, dt, locked);
+  game.combat.update(dt);
+  animateActors(game.ecs, dt);
+  game.enemyRendering.update();
   if (tile?.room) ui.room(game.world.roomById[tile.room]);
   game.damageCooldown -= dt;
   if (tile?.surface === 'lava' && game.damageCooldown <= 0) {
-    game.player.health = Math.max(0, game.player.health - 18);
+    game.combat.damage(game.player.actor, 18);
     game.damageCooldown = 0.6;
+  }
+  if (game.player.health < healthBefore) {
     ui.setHealth(game.player.health);
     ui.damage();
-    if (game.player.health === 0) {
-      game.player.teleport(game.checkpoint.x, game.checkpoint.z, game.world);
-      game.player.health = 100;
-      ui.setHealth(100);
-      game.damageCooldown = 1;
-      ui.toast('Ash takes you. The last safe flame calls you back.', 4500);
-    }
   }
-  for (const e of game.world.entities) {
-    if (e.type === 'door') {
-      const target = e.open ? Math.PI * 0.49 : 0;
-      const angle = required(e.angle, 'Door animation missing');
-      e.angle = angle + (target - angle) * (1 - Math.exp(-7 * dt));
-      required(e.pivot, 'Door hinge missing').rotation.y = e.angle;
-      if (e.open && e.angle > 1.2)
-        required(e.collider, 'Door collider missing').checkCollisions = false;
-    }
+  if (game.player.health <= 0) {
+    resetMovement();
+    game.player.actor.entity.remove('corpse');
+    game.player.teleport(game.checkpoint.x, game.checkpoint.z, game.world);
+    game.player.health = 100;
+    game.player.actor.health.invulnerable = 2.5;
+    ui.setHealth(100);
+    game.damageCooldown = 1;
+    ui.toast('You fall. The last safe flame calls you back.', 4500);
+  }
+  for (const entity of game.ecs.query('interaction')) {
+    const e = entity.require('interaction');
     if (e.type === 'chest') {
       const angle = required(e.angle, 'Chest animation missing');
       e.angle = angle + ((e.open ? -1.5 : 0) - angle) * (1 - Math.exp(-5 * dt));
@@ -436,28 +512,34 @@ function renderUpdate(dt: number): void {
     dungeon.sparkMatrices[o + 14] = p.z + Math.cos(game.time + p.phase) * life * 0.15;
   });
   dungeon.sparkMesh.thinInstanceBufferUpdated('matrix');
-  for (const a of dungeon.animated) {
+  for (const entity of game.ecs.query('floating')) {
+    const a = entity.require('floating');
     a.mesh.position.y = a.y + Math.sin(game.time * 1.6 + a.phase) * 0.12;
     a.mesh.rotation.y = game.time * a.spin;
     a.mesh.rotation.z = Math.sin(game.time + a.phase) * 0.08;
   }
-  for (const creature of dungeon.creatures) {
+  for (const entity of game.ecs.query('ambientMotion')) {
+    const creature = entity.require('ambientMotion');
     creature.root.scaling.y = 1 + Math.sin(game.time * 1.4 + creature.phase) * 0.018;
     creature.head.rotation.y = Math.sin(game.time * 0.7 + creature.phase) * 0.08;
     creature.tail.rotation.y = Math.sin(game.time * 1.1 + creature.phase) * 0.14;
   }
-  for (const wall of dungeon.walls) {
+  for (const entity of game.ecs.query('cutaway')) {
+    const wall = entity.require('cutaway');
     const facing = wall.dx * Math.cos(camera.alpha) + wall.dz * Math.sin(camera.alpha);
     const desired = facing > 0.15 ? 0.05 : 1;
     wall.scale += (desired - wall.scale) * (1 - Math.exp(-9 * dt));
     for (const mesh of wall.meshes) mesh.scaling.y = wall.scale;
   }
-  for (const portrait of dungeon.portraits) {
+  for (const entity of game.ecs.query('portrait')) {
+    const portrait = entity.require('portrait');
     const facing = portrait.dx * Math.cos(camera.alpha) + portrait.dz * Math.sin(camera.alpha);
     portrait.root.setEnabled(portrait.inspected || facing <= 0.15);
   }
   if (game.steps % 12 === 0 || game.nearLights.length === 0) {
-    game.nearLights = [...dungeon.lights]
+    game.nearLights = game.ecs
+      .query('lightSource')
+      .map((entity) => entity.require('lightSource'))
       .sort(
         (a, b) =>
           Vector3.DistanceSquared(a.position, player.root.position) -
@@ -483,6 +565,8 @@ function renderUpdate(dt: number): void {
   });
   game.nearest = game.inspection.active ? null : findInteraction();
   ui.prompt(promptFor(game.nearest));
+  const target = game.combat.actor(game.player.actor.attack.target);
+  ui.combatTarget(game.inspection.active ? null : (target ?? null));
 }
 
 function toggleMenu() {
@@ -530,11 +614,19 @@ window.addEventListener('keydown', (event) => {
   if (MOVEMENT_KEYS.has(event.code)) {
     heldPointer = null;
     game?.player.navigator.cancel();
+    if (game) {
+      cancelAttack(game.player.actor);
+      game.player.actor.entity.remove('interactionIntent');
+    }
   }
   if (event.code === 'Space') {
     keys.clear();
     heldPointer = null;
     game?.player.navigator.cancel();
+    if (game) {
+      cancelAttack(game.player.actor);
+      game.player.actor.entity.remove('interactionIntent');
+    }
     return;
   }
   keys.add(event.code);
@@ -578,7 +670,7 @@ canvas.addEventListener('pointerdown', (event) => {
   if (!ready || paused() || game.inspection.active) return;
   event.preventDefault();
   canvas.focus();
-  heldPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  heldPointer = { id: event.pointerId, x: event.clientX, y: event.clientY, mode: 'floor' };
   navigatePointer(event.clientX, event.clientY, true);
 });
 window.addEventListener('pointermove', (event) => {
@@ -659,6 +751,7 @@ try {
       else {
         if (
           heldPointer &&
+          heldPointer.mode === 'floor' &&
           now - lastPointerRoute >= 120 &&
           document.elementFromPoint(heldPointer.x, heldPointer.y) === canvas
         )

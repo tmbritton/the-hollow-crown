@@ -14,6 +14,9 @@ import type { Player } from './player.ts';
 import type { InspectionController } from './inspection.ts';
 import type { LightSource } from './renderTypes.ts';
 import type { Entity, RoomId, Spawn, World } from './worldTypes.ts';
+import type { ECS } from './ecs.ts';
+import type { CombatSystem } from './combat.ts';
+import type { EnemyRendering } from './enemyRendering.ts';
 
 export interface Game {
   scene: Scene;
@@ -30,6 +33,9 @@ export interface Game {
   materials: Materials;
   dungeon: DungeonScene;
   player: Player;
+  ecs: ECS;
+  combat: CombatSystem;
+  enemyRendering: EnemyRendering;
   inspection: InspectionController;
   time: number;
   playTime: number;

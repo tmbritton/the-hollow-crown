@@ -2,7 +2,7 @@
 
 ## Result
 
-The playable exploration demo is implemented in **strict TypeScript** and verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test.
+The playable exploration/combat demo uses a **typed ECS and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test.
 
 ### Automated checks
 
@@ -10,8 +10,8 @@ The playable exploration demo is implemented in **strict TypeScript** and verifi
 | --- | --- |
 | `npm run typecheck` | Passes with `strict`, unused-code checks, and erasable TypeScript syntax across source, tests, and Vite configuration |
 | `npm run format:check` | All TypeScript files and the TypeScript configuration pass Prettier checks |
-| `npm test` | 24 passing tests: generation/reachability over 100 seeds, inspection lifecycle, navigation clearance/gates/elevations, speed easing, and animation transitions |
-| `npm run build` | Strict type checking and production build succeed; 622 modules transformed |
+| `npm test` | 37 passing tests: generation/reachability, inspection, navigation, locomotion, ECS lifecycle, shared movement/doors, enemy tactics, timed damage, projectiles, corpses and effects |
+| `npm run build` | Strict type checking and production build succeed; 628 modules transformed |
 | `npm run test:production` | Built shaders, rendering, seed changes, menus, and quality settings work; development hooks are absent |
 | `npm run test:browser` | 22 passing Chromium gameplay/rendering/resource checks |
 | `BROWSER=firefox npm run test:browser` | 22 passing Firefox gameplay/rendering/resource checks |
@@ -19,9 +19,11 @@ The playable exploration demo is implemented in **strict TypeScript** and verifi
 | `npm run test:inspection` | 11 passing checks for held-key handling, text editing, close-up detail, camera restoration, resizing, cancellation, and regeneration |
 | `npm run test:movement` | 11 passing Chromium checks for real clicks, hold-to-steer, keyboard override, eased stopping, obstacles, stairs, doors, modal/focus cancellation, and high-DPI/low-quality picking |
 | `BROWSER=firefox npm run test:movement` | The same 11 movement checks pass in Firefox |
+| `npm run test:combat` | 9 passing real-input ECS/combat checks, including held pursuit, repeated strikes, effects/corpses, moving targets, cancellation, door clicks/locks, death and regeneration |
+| `BROWSER=firefox npm run test:combat` | The same 9 combat checks pass in Firefox |
 | `npm run profile` | Earlier hardware baseline; the profiler is type-checked, but hardware measurements were not rerun for this update |
 
-Both full browser runs complete `MOURNING-731`, `CINDER-42`, and `VIOLET-7`. The test discovers routes from each generated layout and advances the actual player controller and collision system through them. The keyboard route driver releases before its final waypoint and waits for eased movement to settle before interacting. Teleports isolate hazards and individual rendering/interaction checks.
+Both full browser runs complete `MOURNING-731`, `CINDER-42`, and `VIOLET-7`. The test discovers routes from each generated layout and advances the actual player controller and collision system through them. The keyboard route driver releases before its final waypoint and waits for eased movement to settle before interacting. The non-fighting landmark autopilot temporarily grants the test player immunity while keeping AI active; ordinary damage/death are checked independently. Teleports isolate hazards and individual rendering/interaction checks. Floor-navigation tests hide and freeze enemies to prevent enemy selection from replacing a floor command; combat browser tests use controlled encounters with real input, simulation, collision and rendering.
 
 The TypeScript migration was verified using Node.js 26.0.0. Node.js 22.18+ is required for native execution of the `.ts` test scripts; both `npm test` and `npm run build` run the type checker first. No `any` annotations or TypeScript error-suppression directives were introduced. Shared contracts describe world data, discriminated entity variants, rendering state, inspection targets, and the optional development harness.
 
@@ -36,6 +38,13 @@ Covered behavior:
 - Click routes preserve character clearance around furniture, avoid lava/void, use supported stairs, and respect closed or dynamically closing doors.
 - Pause, inspection, focus loss, and regeneration clear queued movement and momentum. Mouse input is blocked during inspection and menus.
 - Closed-door collision, opening doors, and preventing closure on the player.
+- Click-to-approach/open doors, capability-aware door navigation, and locked-gate preservation.
+- Indexed ECS component attachment/replacement/removal, actor composition, and reference-based registration of generated world data.
+- Skeleton wandering and attacks on living enemies; goblin flight, hiding, cover-to-peek transitions and ranged fire; kobold group alerts and distinct flanking positions.
+- An additional 100-seed spawn sweep confirmed 21 enemies per world and navigation-safe starting positions after pack clustering.
+- Sticky enemy targeting, moving-target pursuit, repeated timed sword attacks, animation blending, cancellation before impact, and no melee damage through cover.
+- Dodgable, swept crossbow projectiles blocked by furniture and doors. Enemy attacks use the same player/enemy health and damage system.
+- Persistent non-blocking corpses, blood versus skeleton dust, bounded particle/projectile entity lifetimes, and clean world replacement.
 - Traversing stairs up and down with correct floor elevation.
 - Reduced speed in water.
 - Lava damage and safe respawning.
@@ -63,10 +72,11 @@ Reviewed rendered screenshots of the entrance, flooded gallery, forge, altar, th
 - Shader surfaces and props render correctly without imported textures.
 - Portraits display distinct faces, crowns, beards/hair, robes, skin tones, and backgrounds. All artwork is computed in a shared lit shader from per-painting attributes.
 - Reviewed the gold click-destination ring and close-up push-off/stopping poses. Start has a forward lean and staggered legs; stop counter-leans with a planted stance and cape settling.
+- Reviewed the three enemy silhouettes, sword strike/recovery pose, red target ring and health bars, bright blood fragments, pale bone dust, and collapsed skeleton corpse in the combat captures.
 
 ### Character lighting verification
 
-The test checks that all **28 character parts** remain in the shadow caster list and receive shadows, and that the non-emissive body materials use scene lighting. It also performs GPU readbacks with the hero's shadow casters enabled/disabled, then with a nearby test light switched between red and blue. The Firefox run measured **3,116 darkened ground pixels** in the shadow probe and **410 changed torso pixels** in the colored-light probe. Shadow-caster membership is checked again after room transitions.
+The test checks that all **28 character parts** remain in the shadow caster list and receive shadows, and that the non-emissive body materials use scene lighting. It also performs GPU readbacks with the hero's shadow casters enabled/disabled, then with a nearby test light switched between red and blue. The Firefox run measured **3,066 darkened ground pixels** in the shadow probe and **406 changed torso pixels** in the colored-light probe. Shadow-caster membership is checked again after room transitions.
 
 ### Reusable close-up inspection
 
@@ -78,7 +88,7 @@ Screenshots are generated under `test-results/` by the browser and profile scrip
 
 ## Hardware performance baseline
 
-The following profile was recorded for the expanded dungeon before the inward-facing placement and inspection update; it is retained as the rendering baseline rather than a new measurement of inspection mode.
+The following profile was recorded for the expanded dungeon before the inward-facing placement, inspection, movement, and ECS/combat updates. It is retained as an older rendering baseline; hardware performance has not been re-profiled for combat.
 
 Reference run: **Chromium 159.0.8154.6**, Linux, **NVIDIA GeForce RTX 2070**, WebGL2 through ANGLE/OpenGL ES, **1920 × 1080**, high quality, seed `MOURNING-731`.
 
@@ -105,10 +115,10 @@ The profiled world contains approximately **166,638 mesh triangles**, including 
 
 Five consecutive regeneration samples include different layouts and two identical final seeds. The repeated `MOURNING-731` samples stabilized at:
 
-- 1,495 scene meshes, including invisible collision meshes, segmented walls, frames, individual character/door parts, and the new destination marker.
-- 27 materials.
+- 1,954 scene meshes, including collision meshes, architecture, character parts, enemy rigs, health displays and fixed effect pools.
+- 28 materials.
 - 4 scene-tracked runtime textures/render targets (post-process internal buffers are managed separately by Babylon).
-- 44 cached effects after regeneration and initial rendering.
+- 50 cached effects after regeneration and initial rendering.
 - 34 compiled custom shader source entries, including the shared portrait material.
 
 Exploring additional areas can compile additional material variants. Regenerating releases those effects and returns to the same initial counts. A shader-cache growth issue discovered during testing was fixed by disposing scene resources, releasing old effects, and removing generated custom shader source entries.
@@ -121,5 +131,7 @@ Exploring additional areas can compile additional material variants. Regeneratin
 - Four themed rooms are guaranteed, including their defining furnishings and two lizard steeds.
 - Royal portrait identities and appearance traits are generated as plain data; a shared material renders the paintings without image textures.
 - All normal game dependencies are local bundles. The Inspector is dynamically loaded only in development.
+- A small typed ECS with indexed queries supports attachable components. Movement, door use, attacks, health, collision adapters and animation are shared by player and enemies; generated objects and ambient render behaviors are also registered entities.
+- Effect simulation uses transient entities with fixed-size thin-instance render pools (192 hit particles and 32 bolts maximum). Corpses retain their rigs rather than allocating replacement meshes.
 
-Raw reports are in `test-results/chromium-report.json`, `test-results/firefox-report.json`, `test-results/chromium-movement-report.json`, `test-results/firefox-movement-report.json`, `test-results/portrait-report.json`, `test-results/inspection-report.json`, and `test-results/hardware-profile.json`.
+Raw reports are in `test-results/chromium-report.json`, `test-results/firefox-report.json`, `test-results/chromium-movement-report.json`, `test-results/firefox-movement-report.json`, `test-results/chromium-combat-report.json`, `test-results/firefox-combat-report.json`, `test-results/portrait-report.json`, `test-results/inspection-report.json`, and `test-results/hardware-profile.json`.

@@ -3,15 +3,10 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { part } from './geometry.ts';
 import { tileAt, heightAt } from './world.ts';
-import { Navigator } from './navigation.ts';
-import {
-  animateLocomotion,
-  createLocomotion,
-  easeSpeed,
-  MOVEMENT_KEYS,
-  RUN_SPEED,
-  WALK_SPEED,
-} from './locomotion.ts';
+import { createActor, moveActor, stopActor, teleportActor } from './actors.ts';
+import { bindActorCollision } from './actorRendering.ts';
+import type { ECS } from './ecs.ts';
+import { MOVEMENT_KEYS, RUN_SPEED, WALK_SPEED } from './locomotion.ts';
 import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
@@ -27,8 +22,10 @@ export function createPlayer(
   materials: Materials,
   shadow: ShadowGenerator,
   world: World,
+  ecs: ECS,
 ) {
   const spawn = world.spawn;
+  const actor = createActor(ecs, world, 'player', 'player', spawn);
   const root = new TransformNode('the wanderer', scene);
   root.position.set(spawn.x, spawn.h, spawn.z);
   const body = new TransformNode('body', scene);
@@ -73,10 +70,7 @@ export function createPlayer(
   const cape = p('cloth', 'cape', [0.71, 0.91, 0.12], [0, 0.91, -0.31]);
   cape.rotation.x = -0.16;
   shield.enableEdgesRendering();
-  const proxy = MeshBuilder.CreateBox('player collision proxy', { size: 1 }, scene);
-  proxy.isVisible = false;
-  proxy.isPickable = false;
-  proxy.ellipsoid.set(0.3, 0.72, 0.3);
+  const proxy = bindActorCollision(actor, scene, world);
   proxy.position.set(spawn.x, spawn.h + 0.72, spawn.z);
   const marker = MeshBuilder.CreateTorus(
     'wanderer ground ring',
@@ -93,25 +87,23 @@ export function createPlayer(
   destinationMarker.material = materials.eyes;
   destinationMarker.isPickable = false;
   destinationMarker.setEnabled(false);
-  const navigator = new Navigator(world);
-  const motion = { speed: 0, direction: Vector3.Zero(), animation: createLocomotion() };
+  const navigator = actor.navigator;
+  const motion = actor.motion;
   const shadowMeshes = root.getChildMeshes();
   for (const mesh of shadowMeshes) {
     mesh.receiveShadows = true;
     shadow.addShadowCaster(mesh);
   }
   const teleport = (x: number, z: number, world: World) => {
-    navigator.cancel();
+    teleportActor(actor, world, { x, z });
     destinationMarker.setEnabled(false);
-    motion.speed = 0;
-    motion.direction.setAll(0);
-    motion.animation = createLocomotion();
     const h = heightAt(world, x, z) ?? 0;
     proxy.position.set(x, h + 0.72, z);
     proxy.computeWorldMatrix(true);
     root.position.set(x, h, z);
   };
   const player = {
+    actor,
     root,
     body,
     proxy,
@@ -124,26 +116,38 @@ export function createPlayer(
     cape,
     shadowMeshes,
     teleport,
-    health: 100,
+    get health() {
+      return actor.health.current;
+    },
+    set health(value: number) {
+      actor.health.current = value;
+    },
     moving: false,
-    heading: Math.PI / 2,
+    get heading() {
+      return actor.position.heading;
+    },
+    set heading(value: number) {
+      actor.position.heading = value;
+    },
   };
+  actor.entity.add('render', { root, meshes: shadowMeshes });
+  actor.entity.add('rig', { root, body, arms, legs, cape, attackBlend: 0, attackTime: 0 });
   root.rotation.y = player.heading;
   return player;
 }
 
 /** Modal/focus changes and teleports stop immediately rather than resuming stale intent. */
 export function stopPlayer(player: Player): void {
-  player.navigator.cancel();
+  stopActor(player.actor);
+  player.actor.entity.remove('interactionIntent');
   player.destinationMarker.setEnabled(false);
-  player.motion.speed = 0;
-  player.motion.direction.setAll(0);
-  player.motion.animation = createLocomotion();
   player.moving = false;
   player.body.rotation.x = 0;
+  player.body.rotation.y = 0;
   player.body.position.y = 0;
   for (const limb of [...player.arms, ...player.legs]) limb.rotation.x = 0;
   player.cape.rotation.x = -0.16;
+  player.actor.entity.require('rig').attackBlend = 0;
 }
 
 export function movePlayer(
@@ -152,6 +156,7 @@ export function movePlayer(
   input: ReadonlySet<string>,
   camera: ArcRotateCamera,
   dt: number,
+  locked = false,
 ) {
   const horizontal =
     (input.has('KeyD') || input.has('ArrowRight') ? 1 : 0) -
@@ -164,83 +169,19 @@ export function movePlayer(
   const direction = forward.scale(vertical).add(right.scale(horizontal));
   const keyboard = [...MOVEMENT_KEYS].some((code) => input.has(code));
   if (keyboard) player.navigator.cancel();
-  const navigating = player.navigator.active;
-  const steering = player.navigator.steer(player.root.position);
-  if (steering && !keyboard)
-    direction.set(
-      steering.point.x - player.root.position.x,
-      0,
-      steering.point.z - player.root.position.z,
-    );
-  const wantsMovement = direction.lengthSquared() > 1e-10;
-  if (wantsMovement) {
-    direction.normalize();
-    player.motion.direction.copyFrom(direction);
-  }
-  // A dynamically blocked route must not coast through a newly closed door or off its path.
-  if (navigating && !steering) player.motion.speed = 0;
-  const tile = tileAt(world, player.root.position.x, player.root.position.z);
-  const speed =
-    (input.has('ShiftLeft') || input.has('ShiftRight') ? RUN_SPEED : WALK_SPEED) *
-    (tile?.surface === 'water' ? 0.52 : 1);
-  const desiredSpeed = wantsMovement
-    ? Math.min(speed, steering ? steering.remaining * 9 : Infinity)
-    : 0;
-  player.motion.speed = easeSpeed(player.motion.speed, desiredSpeed, dt);
-  const start = player.proxy.position.clone();
-  let travel = player.motion.speed * dt;
-  if (steering)
-    travel = steering.distance < 0.025 ? steering.distance : Math.min(travel, steering.distance);
-  const displacement = player.motion.direction.scale(travel);
-  const supported = (x: number, z: number) =>
-    [
-      [-0.27, -0.27],
-      [-0.27, 0.27],
-      [0.27, -0.27],
-      [0.27, 0.27],
-    ].every(([dx, dz]) => tileAt(world, x + dx, z + dz));
-  if (!supported(start.x + displacement.x, start.z)) displacement.x = 0;
-  if (!supported(start.x, start.z + displacement.z)) displacement.z = 0;
-  if (!supported(start.x + displacement.x, start.z + displacement.z)) displacement.setAll(0);
-  // Refresh between fixed steps: Babylon's collision solver reads the world matrix.
-  player.proxy.computeWorldMatrix(true);
-  player.proxy.moveWithCollisions(displacement);
-  const h = heightAt(world, player.proxy.position.x, player.proxy.position.z);
-  player.proxy.position.y = (h ?? player.root.position.y) + 0.72;
-  player.proxy.computeWorldMatrix(true);
-  player.root.position.copyFrom(player.proxy.position);
-  player.root.position.y -= 0.72;
-  const moved = Math.hypot(player.proxy.position.x - start.x, player.proxy.position.z - start.z);
-  player.moving = moved / dt > 0.08;
-  if (travel > 0.001 && moved < travel * 0.05) player.motion.speed = 0;
-  player.navigator.recordProgress(moved, dt);
-  if (
-    steering?.final &&
-    Math.hypot(
-      player.root.position.x - steering.point.x,
-      player.root.position.z - steering.point.z,
-    ) < 0.015
-  ) {
-    player.navigator.cancel();
-    player.motion.speed = 0;
-  }
-  if (wantsMovement) player.heading = Math.atan2(direction.x, direction.z);
-  let diff = player.heading - player.root.rotation.y;
-  diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-  player.root.rotation.y += diff * (1 - Math.exp(-15 * dt));
-  const pose = animateLocomotion(
-    player.motion.animation,
-    moved / dt,
-    keyboard ? wantsMovement : player.navigator.active,
+  moveActor(
+    player.actor,
+    world,
+    {
+      direction: keyboard ? { x: direction.x, z: direction.z } : undefined,
+      speed: input.has('ShiftLeft') || input.has('ShiftRight') ? RUN_SPEED : WALK_SPEED,
+      locked,
+    },
     dt,
   );
-  player.legs[0].rotation.x = pose.leftLeg;
-  player.legs[1].rotation.x = pose.rightLeg;
-  player.arms[0].rotation.x = pose.leftArm;
-  player.arms[1].rotation.x = pose.rightArm;
-  player.body.position.y = pose.bob;
-  player.body.rotation.x = pose.lean;
-  player.cape.rotation.x = pose.cape;
+  const p = player.actor.position;
+  player.root.position.set(p.x, p.h, p.z);
+  player.moving = player.motion.actualSpeed > 0.08;
   const destination = player.navigator.destination;
   player.destinationMarker.setEnabled(destination !== null);
   if (destination) {

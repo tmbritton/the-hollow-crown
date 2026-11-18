@@ -208,6 +208,15 @@ async function showRoom(id: RoomId, name: string = id) {
   await north();
 }
 async function completeRun(capture = false) {
+  // This autopilot verifies physical progression, not combat strategy. Keep AI
+  // running, but isolate it from deaths while the driver visits every landmark.
+  // Real combat damage, avoidance and respawn are covered by the combat suites.
+  const immunity = await page.evaluate(() => {
+    const health = window.__dungeon.game.player.actor.health;
+    const saved = health.invulnerable;
+    health.invulnerable = Number.POSITIVE_INFINITY;
+    return saved;
+  });
   await north();
   const rooms: RoomId[] = [
     'water',
@@ -240,6 +249,9 @@ async function completeRun(capture = false) {
   assert.equal((await snapshot()).complete, true);
   await page.locator('#continue').click();
   await north();
+  await page.evaluate((immunity) => {
+    window.__dungeon.game.player.actor.health.invulnerable = immunity;
+  }, immunity);
 }
 async function probeHeroShadow() {
   return page.evaluate(async () => {

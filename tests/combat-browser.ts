@@ -1,0 +1,392 @@
+import { chromium, firefox } from '@playwright/test';
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { DebugWindow, TestReport } from './browserTypes.ts';
+import type { EnemyKind } from '../src/ecs.ts';
+import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+
+declare const window: DebugWindow;
+const browserName = process.env.BROWSER || 'chromium';
+const browser = await (browserName === 'firefox' ? firefox : chromium).launch({
+  headless: true,
+  ...(browserName === 'chromium'
+    ? { args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }
+    : {}),
+});
+const page = await browser.newPage({
+  viewport: { width: 1440, height: 900 },
+  deviceScaleFactor: 1.5,
+});
+const errors: string[] = [],
+  report: TestReport = { checks: [] };
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => {
+  if (m.type() === 'error') errors.push(m.text());
+});
+await mkdir('test-results', { recursive: true });
+const pass = (name: string) => {
+  report.checks.push(name);
+  console.log(`PASS ${name}`);
+};
+const step = (frames: number) =>
+  page.evaluate((frames) => window.__dungeon.step([], frames), frames);
+async function fixture(kind: EnemyKind, x = 4, z = 0) {
+  return page.evaluate(
+    ({ kind, x, z }) => {
+      const d = window.__dungeon,
+        g = d.game;
+      // Isolate each interaction while retaining real ECS, movement, combat and render systems.
+      for (const a of g.combat.enemies) {
+        a.entity.remove('brain');
+        a.entity.remove('corpse');
+        a.navigator.cancel();
+        a.attack.target = null;
+        a.attack.swing = null;
+        a.attack.cooldown = 0;
+        a.health.current = a.health.max;
+        Object.assign(a.position, { x: 1000, z: 1000, h: 0 });
+        a.motion.speed = 0;
+      }
+      for (const e of [...g.ecs.query('particle'), ...g.ecs.query('projectile')])
+        g.ecs.remove(e.id);
+      const target = g.combat.enemies.find((a) => a.kind === kind);
+      if (!target) throw new Error('Missing enemy fixture');
+      Object.assign(target.position, { x, z, h: 0 });
+      d.teleport(0, 0);
+      g.player.health = 100;
+      g.player.actor.health.invulnerable = 0;
+      g.player.actor.attack.cooldown = 0;
+      g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
+      g.camera.radius = g.desiredRadius = 20;
+      d.step([], 1);
+      g.scene.render();
+      return target.id;
+    },
+    { kind, x, z },
+  );
+}
+async function screen(x: number, z: number, h = 0) {
+  return page.evaluate(
+    ({ x, z, h }) => {
+      const d = window.__dungeon,
+        g = d.game;
+      const V = g.camera.target.constructor as typeof Vector3,
+        M = g.camera.getWorldMatrix().constructor as typeof Matrix;
+      g.scene.render();
+      const p = V.Project(
+        new V(x, h, z),
+        M.Identity(),
+        g.scene.getTransformMatrix(),
+        g.camera.viewport.toGlobal(d.engine.getRenderWidth(), d.engine.getRenderHeight()),
+      );
+      const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: rect.left + (p.x * rect.width) / d.engine.getRenderWidth(),
+        y: rect.top + (p.y * rect.height) / d.engine.getRenderHeight(),
+      };
+    },
+    { x, z, h },
+  );
+}
+async function clickEnemy(id: string, hold = false) {
+  const p = await page.evaluate((id) => window.__dungeon.game.combat.actor(id)!.position, id);
+  const point = await screen(p.x, p.z, p.h + 1);
+  await page.mouse.move(point.x, point.y);
+  if (hold) await page.mouse.down();
+  else await page.mouse.click(point.x, point.y);
+  assert.equal(await page.evaluate(() => window.__dungeon.game.player.actor.attack.target), id);
+}
+async function capture(name: string) {
+  await page.evaluate(() => window.__dungeon.game.scene.render());
+  await page.screenshot({ path: `test-results/${browserName}-combat-${name}.png` });
+}
+
+try {
+  await page.goto(`${process.env.DEMO_URL || 'http://localhost:5173'}/?debug&seed=MOURNING-731`);
+  await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
+  await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
+  const counts = await page.evaluate(() => {
+    const g = window.__dungeon.game;
+    return {
+      actors: g.ecs.query('actor').length,
+      tiles: g.ecs.query('tile').length,
+      expectedTiles: g.world.tiles.size,
+      doors: g.ecs.query('door').length,
+      rigs: g.ecs.query('rig').length,
+      health: g.player.actor.entity.require('health').current,
+    };
+  });
+  assert.equal(counts.actors, 22);
+  assert.equal(counts.rigs, 22);
+  assert.equal(counts.tiles, counts.expectedTiles);
+  assert.ok(counts.doors > 0);
+  assert.equal(counts.health, 100);
+  pass('Player, enemies, tiles, doors and render rigs use the live ECS registry');
+
+  const skeleton = await fixture('skeleton');
+  await clickEnemy(skeleton, true);
+  const pursuit = await page.evaluate((id) => {
+    const d = window.__dungeon,
+      g = d.game,
+      target = g.combat.actor(id)!;
+    let moved = false,
+      attackPose = false,
+      dust = false,
+      strikes = 0,
+      lastHealth = target.health.current;
+    for (let i = 0; i < 300 && target.alive; i++) {
+      d.step([], 1);
+      moved ||= g.player.motion.actualSpeed > 1;
+      attackPose ||= !!g.player.actor.attack.swing && g.player.arms[1].rotation.x < -1;
+      dust ||= g.ecs.query('particle').some((e) => e.require('particle').kind === 'dust');
+      if (target.health.current < lastHealth) {
+        strikes++;
+        lastHealth = target.health.current;
+      }
+    }
+    d.step([], 40);
+    return {
+      moved,
+      attackPose,
+      dust,
+      strikes,
+      dead: !target.alive,
+      corpse: target.entity.has('corpse'),
+      fallen: target.entity.require('rig').root.rotation.x,
+      target: g.player.actor.attack.target,
+      active: g.player.navigator.active,
+    };
+  }, skeleton);
+  await page.mouse.up();
+  assert.ok(
+    pursuit.moved && pursuit.attackPose && pursuit.dust && pursuit.dead && pursuit.corpse,
+    JSON.stringify(pursuit),
+  );
+  assert.equal(pursuit.strikes, 2);
+  assert.equal(pursuit.target, null);
+  assert.equal(pursuit.active, false);
+  assert.ok(pursuit.fallen > 1.5);
+  await capture('skeleton-corpse');
+  pass(
+    'Real held click pursues, blends movement into repeated sword strikes, emits dust, and leaves a corpse',
+  );
+
+  const goblin = await fixture('goblin', 1.3);
+  await clickEnemy(goblin);
+  await step(25);
+  const hit = await page.evaluate((id) => {
+    const g = window.__dungeon.game;
+    return {
+      health: g.combat.actor(id)!.health.current,
+      blood: g.ecs.query('particle').some((e) => e.require('particle').kind === 'blood'),
+      particles: (g.scene.getMeshByName('blood hit fragments') as Mesh | null)?.thinInstanceCount,
+      pose: g.player.actor.entity.require('rig').attackBlend,
+    };
+  }, goblin);
+  assert.equal(hit.health, 12);
+  assert.ok(hit.blood && (hit.particles ?? 0) > 0 && hit.pose > 0.8);
+  await capture('blood-strike');
+  await step(100);
+  assert.equal(
+    await page.evaluate((id) => window.__dungeon.game.combat.actor(id)!.alive, goblin),
+    false,
+  );
+  pass('Living enemies bleed on impact; released clicks retain the target until death');
+
+  const moving = await fixture('kobold', 4);
+  await clickEnemy(moving, true);
+  await step(12);
+  await page.evaluate((id) => {
+    const a = window.__dungeon.game.combat.actor(id)!;
+    a.position.x = 0;
+    a.position.z = 3;
+  }, moving);
+  await step(300);
+  await page.mouse.up();
+  assert.equal(
+    await page.evaluate((id) => window.__dungeon.game.combat.actor(id)!.alive, moving),
+    false,
+  );
+  pass(
+    'Target lock follows a moving enemy rather than steering toward the original cursor position',
+  );
+
+  for (const action of ['Space', 'KeyW', 'floor', 'pause', 'blur'] as const) {
+    const id = await fixture('skeleton', 1.3);
+    await clickEnemy(id);
+    await step(4);
+    if (action === 'floor') {
+      const p = await screen(0, -3);
+      await page.mouse.click(p.x, p.y);
+    } else if (action === 'pause') {
+      await page.locator('#menu-button').click();
+      await page.keyboard.press('Escape');
+    } else if (action === 'blur')
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    else await page.keyboard.press(action);
+    await step(60);
+    const cancelled = await page.evaluate(
+      (id) => ({
+        target: window.__dungeon.game.player.actor.attack.target,
+        health: window.__dungeon.game.combat.actor(id)!.health.current,
+      }),
+      id,
+    );
+    assert.equal(cancelled.target, null, action);
+    assert.equal(cancelled.health, 48, action);
+  }
+  pass('Floor commands, WASD, Space, pause and focus loss cancel pursuit and unresolved attacks');
+
+  await fixture('skeleton', 1000);
+  const door = await page.evaluate(() => {
+    const g = window.__dungeon.game;
+    const e = g.world.entities.find((e) => e.type === 'door' && !e.requiresAltar);
+    if (e?.type !== 'door') throw new Error('No door');
+    e.open = false;
+    e.angle = 0;
+    if (e.collider) e.collider.checkCollisions = true;
+    if (e.pivot) e.pivot.rotation.y = 0;
+    window.__dungeon.teleport(e.x - (e.axis === 'x' ? 3.5 : 0), e.z - (e.axis === 'z' ? 3.5 : 0));
+    g.scene.render();
+    return { id: e.id, x: e.x, z: e.z, h: e.h };
+  });
+  const doorScreen = await screen(door.x, door.z, door.h + 1.2);
+  await page.mouse.click(doorScreen.x, doorScreen.y);
+  assert.equal(
+    await page.evaluate(
+      () => window.__dungeon.game.player.actor.entity.get('interactionIntent')?.target,
+    ),
+    door.id,
+  );
+  await step(180);
+  const opened = await page.evaluate((id) => {
+    const e = window.__dungeon.game.ecs.get(id)!.require('door');
+    return {
+      open: e.open,
+      solid: e.collider?.checkCollisions,
+      intent: window.__dungeon.game.player.actor.entity.has('interactionIntent'),
+    };
+  }, door.id);
+  assert.ok(opened.open && !opened.solid && !opened.intent, JSON.stringify(opened));
+  pass('Clicking a real door mesh approaches and opens it through the shared interaction system');
+
+  const fighter = await fixture('skeleton', 1.2);
+  await page.evaluate((id) => {
+    const g = window.__dungeon.game,
+      a = g.combat.actor(id)!;
+    a.entity.add('brain', {
+      state: 'wander',
+      think: 0,
+      memory: 0,
+      home: { ...a.position },
+      pack: '',
+      slot: 0,
+      cover: null,
+      hideTime: 0,
+    });
+  }, fighter);
+  await step(25);
+  assert.ok(await page.evaluate(() => window.__dungeon.game.player.health < 100));
+  await page.evaluate((id) => {
+    const g = window.__dungeon.game;
+    g.player.health = 1;
+    g.combat.actor(id)!.attack.cooldown = 0;
+  }, fighter);
+  await step(65);
+  const respawn = await page.evaluate(() => {
+    const g = window.__dungeon.game;
+    return {
+      health: g.player.health,
+      immunity: g.player.actor.health.invulnerable,
+      corpse: g.player.actor.entity.has('corpse'),
+      target: g.player.actor.attack.target,
+    };
+  });
+  assert.equal(respawn.health, 100);
+  assert.ok(respawn.immunity > 0);
+  assert.equal(respawn.corpse, false);
+  assert.equal(respawn.target, null);
+  pass(
+    'Enemy attacks damage the shared player health component and death respawns with brief protection',
+  );
+
+  await fixture('skeleton', 1000);
+  const sealed = await page.evaluate(() => {
+    const d = window.__dungeon,
+      g = d.game;
+    const door = g.world.entities.find((e) => e.type === 'door' && e.requiresAltar);
+    if (door?.type !== 'door') throw new Error('Missing sealed door');
+    door.locked = true;
+    door.open = false;
+    door.angle = 0;
+    if (door.collider) door.collider.checkCollisions = true;
+    if (door.pivot) door.pivot.rotation.y = 0;
+    d.teleport(door.x - (door.axis === 'x' ? 2.2 : 0), door.z - (door.axis === 'z' ? 2.2 : 0));
+    d.step([], 1);
+    g.scene.render();
+    return { id: door.id, x: door.x, z: door.z, h: door.h };
+  });
+  const sealedScreen = await screen(sealed.x, sealed.z, sealed.h + 1.2);
+  await page.mouse.click(sealedScreen.x, sealedScreen.y);
+  await step(60);
+  assert.equal(
+    await page.evaluate((id) => window.__dungeon.game.ecs.get(id)!.require('door').open, sealed.id),
+    false,
+  );
+  assert.match(await page.locator('#toast').innerText(), /altar/);
+  pass('Clicking a locked door preserves the altar gate and explains the lock');
+
+  await fixture('skeleton', -2.4, 1);
+  await page.evaluate(() => {
+    const d = window.__dungeon,
+      g = d.game;
+    const goblin = g.combat.enemies.find((a) => a.kind === 'goblin')!;
+    const kobold = g.combat.enemies.find((a) => a.kind === 'kobold')!;
+    Object.assign(goblin.position, { x: 0, z: 1, h: 0 });
+    Object.assign(kobold.position, { x: 2.4, z: 1, h: 0 });
+    for (const a of g.combat.enemies) {
+      a.position.heading = Math.PI;
+      a.entity.require('rig').root.rotation.y = Math.PI;
+    }
+    d.teleport(0, -2.5);
+    d.step([], 1);
+    g.camera.radius = g.desiredRadius = 13;
+    g.camera.beta = 0.9;
+    g.scene.render();
+  });
+  await capture('enemy-lineup');
+
+  await page.evaluate(() => window.__dungeon.regenerate('COMBAT-RESET'));
+  await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
+  const reset = await page.evaluate(() => {
+    const g = window.__dungeon.game;
+    return {
+      actors: g.ecs.query('actor').length,
+      corpses: g.ecs.query('corpse').length,
+      particles: g.ecs.query('particle').length,
+      shots: g.ecs.query('projectile').length,
+      target: g.player.actor.attack.target,
+    };
+  });
+  assert.deepEqual(reset, { actors: 22, corpses: 0, particles: 0, shots: 0, target: null });
+  pass(
+    'Regeneration replaces the ECS world without stale targets, corpses, particles or projectiles',
+  );
+  assert.deepEqual(errors, []);
+  report.success = true;
+} catch (error) {
+  report.success = false;
+  report.error = error instanceof Error ? error.stack : String(error);
+  report.errors = errors;
+  console.error(error);
+  process.exitCode = 1;
+  await capture('failure').catch(() => {});
+} finally {
+  await writeFile(
+    `test-results/${browserName}-combat-report.json`,
+    JSON.stringify(report, null, 2),
+  );
+  await browser.close();
+}

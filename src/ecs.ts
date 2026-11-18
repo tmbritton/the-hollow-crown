@@ -1,0 +1,162 @@
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import type { Navigator } from './navigation.ts';
+import type { Locomotion } from './locomotion.ts';
+import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
+import type {
+  DoorEntity,
+  Entity as Interaction,
+  Footprint,
+  Point,
+  Prop,
+  Room,
+  Spawn,
+  Tile,
+} from './worldTypes.ts';
+
+export type ActorKind = 'player' | 'skeleton' | 'goblin' | 'kobold';
+export type EnemyKind = Exclude<ActorKind, 'player'>;
+export type BrainState =
+  'wander' | 'chase' | 'hide' | 'flee' | 'peek' | 'flank' | 'regroup' | 'attack';
+export interface Swing {
+  target: string;
+  elapsed: number;
+  duration: number;
+  impact: number;
+  resolved: boolean;
+  ranged: boolean;
+}
+export interface Components {
+  transform: Spawn & { heading: number };
+  actor: { kind: ActorKind; speed: number; opensDoors: boolean };
+  health: { current: number; max: number; invulnerable: number };
+  movement: {
+    speed: number;
+    direction: Point;
+    animation: Locomotion;
+    actualSpeed: number;
+    wantsMovement: boolean;
+  };
+  navigation: Navigator;
+  attack: {
+    target: string | null;
+    swing: Swing | null;
+    cooldown: number;
+    repath: number;
+    blocked: number;
+  };
+  brain: {
+    state: BrainState;
+    think: number;
+    memory: number;
+    home: Spawn;
+    pack: string;
+    slot: number;
+    cover: Point | null;
+    hideTime: number;
+  };
+  corpse: { age: number };
+  collision: { move: (from: Spawn, displacement: Point) => Point };
+  render: { root: TransformNode | null; meshes: AbstractMesh[] };
+  rig: {
+    root: TransformNode;
+    body: TransformNode;
+    arms: TransformNode[];
+    legs: TransformNode[];
+    cape?: TransformNode;
+    attackBlend: number;
+    attackTime: number;
+  };
+  tile: Tile;
+  room: Room;
+  prop: Prop;
+  obstacle: Footprint;
+  ambientMotion: Creature;
+  floating: FloatingObject;
+  lightSource: LightSource;
+  cutaway: Wall;
+  portrait: Portrait;
+  interaction: Interaction;
+  door: DoorEntity;
+  interactionIntent: { target: string };
+  projectile: { owner: string; vx: number; vy: number; vz: number; life: number; damage: number };
+  particle: {
+    kind: 'blood' | 'dust';
+    vx: number;
+    vy: number;
+    vz: number;
+    life: number;
+    duration: number;
+    size: number;
+  };
+}
+
+/** Components are authoritative data; entities have no gameplay behavior or inheritance. */
+export class Entity {
+  readonly id: string;
+  private readonly components: Partial<Components> = {};
+  private readonly changed: (name: keyof Components, attached: boolean) => void;
+  constructor(id: string, changed: (name: keyof Components, attached: boolean) => void = () => {}) {
+    this.id = id;
+    this.changed = changed;
+  }
+  add<K extends keyof Components>(name: K, value: Components[K]): this {
+    this.components[name] = value;
+    this.changed(name, true);
+    return this;
+  }
+  get<K extends keyof Components>(name: K): Components[K] | undefined {
+    return this.components[name];
+  }
+  require<K extends keyof Components>(name: K): Components[K] {
+    const value = this.get(name);
+    if (value === undefined) throw new Error(`${this.id} needs component ${name}`);
+    return value;
+  }
+  has(name: keyof Components): boolean {
+    return this.components[name] !== undefined;
+  }
+  remove(name: keyof Components): void {
+    delete this.components[name];
+    this.changed(name, false);
+  }
+}
+
+export class ECS {
+  private readonly entities = new Map<string, Entity>();
+  private serial = 0;
+  private readonly index = new Map<keyof Components, Set<Entity>>();
+  create(id = `transient:${this.serial++}`): Entity {
+    if (this.entities.has(id)) throw new Error(`Duplicate entity: ${id}`);
+    const entity = new Entity(id, (name, attached) => {
+      let set = this.index.get(name);
+      if (!set) {
+        set = new Set();
+        this.index.set(name, set);
+      }
+      if (attached && this.entities.get(id) === entity) set.add(entity);
+      else set.delete(entity);
+    });
+    this.entities.set(id, entity);
+    return entity;
+  }
+  get(id: string): Entity | undefined {
+    return this.entities.get(id);
+  }
+  remove(id: string): void {
+    const entity = this.entities.get(id);
+    if (!entity) return;
+    for (const set of this.index.values()) set.delete(entity);
+    this.entities.delete(id);
+  }
+  query(...components: (keyof Components)[]): Entity[] {
+    if (!components.length) return [...this.entities.values()];
+    const sets = components.map((name) => this.index.get(name));
+    if (sets.some((set) => !set)) return [];
+    const smallest = sets.reduce((a, b) => (a!.size < b!.size ? a : b))!;
+    return [...smallest].filter((entity) => components.every((name) => entity.has(name)));
+  }
+  get size(): number {
+    return this.entities.size;
+  }
+}
