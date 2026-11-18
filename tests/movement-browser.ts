@@ -124,9 +124,10 @@ try {
   await page.evaluate(() => {
     window.movementTestLoops = [...window.__dungeon.engine.activeRenderLoops];
     window.__dungeon.engine.stopRenderLoop();
-    // This suite targets floor navigation; hostile selection/combat has its own real-input suite.
+    // Isolate floor navigation; the combat suite checks rendered actor collision and corpse slowing.
     for (const enemy of window.__dungeon.game.combat.enemies) {
       enemy.entity.remove('brain');
+      enemy.entity.remove('body');
       enemy.entity.require('render').root?.setEnabled(false);
     }
   });

@@ -97,10 +97,8 @@ export function createPlayer(
   const teleport = (x: number, z: number, world: World) => {
     teleportActor(actor, world, { x, z });
     destinationMarker.setEnabled(false);
-    const h = heightAt(world, x, z) ?? 0;
-    proxy.position.set(x, h + 0.72, z);
-    proxy.computeWorldMatrix(true);
-    root.position.set(x, h, z);
+    const position = actor.position;
+    root.position.set(position.x, position.h, position.z);
   };
   const player = {
     actor,

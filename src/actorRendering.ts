@@ -8,6 +8,7 @@ import { heightAt, tileAt } from './world.ts';
 import type { NavigationWorld } from './navigation.ts';
 import { hackySackPass, isSocializing } from './social.ts';
 import '@babylonjs/core/Collisions/collisionCoordinator';
+import type { Spawn } from './worldTypes.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -15,7 +16,12 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
   proxy.isVisible = false;
   proxy.isPickable = false;
   proxy.ellipsoid.set(0.3, 0.72, 0.3);
+  const sync = (position: Spawn) => {
+    proxy.position.set(position.x, position.h + 0.72, position.z);
+    proxy.computeWorldMatrix(true);
+  };
   actor.entity.add('collision', {
+    sync,
     move: (from, displacement) => {
       proxy.position.set(from.x, from.h + 0.72, from.z);
       const delta = new Vector3(displacement.x, 0, displacement.z);

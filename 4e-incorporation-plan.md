@@ -54,7 +54,7 @@ The intended result is roughly one use in a short fight, with repeat uses availa
 ## Existing foundation
 
 - Thirteen seeded rooms, branching routes, doors, water, lava, cover, an altar checkpoint, three reliquaries, and a throne objective.
-- A shared ECS for player/enemies, movement, attack wind-up/impact/recovery, health, projectiles, and corpses.
+- A shared ECS for player/enemies, movement, attack wind-up/impact/recovery, health, projectiles, and corpses. Living actors block one another regardless of allegiance; routes account for occupancy, and passable corpses slow movement like water.
 - Skeleton pursuit, goblin cover/retreat/ranged attacks, and coordinated kobold positioning.
 - Inspection UI, royal portrait identities, an explored-room map, and procedural character/effect rendering.
 
@@ -210,7 +210,7 @@ The book awards an action point after two encounters without an extended rest an
 
 **DMG refinement — displacement into danger (p. 44):** difficult terrain does not consume extra forced-movement distance; blocking terrain still stops it. A creature forced into hindering terrain gets a saving throw before entry; success leaves it prone at the edge and prevents a following attacker from occupying that space. **Proposed first-slice rule:** keep Shield Drive's collision-valid shove into lava deterministic and label this as our adaptation. If enemy pushes can cause lethal falls later, add a readable edge-catch/escape response rather than an invisible random rescue. Treat unsupported void separately from hazardous floor, and give players and enemies the same documented displacement rules unless an ability says otherwise.
 
-**Implementation:** `src/actors.ts`, `src/navigation.ts`, collision adapters, shared hazards, and ability resolution. Dynamic actor occupancy needs explicit handling; the current navigation model primarily covers world geometry. Swept movement prevents tunneling, and forced displacement should cancel/replan stale pursuits.
+**Implementation:** `src/actors.ts`, `src/navigation.ts`, `src/occupancy.ts`, collision adapters, shared hazards, and ability resolution. Reuse the shared living-actor occupancy and swept body collision, with an explicit traversal policy for forced displacement. Forced displacement should cancel/replan stale pursuits.
 
 ### 11. Area powers, temporary zones, and tactical encounter templates
 

@@ -6,6 +6,7 @@ import type { Attack } from './machines/actors/attack.ts';
 import type { Health } from './machines/actors/health.ts';
 import type { MonsterBehavior, BrainState } from './machines/monsters/index.ts';
 import type { SocialGroup } from './social.ts';
+import type { BodySize } from './occupancy.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
 import type {
   DoorEntity,
@@ -23,6 +24,7 @@ export type EnemyKind = Exclude<ActorKind, 'player'>;
 export interface Components {
   transform: Spawn & { heading: number };
   actor: { kind: ActorKind; speed: number; opensDoors: boolean };
+  body: BodySize;
   health: Health;
   movement: {
     speed: number;
@@ -46,7 +48,10 @@ export interface Components {
     social?: SocialGroup;
   };
   corpse: { age: number };
-  collision: { move: (from: Spawn, displacement: Point) => Point };
+  collision: {
+    move: (from: Spawn, displacement: Point) => Point;
+    sync?: (position: Spawn) => void;
+  };
   render: { root: TransformNode | null; meshes: AbstractMesh[] };
   rig: {
     root: TransformNode;

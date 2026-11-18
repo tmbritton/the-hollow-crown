@@ -255,7 +255,7 @@ export class CombatSystem {
         };
       });
       const routed = goals.some(
-        (goal) => actor.navigator.canStand(goal) && this.route(actor, goal),
+        (goal) => actor.navigator.canOccupy(goal) && this.route(actor, goal),
       );
       actor.attack.blocked = routed ? 0 : actor.attack.blocked + 0.3;
       if (actor.attack.blocked > 1.5) cancelAttack(actor);
@@ -313,7 +313,8 @@ export class CombatSystem {
     for (let x = Math.round(p.x - radius); x <= p.x + radius; x++)
       for (let z = Math.round(p.z - radius); z <= p.z + radius; z++) {
         const tile = tileAt(this.world, x, z);
-        if (tile && distance(tile, p) <= radius && actor.navigator.canStand(tile)) goals.push(tile);
+        if (tile && distance(tile, p) <= radius && actor.navigator.canOccupy(tile))
+          goals.push(tile);
       }
     return goals;
   }
@@ -372,7 +373,7 @@ export class CombatSystem {
       x: target.position.x + Math.cos(angle) * radius,
       z: target.position.z + Math.sin(angle) * radius,
     };
-    if (!actor.navigator.canStand(goal) || !this.route(actor, goal)) this.pursue(actor, 0.4);
+    if (!actor.navigator.canOccupy(goal) || !this.route(actor, goal)) this.pursue(actor, 0.4);
   }
 
   private think(actor: Actor): void {
@@ -463,7 +464,12 @@ export class CombatSystem {
           break;
         case 'regroup': {
           const leader = this.actors.find((a) => a.alive && a.brain?.pack === brain.pack);
-          if (leader) this.route(actor, leader.position);
+          if (leader) {
+            const goals = this.localGoals(leader, 2).sort(
+              (a, b) => distance(a, actor.position) - distance(b, actor.position),
+            );
+            goals.some((goal) => this.route(actor, goal));
+          }
           break;
         }
         case 'melee':

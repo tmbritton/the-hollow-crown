@@ -45,7 +45,7 @@ The route changes with the seed: explore the branching passages and watch the mi
 
 Click movement routes around furniture, walls, and lava, and respects closed/locked doors. **Click a closed door** to approach and open it, or use **E** in reach. Enemy pursuit can open intervening unlocked doors automatically. A new floor click replaces the command; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
 
-The adventurer pushes off and leans forward when starting, blends into a travel-driven stride, then braces and plants the feet while the cape settles on stopping. Pause, inspection, focus loss, and regeneration clear pending travel and momentum.
+The adventurer pushes off and leans forward when starting, blends into a travel-driven stride, then braces and plants the feet while the cape settles on stopping. Living actors block each other regardless of allegiance: enemies can be cornered, allies cannot stack, and click/AI routes go around occupied space when possible. Corpses are passable but slow both the player and enemies to **52% speed**, the same as water; overlapping corpses and water do not stack the slowdown. Pause, inspection, focus loss, and regeneration clear pending travel and momentum.
 
 ### Enemies and combat
 
@@ -100,6 +100,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/inspection.ts` | Typed inspection targets, camera transitions, framing, lifecycle, and camera restoration |
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
 | `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
+| `src/occupancy.ts` | Swept actor-body collision, sliding, live route occupancy, and corpse-ground overlap queries |
 | `src/locomotion.ts` | Movement speeds, acceleration/deceleration, and procedural start/travel/stop animation |
 | `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |

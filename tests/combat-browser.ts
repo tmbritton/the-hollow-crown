@@ -123,6 +123,103 @@ try {
   assert.equal(counts.health, 100);
   pass('Player, enemies, tiles, doors and render rigs use the live ECS registry');
 
+  const blockingGoblin = await fixture('goblin', 1.3);
+  await page.keyboard.down('KeyD');
+  const blocked = await page.evaluate((id) => {
+    const d = window.__dungeon,
+      g = d.game,
+      target = g.combat.actor(id)!;
+    let minDistance = Infinity;
+    for (let i = 0; i < 120; i++) {
+      d.step(['KeyD', 'ShiftLeft'], 1);
+      minDistance = Math.min(
+        minDistance,
+        Math.hypot(
+          g.player.actor.position.x - target.position.x,
+          g.player.actor.position.z - target.position.z,
+        ),
+      );
+    }
+    return {
+      minDistance,
+      x: g.player.actor.position.x,
+      targetX: target.position.x,
+      proxyX: g.player.proxy.position.x,
+      speed: g.player.motion.actualSpeed,
+    };
+  }, blockingGoblin);
+  await page.keyboard.up('KeyD');
+  assert.ok(blocked.minDistance >= 0.9 - 1e-6, JSON.stringify(blocked));
+  assert.ok(blocked.x > 0.35 && blocked.x < 0.41, JSON.stringify(blocked));
+  assert.equal(blocked.targetX, 1.3);
+  assert.equal(blocked.speed, 0);
+  assert.ok(Math.abs(blocked.proxyX - blocked.x) < 1e-7);
+  pass(
+    'Running into a hostile stops at its body without pushing it or desynchronizing the collision proxy',
+  );
+
+  const corpseMovement = await page.evaluate((id) => {
+    const d = window.__dungeon,
+      g = d.game,
+      target = g.combat.actor(id)!;
+    target.position.heading = -Math.PI / 2;
+    g.combat.damage(target, 100, g.player.actor);
+    const start = g.player.actor.position.x;
+    d.step(['KeyD'], 24);
+    const slow = g.player.motion.speed;
+    const travelled = g.player.actor.position.x - start;
+    d.step(['KeyD'], 60);
+    return { slow, travelled, x: g.player.actor.position.x, corpseX: target.position.x };
+  }, blockingGoblin);
+  assert.ok(Math.abs(corpseMovement.slow - 4.8 * 0.52) < 0.02, JSON.stringify(corpseMovement));
+  assert.ok(corpseMovement.travelled > 0.6 && corpseMovement.travelled < 1.1);
+  assert.ok(corpseMovement.x > corpseMovement.corpseX + 1);
+  pass('A dead hostile becomes passable difficult ground, slowing movement at the water rate');
+
+  const packLeader = await fixture('kobold', 3);
+  const packCollision = await page.evaluate((id) => {
+    const d = window.__dungeon,
+      g = d.game;
+    const leader = g.combat.actor(id)!;
+    const pack = [
+      leader,
+      ...g.combat.enemies.filter((a) => a.kind === 'kobold' && a.id !== id).slice(0, 2),
+    ];
+    pack.forEach((actor, index) => {
+      Object.assign(actor.position, { x: 3, z: index === 0 ? 0 : index === 1 ? 1.5 : -1.5, h: 0 });
+      actor.enableAI('collision-pack', index);
+      actor.brain!.social = {
+        id: 'collision-gathering',
+        activity: 'smoke',
+        center: { x: 3, z: 0, h: 0 },
+        members: pack.map((member) => member.id),
+        phase: 0,
+      };
+    });
+    g.player.actor.health.invulnerable = 100;
+    let minDistance = Infinity;
+    for (let i = 0; i < 240; i++) {
+      d.step([], 1);
+      const actors = [g.player.actor, ...pack];
+      for (let a = 0; a < actors.length; a++)
+        for (let b = a + 1; b < actors.length; b++)
+          minDistance = Math.min(
+            minDistance,
+            Math.hypot(
+              actors[a].position.x - actors[b].position.x,
+              actors[a].position.z - actors[b].position.z,
+            ),
+          );
+    }
+    return {
+      minDistance,
+      engaged: pack.every((actor) => Math.hypot(actor.position.x, actor.position.z) < 2),
+    };
+  }, packLeader);
+  assert.ok(packCollision.minDistance >= 0.9 - 1e-6, JSON.stringify(packCollision));
+  assert.ok(packCollision.engaged, JSON.stringify(packCollision));
+  pass('A live kobold pack reaches melee while staying separate from the hero and allied bodies');
+
   const skeleton = await fixture('skeleton');
   await clickEnemy(skeleton, true);
   const pursuit = await page.evaluate((id) => {

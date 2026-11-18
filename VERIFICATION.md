@@ -4,15 +4,21 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Actor occupancy and corpse terrain update
+
+Living actors now block both hostiles and allies through shared swept-body collision. Route searches use live occupancy, and occupied checkpoints choose nearby reachable floor. Corpses remain traversable and slow all actors to 52% speed, matching water without stacking.
+
+This update passes **79 pure/model tests**, **12 Chromium combat checks**, **11 Chromium movement checks**, and **9 Chromium social checks**, plus type checking, formatting, and the production build. New regressions cover high-speed tunnelling, allied head-on movement, a cornered goblin, moving route blockers, elevation, occupied respawns, and corpse slowdown/recovery. Rendered combat checks verify body separation, collision-proxy synchronization, and corpse traversal. Floor-only browser fixtures remove body components alongside hiding/freezing enemies; actor collision is exercised separately with live rendered actors. Other browser/production-smoke results below are the preceding baseline.
+
 ### Automated checks
 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passes with `strict`, unused-code checks, and erasable TypeScript syntax across source, tests, and Vite configuration |
 | `npm run format:check` | All TypeScript files and the TypeScript configuration pass Prettier checks |
-| `npm test` | 69 passing tests: generation, ECS/combat, navigation, inspection, locomotion, statechart invariants/model coverage, and social gathering behavior |
+| `npm test` | 79 passing tests: generation, ECS/combat, actor occupancy/corpse terrain, navigation, inspection, locomotion, statechart invariants/model coverage, and social gathering behavior |
 | `npm run test:models` | 19 checks: every production machine covered, all 75 declared atomic states and 155 transition branches reached, invariants checked on generated traces, and negative fixtures proving missed coverage fails |
-| `npm run build` | Strict type checking and production build succeed; 653 modules transformed |
+| `npm run build` | Strict type checking and production build succeed; 654 modules transformed |
 | `npm run test:production` | Built shaders, rendering, seed changes, menus, and quality settings work; development hooks are absent |
 | `npm run test:browser` | 22 passing Chromium gameplay/rendering/resource checks |
 | `BROWSER=firefox npm run test:browser` | 22 passing Firefox gameplay/rendering/resource checks |
@@ -20,7 +26,7 @@ The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and stri
 | `npm run test:inspection` | 11 passing checks for held-key handling, text editing, close-up detail, camera restoration, resizing, cancellation, and regeneration |
 | `npm run test:movement` | 11 passing Chromium checks for real clicks, hold-to-steer, keyboard override, eased stopping, obstacles, stairs, doors, modal/focus cancellation, and high-DPI/low-quality picking |
 | `BROWSER=firefox npm run test:movement` | Earlier dedicated Firefox baseline; the current full Firefox route suite passes |
-| `npm run test:combat` | 9 passing real-input ECS/combat checks, including held pursuit, repeated strikes, effects/corpses, moving targets, cancellation, door clicks/locks, death and regeneration |
+| `npm run test:combat` | 12 passing real-input ECS/combat checks, including actor blocking, allied separation, corpse slowdown, held pursuit, repeated strikes, effects, moving targets, cancellation, door clicks/locks, death and regeneration |
 | `BROWSER=firefox npm run test:combat` | Earlier dedicated Firefox baseline; the current full Firefox route and social-alert suites pass |
 | `npm run test:social` | 9 passing Chromium checks: stable gatherings, visible activity props, threat interruption/weapon drawing, and return to each activity |
 | `BROWSER=firefox npm run test:social` | The same 9 social checks pass in Firefox |
@@ -48,9 +54,9 @@ Covered behavior:
 - Separate skeleton, goblin, and kobold machines select tactics through typed perception events. Alerted social creatures leave their activity; survivors return after target memory expires. Relayed pack alerts cannot indefinitely refresh each other's lifetime.
 - Sticky enemy targeting, moving-target pursuit, repeated timed sword attacks, animation blending, cancellation before impact, and no melee damage through cover.
 - Dodgable, swept crossbow projectiles blocked by furniture and doors. Enemy attacks use the same player/enemy health and damage system.
-- Persistent non-blocking corpses, blood versus skeleton dust, bounded particle/projectile entity lifetimes, and clean world replacement.
+- Persistent passable corpses that slow movement, blood versus skeleton dust, bounded particle/projectile entity lifetimes, and clean world replacement.
 - Traversing stairs up and down with correct floor elevation.
-- Reduced speed in water.
+- Reduced speed in water and over corpses; overlapping slow terrain does not stack.
 - Lava damage and safe respawning.
 - A safe main route through water, stairs, and the forge.
 - The throne gate remaining locked until the altar is activated.

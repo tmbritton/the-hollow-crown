@@ -7,6 +7,7 @@ import type { Point, Spawn } from './worldTypes.ts';
 import { Attack } from './machines/actors/attack.ts';
 import { createMonsterBehavior } from './machines/monsters/index.ts';
 import { Health } from './machines/actors/health.ts';
+import { Occupancy } from './occupancy.ts';
 
 /** A checked view over components, not a second copy of actor state. */
 export class Actor {
@@ -55,6 +56,31 @@ export function createActor(
   spawn: Spawn,
 ): Actor {
   const max = { player: 100, skeleton: 48, goblin: 36, kobold: 44 }[kind];
+  const body = { radius: 0.45, height: kind === 'player' || kind === 'skeleton' ? 1.8 : 1.3 };
+  const occupancy = new Occupancy(
+    body,
+    () =>
+      ecs
+        .query('actor', 'body', 'transform', 'health')
+        .filter(
+          (entity) =>
+            entity.id !== id && entity.require('health').current > 0 && !entity.has('corpse'),
+        )
+        .map((entity) => ({ ...entity.require('transform'), ...entity.require('body') })),
+    () =>
+      ecs.query('actor', 'body', 'transform', 'corpse').flatMap((entity) => {
+        const p = entity.require('transform'),
+          size = entity.require('body');
+        // Two overlapping footprints follow the fallen rig, from its feet toward its head.
+        return [0.25, 0.75].map((offset) => ({
+          x: p.x + Math.sin(p.heading) * size.height * offset,
+          z: p.z + Math.cos(p.heading) * size.height * offset,
+          h: p.h,
+          radius: size.radius,
+          height: 0.4,
+        }));
+      }),
+  );
   return new Actor(
     ecs
       .create(id)
@@ -64,6 +90,7 @@ export function createActor(
         opensDoors: kind !== 'skeleton',
       })
       .add('transform', { ...spawn, heading: Math.PI / 2 })
+      .add('body', body)
       .add('health', new Health(max))
       .add('movement', {
         speed: 0,
@@ -72,7 +99,7 @@ export function createActor(
         actualSpeed: 0,
         wantsMovement: false,
       })
-      .add('navigation', new Navigator(world))
+      .add('navigation', new Navigator(world, occupancy))
       .add('attack', new Attack()),
   );
 }
@@ -94,11 +121,14 @@ export function stopActor(actor: Actor, cancelCombat = true): void {
 
 export function teleportActor(actor: Actor, world: NavigationWorld, point: Point): void {
   stopActor(actor);
+  const destination = actor.navigator.nearestOpenPoint(point);
+  if (!destination) return;
   Object.assign(actor.position, {
-    x: point.x,
-    z: point.z,
-    h: heightAt(world, point.x, point.z) ?? 0,
+    x: destination.x,
+    z: destination.z,
+    h: heightAt(world, destination.x, destination.z) ?? 0,
   });
+  actor.entity.get('collision')?.sync?.(actor.position);
 }
 
 export interface MoveIntent {
@@ -107,7 +137,7 @@ export interface MoveIntent {
   locked?: boolean;
 }
 
-/** The same motor handles keyboard steering, AI, pursuit, water, doors and arrival. */
+/** The same motor handles keyboard steering, AI, pursuit, difficult ground, doors and arrival. */
 export function moveActor(
   actor: Actor,
   world: NavigationWorld,
@@ -133,9 +163,9 @@ export function moveActor(
     p.heading = Math.atan2(direction.x, direction.z);
   }
   if (navigating && !steering) motion.speed = 0;
-  const speed =
-    (intent.speed ?? actor.entity.require('actor').speed) *
-    (tileAt(world, p.x, p.z)?.surface === 'water' ? 0.52 : 1);
+  const slowed =
+    tileAt(world, p.x, p.z)?.surface === 'water' || actor.navigator.occupancy?.slowedAt(p);
+  const speed = (intent.speed ?? actor.entity.require('actor').speed) * (slowed ? 0.52 : 1);
   const desired = length > 1e-5 ? Math.min(speed, steering ? steering.remaining * 9 : Infinity) : 0;
   motion.speed = easeSpeed(motion.speed, desired, dt);
   let travel = motion.speed * dt;
@@ -143,14 +173,21 @@ export function moveActor(
     travel = steering.distance < 0.025 ? steering.distance : Math.min(travel, steering.distance);
   const displacement = { x: motion.direction.x * travel, z: motion.direction.z * travel };
   const collision = actor.entity.get('collision');
-  let next: Point;
-  if (collision) next = collision.move(p, displacement);
-  else {
-    next = { x: p.x + displacement.x, z: p.z + displacement.z };
-    if (!actor.navigator.segmentClear(p, next)) next = p;
-  }
+  const terrainMove = (from: Spawn, delta: Point): Spawn => {
+    let next: Point;
+    if (collision) next = collision.move(from, delta);
+    else {
+      next = { x: from.x + delta.x, z: from.z + delta.z };
+      if (!actor.navigator.segmentClear(from, next)) next = from;
+    }
+    return { ...next, h: heightAt(world, next.x, next.z) ?? from.h };
+  };
+  const next = actor.navigator.occupancy
+    ? actor.navigator.occupancy.move(p, displacement, terrainMove)
+    : terrainMove(p, displacement);
   const moved = Math.hypot(next.x - p.x, next.z - p.z);
   Object.assign(p, { x: next.x, z: next.z, h: heightAt(world, next.x, next.z) ?? p.h });
+  collision?.sync?.(p);
   motion.actualSpeed = moved / dt;
   if (travel > 0.001 && moved < travel * 0.05) motion.speed = 0;
   if (!actor.navigator.waitingForDoor) actor.navigator.recordProgress(moved, dt);
