@@ -1,0 +1,74 @@
+import type { Engine } from '@babylonjs/core/Engines/engine';
+import type { Scene } from '@babylonjs/core/scene';
+import type { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
+import type { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
+import type { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+import type { RenderTargetTexture } from '@babylonjs/core/Materials/Textures/renderTargetTexture';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import type { GlowLayer } from '@babylonjs/core/Layers/glowLayer';
+import type { FxaaPostProcess } from '@babylonjs/core/PostProcesses/fxaaPostProcess';
+import type { Materials } from './materials.ts';
+import type { DungeonScene } from './buildDungeon.ts';
+import type { Player } from './player.ts';
+import type { InspectionController } from './inspection.ts';
+import type { LightSource } from './renderTypes.ts';
+import type { Entity, RoomId, Spawn, World } from './worldTypes.ts';
+
+export interface Game {
+  scene: Scene;
+  world: World;
+  camera: ArcRotateCamera;
+  ambient: HemisphericLight;
+  sun: DirectionalLight;
+  shadow: ShadowGenerator;
+  shadowMap: RenderTargetTexture;
+  shadowCasters: AbstractMesh[];
+  heroCasters: Set<AbstractMesh>;
+  glow: GlowLayer;
+  fxaa: FxaaPostProcess;
+  materials: Materials;
+  dungeon: DungeonScene;
+  player: Player;
+  inspection: InspectionController;
+  time: number;
+  playTime: number;
+  desiredAlpha: number;
+  desiredRadius: number;
+  active: boolean;
+  complete: boolean;
+  chests: number;
+  checkpoint: Spawn;
+  damageCooldown: number;
+  nearest: Entity | null;
+  steps: number;
+  nearLights: LightSource[];
+}
+export interface Snapshot {
+  seed: string;
+  position: number[];
+  health: number;
+  active: boolean;
+  complete: boolean;
+  room: RoomId | null;
+  meshes: number;
+  materials: number;
+  textures: number;
+  effects: number;
+  shaderSources: number;
+  drawCalls: number;
+  triangles: number;
+  fps: number;
+  doors: { id: string; open: boolean; locked: boolean }[];
+  errors: string[];
+}
+export interface DungeonDebug {
+  readonly game: Game;
+  readonly ready: boolean;
+  readonly engine: Engine;
+  teleport(x: number, z: number): void;
+  interact(): void;
+  regenerate(seed: string, options?: { pinSeed?: boolean }): void;
+  step(codes: string[], frames?: number): void;
+  snapshot(): Snapshot;
+}
