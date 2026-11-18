@@ -658,9 +658,20 @@ export function generateDungeonWithReport(
 }
 
 export function reachableTiles(world: World, unlocked = false): Set<string> {
+  return new Set(reachableTileDistances(world, unlocked).keys());
+}
+
+/** Four-neighbor tile steps, with ordinary doors operable and the altar gate explicit. */
+export function reachableTileDistances(
+  world: World,
+  unlocked = false,
+  origin: Point = world.spawn,
+): Map<string, number> {
   const gate = world.entities.find((e) => e.type === 'door' && e.requiresAltar);
-  const start = key(world.spawn.x, world.spawn.z),
-    seen = new Set([start]),
+  const start = key(Math.round(origin.x), Math.round(origin.z)),
+    first = world.tiles.get(start);
+  if (!first || first.blocked || first.surface === 'lava') return new Map();
+  const seen = new Map([[start, 0]]),
     queue = [start];
   for (let i = 0; i < queue.length; i++) {
     const tile = required(world.tiles.get(queue[i]), 'Navigation tile missing');
@@ -683,7 +694,7 @@ export function reachableTiles(world: World, unlocked = false): Set<string> {
           : next.z === gate.z && Math.abs(next.x - gate.x) <= 1)
       )
         continue;
-      seen.add(k);
+      seen.set(k, required(seen.get(queue[i]), 'Missing route distance') + 1);
       queue.push(k);
     }
   }

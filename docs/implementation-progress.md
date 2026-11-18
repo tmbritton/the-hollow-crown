@@ -7,14 +7,14 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **G1 verified and reviewed; committing next. G2 follows.**
+- **G2 verified and reviewed; committing next. G3 follows.**
 
 ## Feature tracker
 
 | ID | Status | Test-first evidence | Verification / review | Commit |
 | --- | --- | --- | --- | --- |
-| G1 | Verified; ready to commit | Four contract tests failed on missing API, then passed; historical first-attempt/retry geometry digests | 101 tests, typecheck, lint, format, build pass; independent review cleared, two test improvements applied | Pending |
-| G2 | Queued | Pending | Pending | — |
+| G1 | Complete | Four contract tests failed on missing API, then passed; historical first-attempt/retry geometry digests | 101 tests, typecheck, lint, format, build pass; independent review cleared, two test improvements applied | `592a84e` |
+| G2 | Verified; ready to commit | Report contract failed before API; review regression reproduced biased gallery sampling | 106 tests, typecheck, lint, format, build and 100-seed export pass; both review findings addressed | Pending |
 | G3 | Queued | Pending | Pending | — |
 | I1–I2 | Planned | Pending | Pending | — |
 | S1, N1, D1 | Planned | Pending | Pending | — |
@@ -30,8 +30,6 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Created an implementation path with feature boundaries, acceptance gates and the
   test-first → implementation → checks → independent review → fixes → commit loop.
 
-## Follow-ups and blockers
-
 ### G1 — versioned diagnostics
 
 - Added `generateDungeonWithReport`, explicit `layout-v2` / `demo-v1` identity, bounded
@@ -40,6 +38,19 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Review compared 103 seeds against the prior implementation with no world differences.
   Tightened the known rejection reason and retrying-seed digest as requested.
 - Full checks passed; review also ran generation/world tests (13 checks).
+
+### G2 — analysis and corpus
+
+- Added detached graph, gate reachability, tile-route, geometric clear-floor and initial
+  enemy/social placement reports. Shared the validator's flood traversal with distance
+  analysis so diagnostic paths use the same terrain/gate rules.
+- Added `npm run report:generation`, a fixed 100-seed corpus and a twelve-seed selection
+  with explicit showcase/regression/outlier/distribution reasons.
+- Independent review found biased low-area gallery fill; a failing controlled regression
+  preceded the fix. Added encounter coordinates, group and activity checks against real
+  registered-world/player seeding as requested. All 106 tests and export/build checks pass.
+
+## Follow-ups and blockers
 
 - No implementation blockers currently identified.
 - Fresh hardware performance numbers remain a separate Phase 0 requirement; historical

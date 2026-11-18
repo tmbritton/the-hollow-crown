@@ -4,6 +4,19 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Generation analysis and seed corpus — 2026-11-18
+
+- `npm run check`: **106 tests**, strict type checking, lint and formatting pass.
+- `npm run build`: passes with the existing large-chunk warning.
+- `npm run report:generation`: exports **100 valid seeds** and **12 unique, explained
+  gallery selections** to `test-results/generation-corpus.json`. Every sampled world has
+  21 seeded enemies, a reachable required route, and an intact pre-altar throne gate.
+- Test-first checks cover detached/serializable reports, provenance, graph counts, an
+  obstructed route with known distance, and final enemy/social placement agreement.
+- Independent review identified biased gallery fill toward smaller layouts. A controlled
+  regression failed on the old selection; the fix distributes remaining slots across the
+  remaining area range. Added the requested encounter coordinate/group/activity assertions.
+
 ### Versioned generation diagnostics — 2026-11-18
 
 - Test-first diagnostic contract failed before implementation (missing API/module), then all

@@ -284,7 +284,7 @@ The profiler requires a running dev server and a graphical desktop. It opens Chr
 
 The opt-in `?debug` query exposes a small `window.__dungeon` harness **only in development builds**. Tests use the same movement, collision, and interaction functions as normal play, advancing fixed simulation steps to make full-route checks deterministic.
 
-## Planning documents
+## Generation diagnostics
 
 The generator also provides a pure `generateDungeonWithReport(seed)` API in `src/world.ts`.
 It returns the accepted world and a JSON-safe trace with seed, generator/content versions,
@@ -292,6 +292,24 @@ zero-based attempt numbers, and placement/validation rejection reasons. A `Gener
 retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
 `maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v2` / `demo-v1`;
 this records the existing seed interpretation rather than changing it.
+
+```sh
+npm run report:generation
+```
+
+This exports `test-results/generation-corpus.json`: 100 fixed, validated seeds and twelve
+explained gallery selections (showcase baselines, retry regression, layout/route outliers,
+and area-distribution samples). Each report includes room/connection topology, branches and
+loops, pre/post-altar reachability, required-route distances, final seeded enemy/social
+placements, and logical resource counts. `src/generation/report.ts` analyzes a blueprint in
+an isolated ECS, without advancing gameplay or attaching runtime state to the world.
+
+Distances count four-neighbor tile steps with ordinary doors operable; they are not travel
+times and exclude live actor occupancy. `openAreaTiles` counts safe 3×3 room-floor
+neighborhoods as a conservative geometry proxy, not a combat-space or difficulty rating.
+The JSON keeps individual measurements available for distribution/outlier analysis.
+
+## Planning documents
 
 Design roadmaps live in [`docs/`](docs/README.md):
 

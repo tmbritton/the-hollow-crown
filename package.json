@@ -19,6 +19,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "npm run typecheck && node --test tests/*.test.ts",
     "test:models": "npm run typecheck && node --test tests/models.test.ts",
+    "report:generation": "npm run typecheck && node tests/generation-corpus.ts",
     "test:browser": "node tests/browser.ts",
     "test:production": "node tests/production.ts",
     "test:portraits": "node tests/portraits.ts",
