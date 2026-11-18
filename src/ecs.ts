@@ -2,6 +2,10 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Navigator } from './navigation.ts';
 import type { Locomotion } from './locomotion.ts';
+import type { Attack } from './machines/actors/attack.ts';
+import type { Health } from './machines/actors/health.ts';
+import type { MonsterBehavior, BrainState } from './machines/monsters/index.ts';
+import type { SocialGroup } from './social.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
 import type {
   DoorEntity,
@@ -16,20 +20,10 @@ import type {
 
 export type ActorKind = 'player' | 'skeleton' | 'goblin' | 'kobold';
 export type EnemyKind = Exclude<ActorKind, 'player'>;
-export type BrainState =
-  'wander' | 'chase' | 'hide' | 'flee' | 'peek' | 'flank' | 'regroup' | 'attack';
-export interface Swing {
-  target: string;
-  elapsed: number;
-  duration: number;
-  impact: number;
-  resolved: boolean;
-  ranged: boolean;
-}
 export interface Components {
   transform: Spawn & { heading: number };
   actor: { kind: ActorKind; speed: number; opensDoors: boolean };
-  health: { current: number; max: number; invulnerable: number };
+  health: Health;
   movement: {
     speed: number;
     direction: Point;
@@ -38,15 +32,10 @@ export interface Components {
     wantsMovement: boolean;
   };
   navigation: Navigator;
-  attack: {
-    target: string | null;
-    swing: Swing | null;
-    cooldown: number;
-    repath: number;
-    blocked: number;
-  };
+  attack: Attack;
   brain: {
-    state: BrainState;
+    readonly state: BrainState;
+    behavior: MonsterBehavior;
     think: number;
     memory: number;
     home: Spawn;
@@ -54,6 +43,7 @@ export interface Components {
     slot: number;
     cover: Point | null;
     hideTime: number;
+    social?: SocialGroup;
   };
   corpse: { age: number };
   collision: { move: (from: Spawn, displacement: Point) => Point };
@@ -66,6 +56,7 @@ export interface Components {
     cape?: TransformNode;
     attackBlend: number;
     attackTime: number;
+    equipment?: AbstractMesh[];
   };
   tile: Tile;
   room: Room;
@@ -78,7 +69,6 @@ export interface Components {
   portrait: Portrait;
   interaction: Interaction;
   door: DoorEntity;
-  interactionIntent: { target: string };
   projectile: { owner: string; vx: number; vy: number; vz: number; life: number; damage: number };
   particle: {
     kind: 'blood' | 'dust';

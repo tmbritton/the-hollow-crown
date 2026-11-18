@@ -12,6 +12,7 @@ import type { CombatSystem } from './combat.ts';
 import type { Actor } from './actors.ts';
 import type { Materials, MaterialName } from './materials.ts';
 import type { Triple } from './worldTypes.ts';
+import { createSocialRendering } from './socialRendering.ts';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 export function createEnemyRendering(
@@ -71,23 +72,26 @@ export function createEnemyRendering(
       p(skeleton ? 'bone' : 'wood', 'foot', [0.22, 0.13, 0.34], [0, -0.48, 0.08], leg);
       legs.push(leg);
     }
+    const equipment = [];
     if (goblin) {
-      p('wood', 'crossbow', [0.66, 0.11, 0.15], [0, -0.39, 0.24], arms[1]);
-      p('iron', 'crossbow stock', [0.1, 0.13, 0.5], [0, -0.4, 0.23], arms[1]);
+      equipment.push(p('wood', 'crossbow', [0.66, 0.11, 0.15], [0, -0.39, 0.24], arms[1]));
+      equipment.push(p('iron', 'crossbow stock', [0.1, 0.13, 0.5], [0, -0.4, 0.23], arms[1]));
     } else {
-      p('wood', 'weapon haft', [0.09, 0.7, 0.09], [0, -0.58, 0.12], arms[1]);
-      p(
-        'iron',
-        skeleton ? 'rusted blade' : 'spear tip',
-        [0.14, skeleton ? 0.55 : 0.32, 0.07],
-        [0, -1.03, 0.12],
-        arms[1],
+      equipment.push(p('wood', 'weapon haft', [0.09, 0.7, 0.09], [0, -0.58, 0.12], arms[1]));
+      equipment.push(
+        p(
+          'iron',
+          skeleton ? 'rusted blade' : 'spear tip',
+          [0.14, skeleton ? 0.55 : 0.32, 0.07],
+          [0, -1.03, 0.12],
+          arms[1],
+        ),
       );
     }
     const meshes = root.getChildMeshes();
     actor.entity
       .add('render', { root, meshes })
-      .add('rig', { root, body, arms, legs, attackBlend: 0, attackTime: 0 });
+      .add('rig', { root, body, arms, legs, equipment, attackBlend: 0, attackTime: 0 });
     bindActorCollision(actor, scene, combat.world);
     const pick = MeshBuilder.CreateBox(
       `${actor.id}:selection`,
@@ -131,6 +135,7 @@ export function createEnemyRendering(
     dust: makePool('bone dust', 192, materials.bone),
     projectile: makePool('crossbow bolts', 32, materials.bone),
   };
+  const social = createSocialRendering(scene, combat, materials, shadow);
   return {
     pick(ray: Ray): { actor: Actor; distance: number } | null {
       for (const [mesh] of pickActors) mesh.computeWorldMatrix(true);
@@ -142,6 +147,7 @@ export function createEnemyRendering(
       return actor && hit ? { actor, distance: hit.distance } : null;
     },
     update(): void {
+      social.update();
       const target = combat.actor(combat.player.attack.target);
       ring.setEnabled(!!target?.alive);
       if (target) ring.position.set(target.position.x, target.position.h + 0.08, target.position.z);

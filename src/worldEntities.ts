@@ -1,6 +1,7 @@
 import type { ECS } from './ecs.ts';
 import type { World } from './worldTypes.ts';
 import type { DungeonScene } from './buildDungeon.ts';
+import { animateDoor, bindDoor, bindChest } from './machines/world/interactions.ts';
 
 /** Register generated data by reference, so interactions and ECS never diverge. */
 export function registerWorld(ecs: ECS, world: World): void {
@@ -21,7 +22,11 @@ export function registerWorld(ecs: ECS, world: World): void {
         h: interaction.h,
         heading: interaction.rotation ?? 0,
       });
-    if (interaction.type === 'door') entity.add('door', interaction);
+    if (interaction.type === 'door') {
+      bindDoor(interaction);
+      entity.add('door', interaction);
+    }
+    if (interaction.type === 'chest') bindChest(interaction);
   }
   for (const blocker of world.blockers) {
     const entity =
@@ -61,7 +66,6 @@ export function registerDungeonRendering(ecs: ECS, dungeon: DungeonScene): void 
 export function updateDoors(ecs: ECS, dt: number): void {
   for (const entity of ecs.query('door')) {
     const door = entity.require('door');
-    if (door.locked) door.open = false;
     const occupied = ecs.query('actor', 'transform', 'health').some((actor) => {
       const p = actor.require('transform');
       return (
@@ -71,11 +75,6 @@ export function updateDoors(ecs: ECS, dt: number): void {
         Math.abs(p.z - door.z) < (door.axis === 'x' ? 1.5 : 0.55)
       );
     });
-    if (!door.open && !door.locked && (door.angle ?? 0) > 0.05 && occupied) door.open = true;
-    door.angle =
-      (door.angle ?? 0) +
-      ((door.open ? Math.PI * 0.49 : 0) - (door.angle ?? 0)) * (1 - Math.exp(-7 * dt));
-    if (door.pivot) door.pivot.rotation.y = door.angle;
-    if (door.collider) door.collider.checkCollisions = !door.open || door.angle <= 1.2;
+    animateDoor(door, occupied, dt);
   }
 }

@@ -1,5 +1,7 @@
 import { heightAt, key, tileAt } from './world.ts';
 import type { DoorEntity, Footprint, Point, World } from './worldTypes.ts';
+import { Statechart } from './machines/statechart.ts';
+import { navigationMachine } from './machines/navigation/travel.ts';
 
 export type NavigationWorld = Pick<World, 'tiles' | 'blockers' | 'entities'>;
 interface Point3 extends Point {
@@ -78,11 +80,19 @@ export class Navigator {
   private readonly world: NavigationWorld;
   private readonly staticCells = new Map<string, boolean>();
   private readonly doors: DoorEntity[];
-  private route: Point[] = [];
-  private next = 0;
-  private stuckTime = 0;
-  private opensDoors = false;
-  waitingForDoor = false;
+  readonly chart = new Statechart(navigationMachine);
+  private get route() {
+    return this.chart.snapshot.context.route;
+  }
+  private get next() {
+    return this.chart.snapshot.context.next;
+  }
+  private get opensDoors() {
+    return this.chart.snapshot.context.opensDoors;
+  }
+  get waitingForDoor() {
+    return this.chart.snapshot.matches('waitingForDoor');
+  }
 
   constructor(world: NavigationWorld) {
     this.world = world;
@@ -90,7 +100,7 @@ export class Navigator {
   }
 
   get active(): boolean {
-    return this.next < this.route.length;
+    return !this.chart.snapshot.matches('idle');
   }
   get destination(): Point | null {
     return this.active ? this.route[this.route.length - 1] : null;
@@ -100,10 +110,7 @@ export class Navigator {
   }
 
   cancel(): void {
-    this.route = [];
-    this.next = 0;
-    this.stuckTime = 0;
-    this.waitingForDoor = false;
+    this.chart.send({ type: 'CANCEL' });
   }
 
   private staticClear(point: Point): boolean {
@@ -171,7 +178,7 @@ export class Navigator {
 
   goTo(from: Point, requested: Point, options: { openDoors?: boolean } = {}): boolean {
     this.cancel();
-    this.opensDoors = options.openDoors ?? false;
+    this.chart.send({ type: 'CONFIGURE', opensDoors: options.openDoors ?? false });
     const tile = tileAt(this.world, requested.x, requested.z);
     if (!tile) return false;
     // Near a wall edge, use the clicked tile's center rather than an unsafe offset.
@@ -179,7 +186,7 @@ export class Navigator {
     if (!this.canStand(goal, true)) return false;
     if (distance(from, goal) < 0.025) return true;
     if (this.segmentClear(from, goal, true)) {
-      this.route = [goal];
+      this.chart.send({ type: 'PLAN', route: [goal] });
       return true;
     }
     const start = { x: Math.round(from.x), z: Math.round(from.z) };
@@ -209,6 +216,7 @@ export class Navigator {
       points.unshift({ x, z });
     }
     let anchor = from;
+    const route: Point[] = [];
     for (let i = 0; i < points.length;) {
       let farthest = points.length - 1;
       while (farthest >= i && !this.segmentClear(anchor, points[farthest], true)) farthest--;
@@ -216,19 +224,19 @@ export class Navigator {
         this.cancel();
         return false;
       }
-      if (distance(anchor, points[farthest]) > 0.001) this.route.push(points[farthest]);
+      if (distance(anchor, points[farthest]) > 0.001) route.push(points[farthest]);
       anchor = points[farthest];
       i = farthest + 1;
     }
+    this.chart.send({ type: 'PLAN', route });
     return true;
   }
 
   steer(position: Point): SteeringTarget | null {
-    this.waitingForDoor = false;
-    while (this.next < this.route.length - 1 && distance(position, this.route[this.next]) < 0.015)
-      this.next++;
     if (!this.active) return null;
-    const point = this.route[this.next];
+    let next = this.next;
+    while (next < this.route.length - 1 && distance(position, this.route[next]) < 0.015) next++;
+    const point = this.route[next];
     const d = distance(position, point);
     // Check a short swept segment each tick so closing doors cancel stale routes.
     const fraction = Math.min(1, 0.5 / Math.max(d, 0.001));
@@ -236,17 +244,21 @@ export class Navigator {
       x: position.x + (point.x - position.x) * fraction,
       z: position.z + (point.z - position.z) * fraction,
     };
-    if (!this.segmentClear(position, ahead)) {
-      if (this.opensDoors && this.segmentClear(position, ahead, true)) {
-        for (const door of this.doors) {
-          if (!door.locked && distance(position, door) < 2.2) door.open = true;
-        }
-        this.waitingForDoor = true;
-        return null;
+    const clear = this.segmentClear(position, ahead);
+    if (!clear || this.waitingForDoor || next !== this.next)
+      this.chart.send({
+        type: 'PROBE',
+        clear,
+        canOpen: !clear && this.opensDoors && this.segmentClear(position, ahead, true),
+        next,
+      });
+    if (this.waitingForDoor) {
+      for (const door of this.doors) {
+        if (!door.locked && distance(position, door) < 2.2) door.open = true;
       }
-      this.cancel();
       return null;
     }
+    if (!this.active) return null;
     let remaining = d;
     for (let i = this.next; i < this.route.length - 1; i++)
       remaining += distance(this.route[i], this.route[i + 1]);
@@ -254,8 +266,12 @@ export class Navigator {
   }
 
   recordProgress(moved: number, dt: number): void {
-    if (!this.active) return;
-    this.stuckTime = moved < 0.0001 ? this.stuckTime + dt : 0;
-    if (this.stuckTime > 0.4) this.cancel();
+    if (
+      !this.active ||
+      this.waitingForDoor ||
+      (moved >= 0.0001 && this.chart.snapshot.context.stuckTime === 0)
+    )
+      return;
+    this.chart.send({ type: 'PROGRESS', moved, dt });
   }
 }

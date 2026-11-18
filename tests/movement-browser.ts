@@ -303,7 +303,7 @@ try {
     JSON.stringify(
       await page.evaluate(() => ({
         target: window.__dungeon.game.player.actor.attack.target,
-        interaction: window.__dungeon.game.player.actor.entity.get('interactionIntent'),
+        interaction: window.__dungeon.game.player.actor.attack.interaction,
         doors: window.__dungeon.snapshot().doors,
       })),
     ),

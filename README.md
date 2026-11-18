@@ -1,6 +1,6 @@
 # The Hollow Crown
 
-A playable, entirely code-generated dark-fantasy voxel dungeon built with **Babylon.js, strict TypeScript, and HTML canvas**. The art direction draws on Hades' elevated compositions, Darkest Dungeon's atmosphere, and Mike Mignola's angular silhouettes and graphic shadows.
+A playable, entirely code-generated dark-fantasy voxel dungeon built with **Babylon.js, XState 5.33.4, strict TypeScript, and HTML canvas**. The art direction draws on Hades' elevated compositions, Darkest Dungeon's atmosphere, and Mike Mignola's angular silhouettes and graphic shadows.
 
 ## Run
 
@@ -52,8 +52,10 @@ The adventurer pushes off and leans forward when starting, blends into a travel-
 Each dungeon seeds **21 enemies** outside the entrance and altar rooms:
 
 - **8 skeletons:** slow, simple wanderers. They pursue nearby living characters, including goblins and kobolds, but ignore other skeletons. They cannot operate doors.
-- **4 goblins:** ranged skirmishers that retreat from nearby threats of other species, break line of sight using cover, crouch while hiding, and peek out to fire crossbow bolts. Bolts travel through the world and can be dodged or stopped by walls, furniture, and doors.
-- **9 kobolds in three packs:** share threat alerts, regroup when separated, and approach distinct front/side/rear positions around their target. Pack members have staggered attack cooldowns.
+- **4 goblins:** take smoke breaks when unaware of threats. In combat, these ranged skirmishers retreat, break line of sight using cover, crouch while hiding, and peek out to fire crossbow bolts. Bolts travel through the world and can be dodged or stopped by walls, furniture, and doors.
+- **9 kobolds in three packs:** gather for seeded card games, hacky sack, or smoke breaks. They put away weapons, face their gathering, and use activity-specific poses and procedural props. Detected threats interrupt activities; packs share alerts, regroup, and approach distinct front/side/rear positions around their target. Survivors return to their gathering after losing the threat; a lone survivor takes a smoke break. Pack members have staggered attack cooldowns.
+
+Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
 
 Clicking an enemy locks onto it: the player follows its changing position, stops in melee reach, and blends from movement into wind-up, sword strike, and recovery. Holding the button keeps that target even as the enemy and camera move; releasing retains the command. Click another enemy to retarget, or click the floor / press WASD or Space to cancel. A red ground ring and health display identify the target.
 
@@ -88,6 +90,8 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
+| `src/machines/` | Typed XState charts organized into `monsters/`, `actors/`, `navigation/`, `world/`, and `ui/` |
+| `src/social.ts` / `src/socialRendering.ts` | Seeded social gatherings, activity coordination, and procedural cards, hacky sacks, pipes and smoke |
 | `src/enemyRendering.ts` | Procedural enemy rigs, selection, health bars and pooled effect rendering |
 | `src/geometry.ts` | Exposed-face box batching, mesh parts, thin instances |
 | `src/buildDungeon.ts` / `src/renderTypes.ts` | Procedural architecture/props, collision proxies, typed lights and animations |
@@ -123,9 +127,11 @@ Both `npm test` and `npm run build` run the type checker. Vite handles browser t
 Components describe transform, health, actor capabilities, movement, navigation, attack state, AI, interaction intent, corpse state, collision adapters, render rigs, and effects. Indexed queries visit only entities with the requested components; adding/removing components updates those indexes immediately. `Actor` is a checked view over these components, not an inheritance hierarchy or another copy of state.
 
 ```ts
+import { Health } from './src/machines/actors/health.ts';
+
 const entity = game.ecs.create('breakable-urn')
   .add('transform', { x: 3, z: 2, h: 0, heading: 0 })
-  .add('health', { current: 20, max: 20, invulnerable: 0 });
+  .add('health', new Health(20));
 
 for (const candidate of game.ecs.query('transform', 'health')) {
   const health = candidate.require('health');
@@ -138,6 +144,30 @@ game.ecs.remove(entity.id);
 `createActor` composes the standard character components. Player input and AI supply intents to the same movement/pathfinding/door and combat systems. Babylon collision and visual rigs are separate adapters. A door-opening capability distinguishes clever actors from skeletons; locked gates block everyone. New component types belong in the `Components` interface, with systems querying the combinations they require.
 
 The fixed-step order is door state → player intent/pursuit → shared movement → enemy decisions/movement and shared attacks → projectiles/particles → shared rig animation. Menus and inspection suspend simulation. Blood/dust are capped at 192 live particle entities and bolts at 32; fixed thin-instance pools render them without allocating new meshes per hit. Corpse entities retain their original meshes.
+
+### Declarative state machines
+
+All state-machine definitions live under `src/machines/`:
+
+- `monsters/skeleton.ts`, `monsters/goblin.ts`, `monsters/kobold.ts`: independent species machines. Shared perception contracts and the factory live alongside them. Species charts select named effects; combat systems carry out pathfinding, pursuit, fleeing and attacks.
+- `actors/`: attack wind-up/impact/recovery/death, mutually exclusive pursuit/door commands, health/protection/death, and locomotion phases.
+- `navigation/`: route following, waiting for an opening door, arrival and blocked/stuck cancellation.
+- `world/`: door locks/opening/closing, one-way chest claiming, and altar-to-crown progression.
+- `ui/`: loading/play/menu/inspection/victory, independent tab visibility and map visibility, inspection-camera transitions, held-pointer modes, transient feedback, and asynchronous Inspector requests.
+
+`Statechart` uses XState's `initialTransition` and `transition` APIs. Simulation sends explicit tick events; no wall-clock timers, background actors, or subscriptions run gameplay. Snapshot-backed accessors expose familiar `health.current`, `attack.target`, door flags, and inspection state without maintaining competing flags. Rendering interpolations, collision/path searches, and numerical geometry remain ordinary functions. UI-only fading accepts an explicit presentation timestamp.
+
+World blueprints remain deterministic plain data. Runtime door/chest views bind to their charts by reference. Replacing a world discards its snapshots; there are no machine timers to stop. Inspector request generations reject stale asynchronous imports after cancellation or regeneration.
+
+### Model-based testing
+
+```sh
+npm run test:models
+```
+
+The latest XState includes model-testing tools in **`xstate/graph`**. `tests/models/` generates paths to every modeled state and extends each path with every candidate event, including ignored/invalid attempts and self-loops. Inspector microstep data measures every declared transition branch, including guards and eventless transitions. Invariants are checked after each stable step, and the pure simulation adapter is compared against a live XState actor.
+
+The suite currently covers **16 machines, 75 declared atomic states, and 155 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
 
 ### Rendering choices
 
@@ -185,6 +215,7 @@ Gameplay key handlers cancel native letter-key text actions, including repeats, 
 npm run typecheck
 npm run format:check
 npm test
+npm run test:models
 npx playwright install chromium firefox
 npm run test:browser
 BROWSER=firefox npm run test:browser
@@ -195,6 +226,7 @@ npm run test:movement
 BROWSER=firefox npm run test:movement
 npm run test:combat
 BROWSER=firefox npm run test:combat
+npm run test:social
 ```
 
 The browser check starts a development server if needed, exercises the full game loop, completes three different seeds, and writes screenshots and JSON reports to `test-results/`. Chromium's automated smoke test explicitly uses software rendering for reproducibility; its FPS is not a hardware performance result.
@@ -202,6 +234,8 @@ The browser check starts a development server if needed, exercises the full game
 The movement suite expects a running dev server. It sends real pointer/keyboard events, checks high-DPI and low-quality floor picking, routes around furniture and over stairs, checks doors and modal cancellation, and captures the destination marker and start/stop poses. Pure navigation and locomotion tests run with `npm test`.
 
 The combat suite also expects a dev server. It uses real clicks/holds to verify pursuit, retargeting, attack poses, repeated damage, corpses, hit particles, cancellations, door clicks, respawn and regeneration. Pure ECS/AI tests cover skeleton hostility, goblin cover/flight/projectiles, kobold flanking, shared movement/doors, and bounded effect lifetimes. The floor-movement suite hides and freezes enemies to isolate floor selection; the full-route autopilot keeps AI active but grants the test player immunity during landmark traversal. Damage and death are checked separately.
+
+The social suite also expects a dev server. It checks each activity's stable gathering, visible props and relaxed equipment, interruption by a visible threat, and return after the threat is lost. It captures `test-results/<browser>-social-{cards,hackysack,smoke}.png`. Pure social tests validate seeded placements and ensure relayed pack alerts expire instead of keeping every member permanently agitated.
 
 ```sh
 npm run profile

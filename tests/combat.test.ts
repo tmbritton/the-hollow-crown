@@ -8,6 +8,7 @@ import { generateDungeon, key } from '../src/world.ts';
 import { registerWorld, updateDoors } from '../src/worldEntities.ts';
 import type { NavigationWorld } from '../src/navigation.ts';
 import type { DoorEntity, Tile } from '../src/worldTypes.ts';
+import { Health } from '../src/machines/actors/health.ts';
 
 function fixture() {
   const ecs = new ECS(),
@@ -19,8 +20,11 @@ function fixture() {
   const combat = new CombatSystem(ecs, world, [player]);
   const enemy = (kind: ActorKind, x: number, z = 0, ai = true, slot = 0) => {
     const actor = createActor(ecs, world, `${kind}:${ecs.size}`, kind, { x, z, h: 0 });
-    if (ai)
-      actor.entity.add('brain', makeBrain(actor.position, kind === 'kobold' ? 'pack' : '', slot));
+    if (ai && kind !== 'player')
+      actor.entity.add(
+        'brain',
+        makeBrain(kind, actor.position, kind === 'kobold' ? 'pack' : '', slot),
+      );
     return actor;
   };
   const step = (frames: number, pursue = false) => {
@@ -37,19 +41,21 @@ test('ECS attachment, replacement, removal and destruction update indexed multi-
   const ecs = new ECS();
   const tile = ecs.create('floor').add('tile', { x: 0, z: 0, h: 0, surface: 'stone' });
   assert.deepEqual(ecs.query('tile', 'health'), []);
-  tile.add('health', { current: 10, max: 10, invulnerable: 0 });
+  tile.add('health', new Health(10));
   assert.deepEqual(ecs.query('tile', 'health'), [tile]);
-  tile.add('health', { current: 5, max: 10, invulnerable: 0 });
+  const replacementHealth = new Health(10);
+  replacementHealth.current = 5;
+  tile.add('health', replacementHealth);
   assert.equal(ecs.query('health').length, 1);
   assert.equal(tile.require('health').current, 5);
   tile.remove('health');
   assert.equal(ecs.query('health').length, 0);
   ecs.remove('floor');
-  tile.add('health', { current: 1, max: 1, invulnerable: 0 });
+  tile.add('health', new Health(1));
   assert.equal(ecs.size, 0);
   assert.equal(ecs.query('health').length, 0);
   const replacement = ecs.create('floor').add('tile', { x: 1, z: 0, h: 0, surface: 'stone' });
-  tile.add('health', { current: 1, max: 1, invulnerable: 0 });
+  tile.add('health', new Health(1));
   assert.equal(ecs.query('health').length, 0, 'retired handles cannot rejoin a reused entity ID');
   assert.deepEqual(ecs.query('tile'), [replacement]);
   assert.throws(() => ecs.create('one') && ecs.create('one'), /Duplicate entity/);
@@ -288,7 +294,7 @@ test('door interaction and navigation capabilities are shared, while locked gate
       updateDoors(f.ecs, 1 / 60);
     }
     assert.ok(door.open, kind);
-    assert.equal(actor.entity.has('interactionIntent'), false);
+    assert.equal(actor.attack.interaction, null);
     door.locked = true;
     door.open = false;
     assert.equal(f.combat.requestDoor(actor, door.id), false);

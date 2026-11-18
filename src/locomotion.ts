@@ -1,3 +1,6 @@
+import { Statechart } from './machines/statechart.ts';
+import { locomotionMachine } from './machines/actors/locomotion.ts';
+
 export const WALK_SPEED = 4.8;
 export const RUN_SPEED = 7.4;
 export const MOVEMENT_KEYS = new Set([
@@ -12,12 +15,17 @@ export const MOVEMENT_KEYS = new Set([
 ]);
 
 export type LocomotionPhase = 'idle' | 'starting' | 'moving' | 'stopping';
-export interface Locomotion {
-  phase: LocomotionPhase;
-  phaseTime: number;
-  time: number;
-  stride: number;
-  blend: number;
+export class Locomotion {
+  readonly chart = new Statechart(locomotionMachine);
+  get phase(): LocomotionPhase {
+    return this.chart.snapshot.value;
+  }
+  get phaseTime(): number {
+    return this.chart.snapshot.context.phaseTime;
+  }
+  time = 0;
+  stride = 0;
+  blend = 0;
 }
 export interface LocomotionPose {
   leftLeg: number;
@@ -29,7 +37,7 @@ export interface LocomotionPose {
   cape: number;
 }
 export function createLocomotion(): Locomotion {
-  return { phase: 'idle', phaseTime: 0, time: 0, stride: 0, blend: 0 };
+  return new Locomotion();
 }
 
 /** Short, frame-rate-independent easing; steering itself stays responsive. */
@@ -47,14 +55,8 @@ export function animateLocomotion(
   dt: number,
 ): LocomotionPose {
   const moving = actualSpeed > 0.08;
-  let phase = state.phase;
-  if (wantsMovement && moving) {
-    if (phase === 'idle' || phase === 'stopping') phase = 'starting';
-    else if (phase === 'starting' && state.phaseTime >= 0.18) phase = 'moving';
-  } else if (phase === 'moving' || phase === 'starting') phase = 'stopping';
-  else if (phase === 'stopping' && state.phaseTime >= 0.24 && !moving) phase = 'idle';
-  state.phaseTime = phase === state.phase ? state.phaseTime + dt : 0;
-  state.phase = phase;
+  state.chart.send({ type: 'SAMPLE', moving, wantsMovement, dt });
+  const phase = state.phase;
   state.time += dt;
   state.stride += actualSpeed * dt * 2.7;
   const targetBlend = Math.min(1, actualSpeed / WALK_SPEED);

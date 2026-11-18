@@ -17,6 +17,8 @@ import type { Entity, RoomId, Spawn, World } from './worldTypes.ts';
 import type { ECS } from './ecs.ts';
 import type { CombatSystem } from './combat.ts';
 import type { EnemyRendering } from './enemyRendering.ts';
+import type { Statechart } from './machines/statechart.ts';
+import type { progressionMachine } from './machines/world/interactions.ts';
 
 export interface Game {
   scene: Scene;
@@ -41,8 +43,9 @@ export interface Game {
   playTime: number;
   desiredAlpha: number;
   desiredRadius: number;
-  active: boolean;
-  complete: boolean;
+  progression: Statechart<typeof progressionMachine>;
+  readonly active: boolean;
+  readonly complete: boolean;
   chests: number;
   checkpoint: Spawn;
   damageCooldown: number;

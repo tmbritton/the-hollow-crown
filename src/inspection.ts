@@ -1,4 +1,6 @@
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
+import { Statechart } from './machines/statechart.ts';
+import { inspectionMachine } from './machines/ui/inspection.ts';
 
 export interface InspectionView {
   focus: Vector3;
@@ -39,8 +41,7 @@ export interface InspectionOptions {
   onClose?: (target: InspectionTarget) => void;
   duration?: number;
 }
-interface InspectionSession {
-  state: 'entering' | 'viewing' | 'leaving';
+export interface InspectionSession {
   target: InspectionTarget;
   saved: CameraPose;
   from: CameraPose;
@@ -49,7 +50,10 @@ interface InspectionSession {
 
 /** Target hooks own presentation changes; application hooks own UI/input. */
 export class InspectionController {
-  private session: InspectionSession | null = null;
+  readonly chart: Statechart<typeof inspectionMachine>;
+  private get session() {
+    return this.chart.snapshot.context.session;
+  }
   private readonly camera: CameraPose;
   private readonly getViewport: () => InspectionViewport;
   private readonly onOpen: (target: InspectionTarget) => void;
@@ -65,12 +69,13 @@ export class InspectionController {
     this.onOpen = onOpen;
     this.onClose = onClose;
     this.duration = duration;
+    this.chart = new Statechart(inspectionMachine, { duration });
   }
   get active(): boolean {
     return this.session !== null;
   }
-  get state(): 'idle' | InspectionSession['state'] {
-    return this.session?.state ?? 'idle';
+  get state() {
+    return this.chart.snapshot.value;
   }
   get target(): InspectionTarget | null {
     return this.session?.target ?? null;
@@ -127,7 +132,7 @@ export class InspectionController {
   open(target: InspectionTarget): boolean {
     if (this.active) return false;
     const saved = this.capture();
-    this.session = { saved, from: saved, target, state: 'entering', elapsed: 0 };
+    this.chart.send({ type: 'OPEN', session: { saved, from: saved, target, elapsed: 0 } });
     target.onEnter?.();
     this.onOpen(target);
     return true;
@@ -135,27 +140,24 @@ export class InspectionController {
   close({ immediate = false }: { immediate?: boolean } = {}): boolean {
     const session = this.session;
     if (!session) return false;
-    if (immediate) {
-      this.finish();
-      return true;
-    }
-    if (session.state === 'leaving') return false;
-    session.from = this.capture();
-    session.elapsed = 0;
-    session.state = 'leaving';
-    return true;
+    const before = this.state;
+    this.chart.send({ type: 'CLOSE', immediate, from: this.capture() });
+    if (this.state === 'idle') this.finish(session);
+    return this.state !== before;
   }
   update(dt: number): void {
     const session = this.session;
     if (!session) return;
-    if (session.state === 'viewing') {
+    const phase = this.state;
+    if (phase === 'viewing') {
       this.apply(this.viewPose(session));
       return;
     }
-    session.elapsed += Math.max(0, dt);
-    const t = Math.min(1, session.elapsed / this.duration),
+    this.chart.send({ type: 'TICK', dt });
+    const t =
+        this.duration <= 0 ? 1 : Math.min(1, (session.elapsed + Math.max(0, dt)) / this.duration),
       ease = t * t * (3 - 2 * t);
-    const to = session.state === 'leaving' ? session.saved : this.viewPose(session),
+    const to = phase === 'leaving' ? session.saved : this.viewPose(session),
       from = session.from;
     const angle = Math.atan2(Math.sin(to.alpha - from.alpha), Math.cos(to.alpha - from.alpha));
     this.apply({
@@ -166,20 +168,12 @@ export class InspectionController {
       fov: from.fov + (to.fov - from.fov) * ease,
       minZ: to.minZ,
     });
-    if (t === 1) {
-      if (session.state === 'leaving') this.finish();
-      else {
-        this.apply(to);
-        session.state = 'viewing';
-      }
-    }
+    if (this.state === 'idle') this.finish(session);
+    else if (this.state === 'viewing') this.apply(to);
   }
-  private finish(): void {
-    const session = this.session;
-    if (!session) return;
+  private finish(session: InspectionSession): void {
     const { target, saved } = session;
     this.apply(saved);
-    this.session = null;
     target.onExit?.();
     this.onClose(target);
   }

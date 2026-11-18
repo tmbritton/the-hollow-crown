@@ -1,9 +1,12 @@
-import type { ECS, Entity, ActorKind, Components } from './ecs.ts';
+import type { ECS, Entity, ActorKind, EnemyKind, Components } from './ecs.ts';
 import { Navigator } from './navigation.ts';
 import type { NavigationWorld } from './navigation.ts';
 import { createLocomotion, easeSpeed, WALK_SPEED } from './locomotion.ts';
 import { heightAt, tileAt } from './world.ts';
 import type { Point, Spawn } from './worldTypes.ts';
+import { Attack } from './machines/actors/attack.ts';
+import { createMonsterBehavior } from './machines/monsters/index.ts';
+import { Health } from './machines/actors/health.ts';
 
 /** A checked view over components, not a second copy of actor state. */
 export class Actor {
@@ -38,6 +41,10 @@ export class Actor {
   get alive() {
     return this.health.current > 0 && !this.entity.has('corpse');
   }
+  enableAI(pack = '', slot = 0): void {
+    if (this.kind === 'player') throw new Error('The player uses input, not a monster behavior');
+    this.entity.add('brain', makeBrain(this.kind, this.position, pack, slot));
+  }
 }
 
 export function createActor(
@@ -57,7 +64,7 @@ export function createActor(
         opensDoors: kind !== 'skeleton',
       })
       .add('transform', { ...spawn, heading: Math.PI / 2 })
-      .add('health', { current: max, max, invulnerable: 0 })
+      .add('health', new Health(max))
       .add('movement', {
         speed: 0,
         direction: { x: 0, z: 0 },
@@ -66,12 +73,12 @@ export function createActor(
         wantsMovement: false,
       })
       .add('navigation', new Navigator(world))
-      .add('attack', { target: null, swing: null, cooldown: 0, repath: 0, blocked: 0 }),
+      .add('attack', new Attack()),
   );
 }
 
 export function cancelAttack(actor: Actor): void {
-  Object.assign(actor.attack, { target: null, swing: null, repath: 0, blocked: 0 });
+  actor.attack.cancel();
 }
 
 export function stopActor(actor: Actor, cancelCombat = true): void {
@@ -82,7 +89,7 @@ export function stopActor(actor: Actor, cancelCombat = true): void {
   actor.motion.direction = { x: 0, z: 0 };
   actor.motion.animation = createLocomotion();
   if (cancelCombat) cancelAttack(actor);
-  actor.entity.remove('interactionIntent');
+  actor.attack.releaseInteraction();
 }
 
 export function teleportActor(actor: Actor, world: NavigationWorld, point: Point): void {
@@ -153,9 +160,13 @@ export function moveActor(
   }
 }
 
-export function makeBrain(home: Spawn, pack = '', slot = 0): Components['brain'] {
+export function makeBrain(kind: EnemyKind, home: Spawn, pack = '', slot = 0): Components['brain'] {
+  const behavior = createMonsterBehavior(kind);
   return {
-    state: 'wander',
+    behavior,
+    get state() {
+      return behavior.snapshot.value;
+    },
     think: slot * 0.07,
     memory: 0,
     home: { ...home },

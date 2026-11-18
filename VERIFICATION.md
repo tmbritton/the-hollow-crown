@@ -2,7 +2,7 @@
 
 ## Result
 
-The playable exploration/combat demo uses a **typed ECS and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test.
+The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
 ### Automated checks
 
@@ -10,17 +10,20 @@ The playable exploration/combat demo uses a **typed ECS and strict TypeScript**,
 | --- | --- |
 | `npm run typecheck` | Passes with `strict`, unused-code checks, and erasable TypeScript syntax across source, tests, and Vite configuration |
 | `npm run format:check` | All TypeScript files and the TypeScript configuration pass Prettier checks |
-| `npm test` | 37 passing tests: generation/reachability, inspection, navigation, locomotion, ECS lifecycle, shared movement/doors, enemy tactics, timed damage, projectiles, corpses and effects |
-| `npm run build` | Strict type checking and production build succeed; 628 modules transformed |
+| `npm test` | 69 passing tests: generation, ECS/combat, navigation, inspection, locomotion, statechart invariants/model coverage, and social gathering behavior |
+| `npm run test:models` | 19 checks: every production machine covered, all 75 declared atomic states and 155 transition branches reached, invariants checked on generated traces, and negative fixtures proving missed coverage fails |
+| `npm run build` | Strict type checking and production build succeed; 653 modules transformed |
 | `npm run test:production` | Built shaders, rendering, seed changes, menus, and quality settings work; development hooks are absent |
 | `npm run test:browser` | 22 passing Chromium gameplay/rendering/resource checks |
 | `BROWSER=firefox npm run test:browser` | 22 passing Firefox gameplay/rendering/resource checks |
-| `npm run test:portraits` | Four visually distinct GPU-generated paintings captured without shader errors |
+| `npm run test:portraits` | Earlier dedicated portrait baseline; current full-browser and inspection suites also verify portrait behavior |
 | `npm run test:inspection` | 11 passing checks for held-key handling, text editing, close-up detail, camera restoration, resizing, cancellation, and regeneration |
 | `npm run test:movement` | 11 passing Chromium checks for real clicks, hold-to-steer, keyboard override, eased stopping, obstacles, stairs, doors, modal/focus cancellation, and high-DPI/low-quality picking |
-| `BROWSER=firefox npm run test:movement` | The same 11 movement checks pass in Firefox |
+| `BROWSER=firefox npm run test:movement` | Earlier dedicated Firefox baseline; the current full Firefox route suite passes |
 | `npm run test:combat` | 9 passing real-input ECS/combat checks, including held pursuit, repeated strikes, effects/corpses, moving targets, cancellation, door clicks/locks, death and regeneration |
-| `BROWSER=firefox npm run test:combat` | The same 9 combat checks pass in Firefox |
+| `BROWSER=firefox npm run test:combat` | Earlier dedicated Firefox baseline; the current full Firefox route and social-alert suites pass |
+| `npm run test:social` | 9 passing Chromium checks: stable gatherings, visible activity props, threat interruption/weapon drawing, and return to each activity |
+| `BROWSER=firefox npm run test:social` | The same 9 social checks pass in Firefox |
 | `npm run profile` | Earlier hardware baseline; the profiler is type-checked, but hardware measurements were not rerun for this update |
 
 Both full browser runs complete `MOURNING-731`, `CINDER-42`, and `VIOLET-7`. The test discovers routes from each generated layout and advances the actual player controller and collision system through them. The keyboard route driver releases before its final waypoint and waits for eased movement to settle before interacting. The non-fighting landmark autopilot temporarily grants the test player immunity while keeping AI active; ordinary damage/death are checked independently. Teleports isolate hazards and individual rendering/interaction checks. Floor-navigation tests hide and freeze enemies to prevent enemy selection from replacing a floor command; combat browser tests use controlled encounters with real input, simulation, collision and rendering.
@@ -41,7 +44,8 @@ Covered behavior:
 - Click-to-approach/open doors, capability-aware door navigation, and locked-gate preservation.
 - Indexed ECS component attachment/replacement/removal, actor composition, and reference-based registration of generated world data.
 - Skeleton wandering and attacks on living enemies; goblin flight, hiding, cover-to-peek transitions and ranged fire; kobold group alerts and distinct flanking positions.
-- An additional 100-seed spawn sweep confirmed 21 enemies per world and navigation-safe starting positions after pack clustering.
+- Thirty additional social seeds verify 21 enemies, deterministic activities and gathering positions, and navigation-safe spawning. A pack whose first spawn leaves insufficient nearby space can use another safe room position before gathering placement.
+- Separate skeleton, goblin, and kobold machines select tactics through typed perception events. Alerted social creatures leave their activity; survivors return after target memory expires. Relayed pack alerts cannot indefinitely refresh each other's lifetime.
 - Sticky enemy targeting, moving-target pursuit, repeated timed sword attacks, animation blending, cancellation before impact, and no melee damage through cover.
 - Dodgable, swept crossbow projectiles blocked by furniture and doors. Enemy attacks use the same player/enemy health and damage system.
 - Persistent non-blocking corpses, blood versus skeleton dust, bounded particle/projectile entity lifetimes, and clean world replacement.
@@ -62,6 +66,8 @@ Covered behavior:
 - No JavaScript or shader errors in the passing runs.
 
 ## Visual review
+
+The current social update was reviewed in `chromium-social-cards.png`, `chromium-social-hackysack.png`, and `chromium-social-smoke.png`: seated card players surround a cloth with cards and stakes; hacky-sack participants face a shared animated ball; smokers hold pipes with rising voxel puffs. Weapons are hidden while relaxing and restored on alert. Both browser suites verify these transitions.
 
 Reviewed rendered screenshots of the entrance, flooded gallery, forge, altar, throne room, all four themed rooms, alternate layouts, and four head-on royal portraits. Also reviewed the altar from all four camera orientations and in grayscale.
 
@@ -115,16 +121,19 @@ The profiled world contains approximately **166,638 mesh triangles**, including 
 
 Five consecutive regeneration samples include different layouts and two identical final seeds. The repeated `MOURNING-731` samples stabilized at:
 
-- 1,954 scene meshes, including collision meshes, architecture, character parts, enemy rigs, health displays and fixed effect pools.
+- 2,012 scene meshes, including collision meshes, architecture, character parts, enemy rigs, social props, health displays and fixed effect pools.
 - 28 materials.
 - 4 scene-tracked runtime textures/render targets (post-process internal buffers are managed separately by Babylon).
-- 50 cached effects after regeneration and initial rendering.
+- 51 cached effects after regeneration and initial rendering.
 - 34 compiled custom shader source entries, including the shared portrait material.
 
 Exploring additional areas can compile additional material variants. Regenerating releases those effects and returns to the same initial counts. A shader-cache growth issue discovered during testing was fixed by disposing scene resources, releasing old effects, and removing generated custom shader source entries.
 
 ## Implementation decisions finalized during the build
 
+- All state-machine definitions are grouped under `src/machines/`; each monster kind has its own machine. XState pure transitions keep gameplay synchronous and driven by simulation ticks, with no machine-owned wall-clock timers or subscriptions.
+- `xstate/graph` generates shortest paths extended over each candidate outgoing event, including self-loops and forbidden attempts. The model suite executes 2,753 generated paths plus 9,600 deterministic cyclic steps across its input scenarios. Continuous context is partitioned for finite exploration, so coverage is explicit state/branch coverage rather than an unbounded-path proof.
+- Model invariants cover dead actors, one-impact attacks, mutually exclusive commands, protected health, valid navigation waypoints/door capabilities, lock preservation, single-claim loot, progression gates, inspection cleanup, modal visibility, pointer ownership, stale Inspector requests, and replacement UI deadlines. Every exported production machine must have a specification.
 - `CustomMaterial` handles banded lit surfaces instead of a custom node-material lighting stack.
 - Upper walls retract geometrically rather than using fragment-shader cutouts, so visible geometry and shadows stay synchronized.
 - An irregular grown graph receives seeded room roles, footprints, branches, and loops. Item placement is validated against prop-aware navigation; failed candidates retry deterministically.
@@ -134,4 +143,4 @@ Exploring additional areas can compile additional material variants. Regeneratin
 - A small typed ECS with indexed queries supports attachable components. Movement, door use, attacks, health, collision adapters and animation are shared by player and enemies; generated objects and ambient render behaviors are also registered entities.
 - Effect simulation uses transient entities with fixed-size thin-instance render pools (192 hit particles and 32 bolts maximum). Corpses retain their rigs rather than allocating replacement meshes.
 
-Raw reports are in `test-results/chromium-report.json`, `test-results/firefox-report.json`, `test-results/chromium-movement-report.json`, `test-results/firefox-movement-report.json`, `test-results/chromium-combat-report.json`, `test-results/firefox-combat-report.json`, `test-results/portrait-report.json`, `test-results/inspection-report.json`, and `test-results/hardware-profile.json`.
+Current state-machine/social reports include `test-results/machine-model-report.json`, `test-results/chromium-social-report.json`, and `test-results/firefox-social-report.json`. Full browser, targeted movement/combat/inspection, portrait, and hardware reports retain their existing filenames in `test-results/`; the table above distinguishes current runs from earlier baselines.

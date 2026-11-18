@@ -30,6 +30,10 @@ import { createEnemyRendering } from './enemyRendering.ts';
 import { registerWorld, registerDungeonRendering, updateDoors } from './worldEntities.ts';
 import { UI } from './ui.ts';
 import { InspectionController } from './inspection.ts';
+import { Statechart } from './machines/statechart.ts';
+import { animateChest, progressionMachine } from './machines/world/interactions.ts';
+import { pointerMachine } from './machines/ui/pointer.ts';
+import { inspectorMachine } from './machines/ui/inspector.ts';
 import { required } from './assert.ts';
 import { element, html } from './dom.ts';
 import type { ShowInspector } from '@babylonjs/inspector';
@@ -63,16 +67,16 @@ const editingText = (target: EventTarget | null) =>
 let engine: DungeonEngine, game: Game;
 let last = performance.now(),
   accumulator = 0,
-  uiClock = 0,
-  ready = false;
+  uiClock = 0;
 let quality: 'high' | 'low' = 'high';
 let inspectorToken: ReturnType<typeof ShowInspector> | null = null;
-let heldPointer: { id: number; x: number; y: number; mode: 'floor' | 'target' } | null = null;
+const pointer = new Statechart(pointerMachine);
+const inspector = new Statechart(inspectorMachine);
 let lastPointerRoute = 0;
 
 function resetMovement(): void {
   keys.clear();
-  heldPointer = null;
+  pointer.send({ type: 'CANCEL' });
   if (game) {
     stopPlayer(game.player);
     game.enemyRendering.update();
@@ -81,7 +85,7 @@ function resetMovement(): void {
 }
 
 function navigatePointer(clientX: number, clientY: number, feedback = false): void {
-  if (!ready || paused() || game.inspection.active) return;
+  if (!ui.ready || paused() || game.inspection.active) return;
   const rect = canvas.getBoundingClientRect();
   if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom)
     return;
@@ -102,7 +106,7 @@ function navigatePointer(clientX: number, clientY: number, feedback = false): vo
     );
     const door = doors.find((door) => door.collider === doorHit?.pickedMesh);
     if (door && (!enemy || (doorHit?.distance ?? Infinity) < enemy.distance)) {
-      if (heldPointer) heldPointer.mode = 'target';
+      pointer.send({ type: 'SELECT_TARGET' });
       if (!game.combat.requestDoor(game.player.actor, door.id)) {
         resetMovement();
         ui.toast('The gate remembers an oath. Kindle the violet altar.');
@@ -110,12 +114,11 @@ function navigatePointer(clientX: number, clientY: number, feedback = false): vo
       return;
     }
     if (enemy) {
-      if (heldPointer) heldPointer.mode = 'target';
+      pointer.send({ type: 'SELECT_TARGET' });
       game.combat.target(game.player.actor, enemy.actor);
       return;
     }
     cancelAttack(game.player.actor);
-    game.player.actor.entity.remove('interactionIntent');
   }
   const point = pickGround(game.world, ray);
   const accepted = point && game.player.navigator.goTo(game.player.root.position, point);
@@ -131,7 +134,7 @@ function freshSeed() {
   return `ASH-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36).toUpperCase().slice(0, 6)}`;
 }
 function paused() {
-  return ui.menu.open || ui.victory.open || document.hidden;
+  return ui.paused;
 }
 function applyQuality() {
   engine.setHardwareScalingLevel(
@@ -145,12 +148,13 @@ function applyQuality() {
   engine.resize();
 }
 function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
-  ready = false;
+  ui.transition({ type: 'LOAD' });
   resetMovement();
   accumulator = 0;
   last = performance.now();
   inspectorToken?.dispose();
   inspectorToken = null;
+  inspector.send({ type: 'CLOSE' });
   if (game) {
     game.inspection.dispose();
     const shaderNames = game.scene.materials
@@ -274,6 +278,13 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       canvas.focus();
     },
   });
+  const progression = new Statechart(progressionMachine);
+  for (const entity of world.entities)
+    if (entity.type === 'altar')
+      Object.defineProperty(entity, 'active', {
+        enumerable: true,
+        get: () => !progression.snapshot.matches('seekingAltar'),
+      });
   game = {
     scene,
     world,
@@ -297,8 +308,13 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     playTime: 0,
     desiredAlpha: camera.alpha,
     desiredRadius: 27,
-    active: false,
-    complete: false,
+    progression,
+    get active() {
+      return !progression.snapshot.matches('seekingAltar');
+    },
+    get complete() {
+      return progression.snapshot.matches('complete');
+    },
     chests: 0,
     checkpoint: { ...world.spawn },
     damageCooldown: 0,
@@ -316,7 +332,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   history.replaceState(null, '', url);
   scene.executeWhenReady(() => {
     if (scene !== game.scene) return;
-    ready = true;
+    ui.transition({ type: 'READY' });
     loading.classList.add('done');
     canvas.focus();
     ui.toast(
@@ -371,7 +387,7 @@ function promptFor(e: Entity | null): string {
   return e.type === 'chest' ? (e.open ? 'An empty reliquary' : 'Open the reliquary') : '';
 }
 function interact() {
-  if (!ready || paused()) return;
+  if (!ui.ready || paused()) return;
   if (game.inspection.active) {
     game.inspection.close();
     return;
@@ -403,8 +419,7 @@ function interact() {
     e.open = !e.open;
     if (!e.open) required(e.collider, 'Door collider missing').checkCollisions = true;
   } else if (e.type === 'altar') {
-    game.active = true;
-    e.active = true;
+    game.progression.send({ type: 'KINDLE' });
     game.player.health = 100;
     ui.setHealth(100);
     game.checkpoint = {
@@ -432,7 +447,7 @@ function interact() {
       ui.toast('The crown waits for the altar’s flame.');
       return;
     }
-    game.complete = true;
+    game.progression.send({ type: 'CLAIM' });
     resetMovement();
     ui.complete(game.playTime, game.chests);
   } else if (e.type === 'chest' && !e.open) {
@@ -452,13 +467,12 @@ function tick(dt: number): void {
   const healthBefore = game.player.health;
   if ([...MOVEMENT_KEYS].some((key) => keys.has(key))) {
     cancelAttack(game.player.actor);
-    game.player.actor.entity.remove('interactionIntent');
   }
   updateDoors(game.ecs, dt);
   const locked = game.combat.pursue(game.player.actor, dt);
   const tile = movePlayer(game.player, game.world, keys, game.camera, dt, locked);
   game.combat.update(dt);
-  animateActors(game.ecs, dt);
+  animateActors(game.ecs, dt, game.time);
   game.enemyRendering.update();
   if (tile?.room) ui.room(game.world.roomById[tile.room]);
   game.damageCooldown -= dt;
@@ -473,6 +487,7 @@ function tick(dt: number): void {
   if (game.player.health <= 0) {
     resetMovement();
     game.player.actor.entity.remove('corpse');
+    game.player.actor.attack.reset();
     game.player.teleport(game.checkpoint.x, game.checkpoint.z, game.world);
     game.player.health = 100;
     game.player.actor.health.invulnerable = 2.5;
@@ -482,11 +497,7 @@ function tick(dt: number): void {
   }
   for (const entity of game.ecs.query('interaction')) {
     const e = entity.require('interaction');
-    if (e.type === 'chest') {
-      const angle = required(e.angle, 'Chest animation missing');
-      e.angle = angle + ((e.open ? -1.5 : 0) - angle) * (1 - Math.exp(-5 * dt));
-      required(e.lid, 'Chest hinge missing').rotation.x = e.angle;
-    }
+    if (e.type === 'chest') animateChest(e, dt);
   }
 }
 
@@ -573,27 +584,43 @@ function toggleMenu() {
   resetMovement();
   if (ui.victory.open) return;
   game?.inspection.close({ immediate: true });
-  if (ui.menu.open) {
-    ui.menu.close();
-    canvas.focus();
-  } else ui.menu.showModal();
+  ui.transition({ type: 'TOGGLE_MENU' });
+  if (!ui.menu.open) canvas.focus();
 }
 window.addEventListener('keydown', (event) => {
   if (import.meta.env.DEV && event.code === 'F2') {
     event.preventDefault();
+    if (!ui.ready || event.repeat) return;
     resetMovement();
-    if (inspectorToken) {
-      inspectorToken.dispose();
-      inspectorToken = null;
-    } else
+    inspector.send({ type: 'TOGGLE' });
+    inspectorToken?.dispose();
+    inspectorToken = null;
+    if (inspector.snapshot.matches('loading')) {
+      const request = inspector.snapshot.context.request;
+      const scene = game.scene;
       import('@babylonjs/inspector')
         .then(({ ShowInspector }) => {
-          inspectorToken = ShowInspector(game.scene);
+          if (
+            scene !== game.scene ||
+            !inspector.snapshot.matches('loading') ||
+            inspector.snapshot.context.request !== request
+          )
+            return;
+          inspectorToken = ShowInspector(scene);
+          inspector.send({ type: 'RESOLVE', request });
         })
         .catch((error) => {
+          if (
+            scene !== game.scene ||
+            !inspector.snapshot.matches('loading') ||
+            inspector.snapshot.context.request !== request
+          )
+            return;
+          inspector.send({ type: 'REJECT', request });
           console.error(error);
           ui.toast('Could not open the development inspector.');
         });
+    }
     return;
   }
   if (game?.inspection.active) {
@@ -612,20 +639,18 @@ window.addEventListener('keydown', (event) => {
   // Keep editable fields and browser shortcuts outside gameplay input handling.
   if (gameKeys.has(event.code)) event.preventDefault();
   if (MOVEMENT_KEYS.has(event.code)) {
-    heldPointer = null;
+    pointer.send({ type: 'CANCEL' });
     game?.player.navigator.cancel();
     if (game) {
       cancelAttack(game.player.actor);
-      game.player.actor.entity.remove('interactionIntent');
     }
   }
   if (event.code === 'Space') {
     keys.clear();
-    heldPointer = null;
+    pointer.send({ type: 'CANCEL' });
     game?.player.navigator.cancel();
     if (game) {
       cancelAttack(game.player.actor);
-      game.player.actor.entity.remove('interactionIntent');
     }
     return;
   }
@@ -634,10 +659,7 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyE') interact();
   if (event.code === 'KeyQ') game.desiredAlpha -= Math.PI / 2;
   if (event.code === 'KeyR') game.desiredAlpha += Math.PI / 2;
-  if (event.code === 'KeyM') {
-    const panel = required(document.querySelector<HTMLElement>('.map-panel'), 'Map panel missing');
-    panel.hidden = !panel.hidden;
-  }
+  if (event.code === 'KeyM') ui.transition({ type: 'TOGGLE_MAP' });
 });
 window.addEventListener('keyup', (event) => keys.delete(event.code));
 window.addEventListener('blur', resetMovement);
@@ -645,10 +667,16 @@ window.addEventListener('pagehide', (event) => {
   resetMovement();
   // Release GPU resources promptly on a real reload/navigation. A page retained
   // by the back/forward cache keeps its engine so it can resume normally.
-  if (!event.persisted) engine?.dispose();
+  if (!event.persisted) {
+    inspector.send({ type: 'CLOSE' });
+    inspectorToken?.dispose();
+    inspectorToken = null;
+    engine?.dispose();
+  }
 });
 document.addEventListener('visibilitychange', () => {
   resetMovement();
+  ui.transition({ type: document.hidden ? 'HIDE' : 'SHOW' });
   last = performance.now();
   accumulator = 0;
 });
@@ -667,26 +695,27 @@ canvas.addEventListener(
 canvas.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || !event.isPrimary || event.ctrlKey || event.metaKey || event.altKey)
     return;
-  if (!ready || paused() || game.inspection.active) return;
+  if (!ui.ready || paused() || game.inspection.active) return;
   event.preventDefault();
   canvas.focus();
-  heldPointer = { id: event.pointerId, x: event.clientX, y: event.clientY, mode: 'floor' };
+  pointer.send({
+    type: 'DOWN',
+    pointer: { id: event.pointerId, x: event.clientX, y: event.clientY },
+  });
   navigatePointer(event.clientX, event.clientY, true);
 });
 window.addEventListener('pointermove', (event) => {
-  if (heldPointer?.id !== event.pointerId) return;
-  if (!(event.buttons & 1)) {
-    heldPointer = null;
-    return;
-  }
-  heldPointer.x = event.clientX;
-  heldPointer.y = event.clientY;
+  pointer.send({
+    type: 'MOVE',
+    pointer: { id: event.pointerId, x: event.clientX, y: event.clientY },
+    pressed: !!(event.buttons & 1),
+  });
 });
 window.addEventListener('pointerup', (event) => {
-  if (heldPointer?.id === event.pointerId) heldPointer = null;
+  pointer.send({ type: 'UP', id: event.pointerId });
 });
 window.addEventListener('pointercancel', (event) => {
-  if (heldPointer?.id === event.pointerId) resetMovement();
+  if (pointer.snapshot.context.pointer?.id === event.pointerId) resetMovement();
 });
 window.addEventListener('resize', () => engine?.resize());
 html('menu-button').onclick = toggleMenu;
@@ -696,6 +725,7 @@ ui.inspection.addEventListener('cancel', (event) => {
   game?.inspection.close();
 });
 ui.menu.addEventListener('close', () => {
+  if (!ui.menu.open) ui.transition({ type: 'CLOSE_MENU' });
   keys.clear();
   canvas.focus();
 });
@@ -716,7 +746,7 @@ qualitySelect.onchange = () => {
   }
 };
 html('continue').onclick = () => {
-  ui.victory.close();
+  ui.transition({ type: 'CONTINUE' });
   canvas.focus();
 };
 html('another-run').onclick = () => start(freshSeed());
@@ -746,12 +776,13 @@ try {
       dt = Math.min(0.08, (now - last) / 1000);
     last = now;
     if (!game) return;
-    if (ready && !paused()) {
+    if (ui.ready && !paused()) {
       if (game.inspection.active) accumulator = 0;
       else {
+        const heldPointer = pointer.snapshot.context.pointer;
         if (
           heldPointer &&
-          heldPointer.mode === 'floor' &&
+          pointer.snapshot.matches('floor') &&
           now - lastPointerRoute >= 120 &&
           document.elementFromPoint(heldPointer.x, heldPointer.y) === canvas
         )
@@ -765,6 +796,7 @@ try {
       renderUpdate(dt);
     } else accumulator = 0;
     game.scene.render();
+    ui.updateFeedback(now);
     uiClock += dt;
     if (uiClock > 0.12) {
       ui.update(game.player, engine.getFps());
@@ -772,6 +804,7 @@ try {
     }
   });
 } catch (error) {
+  ui.transition({ type: 'FAIL' });
   console.error(error);
   required(loading.querySelector('p'), 'Loading caption missing').textContent =
     error instanceof Error ? error.message : String(error);
@@ -784,7 +817,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
       return game;
     },
     get ready() {
-      return ready;
+      return ui.ready;
     },
     get engine() {
       return engine;

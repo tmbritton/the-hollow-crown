@@ -6,6 +6,7 @@ import type { ECS } from './ecs.ts';
 import { animateLocomotion } from './locomotion.ts';
 import { heightAt, tileAt } from './world.ts';
 import type { NavigationWorld } from './navigation.ts';
+import { hackySackPass, isSocializing } from './social.ts';
 import '@babylonjs/core/Collisions/collisionCoordinator';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
@@ -34,7 +35,7 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
 }
 
 /** Render rigs are components too; locomotion, melee and death blending are shared. */
-export function animateActors(ecs: ECS, dt: number): void {
+export function animateActors(ecs: ECS, dt: number, time = 0): void {
   for (const entity of ecs.query('actor', 'rig', 'movement', 'transform')) {
     const actor = new Actor(entity),
       rig = entity.require('rig'),
@@ -46,6 +47,8 @@ export function animateActors(ecs: ECS, dt: number): void {
     );
     rig.root.rotation.y += turn * (1 - Math.exp(-18 * dt));
     const corpse = entity.get('corpse');
+    const relaxing = isSocializing(actor);
+    for (const mesh of rig.equipment ?? []) mesh.setEnabled(!relaxing);
     if (corpse) {
       const collapse = Math.min(1, corpse.age / 0.45);
       rig.root.rotation.x = (collapse * Math.PI) / 2;
@@ -85,5 +88,26 @@ export function animateActors(ecs: ECS, dt: number): void {
     rig.body.rotation.y = weight * (0.4 - cut * 0.8);
     rig.body.position.y = blend(pose.bob, -cut * 0.06) - (actor.brain?.state === 'hide' ? 0.16 : 0);
     if (rig.cape) rig.cape.rotation.x = pose.cape - weight * cut * 0.15;
+    if (relaxing) {
+      const phase = time + (actor.brain?.social?.phase ?? 0) + (actor.brain?.slot ?? 0) * 1.7;
+      if (actor.brain?.state === 'cards') {
+        rig.body.position.y = -0.3;
+        rig.body.rotation.x = 0.16;
+        rig.legs[0].rotation.x = rig.legs[1].rotation.x = -0.75;
+        rig.arms[0].rotation.x = -0.85;
+        rig.arms[1].rotation.x = -0.9 + Math.sin(phase * 1.4) * 0.18;
+      } else if (actor.brain?.state === 'smoke') {
+        rig.arms[1].rotation.x = -2.05 + Math.sin(phase * 1.1) * 0.08;
+        rig.body.rotation.y = Math.sin(phase * 0.5) * 0.08;
+      } else if (actor.brain?.social) {
+        const pass = hackySackPass(actor.brain.social, ecs, time);
+        const kick =
+          pass?.from === actor.id ? Math.sin(Math.min(1, pass.progress * 4) * Math.PI) : 0;
+        rig.legs[1].rotation.x = -kick * 0.9;
+        rig.arms[0].rotation.z = -0.15 - kick * 0.15;
+        rig.arms[1].rotation.z = 0.15 + kick * 0.15;
+        rig.body.rotation.x = -kick * 0.08;
+      }
+    }
   }
 }

@@ -5,6 +5,7 @@ import type { NavigationWorld } from './navigation.ts';
 import { segmentIntersectsBox } from './navigation.ts';
 import { heightAt, randomFrom, tileAt } from './world.ts';
 import type { Point, Random, Spawn, World } from './worldTypes.ts';
+import { seedSocialGroups } from './social.ts';
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 export const MELEE_RANGE = 1.5;
@@ -85,13 +86,15 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
       const actor = createActor(ecs, world, `${kind}:${room}:${slot}`, kind, world.roomById[room]);
       const packAnchor =
         kind === 'kobold' ? enemies.find((e) => e.brain?.pack === `pack:${room}`) : undefined;
-      const spawn = candidates.find(
+      const available = candidates.filter(
         ({ tile }) =>
           actor.navigator.canStand(tile) &&
-          (!packAnchor || distance(packAnchor.position, tile) < 4.5) &&
           enemies.every((e) => distance(e.position, tile) > 1.25) &&
           world.entities.every((e) => !e.approach || distance(e.approach, tile) > 1.2),
       );
+      const spawn =
+        available.find(({ tile }) => !packAnchor || distance(packAnchor.position, tile) < 4.5) ??
+        available[0];
       if (!spawn) {
         ecs.remove(actor.id);
         continue;
@@ -99,11 +102,12 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
       Object.assign(actor.position, spawn.tile);
       actor.entity.add(
         'brain',
-        makeBrain(spawn.tile, kind === 'kobold' ? `pack:${room}` : '', slot),
+        makeBrain(kind, spawn.tile, kind === 'kobold' ? `pack:${room}` : '', slot),
       );
       enemies.push(actor);
     }
   }
+  seedSocialGroups(enemies, world);
   return enemies;
 }
 
@@ -137,7 +141,6 @@ export class CombatSystem {
 
   target(actor: Actor, target: Actor): boolean {
     if (!actor.alive || !hostile(actor, target)) return false;
-    actor.entity.remove('interactionIntent');
     cancelAttack(actor);
     actor.navigator.cancel();
     actor.attack.target = target.id;
@@ -154,27 +157,26 @@ export class CombatSystem {
     const door = this.ecs.get(id)?.get('door');
     if (!door || door.locked || !actor.entity.require('actor').opensDoors) return false;
     stopActor(actor);
-    actor.entity.add('interactionIntent', { target: id });
+    actor.attack.interact(id);
     return true;
   }
 
   updateInteraction(actor: Actor): void {
-    const intent = actor.entity.get('interactionIntent');
+    const intent = actor.attack.interaction;
     if (!intent) return;
-    const door = this.ecs.get(intent.target)?.get('door');
+    const door = this.ecs.get(intent)?.get('door');
     if (!door || door.locked) {
-      actor.entity.remove('interactionIntent');
+      actor.attack.releaseInteraction();
       actor.navigator.cancel();
       return;
     }
     if (distance(actor.position, door) < 2.1) {
       door.open = true;
-      actor.entity.remove('interactionIntent');
+      actor.attack.releaseInteraction();
       actor.navigator.cancel();
       return;
     }
-    if (!actor.navigator.active && !this.route(actor, door))
-      actor.entity.remove('interactionIntent');
+    if (!actor.navigator.active && !this.route(actor, door)) actor.attack.releaseInteraction();
   }
 
   inMelee(actor: Actor, target: Actor): boolean {
@@ -194,25 +196,26 @@ export class CombatSystem {
     )
       return false;
     actor.navigator.cancel();
-    actor.attack.swing = {
-      target: target.id,
-      elapsed: 0,
-      duration: ranged ? 0.85 : ATTACK_DURATION,
-      impact: ranged ? 0.45 : ATTACK_IMPACT,
-      resolved: false,
-      ranged,
-    };
-    actor.position.heading = Math.atan2(
-      target.position.x - actor.position.x,
-      target.position.z - actor.position.z,
-    );
-    actor.attack.cooldown =
+    const started = actor.attack.start(
+      {
+        target: target.id,
+        elapsed: 0,
+        duration: ranged ? 0.85 : ATTACK_DURATION,
+        impact: ranged ? 0.45 : ATTACK_IMPACT,
+        resolved: false,
+        ranged,
+      },
       actor.kind === 'player'
         ? 0.64
         : actor.kind === 'goblin'
           ? 1.75
-          : 1.15 + (actor.brain?.slot ?? 0) * 0.18;
-    return true;
+          : 1.15 + (actor.brain?.slot ?? 0) * 0.18,
+    );
+    actor.position.heading = Math.atan2(
+      target.position.x - actor.position.x,
+      target.position.z - actor.position.z,
+    );
+    return started;
   }
 
   /** Called before the movement system, including for player pursuit. */
@@ -290,8 +293,13 @@ export class CombatSystem {
         )
           continue;
         const shared = this.actor(ally.attack.target);
-        if (shared?.alive && ally.brain.memory > 0) {
-          brain.memory = 3;
+        if (
+          shared?.alive &&
+          ally.brain.memory > 0 &&
+          distance(actor.position, shared.position) < 16
+        ) {
+          // Relaying an alert must not refresh its lifetime forever around the pack.
+          brain.memory = Math.min(3, ally.brain.memory);
           return shared;
         }
       }
@@ -310,52 +318,33 @@ export class CombatSystem {
     return goals;
   }
 
-  private goblin(actor: Actor, target: Actor): void {
+  private flee(actor: Actor, target: Actor): void {
     const brain = actor.brain!;
     const threats = this.actors.filter(
       (a) => hostile(actor, a) && distance(actor.position, a.position) < 10,
     );
-    const nearest = Math.min(...threats.map((a) => distance(actor.position, a.position)));
+    // Break an unlaunched shot rather than stand still with a sword in its face.
+    actor.attack.interrupt();
+    const goals = this.localGoals(actor)
+      .map((point) => ({
+        point,
+        score:
+          Math.min(...threats.map((a) => distance(point, a.position))) * 2 -
+          distance(point, actor.position) * 0.25 +
+          (!clearSight(this.world, point, target.position) ? 4 : 0),
+      }))
+      .sort((a, b) => b.score - a.score);
+    for (const { point } of goals.slice(0, 20))
+      if (this.route(actor, point)) {
+        brain.cover = point;
+        break;
+      }
+    brain.hideTime = 0;
+  }
+
+  private seekFiringPosition(actor: Actor, target: Actor, seekingCover: boolean): void {
+    const brain = actor.brain!;
     const hidden = !clearSight(this.world, actor.position, target.position);
-    if (nearest < 3.8) {
-      brain.state = 'flee';
-      // Break an unlaunched shot rather than stand still with a sword in its face.
-      actor.attack.swing = null;
-      const goals = this.localGoals(actor)
-        .map((point) => ({
-          point,
-          score:
-            Math.min(...threats.map((a) => distance(point, a.position))) * 2 -
-            distance(point, actor.position) * 0.25 +
-            (!clearSight(this.world, point, target.position) ? 4 : 0),
-        }))
-        .sort((a, b) => b.score - a.score);
-      for (const { point } of goals.slice(0, 20))
-        if (this.route(actor, point)) {
-          brain.cover = point;
-          break;
-        }
-      brain.hideTime = 0;
-      return;
-    }
-    if (actor.attack.swing) {
-      brain.state = 'attack';
-      return;
-    }
-    if (hidden && brain.hideTime < 1) {
-      brain.state = 'hide';
-      brain.hideTime += 0.45;
-      actor.navigator.cancel();
-      return;
-    }
-    if (!hidden && distance(actor.position, target.position) >= 4 && actor.attack.cooldown <= 0) {
-      brain.state = 'attack';
-      this.startAttack(actor, target, true);
-      brain.hideTime = 0;
-      return;
-    }
-    const seekingCover = !hidden && actor.attack.cooldown > 0;
-    brain.state = seekingCover ? 'hide' : 'peek';
     const goals = this.localGoals(actor, 5)
       .filter((p) => {
         const d = distance(p, target.position);
@@ -370,25 +359,10 @@ export class CombatSystem {
     if (!hidden && actor.attack.cooldown <= 0) this.startAttack(actor, target, true);
   }
 
-  private kobold(actor: Actor, target: Actor): void {
+  private flank(actor: Actor, target: Actor): void {
     const brain = actor.brain!;
     const pack = this.actors.filter((a) => a.alive && a.brain?.pack === brain.pack);
     const leader = pack[0];
-    if (
-      leader &&
-      distance(actor.position, leader.position) > 7 &&
-      distance(actor.position, target.position) > 4
-    ) {
-      brain.state = 'regroup';
-      this.route(actor, leader.position);
-      return;
-    }
-    if (this.inMelee(actor, target)) {
-      brain.state = 'attack';
-      this.startAttack(actor, target);
-      return;
-    }
-    brain.state = 'flank';
     // Stable, distinct slots around the shared target: a front pressure fighter and side/rear flankers.
     const anchor = leader?.brain?.home ?? brain.home;
     const bearing = Math.atan2(anchor.z - target.position.z, anchor.x - target.position.x);
@@ -405,29 +379,116 @@ export class CombatSystem {
     const brain = actor.brain!;
     const target = this.chooseTarget(actor);
     actor.attack.target = target?.id ?? null;
-    if (target) {
-      if (actor.kind === 'goblin') this.goblin(actor, target);
-      else if (actor.kind === 'kobold') this.kobold(actor, target);
-      else {
-        brain.state = 'chase';
-        this.pursue(actor, 0.6);
+    if (actor.kind === 'player') return;
+    const leader = this.actors.find((a) => a.alive && a.brain?.pack === brain.pack);
+    const hidden = !!target && !clearSight(this.world, actor.position, target.position);
+    const effects = brain.behavior.send({
+      type: 'THINK',
+      hasTarget: !!target,
+      navigating: actor.navigator.active,
+      threatened: this.actors.some(
+        (a) => hostile(actor, a) && distance(actor.position, a.position) < 3.8,
+      ),
+      swinging: !!actor.attack.swing,
+      hidden,
+      rested: brain.hideTime >= 1,
+      readyToShoot:
+        !!target &&
+        !hidden &&
+        distance(actor.position, target.position) >= 4 &&
+        actor.attack.cooldown <= 0,
+      coolingDown: actor.attack.cooldown > 0,
+      regroup:
+        !!leader &&
+        !!target &&
+        distance(actor.position, leader.position) > 7 &&
+        distance(actor.position, target.position) > 4,
+      melee: !!target && this.inMelee(actor, target),
+      atHome: distance(actor.position, brain.home) < 0.2,
+      activity:
+        brain.social && brain.social.members.filter((id) => this.actor(id)?.alive).length > 1
+          ? brain.social.activity
+          : 'smoke',
+    });
+    this.applyBehaviorEffects(actor, target, effects);
+  }
+
+  private applyBehaviorEffects(
+    actor: Actor,
+    target: Actor | undefined,
+    effects: readonly { type: string }[],
+  ): void {
+    const brain = actor.brain!;
+    for (const effect of effects) {
+      switch (effect.type) {
+        case 'returnHome':
+          if (
+            !actor.navigator.active ||
+            !actor.navigator.destination ||
+            distance(actor.navigator.destination, brain.home) > 0.25
+          )
+            this.route(actor, brain.home);
+          break;
+        case 'socialize': {
+          actor.navigator.cancel();
+          const center = brain.social?.center;
+          if (center && distance(actor.position, center) > 0.1)
+            actor.position.heading = Math.atan2(
+              center.x - actor.position.x,
+              center.z - actor.position.z,
+            );
+          break;
+        }
+        case 'wander': {
+          const goals = this.localGoals(actor, 5).filter((p) => distance(p, brain.home) < 10);
+          if (goals.length) this.route(actor, goals[Math.floor(this.random() * goals.length)]);
+          break;
+        }
+        case 'flee':
+          if (target) this.flee(actor, target);
+          break;
+        case 'rest':
+          brain.hideTime += 0.45;
+          actor.navigator.cancel();
+          break;
+        case 'shoot':
+          if (target) this.startAttack(actor, target, true);
+          brain.hideTime = 0;
+          break;
+        case 'seekCover':
+          if (target) this.seekFiringPosition(actor, target, true);
+          break;
+        case 'peek':
+          if (target) this.seekFiringPosition(actor, target, false);
+          break;
+        case 'regroup': {
+          const leader = this.actors.find((a) => a.alive && a.brain?.pack === brain.pack);
+          if (leader) this.route(actor, leader.position);
+          break;
+        }
+        case 'melee':
+          if (target) this.startAttack(actor, target);
+          break;
+        case 'flank':
+          if (target) this.flank(actor, target);
+          break;
+        case 'chase':
+          this.pursue(actor, 0.6);
+          break;
+        default:
+          throw new Error(`Unhandled monster effect: ${effect.type}`);
       }
-    } else if (!actor.navigator.active) {
-      brain.state = actor.kind === 'goblin' ? 'hide' : 'wander';
-      if (actor.kind === 'goblin') return;
-      const goals = this.localGoals(actor, 5).filter((p) => distance(p, brain.home) < 10);
-      if (goals.length) this.route(actor, goals[Math.floor(this.random() * goals.length)]);
     }
   }
 
   damage(target: Actor, amount: number, source?: Actor): boolean {
-    if (!target.alive || target.health.invulnerable > 0 || (source && !hostile(source, target)))
+    if (!target.alive || (source && !hostile(source, target)) || !target.health.damage(amount))
       return false;
-    target.health.current = Math.max(0, target.health.current - amount);
     this.hitParticles(target, source);
     if (target.health.current === 0) {
       stopActor(target);
-      target.entity.remove('interactionIntent');
+      target.attack.die();
+      target.brain?.behavior.send({ type: 'DIE' });
       target.entity.add('corpse', { age: 0 });
       for (const other of this.actors)
         if (other.attack.target === target.id) {
@@ -487,11 +548,16 @@ export class CombatSystem {
   update(dt: number): void {
     this.time += dt;
     for (const actor of this.actors) {
-      actor.health.invulnerable = Math.max(0, actor.health.invulnerable - dt);
-      actor.attack.cooldown = Math.max(0, actor.attack.cooldown - dt);
+      actor.health.advance(dt);
+      actor.attack.cool(dt);
       const corpse = actor.entity.get('corpse');
       if (corpse) {
         corpse.age += dt;
+        continue;
+      }
+      if (!actor.alive) {
+        actor.attack.die();
+        actor.brain?.behavior.send({ type: 'DIE' });
         continue;
       }
       const brain = actor.brain;
@@ -502,30 +568,31 @@ export class CombatSystem {
           this.think(actor);
           brain.think = actor.kind === 'skeleton' ? 0.6 : 0.45;
         }
-        if (actor.kind !== 'goblin' && !actor.attack.swing) {
-          const target = this.actor(actor.attack.target);
-          if (target?.alive && this.inMelee(actor, target)) this.startAttack(actor, target);
-        }
+        const target = this.actor(actor.attack.target);
+        this.applyBehaviorEffects(
+          actor,
+          target,
+          brain.behavior.send({
+            type: 'ENGAGE',
+            melee: !!target?.alive && this.inMelee(actor, target),
+            swinging: !!actor.attack.swing,
+          }),
+        );
         moveActor(actor, this.world, { locked: !!actor.attack.swing }, dt);
       }
-      const swing = actor.attack.swing;
+      const swing = actor.attack.advance(dt);
       if (!swing) continue;
-      swing.elapsed += dt;
       const target = this.actor(swing.target);
-      if (!swing.resolved && swing.elapsed >= swing.impact) {
-        swing.resolved = true;
-        if (target?.alive) {
-          if (swing.ranged) {
-            if (clearSight(this.world, actor.position, target.position)) this.launch(actor, target);
-          } else if (this.inMelee(actor, target))
-            this.damage(
-              target,
-              actor.kind === 'player' ? 24 : actor.kind === 'skeleton' ? 9 : 6,
-              actor,
-            );
-        }
+      if (target?.alive) {
+        if (swing.ranged) {
+          if (clearSight(this.world, actor.position, target.position)) this.launch(actor, target);
+        } else if (this.inMelee(actor, target))
+          this.damage(
+            target,
+            actor.kind === 'player' ? 24 : actor.kind === 'skeleton' ? 9 : 6,
+            actor,
+          );
       }
-      if (swing.elapsed >= swing.duration) actor.attack.swing = null;
     }
     this.updateProjectiles(dt);
     for (const entity of this.ecs.query('particle', 'transform')) {

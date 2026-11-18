@@ -139,7 +139,6 @@ export function createPlayer(
 /** Modal/focus changes and teleports stop immediately rather than resuming stale intent. */
 export function stopPlayer(player: Player): void {
   stopActor(player.actor);
-  player.actor.entity.remove('interactionIntent');
   player.destinationMarker.setEnabled(false);
   player.moving = false;
   player.body.rotation.x = 0;

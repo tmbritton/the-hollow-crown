@@ -4,6 +4,10 @@ import type { InspectionTarget } from './inspection.ts';
 import type { Player } from './player.ts';
 import type { Actor } from './actors.ts';
 import type { Room, RoomId, World } from './worldTypes.ts';
+import { Statechart } from './machines/statechart.ts';
+import { sessionMachine } from './machines/ui/session.ts';
+import type { SessionEvent } from './machines/ui/session.ts';
+import { feedbackMachine } from './machines/ui/feedback.ts';
 
 export class UI {
   readonly map: HTMLCanvasElement;
@@ -11,15 +15,49 @@ export class UI {
   readonly menu: HTMLDialogElement;
   readonly victory: HTMLDialogElement;
   readonly inspection: HTMLDialogElement;
-  private toastUntil = 0;
-  private roomUntil = 0;
+  readonly flow = new Statechart(sessionMachine);
+  private readonly toastState = new Statechart(feedbackMachine);
+  private readonly roomState = new Statechart(feedbackMachine);
+  private readonly damageState = new Statechart(feedbackMachine);
   private currentWorld: World | null = null;
   private visited = new Set<RoomId>();
   private revealed = new Set<RoomId>();
   roomId: RoomId | null = null;
   private mapScale = 1;
   private mapCenter = { x: 0, z: 0 };
-  private flashTimer: ReturnType<typeof setTimeout> | undefined;
+
+  get ready(): boolean {
+    return (
+      !this.flow.snapshot.matches({ mode: 'loading' }) &&
+      !this.flow.snapshot.matches({ mode: 'failed' })
+    );
+  }
+  get paused(): boolean {
+    return (
+      !this.ready ||
+      this.flow.snapshot.matches({ visibility: 'hidden' }) ||
+      this.flow.snapshot.matches({ mode: 'menu' }) ||
+      this.flow.snapshot.matches({ mode: 'victory' })
+    );
+  }
+  transition(event: SessionEvent): void {
+    this.flow.send(event);
+    for (const [mode, dialog] of [
+      ['menu', this.menu],
+      ['victory', this.victory],
+      ['inspecting', this.inspection],
+    ] as const) {
+      const open = this.flow.snapshot.matches({ mode });
+      if (open && !dialog.open) dialog.showModal();
+      if (!open && dialog.open) dialog.close();
+    }
+    document.body.classList.toggle(
+      'inspecting',
+      this.flow.snapshot.matches({ mode: 'inspecting' }),
+    );
+    required(document.querySelector<HTMLElement>('.map-panel'), 'Map panel missing').hidden =
+      this.flow.snapshot.matches({ map: 'hidden' });
+  }
 
   private get world(): World {
     return required(this.currentWorld, 'UI has not been initialized');
@@ -30,6 +68,7 @@ export class UI {
     this.menu = element('menu', HTMLDialogElement);
     this.victory = element('victory', HTMLDialogElement);
     this.inspection = element('inspection', HTMLDialogElement);
+    this.transition({ type: document.hidden ? 'HIDE' : 'SHOW' });
   }
   reset(world: World): void {
     this.currentWorld = world;
@@ -46,13 +85,14 @@ export class UI {
     $('quest-description').innerHTML =
       'Find the sleeping altar.<br />Wake what the keep has forgotten.';
     this.setHealth(100);
-    this.victory.close();
-    this.menu.close();
-    this.closeInspection();
+    this.transition({ type: 'LOAD' });
+    for (const state of [this.toastState, this.roomState, this.damageState])
+      state.send({ type: 'HIDE' });
+    this.updateFeedback(performance.now());
   }
   toast(message: string, duration = 4000): void {
     $('toast').textContent = message;
-    this.toastUntil = performance.now() + duration;
+    this.toastState.send({ type: 'SHOW', now: performance.now(), duration });
     $('toast').classList.add('visible');
   }
   room(room: Room): void {
@@ -63,7 +103,7 @@ export class UI {
     $('room-name').textContent = room.name;
     $('room-description').textContent = room.description;
     $('room-title').classList.remove('faded');
-    this.roomUntil = performance.now() + 6500;
+    this.roomState.send({ type: 'SHOW', now: performance.now(), duration: 6500 });
     $('explored-count').textContent =
       `${String(this.visited.size).padStart(2, '0')} / ${String(this.world.rooms.length).padStart(2, '0')}`;
   }
@@ -80,8 +120,7 @@ export class UI {
   damage(): void {
     const flash = $('damage-flash');
     flash.style.opacity = '0.55';
-    clearTimeout(this.flashTimer);
-    this.flashTimer = setTimeout(() => (flash.style.opacity = '0'), 180);
+    this.damageState.send({ type: 'SHOW', now: performance.now(), duration: 180 });
   }
   prompt(text: string): void {
     $('interaction').hidden = !text;
@@ -91,14 +130,12 @@ export class UI {
     $('inspection-title').textContent = target.title;
     $('inspection-subtitle').textContent = target.subtitle || 'CLOSER LOOK';
     $('inspection-description').textContent = target.description || 'Press E or Escape to return.';
-    document.body.classList.add('inspecting');
     this.prompt('');
-    this.inspection.showModal();
+    this.transition({ type: 'INSPECT' });
     $('inspection-close').focus();
   }
   closeInspection() {
-    this.inspection.close();
-    document.body.classList.remove('inspecting');
+    this.transition({ type: 'CLOSE_INSPECTION' });
   }
   altar() {
     $('altar-check').classList.add('done');
@@ -111,11 +148,16 @@ export class UI {
     $('quest-description').textContent = 'The keep remembers its king.';
     $('run-summary').textContent =
       `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s · ${this.visited.size} / ${this.world.rooms.length} chambers · ${chests} / 3 relics`;
-    this.victory.showModal();
+    this.transition({ type: 'VICTORY' });
+  }
+  updateFeedback(now: number): void {
+    for (const state of [this.toastState, this.roomState, this.damageState])
+      if (state.snapshot.matches('visible')) state.send({ type: 'TICK', now });
+    $('toast').classList.toggle('visible', this.toastState.snapshot.matches('visible'));
+    $('room-title').classList.toggle('faded', this.roomState.snapshot.matches('hidden'));
+    $('damage-flash').style.opacity = this.damageState.snapshot.matches('visible') ? '0.55' : '0';
   }
   update(player: Player, fps: number): void {
-    if (performance.now() > this.toastUntil) $('toast').classList.remove('visible');
-    if (performance.now() > this.roomUntil) $('room-title').classList.add('faded');
     $('fps').textContent = `${Math.round(fps)} FPS`;
     const ctx = this.context,
       world = this.world;

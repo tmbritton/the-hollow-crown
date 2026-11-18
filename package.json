@@ -14,17 +14,20 @@
     "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts' vite.config.ts tsconfig.json",
     "preview": "vite preview --host 0.0.0.0",
     "test": "npm run typecheck && node --test tests/*.test.ts",
+    "test:models": "npm run typecheck && node --test tests/models.test.ts",
     "test:browser": "node tests/browser.ts",
     "test:production": "node tests/production.ts",
     "test:portraits": "node tests/portraits.ts",
     "test:inspection": "node tests/inspection-browser.ts",
     "test:movement": "node tests/movement-browser.ts",
     "test:combat": "node tests/combat-browser.ts",
+    "test:social": "node tests/social-browser.ts",
     "profile": "node tests/profile.ts"
   },
   "dependencies": {
     "@babylonjs/core": "9.37.0",
-    "@babylonjs/materials": "9.37.0"
+    "@babylonjs/materials": "9.37.0",
+    "xstate": "5.33.4"
   },
   "devDependencies": {
     "@babylonjs/inspector": "9.37.0",

@@ -41,9 +41,7 @@ async function fixture(kind: EnemyKind, x = 4, z = 0) {
         a.entity.remove('brain');
         a.entity.remove('corpse');
         a.navigator.cancel();
-        a.attack.target = null;
-        a.attack.swing = null;
-        a.attack.cooldown = 0;
+        a.attack.reset();
         a.health.current = a.health.max;
         Object.assign(a.position, { x: 1000, z: 1000, h: 0 });
         a.motion.speed = 0;
@@ -255,9 +253,7 @@ try {
   const doorScreen = await screen(door.x, door.z, door.h + 1.2);
   await page.mouse.click(doorScreen.x, doorScreen.y);
   assert.equal(
-    await page.evaluate(
-      () => window.__dungeon.game.player.actor.entity.get('interactionIntent')?.target,
-    ),
+    await page.evaluate(() => window.__dungeon.game.player.actor.attack.interaction),
     door.id,
   );
   await step(180);
@@ -266,7 +262,7 @@ try {
     return {
       open: e.open,
       solid: e.collider?.checkCollisions,
-      intent: window.__dungeon.game.player.actor.entity.has('interactionIntent'),
+      intent: window.__dungeon.game.player.actor.attack.interaction !== null,
     };
   }, door.id);
   assert.ok(opened.open && !opened.solid && !opened.intent, JSON.stringify(opened));
@@ -276,16 +272,7 @@ try {
   await page.evaluate((id) => {
     const g = window.__dungeon.game,
       a = g.combat.actor(id)!;
-    a.entity.add('brain', {
-      state: 'wander',
-      think: 0,
-      memory: 0,
-      home: { ...a.position },
-      pack: '',
-      slot: 0,
-      cover: null,
-      hideTime: 0,
-    });
+    a.enableAI();
   }, fighter);
   await step(25);
   assert.ok(await page.evaluate(() => window.__dungeon.game.player.health < 100));
