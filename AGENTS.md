@@ -32,6 +32,10 @@ npm run build          # typecheck, then production bundle in dist/
 npm run preview        # http://localhost:4173 by default
 ```
 
+- `npm install` / `npm ci` install the pre-commit hook using `simple-git-hooks` via `prepare`.
+  The hook runs `npm run check`: tests (including type checking), linting, then Oxfmt checks
+  across the working tree, stopping on failure. Run `npm run prepare` after editing the hook
+  configuration in `package.json`. Format corrections with `npm run format` and stage them.
 - Run a focused pure test with `node --test tests/navigation.test.ts` (substitute the relevant
   file). Direct Node test commands do not typecheck.
 - `npm run format` uses Oxfmt for all source/test TypeScript, `vite.config.ts`, `tsconfig.json`,

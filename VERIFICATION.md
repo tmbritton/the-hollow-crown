@@ -4,6 +4,20 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Pre-commit hook update — 2026-11-18
+
+Added **simple-git-hooks 2.14.0** with a version-controlled pre-commit configuration in
+`package.json`. The hook runs `npm run check`: tests, linting, then Oxfmt checks, stopping
+at the first failure.
+
+- `npm run prepare`: installed `.git/hooks/pre-commit`; a subsequent `npm install` also
+  ran the `prepare` lifecycle automatically.
+- `git hook run pre-commit`: passed strict type checking, all **96 pure/model tests**,
+  Oxlint with no diagnostics, and Oxfmt checks across **78 files**.
+- `npm run build`: passed with Vite's large-chunk size warning.
+
+Browser and hardware results retain their earlier baselines below.
+
 ### Oxfmt and Oxlint tooling update — 2026-11-18
 
 Installed **Oxfmt 0.79.0** and **Oxlint 1.94.0**, the npm `latest` releases at the time of

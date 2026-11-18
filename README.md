@@ -139,6 +139,21 @@ command. `.oxlintrc.json` enables browser globals and Node globals for tests and
 
 Both `npm test` and `npm run build` run the type checker. Vite handles browser transpilation; Node executes test `.ts` files directly, without injecting helpers into Playwright's serialized browser callbacks. `erasableSyntaxOnly` enforces that compatibility. Dependency declarations are skipped with `skipLibCheck`; project code and tests are fully checked.
 
+### Pre-commit checks
+
+`npm install` and `npm ci` install the pre-commit hook through the `prepare` script and
+`simple-git-hooks`. Its configuration is version-controlled in `package.json`.
+
+Every commit runs `npm run check`, which executes these checks in order across the working tree:
+
+1. `npm test` — strict type checking and all pure/model tests.
+2. `npm run lint` — Oxlint, with warnings treated as failures.
+3. `npm run format:check` — Oxfmt formatting validation.
+
+A failed check stops the hook and blocks the commit. To fix formatting, run `npm run format`
+and stage the corrected files. Run `npm run check` manually for the same checks, or
+`npm run prepare` to reinstall the hook after changing its configuration.
+
 ### Entity/component architecture
 
 `game.ecs` is the runtime registry. Player, enemies, doors, interactables, props, obstacles, rooms, tiles, render batches, projectiles, and hit particles have entity IDs and attachable components. Generated world data is registered **by reference**, preserving the existing pure generation/validation pipeline and preventing duplicate door or interaction state. A batched mesh can render many logical floor/prop entities efficiently.
