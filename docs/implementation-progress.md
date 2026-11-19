@@ -7,7 +7,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **I2 verified; review findings fixed. Next dependency-ready feature: S1 scene recipes.**
+- **Completed G1–G3, T1 and I1–I2. Next dependency-ready feature: S1 scene recipes.**
+- Latest checkpoint: 117 pure/model tests, lint, formatting and build pass; 23 Chromium full
+  checks, 13 Firefox inspection checks, portrait GPU checks, production smoke, generation
+  checks and the refreshed 48-view gallery pass. Per-feature details are below.
 
 ## Feature tracker
 
@@ -18,7 +21,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | G3 | Complete | Real browser failed on missing report API before implementation | 108 tests/check/build, targeted browser, production, 48 captures and 5 regeneration checks pass; both review findings fixed | `8ad2d83` |
 | T1 | Complete | Stationary skeleton fixture failed at `[0,2]` before fix | 23 full-browser checks pass in Chromium and Firefox; 108 tests/check/build pass; review suggestion applied | `bb56640` |
 | I1 | Complete | Keep contract failed before API; 200-seed chronology/reference invariants | 113 tests/check, build, generation browser and corpus pass; all review findings addressed | `624f8d4` |
-| I2 | Verified; ready to commit | Presentation contract failed before API; review regression reproduced swapped painting identities | 117 tests/check/build, Firefox inspection 13 and portraits, Chromium full 23, production, generation and gallery pass | Pending |
+| I2 | Complete | Presentation contract failed before API; review regression reproduced swapped painting identities | 117 tests/check/build, Firefox inspection 13 and portraits, Chromium full 23, production, generation and gallery pass; follow-up review cleared | `a2ba6cf` |
 | S1 | Next | Pending | Start with bounded forge/bakery recipe definitions and reserved approaches | — |
 | N1, D1 | Planned | Pending | Pending | — |
 | O1–O4 | Planned | Pending | Pending | — |

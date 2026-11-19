@@ -198,7 +198,11 @@ Living actors now block both hostiles and allies through shared swept-body colli
 
 This update passes **79 pure/model tests**, **12 Chromium combat checks**, **11 Chromium movement checks**, and **9 Chromium social checks**, plus type checking, formatting, and the production build. New regressions cover high-speed tunnelling, allied head-on movement, a cornered goblin, moving route blockers, elevation, occupied respawns, and corpse slowdown/recovery. Rendered combat checks verify body separation, collision-proxy synchronization, and corpse traversal. Floor-only browser fixtures remove body components alongside hiding/freezing enemies; actor collision is exercised separately with live rendered actors. Other browser/production-smoke results below are the preceding baseline.
 
-### Automated checks
+### Earlier automated-check summary
+
+This table retains the pre-implementation-path baselines. The dated entries above record
+newer checks and test counts; a newer targeted run does not imply every historical suite
+was rerun for that feature.
 
 | Check | Result |
 | --- | --- |
