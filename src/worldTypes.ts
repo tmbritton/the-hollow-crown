@@ -2,6 +2,7 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { InspectionTarget } from './inspection.ts';
 import type { RoyalPortrait } from './royalty.ts';
+import type { KeepIdentity } from './generation/keep.ts';
 
 export type Random = () => number;
 export type Axis = 'x' | 'z';
@@ -182,6 +183,7 @@ export function hasApproach(entity: Entity): entity is ApproachableEntity {
 
 export interface World {
   seed: string;
+  keep: KeepIdentity;
   attempt: number;
   rooms: Room[];
   roomById: Record<RoomId, Room>;

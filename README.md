@@ -290,8 +290,13 @@ The generator also provides a pure `generateDungeonWithReport(seed)` API in `src
 It returns the accepted world and a JSON-safe trace with seed, generator/content versions,
 zero-based attempt numbers, and placement/validation rejection reasons. A `GenerationError`
 retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
-`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v2` / `demo-v1`;
-this records the existing seed interpretation rather than changing it.
+`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v2` / `keep-v1`.
+Layout RNG retains its existing interpretation. `world.keep` adds one of three authored
+profiles (Ashen Foundry, Drowned Court, Pilgrim Redoubt), a shared house, three successive
+monarchs and a short linked history. It is generated once before layout retries using
+independent versioned semantic streams; cosmetic random draws cannot reroll it. Stable
+person/fact/event IDs are scoped to that versioned run. `report.keep` is a detached snapshot.
+This is the data foundation; connecting portraits and room presentation is the next slice.
 
 ```sh
 npm run report:generation

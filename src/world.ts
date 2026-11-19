@@ -1,6 +1,10 @@
 import { generateRoyalPortrait } from './royalty.ts';
 import { required } from './assert.ts';
 import { hasApproach } from './worldTypes.ts';
+import { generateKeepIdentity } from './generation/keep.ts';
+import type { KeepIdentity } from './generation/keep.ts';
+import { randomFrom } from './generation/random.ts';
+export { randomFrom } from './generation/random.ts';
 import {
   GenerationError,
   generationIdentity,
@@ -27,17 +31,6 @@ import type {
   Tile,
   World,
 } from './worldTypes.ts';
-
-export function randomFrom(seed: string | number) {
-  let h = 2166136261;
-  for (const char of String(seed)) h = Math.imul(h ^ char.charCodeAt(0), 16777619);
-  return () => {
-    h += 0x6d2b79f5;
-    let t = Math.imul(h ^ (h >>> 15), 1 | h);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 export const key = (x: number, z: number): string => `${x},${z}`;
 const directions: Pair[] = [
@@ -124,7 +117,7 @@ interface PlacementOptions {
   candidates?: Point[];
 }
 
-function buildAttempt(seed: string, attempt: number): World | string[] {
+function buildAttempt(seed: string, attempt: number, keep: KeepIdentity): World | string[] {
   const random = randomFrom(`${seed}:layout-v2:${attempt}`);
   const integer = (a: number, b: number) => a + Math.floor(random() * (b - a + 1));
   const pick = <T>(values: readonly T[]): T => values[integer(0, values.length - 1)];
@@ -229,6 +222,7 @@ function buildAttempt(seed: string, attempt: number): World | string[] {
   };
   const world: World = {
     seed,
+    keep,
     attempt,
     rooms,
     roomById,
@@ -641,8 +635,9 @@ export function generateDungeonWithReport(
     acceptedAttempt: null,
     attempts: [],
   };
+  const keep = generateKeepIdentity(report.identity);
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const world = buildAttempt(seed, attempt);
+    const world = buildAttempt(seed, attempt, keep);
     if (Array.isArray(world)) {
       report.attempts.push({ attempt, stage: 'placement', reasons: world });
       continue;

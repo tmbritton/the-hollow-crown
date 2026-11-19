@@ -1,6 +1,6 @@
 /** Bump these when the public seed interpretation or authored content changes. */
 export const GENERATOR_VERSION = 'layout-v2';
-export const CONTENT_VERSION = 'demo-v1';
+export const CONTENT_VERSION = 'keep-v1';
 export const MAX_GENERATION_ATTEMPTS = 40;
 
 export interface GenerationIdentity {

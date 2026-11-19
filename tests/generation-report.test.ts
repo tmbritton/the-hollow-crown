@@ -89,10 +89,19 @@ test('reports detach nested data and reject mismatched generation provenance', (
   const { world, report: trace } = generateDungeonWithReport('trial-27');
   const report = createGenerationReport(world, trace);
   const expected = structuredClone(report);
+  assert.deepEqual(report.keep, world.keep);
+  world.keep.profile.epithets = ['changed', 'changed', 'changed'];
+  world.keep.monarchs[0].title = 'changed';
+  world.keep.facts[0].personId = 'changed';
+  world.keep.history[0].text = 'changed';
   trace.attempts[0].reasons.push('later mutation');
   world.rooms[0].name = 'later mutation';
   world.connections[0].points[0].x += 100;
   assert.deepEqual(report, expected);
+  const changedWorld = structuredClone(world.keep);
+  report.keep.monarchs[1].title = 'changed report';
+  report.keep.history[1].text = 'changed report';
+  assert.deepEqual(world.keep, changedWorld);
   assert.throws(
     () => createGenerationReport(world, { ...trace, acceptedAttempt: null }),
     /attempt/i,

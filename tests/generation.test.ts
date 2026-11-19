@@ -9,7 +9,14 @@ test('diagnostic generation preserves the existing seed interpretation and geome
   assert.deepEqual(world, generateDungeon('MOURNING-731'));
   assert.equal(
     createHash('sha256')
-      .update(JSON.stringify({ ...world, tiles: [...world.tiles], reserved: [...world.reserved] }))
+      .update(
+        JSON.stringify({
+          ...world,
+          keep: undefined,
+          tiles: [...world.tiles],
+          reserved: [...world.reserved],
+        }),
+      )
       .digest('hex'),
     '5fa00fe3cb3ffbd04d0b31e73d1a9ae8a687bdb9ad323df24fcf203848c8d569',
     'versioned diagnostics must not consume generation randomness',
@@ -17,7 +24,7 @@ test('diagnostic generation preserves the existing seed interpretation and geome
   assert.deepEqual(report.identity, {
     seed: world.seed,
     generatorVersion: 'layout-v2',
-    contentVersion: 'demo-v1',
+    contentVersion: 'keep-v1',
   });
   assert.equal(report.acceptedAttempt, world.attempt);
   assert.deepEqual(report.attempts, [{ attempt: 0, stage: 'accepted', reasons: [] }]);
@@ -36,7 +43,14 @@ test('retries retain reproducible rejection reasons and the accepted zero-based 
   });
   assert.equal(
     createHash('sha256')
-      .update(JSON.stringify({ ...world, tiles: [...world.tiles], reserved: [...world.reserved] }))
+      .update(
+        JSON.stringify({
+          ...world,
+          keep: undefined,
+          tiles: [...world.tiles],
+          reserved: [...world.reserved],
+        }),
+      )
       .digest('hex'),
     'd87d51c70a0f36bdc39c491d9a63bee8857c41442883f4d77fcab860c809f5b3',
     'retrying seeds retain their historical accepted geometry',

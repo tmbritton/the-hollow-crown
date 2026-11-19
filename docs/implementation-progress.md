@@ -7,7 +7,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **T1 verified and reviewed; committing next. Shared keep identity is next.**
+- **I1 verified and reviewed; committing next. I2 presentation follows.**
 
 ## Feature tracker
 
@@ -16,8 +16,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | G1 | Complete | Four contract tests failed on missing API, then passed; historical first-attempt/retry geometry digests | 101 tests, typecheck, lint, format, build pass; independent review cleared, two test improvements applied | `592a84e` |
 | G2 | Complete | Report contract failed before API; review regression reproduced biased gallery sampling | 106 tests, typecheck, lint, format, build and 100-seed export pass; both review findings addressed | `4c3820c` |
 | G3 | Complete | Real browser failed on missing report API before implementation | 108 tests/check/build, targeted browser, production, 48 captures and 5 regeneration checks pass; both review findings fixed | `8ad2d83` |
-| T1 | Verified; ready to commit | Stationary skeleton fixture failed at `[0,2]` before fix | 23 full-browser checks pass in Chromium and Firefox; 108 tests/check/build pass; review suggestion applied | Pending |
-| I1–I2 | Planned | Pending | Pending | — |
+| T1 | Complete | Stationary skeleton fixture failed at `[0,2]` before fix | 23 full-browser checks pass in Chromium and Firefox; 108 tests/check/build pass; review suggestion applied | `bb56640` |
+| I1 | Verified; ready to commit | Keep contract failed before API; 200-seed chronology/reference invariants | 113 tests/check, build, generation browser and corpus pass; all review findings addressed | Pending |
+| I2 | Next | Pending | Pending | — |
 | S1, N1, D1 | Planned | Pending | Pending | — |
 | O1–O4 | Planned | Pending | Pending | — |
 
@@ -73,6 +74,16 @@ Execution record for [implementation path](implementation-path.md). Started **20
   See `VERIFICATION.md` for actual measurements and the earlier interrupted-run qualification.
 
 ## Follow-ups and blockers
+
+### I1 — shared keep history
+
+- Added three authored profile families, shared houses, three successive monarchs, semantic
+  fact/person/event IDs and chronological events. `world.keep` is generated once before
+  retries and appears as detached metadata in the generation report.
+- Extracted the existing RNG unchanged and added versioned domain/object streams. Historical
+  geometry digests remain identical; content metadata is now `keep-v1`.
+- Review improvements pin all three profile-family identities and test nested report isolation.
+- Visible portrait/room evidence is I2; this feature does not claim the full profile art gate.
 
 - No current correctness blocker. G3's full-browser follow-up is resolved by T1.
 - Phase 0 diagnostic/gallery implementation and high-quality hardware sampling are done.

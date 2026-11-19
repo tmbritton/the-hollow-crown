@@ -99,6 +99,7 @@ export function createGenerationReport(world: World, trace: GenerationTrace) {
   return {
     schemaVersion: 1 as const,
     trace: structuredClone(trace),
+    keep: structuredClone(world.keep),
     bounds: { ...world.bounds },
     graph: {
       components,

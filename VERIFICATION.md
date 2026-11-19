@@ -4,6 +4,21 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Shared keep identity foundation — 2026-11-18
+
+- Test-first keep contracts failed before the new API existed; five checks now cover
+  reproducibility, 200-seed profile/chronology/reference integrity, semantic-stream isolation,
+  caller-mutation isolation and pinned `layout-v2` / `keep-v1` identity fixtures.
+- Keep data is generated once before layout retries. Historical whole-blueprint digests,
+  excluding only the added `keep` field, still match both first-attempt and retry seeds.
+- `npm run check`: **113 tests**, strict type checking, lint and formatting pass.
+- `npm run build`, `npm run test:generation` and `npm run report:generation` pass. The
+  100-seed export now includes detached keep facts; browser and Node reports agree.
+- Independent review found no blockers. Added its requested pinned identity/semantic-ID
+  fixtures, nested bidirectional report isolation checks and current-version documentation.
+- This delivers generated data and diagnostic access. Portrait and room presentation
+  connections are a subsequent slice, not yet a visually distinct keep-profile release.
+
 ### Live-blocker traversal and refreshed hardware sample — 2026-11-18
 
 - Added a deterministic stationary-skeleton browser fixture. It failed before the driver
