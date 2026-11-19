@@ -38,6 +38,31 @@ function fixture() {
   return { ecs, world, player, combat, enemy, step };
 }
 
+test('death notification comes only from an accepted lethal impact, with the actual source', () => {
+  const { ecs, world, player, enemy } = fixture();
+  const target = enemy('goblin', -7, 0, false);
+  const ally = enemy('goblin', -6, 0, false);
+  const events: { victim: string; source?: string }[] = [];
+  const combat = new CombatSystem(ecs, world, [player, target, ally], 'events', {
+    onDeath: (victim, source) => {
+      assert.ok(victim.entity.has('corpse'));
+      events.push({ victim: victim.id, source: source?.id });
+    },
+  });
+  assert.equal(combat.damage(target, 1000, ally), false);
+  target.health.invulnerable = 1;
+  assert.equal(combat.damage(target, 1000, player), false);
+  target.health.invulnerable = 0;
+  combat.damage(target, 1, player);
+  assert.deepEqual(events, []);
+  combat.damage(target, 1000, player);
+  combat.damage(target, 1000, player);
+  combat.update(1 / 60);
+  assert.deepEqual(events, [{ victim: target.id, source: player.id }]);
+  combat.damage(ally, 1000);
+  assert.deepEqual(events[1], { victim: ally.id, source: undefined });
+});
+
 test('ECS attachment, replacement, removal and destruction update indexed multi-component queries', () => {
   const ecs = new ECS();
   const tile = ecs.create('floor').add('tile', { x: 0, z: 0, h: 0, surface: 'stone' });

@@ -3,6 +3,29 @@ import assert from 'node:assert/strict';
 import { generateDungeon } from '../src/world.ts';
 import { applyKeepPresentation } from '../src/generation/keepPresentation.ts';
 
+test('presentation fact links disclose only what the caption actually communicates', () => {
+  const world = generateDungeon('MOURNING-731');
+  assert.deepEqual(
+    world.roomById.entrance.factIds,
+    ['fact:catastrophe'],
+    'the entrance does not name the founder',
+  );
+  assert.deepEqual(
+    world.roomById.throne.factIds,
+    [],
+    'reign dates do not disclose succession or catastrophe',
+  );
+  for (const portrait of world.entities.filter((e) => e.type === 'portrait')) {
+    const event = world.keep.history.find((e) => e.personId === portrait.royal.personId)!;
+    assert.ok(portrait.royal.description?.includes(event.text));
+    assert.deepEqual(
+      portrait.royal.factIds,
+      [event.factId],
+      'a monarch is not a grant of their entire biography',
+    );
+  }
+});
+
 test('portraits depict linked monarchs with consistent houses, dates and core appearance', () => {
   for (let i = 0; i < 30; i++) {
     const world = generateDungeon(`presentation-${i}`);

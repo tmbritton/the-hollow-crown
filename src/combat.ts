@@ -120,15 +120,23 @@ export class CombatSystem {
   readonly world: NavigationWorld;
   readonly player: Actor;
   private readonly random: Random;
+  private readonly onDeath: (victim: Actor, source?: Actor) => void;
   time = 0;
 
-  constructor(ecs: ECS, world: NavigationWorld, actors: Actor[], seed = 'combat') {
+  constructor(
+    ecs: ECS,
+    world: NavigationWorld,
+    actors: Actor[],
+    seed = 'combat',
+    { onDeath = () => {} }: { onDeath?: (victim: Actor, source?: Actor) => void } = {},
+  ) {
     this.ecs = ecs;
     this.world = world;
     const player = actors.find((a) => a.kind === 'player');
     if (!player) throw new Error('Combat needs a player entity');
     this.player = player;
     this.random = randomFrom(seed);
+    this.onDeath = onDeath;
   }
   get actors(): Actor[] {
     return this.ecs
@@ -538,6 +546,7 @@ export class CombatSystem {
       target.attack.die();
       target.brain?.behavior.send({ type: 'DIE' });
       target.entity.add('corpse', { age: 0 });
+      this.onDeath(target, source);
       for (const other of this.actors)
         if (other.attack.target === target.id) {
           other.attack.target = null;

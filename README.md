@@ -37,12 +37,19 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 | Q / R | Rotate the overhead camera by 90° |
 | Mouse wheel | Zoom |
 | M | Toggle the explored-room map |
-| Escape / pause button | Pause, enter a seed, regenerate, or change quality |
+| Escape / pause button | Pause, read the within-run record, enter a seed, regenerate, or change quality |
 | F2 | Babylon Inspector, development build only |
 
 **Objective:** find and kindle the violet altar, pass through the newly unsealed throne-room gate, and claim the Hollow Crown. Water slows you down; lava damages you. Death returns you to the entrance, or to the altar after activation. Three optional reliquaries restore health and count toward the completion summary.
 
 The route changes with the seed: explore the branching passages and watch the minimap for unexplored chambers. Activating the altar reveals the throne's crown marker. The minimap is north-up even when the camera rotates and automatically fits each generated layout.
+
+**Within-run record:** expand the record in the pause menu to reread visited room captions,
+inspected portraits and identified inhabitants. Each source is recorded once, when its caption
+is presented. Successful reliquary claims, altar kindling and claiming the crown also leave
+entries. Discoveries survive death and checkpoint respawn; every regeneration starts a new
+record, even when you enter the same seed. The new entrance caption is immediately learned again.
+This record is held in memory for the current run.
 
 Click movement routes around furniture, walls, and lava, and respects closed/locked doors. **Click a closed door** to approach and open it, or use **E** in reach. Enemy pursuit can open intervening unlocked doors automatically. A new floor click replaces the command; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
 
@@ -65,9 +72,17 @@ Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack
 Each keep names **one of its existing inhabitants**: an Ashen Foundry skeleton watchkeeper,
 a Drowned Court goblin lookout, or a Pilgrim Redoubt kobold card dealer. A simplified gathering
 uses the truthful “Token Keeper” title instead. A crown clasp, mourning band or royal tokens
-identify the character. Selecting it shows its name, home, usual behavior and a link to the
+identify the character. Selecting it nearby with a clear view shows its name, home, usual behavior and a link to the
 keep's founding house. Its health, hostility and species tactics follow the ordinary rules;
 the identity stays with it through pursuit, return and death.
+
+The record distinguishes witnessing the named inhabitant's death from later finding its remains.
+Observation requires an enabled character within eight units, an unobstructed player sightline,
+and a rendered body surface visible from the camera during active play. Pillars, furnishings
+and current wall cutaways can hide a character even when the player has a clear sightline.
+An unseen killer stays unknown; an
+inhabitant whose caption you never read is described only by species. Later discoveries never
+rewrite an earlier uncertain account. Routine unnamed deaths are not journal entries.
 
 Clicking an enemy locks onto it: the player follows its changing position and swings on entering melee reach, **continuing the chase through wind-up, the strike, and recovery**. Walk/run strides continue beneath the upper-body sword animation, and close pursuit continually updates its approach to a moving target. The player stops beside a stationary target rather than running into it. Holding the button keeps that target even as the enemy and camera move; releasing retains the command. Click another enemy to retarget, or click the floor / press WASD or X to cancel. A red ground ring and health display identify the target.
 
@@ -115,6 +130,8 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/themedProps.ts` | Workshop furnishings, ovens, stable fixtures, and animated lizard steeds |
 | `src/royalty.ts` / `src/portraits.ts` | Seeded royal identities, pixel-art shader, and wall-mounted frames |
 | `src/inspection.ts` | Typed inspection targets, camera transitions, framing, lifecycle, and camera restoration |
+| `src/discoveries.ts` | Pure within-run knowledge record, explicit source disclosures, observed events and detached read snapshots |
+| `src/observation.ts` | Bounded camera-to-rendered-surface visibility checks for target captions, deaths, killers and remains |
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
 | `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
 | `src/occupancy.ts` | Swept actor-body collision, sliding, live route occupancy, and corpse-ground overlap queries |
@@ -167,6 +184,10 @@ and stage the corrected files. Run `npm run check` manually for the same checks,
 ### Entity/component architecture
 
 `game.ecs` is the runtime registry. Player, enemies, doors, interactables, props, obstacles, rooms, tiles, render batches, projectiles, and hit particles have entity IDs and attachable components. Generated world data is registered **by reference**, preserving the existing pure generation/validation pipeline and preventing duplicate door or interaction state. A batched mesh can render many logical floor/prop entities efficiently.
+
+The `run` entity owns a `discoveries` component, independent of actor health and generated world
+truth. Replacing the ECS replaces knowledge; respawning the player does not. UI code holds the
+same component reference and presents only its detached snapshot in the record panel.
 
 Components describe transform, health, actor capabilities, movement, navigation, attack state, AI, interaction intent, corpse state, collision adapters, render rigs, and effects. Indexed queries visit only entities with the requested components; adding/removing components updates those indexes immediately. `Actor` is a checked view over these components, not an inheritance hierarchy or another copy of state.
 
@@ -251,6 +272,51 @@ entity.inspection = {
 
 `InspectionController` handles entering, viewing, leaving, resize-aware framing, early cancellation, and cleanup. Target callbacks manage object-specific presentation; application callbacks manage the caption and player visibility. Portraits update a per-mesh detail attribute on the shared shader rather than creating a new texture or material.
 
+An optional `InspectionTarget.discovery: DiscoveryEvidence` describes the exact information
+delivered by that caption. `UI.openInspection` commits it when the dialog opens, including an
+inspection cancelled during camera entry; merely building the descriptor or showing an E prompt
+does not teach anything. `portraitDiscovery`, `landmarkDiscovery` and `inhabitantDiscovery`
+construct plain evidence from seeded presentation metadata. Fact links include only what the
+caption actually communicates, rather than all facts associated with a monarch or location.
+
+### Knowledge and future objective consumers
+
+`DiscoveryRecord` exposes `present(evidence, at)`, `recordEvent(event, at)`, `knows(factId)`,
+`hasDiscovery(id)`, `hasEvent(kind, subjectId)`, and `snapshot()`. Mutation methods return whether
+an entry was newly recorded. Callers own the simulation timestamp and the presentation/observation
+checks; the domain module never looks up world truth or infers related facts. Entries retain a
+shared monotonic `order` across discoveries and events, including observations in the same step.
+Repeated sources cannot change their first text, timestamp, fact grant, or uncertainty.
+
+Portrait discovery IDs use seeded placement, landmarks use room roles, and the standout uses
+its semantic inhabitant ID. Event IDs combine kind and subject. Snapshots contain detached
+`identity` (seed and generator/content versions), `discoveries`, `events`, and learned `factIds`.
+Seed/version identity describes the initial world, **not a unique run instance**: always resolve
+the current ECS component after regeneration. Objective availability and world completion must
+remain separate from `knows`/`hasDiscovery`. This slice adds no objective clocks or persistence.
+
+The combat system's optional `onDeath(victim, source)` callback fires synchronously only after
+an accepted lethal hit creates a corpse. The runtime filters that event by observation before
+recording it; corpse scans can record only `remains-found`, never reconstruct a kill or killer.
+
+`CameraObservation` is the render adapter for that observation boundary. It tests at most three
+actual surfaces from the rig's largest parts. Frozen scenery has a per-world spatial index;
+finite-segment bounds, conservative rig envelopes and per-instance bounds reject candidates
+before triangle picking. Only changed, relevant transforms are synchronized, parent first,
+without recursively forcing ancestors. Camera changes, cutaways, doors, reparenting and scene
+membership changes remain current even between renders. Invisible collision/selection proxies
+are excluded. Broad-phase data is cached, but visibility outcomes are not. Already-recorded
+remains skip visibility work.
+
+The authored rigs use a four-unit root-local envelope (`ACTOR_OBSERVATION_RADIUS`), checked
+against all 28 captured animation poses. Ambient creatures provide their own authored envelope,
+also checked by that suite. Envelopes only reject candidates; actual rendered triangles
+still decide occlusion. New rig geometry/poses must fit that envelope or expand it. Dynamic effect
+writers use `updateInstanceMatrices` with their uploaded CPU array to refresh active pool bounds
+once per update; empty zero-scale pools skip bounds work. Observation queries never rebuild
+instance bounds. This remains conservative geometry sampling: a tiny exposed limb or a gap in a
+shader-discarded surface may not suffice to grant knowledge.
+
 Gameplay key handlers cancel native letter-key text actions, including repeats, while leaving text fields and browser shortcuts available.
 
 ## Verification
@@ -267,6 +333,8 @@ BROWSER=firefox npm run test:browser
 npm run build && npm run test:production
 npm run test:portraits
 npm run test:inspection
+npm run test:discoveries
+BROWSER=firefox npm run test:discoveries
 npm run test:movement
 npm run test:animation
 npm run test:jump
@@ -285,6 +353,31 @@ The animation suite also expects a dev server. It samples the production rigs in
 The combat suite also expects a dev server. It uses real clicks/holds to verify pursuit, retargeting, attack poses, repeated damage, corpses, hit particles, cancellations, door clicks, respawn and regeneration. Pure ECS/AI tests cover skeleton hostility, goblin cover/flight/projectiles, kobold flanking, shared movement/doors, and bounded effect lifetimes. The movement suite first checks a fresh-world floor click and arrival with all living actor bodies present, then hides/freezes enemies and removes their body components to isolate the remaining floor-selection checks. The full-route autopilot keeps AI and living-body collision active, temporarily grants the test player immunity, and clears nearby blockers through ordinary pursuit and attacks before replanning physical travel. Damage and death are checked separately.
 
 The social suite also expects a dev server. It checks each activity's stable gathering, visible props and relaxed equipment, interruption by a visible threat, and return after the threat is lost. It captures `test-results/<browser>-social-{cards,hackysack,smoke}.png`. Pure social tests validate seeded placements and ensure relayed pack alerts expire instead of keeping every member permanently agitated.
+
+The discovery suite expects a dev server and supports Chromium and Firefox. It uses real E,
+target clicks and pause-menu controls with deterministic placement/step fixtures. It checks
+presentation-only learning, deduplication, distant/occluded/offscreen information boundaries,
+witnessed deaths versus aftermath, unknown killers, successful interaction events, both
+checkpoint respawns and same/different-seed resets. Reports and desktop/narrow captures are
+written to `test-results/<browser>-discoveries-*`.
+Rendered-occlusion regressions use the existing entrance pillar, a zero-pixel-difference oracle,
+ordinary melee impact, camera-revealed remains and a launched/travelling crossbow bolt whose
+shooter stays hidden. Null-engine tests use real materials so picking exercises triangles,
+including a gap inside a merged mesh's bounding box. They cover current transforms, invisible
+proxies, thin instances, scene-index invalidation, off-ray preparation costs and the three-ray bound.
+
+For a CPU-only observation regression probe (running dev server required):
+
+```sh
+node tests/observation-profile.ts
+BROWSER=firefox node tests/observation-profile.ts
+```
+
+The probe uses `MOURNING-731`, 1440×900, 2,097 meshes, all 22 rigs enabled, frozen AI and a selected
+invulnerable ordinary enemy. Each actual/control/actual phase warms 100 steps and measures 400
+`__dungeon.step([], 1)` calls without rendering. The control substitutes known-visible observation.
+Reports include timings and instrumented matrix/bounds work under `test-results/`; `PROBE_LABEL`
+selects the report suffix. This measures CPU simulation/presentation overhead, not GPU FPS.
 
 ```sh
 npm run profile

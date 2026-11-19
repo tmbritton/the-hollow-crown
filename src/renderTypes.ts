@@ -15,6 +15,8 @@ export interface LightSource {
 }
 export interface Creature {
   root: TransformNode;
+  /** Root-local envelope covering the authored ambient motion; broad-phase rejection only. */
+  observationRadius: number;
   head: TransformNode;
   tail: TransformNode;
   phase: number;

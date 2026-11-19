@@ -45,7 +45,7 @@ try {
           locomotionPath = '/src/locomotion.ts',
           jumpPath = '/src/jump.ts';
         const { Jump } = (await import(jumpPath)) as typeof import('../src/jump.ts');
-        const { animateActors, resetActorRig } = (await import(
+        const { animateActors, resetActorRig, ACTOR_OBSERVATION_RADIUS } = (await import(
           renderingPath
         )) as typeof import('../src/actorRendering.ts');
         const { createLocomotion, WALK_SPEED, RUN_SPEED } = (await import(
@@ -117,6 +117,34 @@ try {
         g.camera.radius = 6.5;
         g.camera.target.set(clip === 'death' ? 0.6 : 0, clip === 'jump' ? 1.25 : 0.9, 0);
         g.scene.render();
+        for (const creature of g.dungeon.creatures) {
+          const radius =
+            creature.observationRadius *
+            Math.max(
+              Math.abs(creature.root.scaling.x),
+              Math.abs(creature.root.scaling.y),
+              Math.abs(creature.root.scaling.z),
+            );
+          if (!Number.isFinite(radius))
+            throw new Error('Ambient creature needs an authored observation envelope');
+          for (const mesh of creature.root.getChildMeshes())
+            for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld)
+              if (corner.subtract(creature.root.position).length() > radius)
+                throw new Error(`Ambient observation envelope missed ${mesh.name}`);
+        }
+        const radius =
+          ACTOR_OBSERVATION_RADIUS *
+          Math.max(
+            Math.abs(rig.root.scaling.x),
+            Math.abs(rig.root.scaling.y),
+            Math.abs(rig.root.scaling.z),
+          );
+        for (const mesh of rig.root.getChildMeshes()) {
+          if (!mesh.isVisible || !mesh.isEnabled()) continue;
+          for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld)
+            if (corner.subtract(rig.root.position).length() > radius)
+              throw new Error(`Authored observation envelope missed ${mesh.name} in ${clip}`);
+        }
         const blade =
           clip === 'melee' || clip === 'running-melee'
             ? g.scene.getMeshByName('sword blade')

@@ -81,6 +81,11 @@ function blendPose(
   }
 }
 
+/** Conservative root-local envelope for the authored rigs, including weapons and all poses.
+ * The animation browser suite checks rendered bounds against this broad-phase-only radius.
+ */
+export const ACTOR_OBSERVATION_RADIUS = 4;
+
 /** Render-only deformation: the motor, collision ellipsoid and attack clock stay authoritative. */
 export function animateActors(ecs: ECS, dt: number, time = 0, world?: NavigationWorld): void {
   for (const entity of ecs.query('actor', 'rig', 'movement', 'transform')) {

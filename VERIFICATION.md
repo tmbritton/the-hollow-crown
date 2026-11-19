@@ -4,6 +4,149 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Within-run discovery record (D1) — 2026-11-18
+
+Implemented against `cd415d1`. Initial independent review found a camera-occlusion blocker.
+Follow-up review accepted the correctness correction but found excessive per-query preparation.
+**Final independent review cleared both corrections and approved the feature for commit.**
+
+#### Observation performance correction — 2026-11-19
+
+- Test-first material-backed cost regression: four warm queries over 1,000 unchanged off-ray
+  meshes caused **8,000 matrix calls and 600 thin-bound refreshes** instead of zero. Further
+  first-failing bounds contracts exposed 21 off-ray rig-child preparations, 203 inversions for
+  200 off-ray particles, and geometry past the finite ray endpoint entering triangle picking.
+  All now pass. Materials are explicitly attached after construction; a merged two-box gap test
+  proves the fixtures exercise triangles, not Babylon's no-material bounding-box fallback.
+- Frozen scenery is indexed into 16-unit spatial buckets once per world, with membership,
+  matrix-version and hierarchy invalidation. Authored rig envelopes reject off-ray articulated
+  descendants before preparing them; the animation suite validates character and steed envelopes,
+  including 28 captured character poses. Live public transform inputs are compared, parents sync
+  once, and only changed nodes use non-forced matrix computation. No visibility outcome is cached.
+- Dynamic effect writers maintain bounds at upload time, with no bounds refresh for empty
+  zero-scale pools. Static bounds are reused; finite per-instance checks precede inversion.
+  Material-backed regressions cover moving parents, cutaways, camera-dependent billboards,
+  reparenting, new/removed meshes, unfreezing and replacing instance uploads without stale data.
+
+CPU probe: `PROBE_LABEL=before node tests/observation-profile.ts` and then
+`PROBE_LABEL=after node tests/observation-profile.ts`, with the corresponding
+`BROWSER=firefox` runs, sequentially. Each phase uses **100 warmup + 400 measured steps** after
+fixture settling. `MOURNING-731`, **1440×900, 2,097 meshes, all 22 rigs enabled**, AI removed,
+one selected invulnerable ordinary goblin. A/B/A is actual observation / known-visible control /
+actual observation. There are no scene renders inside the measured loop.
+
+| Browser / version | Actual A mean ms | Control B mean ms | Actual A2 mean ms | A2 p95 ms |
+| --- | ---: | ---: | ---: | ---: |
+| Chromium before | 9.155 | 1.315 | 7.614 | 8.900 |
+| Chromium after | 4.158 | 1.756 | 3.276 | 4.700 |
+| Firefox before | 11.533 | 2.505 | 12.338 | 19.000 |
+| Firefox after | 4.690 | 2.520 | 4.360 | 6.000 |
+
+- Instrumented warm query, both browsers: **5,125 total matrix calls / 3,397 forced calls /
+  36 thin-bound refreshes before**, versus **2 / 0 / 0 after**. An actual animated-step query
+  uses **60 matrix calls in Chromium / 61 in Firefox**, all non-forced, and zero bounds refreshes.
+  A final failing probe exposed 90 calls from distant animated steeds before their authored
+  envelopes were registered. The budget allows up to 64 calls for pose-phase variation.
+  The final actual-A2 observation portion averaged **1.484 ms Chromium / 1.803 ms Firefox**;
+  observation still has a measurable CPU cost. These are local CPU measurements, not GPU/FPS
+  or hardware performance guarantees. The control includes current renderer-owned bounds work.
+- Reports are `test-results/{chromium,firefox}-observation-cpu-{before,after}.json`. The probe
+  asserts deterministic preparation budgets rather than machine-dependent timing thresholds.
+- `npm run format:check`, `npm run lint`, `npm test` (**155 tests**, including typing and
+  13 material-backed observation contracts), and `npm run build` pass. Existing chunk warning
+  remains. Discovery **17 each browser**, combat **14 each browser**, Firefox inspection **13**,
+  Chromium animation **28 captures**, Chromium social **9**, and production smoke pass.
+  Rendering suites ran sequentially. The initial combined browser command hit its 240-second
+  harness timeout just as social started; social was rerun independently and passed all nine.
+- Reviewed the refreshed animation sheet, social smoke and revealed-remains captures. Both
+  browsers retain the rendered-pillar and real projectile knowledge boundaries.
+- Final independent review reran all listed checks and found no blockers. A 400-case comparison
+  against unindexed triangle picking matched all results (234 visible / 166 occluded). Its
+  A/B/A mean CPU samples were 3.714/1.646/3.147ms in Chromium and 4.438/2.405/4.228ms in Firefox;
+  final observation-only means were 1.406/1.695ms. Warm queries retained two matrix calls,
+  zero forced updates and zero bounds refreshes. Animated queries retained 60/61 non-forced calls.
+
+#### Camera-occlusion correction baseline (before performance review)
+
+- Added the reviewer's `MOURNING-731` / 1440×900 entrance-pillar regression before the fix.
+  Both `npm run test:discoveries` and `BROWSER=firefox npm run test:discoveries` failed at
+  `camera-hidden melee victim is not a witnessed death or visible remains`. The pixel oracle
+  measured **zero changed pixels** when disabling the victim (shadows/glow excluded), but the
+  old code recorded `Witnessed the death of a kobold. Killed by a skeleton.` after ordinary
+  melee impact. Four render-adapter contracts also failed first on the missing module.
+- Added `CameraObservation`: finite rays to actual rig surfaces, rendered-scene geometry,
+  current cutaway/door transforms, visibility/layer filtering and real thin-instance transforms.
+  Invisible collision/selection proxies cannot occlude or establish observation. Victims,
+  non-player killers, target captions and remains share this camera check in addition to the
+  existing player-perception checks.
+- Work is bounded to three sample rays per observation, with cached sample membership and
+  Babylon broad-phase rejection before triangle checks. Results are recomputed for changed
+  cameras/poses/scenery; already-recorded remains skip queries. There is no every-actor
+  per-frame triangle scan. Geometry sampling remains deliberately conservative for partially
+  exposed actors and shader-discarded surfaces.
+- The cutaway unit regression initially also exposed stale same-render-ID transforms:
+  shrinking the wall still returned false. Explicit current world-matrix preparation fixed it.
+  Thin-instance tests distinguish actual instances from the unrendered source mesh and cover
+  moving instance bounds.
+- **146 tests** pass under `npm test`, including strict typing and four new Babylon null-engine
+  geometry contracts. `npm run format:check`, `npm run lint`, `npm run build`, and
+  `git diff --check` pass. Build retains the existing large-chunk warning.
+- Discovery browser suite: **17 checks each in Chromium and Firefox**. New checks cover a
+  fully camera-hidden ordinary melee death, no hidden target-caption grant, later camera-revealed
+  unidentified remains with no inferred killer, and an actual crossbow launch/travel/impact
+  whose visible victim does not reveal the pillar-hidden shooter. The projectile fixture was
+  adjusted until the pixel oracle confirmed both idle and firing poses were fully hidden.
+- Reran Firefox inspection (**13 checks**) and Chromium/Firefox combat (**14 each**), then
+  `npm run test:production` (rendering/shaders, regeneration, menus, quality and no dev hooks):
+  all pass. Rendering suites ran sequentially.
+- Reviewed the new `test-results/{chromium,firefox}-discoveries-pillar-*.png` captures: the
+  victim/shooter are hidden by rendered masonry, and the changed camera reveals remains with
+  the explicit unknown-killer account. Broader gameplay/gallery/performance results remain
+  their historical baselines. The reviewer's pre-correction 200-seed result was not rerun as
+  a separate corpus in this correction; the normal generation tests ran under `npm test`.
+
+#### Initial D1 implementation baseline (before independent review)
+
+- Test-first run: `node --test tests/discoveries.test.ts tests/keep-presentation.test.ts
+  tests/combat.test.ts` failed in three places before implementation: missing `src/discoveries.ts`,
+  no lethal-impact callback (`[]` instead of the victim/source event), and the entrance granting
+  the undisclosed founding fact. The first `node tests/discoveries-browser.ts` run failed at
+  `run-owned discovery component must exist` before runtime integration.
+- Seven new pure discovery contracts, one presentation-link regression and one lethal-event
+  contract now pass. They cover detached evidence/snapshots, explicit fact grants, stable seeded
+  placement IDs despite array/counter changes, once-only events, unknown killers, ECS ownership,
+  respawn retention, same-seed reset and cross-kind observation order.
+- A later test-first ordering regression failed with `[undefined, undefined]` instead of
+  cross-kind ordinals `[0, 3]`; entries now retain actual insertion order even at identical
+  simulation timestamps. A browser width regression failed before bounding the expanded record
+  to a readable 540px card.
+- Initial browser integration exposed a missed remains observation immediately after regeneration:
+  zero events instead of one, with nonfinite projected coordinates before the first scene render.
+  Observation now refreshes camera view/projection matrices before screen checks. The same fixture
+  and an explicit offscreen negative case pass in both browsers.
+- `npm run format:check`, `npm run lint`, `npm test` (**142 pure/model tests**, including strict
+  type checking), and `npm run build` pass. The build reports its existing large-chunk warning.
+  No machines were added or modified; model coverage remains **16 machines / 75 states / 155 branches**.
+- `npm run test:discoveries` and `BROWSER=firefox npm run test:discoveries`: **14 checks each** pass.
+  Real E inspection and target clicks record only presented evidence; generation, proximity,
+  distant/occluded/offscreen selection and unseen deaths do not grant hidden facts. Ordinary
+  pursuit produces a witnessed death with its actual observed source; an unseen source remains
+  unknown. Later remains reveal neither an unlearned name nor biography nor killer.
+- The same suite verifies repeat discovery/event deduplication, pause-menu record contents and
+  narrow layout, real entrance and altar checkpoint respawns, healing after repeat rest,
+  successful chest/altar/crown interactions, denied pre-altar claiming, and same/different-seed
+  regeneration. Each new run relearns only the freshly presented entrance initially.
+- Existing targeted regressions pass: Firefox inspection **13 checks**; Chromium and Firefox
+  combat **14 checks each**, including the three named-inhabitant captions, moving attacks,
+  cancellation, death and regeneration. Rendering suites ran sequentially.
+- Reviewed discovery inspection, named-target and desktop/480px record captures, plus relevant
+  inspection/combat captures. The record uses the existing pause modal, bounded scrolling and
+  readable wrapping. Art and seeded layouts retain the existing `layout-v3 / keep-v4` baseline;
+  the metadata correction removes unspoken fact links without changing generated history/text.
+- Captures/reports: `test-results/{chromium,firefox}-discoveries-*`, `inspection-report.json`,
+  and `{chromium,firefox}-combat-report.json`. Broader full-gameplay, movement, social, production
+  smoke and gallery checks remain their previously recorded baselines; they were not rerun for D1.
+
 ### Moving pursuit attacks — 2026-11-18
 
 - Click-locked player pursuit now advances during melee wind-up, impact and recovery.

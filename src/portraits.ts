@@ -4,6 +4,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { part } from './geometry.ts';
+import { portraitDiscovery } from './discoveries.ts';
 import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Materials, MaterialName } from './materials.ts';
@@ -194,6 +195,7 @@ export function buildPortraits(
     };
     entity.inspection = {
       id: entity.id,
+      discovery: portraitDiscovery(entity),
       title: r.title,
       subtitle: `HOUSE ${r.house.toUpperCase()} · YEAR ${r.year}`,
       description: `${r.description ? `${r.description} ` : ''}128 × 160 procedural pixels · Press E or Escape to return.`,

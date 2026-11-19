@@ -8,6 +8,8 @@ import { Statechart } from './machines/statechart.ts';
 import { sessionMachine } from './machines/ui/session.ts';
 import type { SessionEvent } from './machines/ui/session.ts';
 import { feedbackMachine } from './machines/ui/feedback.ts';
+import { inhabitantDiscovery, landmarkDiscovery } from './discoveries.ts';
+import type { DiscoveryRecord } from './discoveries.ts';
 
 export class UI {
   readonly map: HTMLCanvasElement;
@@ -20,6 +22,7 @@ export class UI {
   private readonly roomState = new Statechart(feedbackMachine);
   private readonly damageState = new Statechart(feedbackMachine);
   private currentWorld: World | null = null;
+  private currentRecord: DiscoveryRecord | null = null;
   private visited = new Set<RoomId>();
   private revealed = new Set<RoomId>();
   roomId: RoomId | null = null;
@@ -62,6 +65,9 @@ export class UI {
   private get world(): World {
     return required(this.currentWorld, 'UI has not been initialized');
   }
+  private get record(): DiscoveryRecord {
+    return required(this.currentRecord, 'Discovery record has not been initialized');
+  }
   constructor() {
     this.map = element('map', HTMLCanvasElement);
     this.context = required(this.map.getContext('2d'), 'Minimap canvas unavailable');
@@ -70,8 +76,11 @@ export class UI {
     this.inspection = element('inspection', HTMLDialogElement);
     this.transition({ type: document.hidden ? 'HIDE' : 'SHOW' });
   }
-  reset(world: World): void {
+  reset(world: World, record: DiscoveryRecord): void {
     this.currentWorld = world;
+    this.currentRecord = record;
+    element('discovery-record', HTMLDetailsElement).open = false;
+    this.refreshRecord();
     this.visited = new Set(['entrance']);
     this.revealed = new Set();
     this.roomId = null;
@@ -95,13 +104,14 @@ export class UI {
     this.toastState.send({ type: 'SHOW', now: performance.now(), duration });
     $('toast').classList.add('visible');
   }
-  room(room: Room): void {
+  room(room: Room, at = 0): void {
     if (!room || room.id === this.roomId) return;
     this.roomId = room.id;
     this.visited.add(room.id);
     $('room-kicker').textContent = room.kicker;
     $('room-name').textContent = room.name;
     $('room-description').textContent = room.description;
+    this.record.present(landmarkDiscovery(room), at);
     $('room-title').classList.remove('faded');
     this.roomState.send({ type: 'SHOW', now: performance.now(), duration: 6500 });
     $('explored-count').textContent =
@@ -111,7 +121,7 @@ export class UI {
     $('health-fill').style.width = `${health}%`;
     $('health-text').textContent = `${Math.ceil(health)} / 100`;
   }
-  combatTarget(actor: Actor | null): void {
+  combatTarget(actor: Actor | null, at = 0): void {
     const panel = $('combat-target');
     panel.hidden = !actor?.alive;
     if (actor) {
@@ -121,6 +131,7 @@ export class UI {
         ? `${identity.name}, ${identity.title}\n${status}\n${identity.description}`
         : status;
       panel.classList.toggle('named', !!identity);
+      if (actor.alive && identity) this.record.present(inhabitantDiscovery(identity), at);
     }
   }
   damage(): void {
@@ -132,16 +143,38 @@ export class UI {
     $('interaction').hidden = !text;
     $('interaction-label').textContent = text || '';
   }
-  openInspection(target: InspectionTarget): void {
+  openInspection(target: InspectionTarget, at = 0): void {
     $('inspection-title').textContent = target.title;
     $('inspection-subtitle').textContent = target.subtitle || 'CLOSER LOOK';
     $('inspection-description').textContent = target.description || 'Press E or Escape to return.';
     this.prompt('');
     this.transition({ type: 'INSPECT' });
+    if (this.inspection.open && target.discovery) this.record.present(target.discovery, at);
     $('inspection-close').focus();
   }
   closeInspection() {
     this.transition({ type: 'CLOSE_INSPECTION' });
+  }
+  refreshRecord(): void {
+    const snapshot = this.record.snapshot();
+    const entries = [
+      ...snapshot.discoveries.map((entry) => ({ ...entry, heading: entry.title })),
+      ...snapshot.events.map((entry) => ({ ...entry, heading: entry.label })),
+    ].sort((a, b) => a.order - b.order);
+    $('discovery-count').textContent = String(entries.length);
+    $('discovery-entries').replaceChildren(
+      ...entries.map((entry) => {
+        const item = document.createElement('li');
+        item.dataset.discoveryId = entry.id;
+        const heading = document.createElement('strong');
+        heading.textContent = entry.heading;
+        const text = document.createElement('p');
+        text.textContent = entry.description;
+        item.append(heading, text);
+        return item;
+      }),
+    );
+    $('discovery-empty').hidden = entries.length > 0;
   }
   altar() {
     $('altar-check').classList.add('done');

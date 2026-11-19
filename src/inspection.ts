@@ -1,6 +1,7 @@
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { Statechart } from './machines/statechart.ts';
 import { inspectionMachine } from './machines/ui/inspection.ts';
+import type { DiscoveryEvidence } from './discoveries.ts';
 
 export interface InspectionView {
   focus: Vector3;
@@ -16,6 +17,8 @@ export interface InspectionTarget {
   title: string;
   subtitle?: string;
   description?: string;
+  /** Explicit evidence delivered with this caption, committed only when it is presented. */
+  discovery?: DiscoveryEvidence;
   getView(): InspectionView;
   onEnter?(): void;
   onExit?(): void;

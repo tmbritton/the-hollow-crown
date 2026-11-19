@@ -14,6 +14,7 @@ import type { Actor } from './actors.ts';
 import type { Materials, MaterialName } from './materials.ts';
 import type { Triple } from './worldTypes.ts';
 import { createSocialRendering } from './socialRendering.ts';
+import { updateInstanceMatrices } from './observation.ts';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 export function createEnemyRendering(
@@ -234,7 +235,10 @@ export function createEnemyRendering(
         pool.matrices[o + 13] = p.h;
         pool.matrices[o + 14] = p.z;
       }
-      for (const pool of Object.values(pools)) pool.mesh.thinInstanceBufferUpdated('matrix');
+      for (const kind of ['blood', 'dust', 'projectile'] as const) {
+        const pool = pools[kind];
+        updateInstanceMatrices(pool.mesh, pool.matrices, counts[kind] > 0);
+      }
     },
   };
 }

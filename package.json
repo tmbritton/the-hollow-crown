@@ -26,6 +26,7 @@
     "test:production": "node tests/production.ts",
     "test:portraits": "node tests/portraits.ts",
     "test:inspection": "node tests/inspection-browser.ts",
+    "test:discoveries": "node tests/discoveries-browser.ts",
     "test:movement": "node tests/movement-browser.ts",
     "test:animation": "node tests/animation-browser.ts",
     "test:jump": "node tests/jump-browser.ts",

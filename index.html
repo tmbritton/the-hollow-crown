@@ -54,6 +54,12 @@
       <form method="dialog" class="menu-card">
         <div class="eyebrow">A MOMENT IN THE DARK</div><h2>The keep can wait.</h2>
         <p>Click the floor or use WASD / arrows to move<br />Click / hold an enemy to pursue and repeatedly attack<br />Click a door to approach and open it · E to interact<br />Hold floor to steer · Shift to run · Space to jump · X to cancel<br />Q / R to rotate · Scroll to zoom · M for map · Escape to pause</p>
+        <details id="discovery-record">
+          <summary>Within-run record <span id="discovery-count">0</span></summary>
+          <p class="record-note">What you have read and witnessed. Retained through death; cleared when a new dungeon begins.</p>
+          <p id="discovery-empty">No discoveries yet.</p>
+          <ol id="discovery-entries" aria-label="Discoveries and observed events"></ol>
+        </details>
         <label for="seed-input">DUNGEON SEED</label><input id="seed-input" maxlength="40" autocomplete="off" spellcheck="false" />
         <div class="menu-actions"><button type="button" id="rebuild">Enter this seed</button><button type="button" id="regenerate">New dungeon</button></div>
         <label class="quality-label">RENDER QUALITY <select id="quality"><option value="high">High · shadows & glow</option><option value="low">Low · lighter rendering</option></select></label>

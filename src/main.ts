@@ -25,9 +25,14 @@ import { createPlayer, movePlayer, stopPlayer } from './player.ts';
 import { pickGround } from './navigation.ts';
 import { MOVEMENT_KEYS } from './locomotion.ts';
 import { ECS } from './ecs.ts';
-import { CombatSystem, seedEnemies } from './combat.ts';
+import { CombatSystem, clearSight, seedEnemies } from './combat.ts';
 import { cancelAttack, requestJump } from './actors.ts';
-import { animateActors } from './actorRendering.ts';
+import type { Actor } from './actors.ts';
+import { DiscoveryRecord } from './discoveries.ts';
+import type { ObservedEvent } from './discoveries.ts';
+import { generationIdentity } from './generation/identity.ts';
+import { CameraObservation, updateInstanceMatrices } from './observation.ts';
+import { animateActors, ACTOR_OBSERVATION_RADIUS } from './actorRendering.ts';
 import { createEnemyRendering } from './enemyRendering.ts';
 import { registerWorld, registerDungeonRendering, updateDoors } from './worldEntities.ts';
 import { UI } from './ui.ts';
@@ -151,6 +156,61 @@ function applyQuality() {
   }
   engine.resize();
 }
+
+function discoveryRecord(): DiscoveryRecord {
+  return required(game.ecs.get('run'), 'Run entity missing').require('discoveries');
+}
+
+/** Player perception and actual rendered camera visibility must both permit observation. */
+function observesActor(actor: Actor): boolean {
+  if (!ui.ready || paused() || game.inspection.active || !game.player.actor.alive) return false;
+  const player = game.player.actor.position;
+  const position = actor.position;
+  if (
+    Math.hypot(player.x - position.x, player.z - position.z) > 8 ||
+    !actor.entity.get('render')?.root?.isEnabled() ||
+    !clearSight(game.world, player, position)
+  )
+    return false;
+  return game.observation.visible(actor.entity.require('render'));
+}
+
+function observedLabel(actor: Actor): string {
+  const identity = actor.entity.get('inhabitant');
+  return identity && discoveryRecord().hasDiscovery(identity.id)
+    ? `${identity.name}, ${identity.title}`
+    : `a ${actor.kind}`;
+}
+
+function recordEvent(event: ObservedEvent, notify = false): void {
+  const record = discoveryRecord();
+  if (record.recordEvent(event, game.playTime) && notify) {
+    const entry = record.snapshot().events.at(-1);
+    if (entry) ui.toast(entry.description);
+  }
+}
+
+function observeDeath(victim: Actor, source?: Actor): void {
+  const identity = victim.entity.get('inhabitant');
+  if (!identity || !observesActor(victim)) return;
+  const killer =
+    source && (source.id === game.player.actor.id || observesActor(source))
+      ? {
+          id: source.entity.get('inhabitant')?.id ?? source.id,
+          label: source.kind === 'player' ? 'you' : observedLabel(source),
+        }
+      : undefined;
+  recordEvent(
+    {
+      kind: 'death-witnessed',
+      subjectId: identity.id,
+      label: observedLabel(victim),
+      ...(killer ? { killer } : {}),
+    },
+    true,
+  );
+}
+
 function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
   initialGenerationReport = null;
   ui.transition({ type: 'LOAD' });
@@ -231,6 +291,8 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   const materials = createMaterials(scene);
   const dungeon = buildDungeon(scene, world, materials, shadow, glow);
   const ecs = new ECS();
+  const discoveries = new DiscoveryRecord(generationIdentity(seed));
+  ecs.create('run').add('discoveries', discoveries);
   registerWorld(ecs, world);
   registerDungeonRendering(ecs, dungeon);
   const player = createPlayer(scene, materials, shadow, world, ecs);
@@ -239,6 +301,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     world,
     [player.actor, ...seedEnemies(ecs, world)],
     world.seed,
+    { onDeath: observeDeath },
   );
   const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
   // Render batches can serve many logical tiles/props without duplicating geometry.
@@ -272,7 +335,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       playerVisibility = { root: player.root.isEnabled(), marker: player.marker.isEnabled() };
       player.root.setEnabled(false);
       player.marker.setEnabled(false);
-      ui.openInspection(target);
+      ui.openInspection(target, game.playTime);
     },
     onClose: () => {
       keys.clear();
@@ -310,6 +373,16 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     ecs,
     combat,
     enemyRendering,
+    observation: new CameraObservation(camera, [
+      ...ecs.query('rig').map((entity) => ({
+        root: entity.require('rig').root,
+        radius: ACTOR_OBSERVATION_RADIUS,
+      })),
+      ...dungeon.creatures.map((creature) => ({
+        root: creature.root,
+        radius: creature.observationRadius,
+      })),
+    ]),
     inspection,
     time: 0,
     playTime: 0,
@@ -329,8 +402,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     steps: 0,
     nearLights: [],
   };
-  ui.reset(world);
-  ui.room(world.roomById.entrance);
+  ui.reset(world, discoveries);
   applyQuality();
   // Random runs must not write a seed back into the URL and pin future loads.
   const url = new URL(location.href);
@@ -341,6 +413,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     if (scene !== game.scene) return;
     ui.transition({ type: 'READY' });
     loading.classList.add('done');
+    ui.room(world.roomById.entrance, game.playTime);
     canvas.focus();
     ui.toast(
       'Click an enemy to pursue and attack. Space jumps. X cancels travel and attacks.',
@@ -427,6 +500,7 @@ function interact() {
     if (!e.open) required(e.collider, 'Door collider missing').checkCollisions = true;
   } else if (e.type === 'altar') {
     game.progression.send({ type: 'KINDLE' });
+    recordEvent({ kind: 'altar-kindled', subjectId: 'altar', label: 'The violet altar' });
     game.player.health = 100;
     ui.setHealth(100);
     game.checkpoint = {
@@ -455,10 +529,16 @@ function interact() {
       return;
     }
     game.progression.send({ type: 'CLAIM' });
+    recordEvent({ kind: 'crown-claimed', subjectId: 'throne', label: 'The Hollow Crown' });
     resetMovement();
     ui.complete(game.playTime, game.chests);
   } else if (e.type === 'chest' && !e.open) {
     e.open = true;
+    recordEvent({
+      kind: 'reliquary-claimed',
+      subjectId: e.id,
+      label: `Reliquary · ${game.world.roomById[e.room].name}`,
+    });
     game.chests++;
     game.player.health = Math.min(100, game.player.health + 30);
     ui.setHealth(game.player.health);
@@ -484,7 +564,7 @@ function tick(dt: number): void {
   game.combat.update(dt);
   animateActors(game.ecs, dt, game.time, game.world);
   game.enemyRendering.update();
-  if (tile?.room) ui.room(game.world.roomById[tile.room]);
+  if (tile?.room) ui.room(game.world.roomById[tile.room], game.playTime);
   game.damageCooldown -= dt;
   if (tile?.surface === 'lava' && !game.player.actor.jump.airborne && game.damageCooldown <= 0) {
     game.combat.damage(game.player.actor, 18);
@@ -533,7 +613,7 @@ function renderUpdate(dt: number): void {
     dungeon.sparkMatrices[o + 13] = p.y + life;
     dungeon.sparkMatrices[o + 14] = p.z + Math.cos(game.time + p.phase) * life * 0.15;
   });
-  dungeon.sparkMesh.thinInstanceBufferUpdated('matrix');
+  updateInstanceMatrices(dungeon.sparkMesh, dungeon.sparkMatrices);
   for (const entity of game.ecs.query('floating')) {
     const a = entity.require('floating');
     a.mesh.position.y = a.y + Math.sin(game.time * 1.6 + a.phase) * 0.12;
@@ -588,13 +668,29 @@ function renderUpdate(dt: number): void {
   game.nearest = game.inspection.active ? null : findInteraction();
   ui.prompt(promptFor(game.nearest));
   const target = game.combat.actor(game.player.actor.attack.target);
-  ui.combatTarget(game.inspection.active ? null : (target ?? null));
+  ui.combatTarget(target && observesActor(target) ? target : null, game.playTime);
+  const record = discoveryRecord();
+  for (const actor of game.combat.enemies) {
+    const identity = actor.entity.get('inhabitant');
+    if (
+      identity &&
+      actor.entity.has('corpse') &&
+      !record.hasEvent('death-witnessed', identity.id) &&
+      !record.hasEvent('remains-found', identity.id) &&
+      observesActor(actor)
+    )
+      recordEvent(
+        { kind: 'remains-found', subjectId: identity.id, label: observedLabel(actor) },
+        true,
+      );
+  }
 }
 
 function toggleMenu() {
   resetMovement();
   if (ui.victory.open) return;
   game?.inspection.close({ immediate: true });
+  if (game) ui.refreshRecord();
   ui.transition({ type: 'TOGGLE_MENU' });
   if (!ui.menu.open) canvas.focus();
 }

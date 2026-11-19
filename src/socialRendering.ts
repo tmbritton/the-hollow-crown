@@ -8,6 +8,7 @@ import type { SocialGroup } from './social.ts';
 import { part } from './geometry.ts';
 import { hackySackPass, isSocializing } from './social.ts';
 import { sampleCurve, volumeScale } from './animationCurves.ts';
+import { updateInstanceMatrices } from './observation.ts';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 /** Shared props remain after an interrupted game; hand props and smoke follow activity. */
@@ -104,6 +105,7 @@ export function createSocialRendering(
   smoke.thinInstanceSetBuffer('matrix', matrices, 16, false);
   return {
     update(): void {
+      let activeSmoke = false;
       matrices.fill(0);
       for (let i = 0; i < matrices.length / 16; i++) matrices[i * 16 + 15] = 1;
       held.forEach(({ actor, card, pipe, ember }, index) => {
@@ -113,6 +115,7 @@ export function createSocialRendering(
         pipe.setEnabled(smoking);
         ember.setEnabled(smoking);
         if (!smoking) return;
+        activeSmoke = true;
         for (let i = 0; i < 3; i++) {
           const life = ((combat.time + actor.brain!.social!.phase) * 0.5 + i / 3) % 1;
           const size = Math.sin(life * Math.PI) * 0.11;
@@ -128,7 +131,7 @@ export function createSocialRendering(
           matrices[offset + 14] = p.z + Math.cos(p.heading) * 0.35 - Math.sin(p.heading) * 0.25;
         }
       });
-      smoke.thinInstanceBufferUpdated('matrix');
+      updateInstanceMatrices(smoke, matrices, activeSmoke);
       for (const { mesh, group } of balls) {
         const pass = hackySackPass(group, combat.ecs, combat.time);
         if (!pass) {

@@ -20,6 +20,7 @@ import type { EnemyRendering } from './enemyRendering.ts';
 import type { Statechart } from './machines/statechart.ts';
 import type { progressionMachine } from './machines/world/interactions.ts';
 import type { GenerationReport } from './generation/report.ts';
+import type { CameraObservation } from './observation.ts';
 
 export interface Game {
   scene: Scene;
@@ -39,6 +40,7 @@ export interface Game {
   ecs: ECS;
   combat: CombatSystem;
   enemyRendering: EnemyRendering;
+  observation: CameraObservation;
   inspection: InspectionController;
   time: number;
   playTime: number;

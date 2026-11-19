@@ -68,7 +68,7 @@ function lizardSteed(prop: Prop, { scene, materials, shadow, creatures }: PropBu
       if (i < 3) b('bone', x, 0.9 - i * 0.1, z, 0.1, 0.18, 0.13, 0.8);
     }
   });
-  creatures.push({ root, head, tail, phase: prop.variant * 1.7 });
+  creatures.push({ root, head, tail, phase: prop.variant * 1.7, observationRadius: 4 });
 }
 
 export function buildThemedProp(prop: Prop, context: PropBuildContext): number | null {

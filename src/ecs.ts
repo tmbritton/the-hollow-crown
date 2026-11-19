@@ -9,6 +9,7 @@ import type { SocialGroup } from './social.ts';
 import type { BodySize } from './occupancy.ts';
 import type { Jump } from './jump.ts';
 import type { InhabitantIdentity } from './generation/inhabitants.ts';
+import type { DiscoveryRecord } from './discoveries.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
 import type {
   DoorEntity,
@@ -24,6 +25,7 @@ import type {
 export type ActorKind = 'player' | 'skeleton' | 'goblin' | 'kobold';
 export type EnemyKind = Exclude<ActorKind, 'player'>;
 export interface Components {
+  discoveries: DiscoveryRecord;
   transform: Spawn & { heading: number };
   actor: { kind: ActorKind; speed: number; opensDoors: boolean };
   inhabitant: InhabitantIdentity;

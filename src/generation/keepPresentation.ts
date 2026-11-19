@@ -10,13 +10,13 @@ export function applyKeepPresentation(world: World): void {
   const ending = `${keep.profile.catastrophe}, ending the reign of ${last.title} in year ${last.reignEnd}.`;
   const rooms = world.roomById;
   rooms.entrance.description = `${keep.profile.name} — House ${keep.house}. ${ending}`;
-  rooms.entrance.factIds = ['fact:founding', 'fact:catastrophe'];
+  rooms.entrance.factIds = ['fact:catastrophe'];
   rooms.crypt.description = `${last.title} of House ${keep.house} is commemorated here. ${ending}`;
   rooms.crypt.factIds = ['fact:memorial', 'fact:catastrophe'];
   rooms.altar.description = `${ending} Kindle the violet altar to unseal the throne gate.`;
   rooms.altar.factIds = ['fact:catastrophe'];
   rooms.throne.description = `${last.title} of House ${keep.house} held this seat in years ${last.reignStart}–${last.reignEnd}. Kindle the altar before claiming the Hollow Crown.`;
-  rooms.throne.factIds = ['fact:succession:last', 'fact:catastrophe'];
+  rooms.throne.factIds = [];
 
   const identity = generationIdentity(world.seed);
   const portraits = world.entities.filter((entity) => entity.type === 'portrait');
@@ -50,7 +50,6 @@ export function applyKeepPresentation(world: World): void {
     const appearance = generateRoyalPortrait(
       randomStream(identity, 'monarch-appearance', person.id),
     );
-    const factIds = keep.facts.filter((fact) => fact.personId === person.id).map((fact) => fact.id);
     const event = keep.history.find((event) => event.personId === person.id);
     portrait.royal = {
       ...appearance,
@@ -62,7 +61,8 @@ export function applyKeepPresentation(world: World): void {
       artSeed: 1 + Math.floor(painting() * 10000),
       palette: keep.profile.palette,
       beard: person.title.startsWith('Queen ') ? 0 : appearance.beard,
-      factIds,
+      // A subject link is not permission to disclose the monarch's entire biography.
+      factIds: event ? [event.factId] : [],
       description: `${event?.text ?? person.title} Reign: ${person.reignStart}–${person.reignEnd}.`,
     };
   }
