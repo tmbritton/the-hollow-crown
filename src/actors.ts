@@ -64,29 +64,14 @@ export function createActor(
 ): Actor {
   const max = { player: 100, skeleton: 48, goblin: 36, kobold: 44 }[kind];
   const body = { radius: 0.45, height: kind === 'player' || kind === 'skeleton' ? 1.8 : 1.3 };
-  const occupancy = new Occupancy(
-    body,
-    () =>
-      ecs
-        .query('actor', 'body', 'transform', 'health')
-        .filter(
-          (entity) =>
-            entity.id !== id && entity.require('health').current > 0 && !entity.has('corpse'),
-        )
-        .map((entity) => ({ ...entity.require('transform'), ...entity.require('body') })),
-    () =>
-      ecs.query('actor', 'body', 'transform', 'corpse').flatMap((entity) => {
-        const p = entity.require('transform'),
-          size = entity.require('body');
-        // Two overlapping footprints follow the fallen rig, from its feet toward its head.
-        return [0.25, 0.75].map((offset) => ({
-          x: p.x + Math.sin(p.heading) * size.height * offset,
-          z: p.z + Math.cos(p.heading) * size.height * offset,
-          h: p.h,
-          radius: size.radius,
-          height: 0.4,
-        }));
-      }),
+  const occupancy = new Occupancy(body, () =>
+    ecs
+      .query('actor', 'body', 'transform', 'health')
+      .filter(
+        (entity) =>
+          entity.id !== id && entity.require('health').current > 0 && !entity.has('corpse'),
+      )
+      .map((entity) => ({ ...entity.require('transform'), ...entity.require('body') })),
   );
   return new Actor(
     ecs
@@ -142,6 +127,7 @@ export function stopActor(actor: Actor, cancelCombat = true): void {
   actor.motion.velocity = { x: 0, z: 0 };
   actor.motion.acceleration = { x: 0, z: 0 };
   actor.motion.animation = createLocomotion();
+  for (const plant of actor.entity.get('rig')?.footPlants ?? []) plant.anchor = null;
   actor.entity.add('jump', new Jump());
   actor.entity.get('collision')?.sync?.(actor.position);
   if (cancelCombat) cancelAttack(actor);
@@ -200,9 +186,7 @@ export function moveActor(
     motion.direction = { x: direction.x / length, z: direction.z / length };
   }
   if (navigating && !steering) motion.speed = 0;
-  const slowed =
-    !actor.jump.airborne &&
-    (tileAt(world, p.x, p.z)?.surface === 'water' || actor.navigator.occupancy?.slowedAt(p));
+  const slowed = !actor.jump.airborne && tileAt(world, p.x, p.z)?.surface === 'water';
   const speed = (intent.speed ?? actor.entity.require('actor').speed) * (slowed ? 0.52 : 1);
   // Pursuit needs a tighter arrival brake to stay within weapon reach of a moving target.
   const arrivalRate = actor.attack.target ? 16 : 9;

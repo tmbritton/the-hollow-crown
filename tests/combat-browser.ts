@@ -1,4 +1,5 @@
 import { chromium, firefox } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -14,17 +15,9 @@ const browser = await (browserName === 'firefox' ? firefox : chromium).launch({
     ? { args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }
     : {}),
 });
-const page = await browser.newPage({
-  viewport: { width: 1440, height: 900 },
-  deviceScaleFactor: 1.5,
-});
+let page: Page;
 const errors: string[] = [],
   report: TestReport = { checks: [] };
-page.on('pageerror', (e) => errors.push(e.message));
-page.on('console', (m) => {
-  if (m.type() === 'error') errors.push(m.text());
-});
-await mkdir('test-results', { recursive: true });
 const pass = (name: string) => {
   report.checks.push(name);
   console.log(`PASS ${name}`);
@@ -110,6 +103,12 @@ async function capture(name: string) {
 }
 
 try {
+  page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1.5 });
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+  await mkdir('test-results', { recursive: true });
   await page.goto(`${process.env.DEMO_URL || 'http://localhost:5173'}/?debug&seed=MOURNING-731`);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
   await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
@@ -247,15 +246,90 @@ try {
     g.combat.damage(target, 100, g.player.actor);
     const start = g.player.actor.position.x;
     d.step(['KeyD'], 24);
-    const slow = g.player.motion.speed;
+    const speed = g.player.motion.speed;
     const travelled = g.player.actor.position.x - start;
     d.step(['KeyD'], 60);
-    return { slow, travelled, x: g.player.actor.position.x, corpseX: target.position.x };
+    return {
+      speed,
+      travelled,
+      x: g.player.actor.position.x,
+      corpseX: target.position.x,
+      h: g.player.actor.position.h,
+      elevation: g.player.actor.elevation,
+    };
   }, blockingGoblin);
-  assert.ok(Math.abs(corpseMovement.slow - 4.8 * 0.52) < 0.02, JSON.stringify(corpseMovement));
-  assert.ok(corpseMovement.travelled > 0.6 && corpseMovement.travelled < 1.1);
+  assert.ok(Math.abs(corpseMovement.speed - 4.8) < 0.03, JSON.stringify(corpseMovement));
+  assert.ok(corpseMovement.travelled > 1.5 && corpseMovement.travelled < 1.7);
+  assert.equal(corpseMovement.h, 0);
+  assert.equal(corpseMovement.elevation, 0);
   assert.ok(corpseMovement.x > corpseMovement.corpseX + 1);
-  pass('A dead hostile becomes passable difficult ground, slowing movement at the water rate');
+  pass(
+    'A dead hostile becomes passable at full walking speed without changing support or melee elevation',
+  );
+
+  const crossings = await page.evaluate((id) => {
+    const d = window.__dungeon,
+      g = d.game,
+      dead = g.combat.actor(id)!,
+      hero = g.player.actor;
+    const surfaces = [...g.world.tiles.values()].map((tile) => ({ tile, surface: tile.surface }));
+    try {
+      return [false, true].map((run) =>
+        ['flat', 'corpse', 'water-corpse'].map((ground) => {
+          if (ground === 'flat') dead.entity.remove('corpse');
+          else dead.entity.add('corpse', { age: 1 });
+          dead.entity.require('rig').root.setEnabled(ground !== 'flat');
+          for (const { tile, surface } of surfaces)
+            tile.surface = ground === 'water-corpse' ? 'water' : surface;
+          d.teleport(-2, 0);
+          g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
+          const samples = [];
+          for (let i = 0; i < 48; i++) {
+            d.step(run ? ['KeyD', 'ShiftLeft'] : ['KeyD'], 1);
+            const rig = hero.entity.require('rig');
+            const soles = rig.feet.map((foot) => {
+              foot.computeWorldMatrix(true);
+              return foot.getAbsolutePosition().y - 0.05 * rig.root.scaling.y;
+            });
+            samples.push({
+              x: hero.position.x,
+              speed: hero.motion.speed,
+              h: hero.position.h,
+              elevation: hero.elevation,
+              landings: hero.jump.landings,
+              soles,
+            });
+          }
+          return { run, ground, samples };
+        }),
+      );
+    } finally {
+      for (const { tile, surface } of surfaces) tile.surface = surface;
+      dead.entity.add('corpse', { age: 1 });
+      dead.entity.require('rig').root.setEnabled(true);
+    }
+  }, blockingGoblin);
+  for (const [flat, corpse, water] of crossings) {
+    assert.deepEqual(
+      corpse.samples.map(({ x, speed }) => ({ x, speed })),
+      flat.samples.map(({ x, speed }) => ({ x, speed })),
+    );
+    assert.ok(Math.abs(water.samples.at(-1)!.speed - (water.run ? 7.4 : 4.8) * 0.52) < 0.001);
+    assert.ok(
+      Math.max(...corpse.samples.flatMap((s) => s.soles)) >
+        Math.max(...flat.samples.flatMap((s) => s.soles)) + 0.15,
+    );
+    for (const crossing of [flat, corpse, water])
+      for (const sample of crossing.samples) {
+        assert.equal(sample.h, 0);
+        assert.equal(sample.elevation, 0);
+        assert.equal(sample.landings, 0);
+        assert.ok(sample.soles.every((h) => Number.isFinite(h) && h > -0.04 && h < 0.65));
+      }
+  }
+  pass(
+    'Real walk/run crossings retain flat-ground travel, raise feet over settled bodies, and preserve 52% water speed',
+  );
 
   const packLeader = await fixture('kobold', 3);
   const packCollision = await page.evaluate((id) => {
@@ -267,7 +341,11 @@ try {
       ...g.combat.enemies.filter((a) => a.kind === 'kobold' && a.id !== id).slice(0, 2),
     ];
     pack.forEach((actor, index) => {
-      Object.assign(actor.position, { x: 3, z: index === 0 ? 0 : index === 1 ? 1.5 : -1.5, h: 0 });
+      Object.assign(actor.position, {
+        x: 3,
+        z: index === 0 ? 0 : index === 1 ? 1.5 : -1.5,
+        h: 0,
+      });
       actor.enableAI('collision-pack', index);
       actor.brain!.social = {
         id: 'collision-gathering',
@@ -612,9 +690,12 @@ try {
   process.exitCode = 1;
   await capture('failure').catch(() => {});
 } finally {
-  await writeFile(
-    `test-results/${browserName}-combat-report.json`,
-    JSON.stringify(report, null, 2),
-  );
-  await browser.close();
+  try {
+    await writeFile(
+      `test-results/${browserName}-combat-report.json`,
+      JSON.stringify(report, null, 2),
+    );
+  } finally {
+    await browser.close();
+  }
 }

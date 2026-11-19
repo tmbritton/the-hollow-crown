@@ -183,14 +183,15 @@ test('occupancy respects height, blocks neighbors on stairs, and avoids occupied
   assert.ok(player.navigator.canStand(player.position));
 });
 
-test('corpses slow players and enemies exactly like water without stacking', () => {
+test('corpses leave every actor at full speed; water alone slows to 52% without stacking', () => {
   for (const kind of ['player', 'goblin', 'kobold', 'skeleton'] as const) {
     const samples: number[] = [];
-    for (const terrain of ['water', 'corpse', 'pile-in-water'] as const) {
+    for (const terrain of ['stone', 'corpse', 'pile', 'water', 'pile-in-water'] as const) {
       const f = fixture(),
         mover = f.actor(kind, 0);
-      if (terrain !== 'corpse') for (const tile of f.world.tiles.values()) tile.surface = 'water';
-      if (terrain !== 'water') {
+      const water = terrain.includes('water');
+      if (water) for (const tile of f.world.tiles.values()) tile.surface = 'water';
+      if (terrain !== 'water' && terrain !== 'stone') {
         for (let i = 0; i < (terrain === 'corpse' ? 1 : 3); i++) {
           const dead = f.actor('skeleton', 0);
           dead.health.current = 0;
@@ -200,35 +201,41 @@ test('corpses slow players and enemies exactly like water without stacking', () 
       assert.ok(mover.navigator.goTo(mover.position, { x: 3, z: 0 }));
       for (let i = 0; i < 60; i++) moveActor(mover, f.world, { speed: 1 }, 1 / 60);
       samples.push(mover.position.x);
-      assert.ok(Math.abs(mover.motion.speed - 0.52) < 0.001);
+      assert.ok(Math.abs(mover.motion.speed - (water ? 0.52 : 1)) < 0.001, `${kind}: ${terrain}`);
+      assert.equal(mover.position.h, 0);
+      assert.equal(mover.elevation, 0);
+      assert.equal(mover.jump.landings, 0);
     }
-    assert.ok(samples[0] > 0.4);
+    assert.ok(samples[0] > 0.9);
     assert.ok(
-      samples.every((x) => Math.abs(x - samples[0]) < 1e-8),
+      samples.slice(0, 3).every((x) => Math.abs(x - samples[0]) < 1e-8),
       `${kind}: ${samples}`,
     );
+    assert.ok(Math.abs(samples[3] - samples[0] * 0.52) < 1e-8);
+    assert.ok(Math.abs(samples[4] - samples[3]) < 1e-8);
   }
 });
 
-test('corpse slowdown follows the fallen body and ends on leaving or removing it', () => {
-  const f = fixture(),
-    player = f.actor('player', 0),
-    dead = f.actor('skeleton', 0);
-  dead.health.current = 0;
-  dead.entity.add('corpse', { age: 1 });
-  const occupancy = player.navigator.occupancy!;
-  assert.ok(occupancy.slowedAt({ x: 1.7, z: 0, h: 0 }), 'the fallen head is difficult ground too');
-  assert.equal(occupancy.slowedAt({ x: 0, z: 0, h: 2 }), false);
-  assert.ok(player.navigator.goTo(player.position, { x: 4, z: 0 }));
-  let slow = false,
-    recovered = false;
-  for (let i = 0; i < 240; i++) {
-    moveActor(player, f.world, {}, 1 / 60);
-    slow ||= player.position.x < 1 && player.motion.speed > 2 && player.motion.speed < 2.6;
-    recovered ||= player.position.x > 2.4 && player.motion.speed > 4;
+test('walking and running across fallen heads and overlapping bodies match unobstructed travel', () => {
+  for (const kind of ['player', 'goblin', 'kobold', 'skeleton'] as const) {
+    for (const speed of [4.8, 7.4]) {
+      const traces = [0, 3].map((count) => {
+        const f = fixture(),
+          mover = f.actor(kind, -3);
+        for (let i = 0; i < count; i++) {
+          const dead = f.actor('skeleton', i * 0.4);
+          dead.health.current = 0;
+          dead.entity.add('corpse', { age: 1 });
+        }
+        assert.ok(mover.navigator.goTo(mover.position, { x: 5, z: 0 }));
+        assert.equal(mover.navigator.path.length, 1);
+        return Array.from({ length: 150 }, () => {
+          moveActor(mover, f.world, { speed }, 1 / 60);
+          return { ...mover.position, speed: mover.motion.actualSpeed, elevation: mover.elevation };
+        });
+      });
+      assert.deepEqual(traces[1], traces[0], `${kind} at ${speed}`);
+      assert.ok(traces[1].at(-1)!.x > 4.9);
+    }
   }
-  assert.ok(slow && recovered);
-  assert.ok(player.position.x > 3.9, 'corpses stay traversable');
-  f.ecs.remove(dead.id);
-  assert.equal(occupancy.slowedAt({ x: 0, z: 0, h: 0 }), false);
 });

@@ -20,6 +20,7 @@ import { hackySackPass, isSocializing } from './social.ts';
 import '@babylonjs/core/Collisions/collisionCoordinator';
 import type { Spawn } from './worldTypes.ts';
 import { placeFeet } from './footPlacement.ts';
+import { readCorpseTerrain } from './corpseRendering.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -101,7 +102,9 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       return c.state === 'carried' && c.owner ? [c.owner] : [];
     }),
   );
-  for (const entity of ecs.query('actor', 'rig', 'movement', 'transform')) {
+  const entities = ecs.query('actor', 'rig', 'movement', 'transform');
+  // Finish every fallen pose before sampling contacts; ECS insertion order cannot affect feet.
+  for (const entity of entities) {
     const actor = new Actor(entity),
       rig = entity.require('rig'),
       p = actor.position;
@@ -112,11 +115,9 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     );
     rig.root.rotation.y += turn * (1 - Math.exp(-18 * dt));
     const corpse = entity.get('corpse');
-    const relaxing = isSocializing(actor);
-    const work = entity.get('work')?.snapshot();
-    const working = work?.status === 'working' || work?.status === 'ready';
-    for (const mesh of rig.equipment ?? []) mesh.setEnabled(!relaxing && !working);
     if (corpse) {
+      // Death leaves ordinary equipment visible even when work/social activity had stowed it.
+      for (const mesh of rig.equipment ?? []) mesh.setEnabled(true);
       const fall = deathPose(corpse.age);
       const scale = volumeScale(fall.stretch, fall.reach);
       rig.root.rotation.x = fall.rotation;
@@ -141,8 +142,17 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       if (rig.cape) rig.cape.rotation.x += (-0.16 - rig.cape.rotation.x) * settle;
       rig.attackBlend = rig.socialBlend = 0;
       rig.attackPose = rig.socialPose = null;
-      continue;
     }
+  }
+  const corpses = readCorpseTerrain(ecs);
+  for (const entity of entities) {
+    if (entity.has('corpse')) continue;
+    const actor = new Actor(entity),
+      rig = entity.require('rig');
+    const relaxing = isSocializing(actor);
+    const work = entity.get('work')?.snapshot();
+    const working = work?.status === 'working' || work?.status === 'ready';
+    for (const mesh of rig.equipment ?? []) mesh.setEnabled(!relaxing && !working);
     rig.root.rotation.x = 0;
     const pose = animateLocomotion(
       actor.motion.animation,
@@ -217,7 +227,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     const scale = volumeScale(pose.stretch, pose.reach);
     rig.root.scaling.set(scale.x, scale.y, scale.z);
     rig.root.position.y += pose.lift;
-    placeFeet(actor, rig, pose, world);
+    placeFeet(actor, rig, pose, world, corpses);
     rig.arms[0].rotation.x = pose.leftArm;
     rig.arms[1].rotation.x = pose.rightArm;
     rig.forearms[0].rotation.x = -pose.leftElbow;

@@ -9,14 +9,24 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
 - **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1, D1 (`e6591df`), O1 (`6f79a97`) and O2
   (`d698f27`), O3 (`9be81bb`) and O4 (`123b9a9`). Independent O4 review returned READY.**
-- **P1 resource-fix slice delivered; independent review READY, no blockers.** Seal rendering now performs
+- **P1 resource-fix slice committed as `6378d61`; independent review READY, no blockers.** Seal rendering now performs
   at most five detached objective reads per update instead of 110; owned test-server startup/failure
-  cleanup is covered. The original host/GPU freeze remains unresolved. The user's `docs/notes.md`
+  cleanup is covered. No retained application memory leak was established; the user closed the
+  investigation on 2026-11-19 and excluded system configuration/driver diagnosis from project scope.
+  The user's `docs/notes.md`
   takes priority over further roadmap expansion: stability, corpse traversal, blocked-click fallback,
   skeleton gait, held-F defense, declarative kobold phalanxes, then public repository/Pages release.
-  **Next: P2 corpse traversal**, not yet started. P2–P7 remain planned; dependency order and
-  acceptance gates are in `implementation-path.md`.
+  **P2 is delivered; final independent review returned READY, clearing all blockers.**
+  The user authorized its feature commit. **P3 blocked-floor click fallback is next, not started**;
+  P4–P7 remain planned. Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
+- P2 ramp correction: **246 tests**, strict typing, format/lint/build pass after resumption.
+  The affected Chromium animation suite passes **28 moving-contact crossings / 46 captures**,
+  with a separate corrected four-view ramp capture. Earlier combat **15**
+  and movement **13** checks remain the pre-review baseline and were not repeated.
+  Water alone slows grounded travel; corpse stepping is render-only for every actor.
+  Final review passed 10 targeted tests, 4,005 rendered-chain round trips, 12 reach-boundary probes,
+  original flat/ramp cases and lifecycle/reset checks; it reused the full verification and captures.
 - O4: **228 pure/model tests**, strict typing, format/lint/build; **20 machines / 92 states /
   175 branches**. Tribute browsers: **9 checks each** in Chromium and Firefox. Chromium O3 **14**,
   O2 **17**, movement **13**, combat **14**, social **9**, full gameplay **23**, and production smoke
@@ -62,11 +72,116 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | O2 | Complete | Initial missing-module/lifetime reds; both duration corrections reproduced false monster-first results; decimal sweep and pure/model/browser regressions precede work-unit fix | 202 tests/check/build, 1,200-duration sweep, work 17 each browser; independent READY review cleared both blockers and passed 46 additional probes | `d698f27` |
 | O3 | Complete | Missing scenario API and focus model failed first; `ember-70` reproduced shrine stealing the clue's E approach before correction | 214 tests/check/build, 100 O3 seeds, Last Ember 14 each browser plus regression suites; independent review READY | `9be81bb` |
 | O4 | Complete | Missing tribute/cargo APIs; actual return-route stall, blocked-status and retired-scenario regressions failed before corrections | 228 tests/check/build, 100 tribute seeds, both tribute browsers, affected regressions/full Chromium/production pass; independent review READY | `123b9a9` |
-| P1 | Resource-fix slice delivered; host freeze follow-up open | Seal budget failed at 110 reads/update; isolated startup-failure probe left Vite live; helper contracts failed before implementation | 236 tests, format/lint/build, bounded Chromium resources/dev smoke and production smoke pass; independent review READY: 8 targeted tests, 3 adversarial cleanup probes, diff check | This commit |
-| P2 | Next, not started | Corpse traversal without speed penalties; see implementation-path.md | Preserve water slowdown, living-body blocking and stable contact animation | — |
-| P3–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
+| P1 | Complete; application investigation closed by user | Seal budget failed at 110 reads/update; isolated startup-failure probe left Vite live; helper contracts failed before implementation | 236 tests, format/lint/build, bounded Chromium resources/dev smoke and production smoke pass; independent review READY: 8 targeted tests, 3 adversarial cleanup probes, diff check. System diagnosis outside scope | `6378d61` |
+| P2 | Delivered; final independent review READY | Original edge red: 0.348118 penetration. Follow-up math tests 0 pass/3 fail; translated ramp reproduced 0.068665 penetration before analytic inverse fix | 246 tests, format/lint/build; animation 28 crossings/575 contacts and reviewed captures; final review cleared all blockers with targeted geometry/contact/lifecycle probes | This commit |
+| P3 | Next, not started | Closest safely reachable point for blocked floor clicks; see implementation-path.md | Preserve route clearance, void/door/gate rules and precise arrival | — |
+| P4–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
 
 ## Work log
+
+### User scope clarification — 2026-11-19
+
+- Close the resource investigation and continue gameplay work. No retained application memory
+  leak was established by the bounded checks. System configuration and driver diagnosis are
+  outside this project; earlier host observations remain historical evidence, not an active task.
+- P1's measured application/tooling fixes stand. No cause or fix for the original machine freeze
+  is claimed.
+
+### P2 — full-speed corpse traversal and render-only stepping — 2026-11-19
+
+#### Final independent review — READY
+
+- The reviewer cleared **all P2 blockers**. Attributed results: **10 targeted tests** and **4,005
+  rendered-chain round trips**, maximum error **4.22e-8**; near-zero lateral offsets remain stable.
+  **12 reach-boundary probes** pass. Original flat goblin penetration is **4.35e-8**, exact uphill
+  goblin **4.60e-9**, and a rotated downhill run has **eight contacts with no penetration**.
+- **50 zero-time samples** have zero drift. Airborne, focus-loss, teleport and corpse-removal
+  probes pass, as does the diff check. These are reviewer-reported checks, not additional local runs.
+- Review reused the implementation's **246-test/check/build** results, **28-crossing / 575-contact**
+  browser report and reviewed captures. No broad repeat was requested or performed for review.
+- The user's explicit **“proceed”** authorizes the normal-hook feature commit. P2 is delivered;
+  its commit is this tracker entry's containing commit. **P3 is next, not started.** P1 remains
+  closed by user direction. Raw `docs/notes.md` is untouched and excluded from staging.
+
+#### Ramp rotation-math correction — resumed and verified
+
+- Follow-up review cleared the first edge reproduction but found that near-zero lateral roundoff
+  at zero down-distance caused ±π/2 hip roll and new ramp penetration. After interruption, the
+  on-disk solver was still old; verification was rerun rather than inferred from prior reports.
+- **Red:** all three new inverse-geometry tests failed; the real-seed ramp regression had
+  **6 pass / 1 fail**, reproducing goblin frame 36 at **0.068665363** penetration with π/2 roll.
+- **Fix:** analytically invert the rendered Rx/Rz/knee chain using `asin(side/a)` and the correct
+  sagittal hip angle. Reach, lateral feasibility and the neutral-origin region have bounded,
+  continuous projections. The four contact passes and 0.46/0.14 caps are unchanged.
+- **Green:** **28 focused tests** include 150 feasible rendered targets, singular/boundary tests,
+  24 flat and 16 translated uphill/downhill crossings, and 886 ordinary turning stance samples.
+  Pure maximum penetration is below **6.74e-8**. One affected Chromium animation pass checks
+  **28 crossings / 575 contacts**, max **0.000003269**, plus 46 pose captures. Four obscured ramp
+  views were recaptured alone with a corrected camera; reviewed the unobstructed result at
+  `test-results/chromium-animation-ramp-contacts.png`. No broad browser repeat.
+- The recovered animation test contained 2,340 trailing NUL bytes; only the invalid tail was
+  removed. Required format/lint/test/build commands then ran once after targeted verification:
+  **246 tests**, strict types and unchanged model coverage pass, with the existing bundle warning.
+- At this implementation checkpoint no commit, staging or subagents had been used; independent
+  review was the next gate. The final READY verdict above clears that gate. Raw notes are untouched
+  and P1's application investigation remains closed. Full evidence is in VERIFICATION.md.
+
+#### First independent review correction (historical baseline)
+
+- Review returned **BLOCKED** on final-foot contact, with no other blockers. Attributed reviewer
+  checks passed 5,000 sampler/triangle comparisons, lifecycle probes and a 21-corpse/461-part cache
+  probe with zero repeated inversions. The sampler/cache are unchanged by this correction.
+- New pure moving regression failed **4 pass / 1 fail** before runtime edits. The real-browser
+  regression exactly reproduced **0.348118** penetration at goblin speed 3.7/frame 37, where a
+  clear-floor retained anchor became a foot inside the torso after reach clamping. Normal kobolds
+  and rotated crossings failed too. Browser subjects are selected by entity ID, correcting an
+  initial fixture-only visibility error from comparing freshly created Actor views.
+- The solver now computes the actual reachable endpoint and resamples its surface after each of
+  up to four bounded passes. Frame-local corrections retain the 0.46 foot/0.14 pelvis caps;
+  high contact allows deeper knee folding. Running-flight poses are checked too. Domain movement,
+  support, jump and melee elevation remain unchanged.
+- **Green:** 23 focused tests; the pure sweep covers **24 crossings / 4,392 foot samples**, including
+  116 retained-anchor contacts, with maximum penetration **0.000033674**. The only affected browser
+  rerun is animation: **12 crossings**, worst penetration **0.000061007**, and **42 reviewed captures**
+  including four moving-edge poses. Existing combat/movement browser evidence is reused.
+- Required format/lint/test/build commands ran once after targeted passes: **241 tests**, strict
+  types and unchanged model coverage pass; existing bundle warning remains. No commit or subagents.
+  **Follow-up independent review is pending.** Details and attributed evidence are in VERIFICATION.md.
+
+#### Initial implementation (pre-review baseline)
+
+- Baseline **`6378d61`**. Implemented only P2; raw untracked `docs/notes.md` remains untouched
+  and unstaged. No commit or subagents. Independent review is the next delivery gate.
+- **Red:** `node --test tests/occupancy.test.ts tests/corpse-terrain.test.ts` initially had
+  **9 pass / 3 fail**: the player still slowed over a corpse, a complete walk trace differed
+  from clear ground, and the new sampler module was absent. Existing slowdown expectations
+  were deliberately replaced with exact full-speed traces, not relaxed bounds.
+- **Implementation:** removed corpse footprints from occupancy/speed selection; only grounded
+  water applies 0.52. All four actor kinds share the unchanged motor/clearance. Settled death
+  poses update before the shared terrain sample, independent of entity order. A pure vertical
+  slab query samples actual oriented voxel boxes; nearby swing preview and contact feed the
+  existing leg solve. Maximum corpse height is 0.46 and visual pelvis assistance 0.14, never sums.
+  Support, navigation, collision, camera/rings, jump and melee elevation remain authoritative.
+- **Corrections:** the geometry test first caught stale rotated child matrices between renders
+  (**13 pass / 1 fail**); parent-first synchronization now dirties changed transforms. A follow-up
+  unchanged-box test failed (**3 pass / 1 fail**) after its tilted fixture was lowered below the
+  height cap. Matrix-value caching now reuses box/inverse data even when settled poses are assigned
+  again; weak mesh keys do not retain old worlds. Stop/teleport clear stance anchors.
+- **Green:** **50 focused movement/geometry/jump/locomotion/combat tests**, then final required
+  commands each ran once: format, lint, **240 tests** (including strict types/models), build.
+  **20 machines / 92 states / 175 branches**, no new chart. Existing bundle-size warning remains.
+- **Browsers:** sequential Chromium/SwiftShader combat **15**, movement **13**, animation **38
+  captures**. Six 48-frame flat/corpse/water crossings cover walking and running; clear/corpse
+  position and speed traces match exactly while rendered feet rise. Stairs, door clearance,
+  living-body blocking, pursuit, damage, modal/focus cleanup, respawn and regeneration pass.
+  The animation fixture checks player and all enemy gaits under attacks, unchanged attack clock/
+  arm pose and bounded soles. Capture review prompted one animation-only rerun to use the actual
+  goblin ranged action; both runs passed. No full gameplay, cross-browser or hardware pass.
+- Reviewed the final `chromium-animation-poses.png` flat/corpse comparisons and refreshed moving
+  combat capture. Reports are under `test-results/`; details are in `VERIFICATION.md`. Updated
+  README and AGENTS with the new game feel/render-only contract. P1's application investigation
+  has since been closed at the user's direction; its earlier host observations and qualifications
+  are retained only as historical evidence, not an active follow-up.
 
 ### P1 — bounded resource investigation and reproduced fixes — 2026-11-19
 
@@ -113,10 +228,11 @@ Execution record for [implementation path](implementation-path.md). Started **20
   cases** (SIGTERM-resistant leader, descendant after leader exit, stalled readiness) and diff check
   passing, with no blockers. It reused the implementation's 236-test/build/resource/production
   results rather than repeating broad suites. These are attributed reviewer results. The normal
-  pre-commit hook remains the required final commit check. **P2 is next and has not started.**
-- **Open:** original GPU/host freeze diagnosis and long-duration/native-memory behavior. Terminal
-  objective-work sampling and possible duplicate worker/target visibility queries remain audit
-  candidates, not measured causes or additional optimizations in this slice.
+  pre-commit hook remains the required final commit check. **At that checkpoint P2 was next.**
+- **Historical limitations at delivery:** original GPU/host freeze diagnosis and long-duration/
+  native-memory behavior were unproven. Terminal objective-work sampling and possible duplicate
+  visibility queries were unmeasured audit candidates. The user subsequently closed the application
+  investigation and excluded system configuration/driver diagnosis from project scope.
 
 ### O4 — independent royal tribute plan — 2026-11-19
 

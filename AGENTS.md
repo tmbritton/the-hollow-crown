@@ -82,8 +82,8 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
   registration, and shared door updates.
 - `src/actors.ts`, `src/combat.ts`, `src/social.ts`: shared actor behavior, encounters,
   attacks/effects, and seeded social activities.
-- `src/navigation.ts`, `src/occupancy.ts`: floor picking, routing, clearance, live actor
-  collision, and corpse terrain.
+- `src/navigation.ts`, `src/occupancy.ts`: floor picking, routing, clearance and live actor
+  collision. `src/corpseTerrain.ts`, `src/corpseRendering.ts`: render-only fallen-body sampling.
 - `src/locomotion.ts`, `src/jump.ts`, `src/footPlacement.ts`, `src/animationCurves.ts`,
   `src/actionPoses.ts`: motion, ballistic jumps, ground contact, and procedural poses.
 - `src/machines/`: statecharts grouped into `actors/`, `monsters/`, `navigation/`, `world/`,
@@ -145,8 +145,11 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
 - Domain positions use `x`/`z` horizontally and `h` for support height. Use `tileAt` / `heightAt`
   for terrain and ramps. Jump elevation is separate from support height; jumping retains
   ground-navigation clearance for obstacles, doors, living actors, and void edges.
-- Keep living actors blocking and corpses passable with shared terrain slowdown. Route,
-  collision, interaction, and rendered geometry changes must agree.
+- Keep living actors blocking and corpses passable at full speed for every actor. Water alone
+  slows grounded travel to 52%. Sample drawn corpse surfaces only for bounded procedural foot
+  contact/clearance and visual pelvis assistance; never change support, collision, navigation,
+  jump state or melee elevation from corpse geometry. Overlapping corpses take the highest
+  surface rather than stacking offsets. Route, collision, interaction and rendering must agree.
 - Preserve cancellation/reset behavior for menus, inspection, focus loss, teleport, death,
   and regeneration, including pending commands, momentum, jumps, and deformed poses.
 - Reuse material/spatial batching and bounded thin-instance effect pools. Keep scene,

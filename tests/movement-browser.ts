@@ -147,7 +147,7 @@ try {
   pass('Fresh-world floor click routes and arrives with all living actor bodies present');
 
   await page.evaluate(() => {
-    // Isolate floor navigation; the combat suite checks rendered actor collision and corpse slowing.
+    // Isolate floor navigation; the combat suite checks rendered actor collision and corpse traversal.
     for (const enemy of window.__dungeon.game.combat.enemies) {
       enemy.entity.remove('brain');
       enemy.entity.remove('body');

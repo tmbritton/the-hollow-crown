@@ -13,20 +13,10 @@ const SKIN = 0.0001;
 export class Occupancy {
   readonly size: BodySize;
   readonly bodies: () => readonly CollisionBody[];
-  private readonly slowingBodies: () => readonly CollisionBody[];
 
-  constructor(
-    size: BodySize,
-    bodies: () => readonly CollisionBody[],
-    slowingBodies: () => readonly CollisionBody[] = () => [],
-  ) {
+  constructor(size: BodySize, bodies: () => readonly CollisionBody[]) {
     this.size = size;
     this.bodies = bodies;
-    this.slowingBodies = slowingBodies;
-  }
-
-  slowedAt(point: Spawn): boolean {
-    return !this.canStand(point, this.slowingBodies());
   }
 
   canStand(point: Spawn, bodies = this.bodies()): boolean {

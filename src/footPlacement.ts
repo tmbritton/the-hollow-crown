@@ -3,20 +3,57 @@ import type { LocomotionPose } from './locomotion.ts';
 import type { Actor } from './actors.ts';
 import type { NavigationWorld } from './navigation.ts';
 import { heightAt } from './world.ts';
+import { corpseHeightAt, corpseStep, MAX_CORPSE_STEP } from './corpseTerrain.ts';
+import type { CorpseBox } from './corpseTerrain.ts';
 
 const UPPER = 0.25,
   LOWER = 0.25;
+const CONTACT_EPSILON = 0.0001,
+  CONTACT_SKIN = 0.001,
+  CONTACT_PASSES = 4;
 
-/** Two-bone solve in the leg's sagittal plane, with lateral lean for turning plants. */
+/** Invert the actual Rx(hip) * Rz(roll) * Rx(knee) chain for a below-hip target.
+ * This chain's lateral reach depends on knee bend, not on the requested down-distance. */
 export function solveLeg(forward: number, down: number, side = 0) {
-  const distance = Math.max(0.04, Math.min(UPPER + LOWER - 0.001, Math.hypot(forward, down, side)));
+  down = Math.max(0, down);
+  const minimum = 0.04,
+    maximum = UPPER + LOWER - 0.001;
+  const length = Math.hypot(forward, down, side);
+  if (length > maximum) {
+    const ratio = maximum / length;
+    forward *= ratio;
+    down *= ratio;
+    side *= ratio;
+  } else if (length < minimum) {
+    // Project the tiny unreachable region downwards, preserving lateral/forward offsets.
+    // Radially normalizing it would turn subpixel noise at the origin into a full leg swing.
+    down = Math.sqrt(Math.max(0, minimum * minimum - forward * forward - side * side));
+  }
+  const distance = Math.max(minimum, Math.min(maximum, Math.hypot(forward, down, side)));
   const bend = Math.acos(
     (distance * distance - UPPER * UPPER - LOWER * LOWER) / (2 * UPPER * LOWER),
   );
+  const a = UPPER + LOWER * Math.cos(bend),
+    b = LOWER * Math.sin(bend);
+  // At fixed extension, |side| <= a. Outside that workspace, retain extension and
+  // the sagittal direction while projecting onto its lateral boundary.
+  const roll = Math.asin(Math.max(-1, Math.min(1, side / a)));
   return {
-    hip: -Math.atan2(forward, Math.hypot(down, side)) - bend / 2,
+    hip: -Math.atan2(forward, down) - Math.atan2(b, a * Math.cos(roll)),
     knee: bend,
-    roll: Math.atan2(side, down),
+    roll,
+  };
+}
+
+/** Forward kinematics for the rig's hip X/Z and knee X rotations, including reach clamping.
+ * Babylon composes the hip as Rx * Rz; lateral roll therefore also affects forward reach. */
+function legEndpoint(hip: number, knee: number, roll: number) {
+  const a = UPPER + LOWER * Math.cos(knee),
+    b = LOWER * Math.sin(knee);
+  return {
+    side: a * Math.sin(roll),
+    down: a * Math.cos(roll) * Math.cos(hip) - b * Math.sin(hip),
+    forward: -a * Math.cos(roll) * Math.sin(hip) - b * Math.cos(hip),
   };
 }
 
@@ -27,13 +64,14 @@ export function placeFeet(
   rig: Components['rig'],
   pose: LocomotionPose,
   world?: NavigationWorld,
+  corpses: readonly CorpseBox[] = [],
 ): void {
   const motion = actor.motion,
     state = motion.animation;
   const sin = Math.sin(rig.root.rotation.y),
     cos = Math.cos(rig.root.rotation.y);
   const scale = rig.root.scaling;
-  for (let i = 0; i < 2; i++) {
+  const targets = rig.legs.map((_, i) => {
     const hip = rig.legs[i],
       knee = rig.knees[i],
       foot = rig.feet[i],
@@ -46,9 +84,9 @@ export function placeFeet(
     foot.rotation.x = -angle - knee.rotation.x;
     foot.rotation.z = 0;
     const kicking = rig.socialBlend > 0.4 && actor.brain?.state === 'hackysack' && i === 1;
-    if (actor.jump.airborne || pose.lift > 0.005 || kicking) {
+    if (actor.jump.airborne || kicking) {
       plant.anchor = null;
-      continue;
+      return null;
     }
     const moving = motion.actualSpeed > 0.08;
     const phase =
@@ -63,9 +101,9 @@ export function placeFeet(
     const support = world ? heightAt(world, target.x, target.z) : actor.position.h;
     if (support === null || Math.abs(support - actor.position.h) > 0.45) {
       plant.anchor = null;
-      continue;
+      return null;
     }
-    if (!stance || !moving || actor.jump.active) plant.anchor = null;
+    if (!stance || !moving || actor.jump.active || pose.lift > 0.005) plant.anchor = null;
     else if (!plant.anchor) plant.anchor = { ...target, h: support };
     if (plant.anchor) {
       const dx = plant.anchor.x - actor.position.x,
@@ -74,20 +112,75 @@ export function placeFeet(
         plant.anchor = null;
     }
     const goal = plant.anchor ?? { ...target, h: support };
-    const dx = goal.x - rig.root.position.x,
-      dz = goal.z - rig.root.position.z;
-    const swingLift = stance ? 0 : Math.sin(phase - Math.PI) * (0.1 + state.run * 0.06);
-    const down =
-      hip.position.y - (goal.h + 0.05 * scale.y + swingLift - rig.root.position.y) / scale.y;
-    const result = solveLeg(
-      (dx * sin + dz * cos) / scale.z,
-      down,
-      (dx * cos - dz * sin) / scale.x - x,
-    );
-    hip.rotation.x = result.hip;
-    hip.rotation.z = result.roll;
-    knee.rotation.x = result.knee;
-    foot.rotation.x = -result.hip - result.knee;
-    foot.rotation.z = -result.roll;
+    const speed = motion.actualSpeed;
+    const ahead = moving
+      ? { x: (motion.velocity.x / speed) * 0.35, z: (motion.velocity.z / speed) * 0.35 }
+      : { x: 0, z: 0 };
+    const step = actor.jump.active ? 0 : corpseStep(corpses, goal, ahead, moving ? phase : 0);
+    return { goal, phase, stance, step };
+  });
+  // Sample the reachable endpoint, not just the requested plant: the length clamp (or the
+  // ordinary running flight pose) can move its x/z across a body edge. Corrections increase
+  // only this frame's bounded requirement; resample both feet after any pelvis adjustment.
+  // Assign the pelvis from authoritative elevation each pass, never accumulate a root offset.
+  for (let pass = 0; pass < CONTACT_PASSES; pass++) {
+    const rise = Math.min(0.14, Math.max(...targets.map((t) => t?.step ?? 0)) * 0.3);
+    rig.root.position.y = actor.elevation + pose.lift + rise;
+    let corrected = false;
+    for (let i = 0; i < 2; i++) {
+      const target = targets[i];
+      if (!target) continue;
+      const { goal, phase, stance, step } = target;
+      const hip = rig.legs[i],
+        knee = rig.knees[i],
+        foot = rig.feet[i],
+        x = hip.position.x;
+      const dx = goal.x - rig.root.position.x,
+        dz = goal.z - rig.root.position.z;
+      const swingLift = stance ? 0 : Math.sin(phase - Math.PI) * (0.1 + state.run * 0.06);
+      // Allow a high contact to fold the knee further. The ordinary minimum down-distance
+      // otherwise caps the sole below a tall torso even when its surface was sampled correctly.
+      const down = Math.max(
+        step > 0 ? 0 : 0.08,
+        hip.position.y -
+          (goal.h + step + 0.05 * scale.y + swingLift - rig.root.position.y) / scale.y,
+      );
+      const result =
+        pose.lift > 0.005 && step === 0
+          ? {
+              hip: i ? pose.rightLeg : pose.leftLeg,
+              knee: i ? pose.rightKnee : pose.leftKnee,
+              roll: 0,
+            }
+          : solveLeg((dx * sin + dz * cos) / scale.z, down, (dx * cos - dz * sin) / scale.x - x);
+      hip.rotation.x = result.hip;
+      hip.rotation.z = result.roll;
+      knee.rotation.x = result.knee;
+      foot.rotation.x = -result.hip - result.knee;
+      foot.rotation.z = -result.roll;
+      if (actor.jump.active || !corpses.length) continue;
+      const endpoint = legEndpoint(result.hip, result.knee, result.roll);
+      const side = (x + endpoint.side) * scale.x,
+        forward = endpoint.forward * scale.z;
+      const point = {
+        x: rig.root.position.x + cos * side + sin * forward,
+        z: rig.root.position.z - sin * side + cos * forward,
+        h: goal.h,
+      };
+      const surface = corpseHeightAt(corpses, point);
+      const sole = rig.root.position.y + (hip.position.y - endpoint.down - 0.05) * scale.y;
+      const penetration = goal.h + surface - sole;
+      if (surface > 0 && penetration > CONTACT_EPSILON) {
+        const next = Math.min(
+          MAX_CORPSE_STEP,
+          Math.max(step + penetration, surface) + CONTACT_SKIN,
+        );
+        if (next > target.step) {
+          target.step = next;
+          corrected = true;
+        }
+      }
+    }
+    if (!corrected) break;
   }
 }
