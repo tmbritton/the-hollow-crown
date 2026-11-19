@@ -14,6 +14,8 @@ import type { ObjectiveRecord } from './objectives.ts';
 import type { ObjectiveWorkSystem, WorkSite } from './objectiveWork.ts';
 import type { WorkAction } from './machines/actors/work.ts';
 import type { LastEmber } from './lastEmber.ts';
+import type { Tribute } from './tribute.ts';
+import type { Cargo } from './cargo.ts';
 import type { Statechart } from './machines/statechart.ts';
 import type { focusMachine } from './machines/world/focus.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
@@ -37,6 +39,8 @@ export interface Components {
   work: WorkAction;
   workSite: WorkSite;
   lastEmber: LastEmber;
+  tribute: Tribute;
+  cargo: Cargo;
   focus: Statechart<typeof focusMachine>;
   transform: Spawn & { heading: number };
   actor: { kind: ActorKind; speed: number; opensDoors: boolean };

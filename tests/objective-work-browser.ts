@@ -48,6 +48,7 @@ async function fixture(
       const d = window.__dungeon,
         g = d.game;
       g.ecs.get('run')!.remove('lastEmber');
+      g.ecs.get('run')!.remove('tribute');
       for (const actor of g.combat.enemies) {
         actor.entity.remove('brain');
         stopActor(actor);
@@ -483,8 +484,10 @@ try {
     await page.evaluate(() => {
       const record = window.__dungeon.game.ecs.get('run')!.require('objectives').snapshot();
       return (
-        record.objectives.length === 4 &&
-        record.objectives.every((o) => o.id.startsWith('ember:') && o.progress === 0)
+        record.objectives.length === 5 &&
+        record.objectives.every(
+          (o) => (o.id.startsWith('ember:') || o.id === 'tribute:carry-away') && o.progress === 0,
+        )
       );
     }),
   );
@@ -502,7 +505,7 @@ try {
     'A retained system must reject stale simulation callbacks after regeneration',
   );
   pass(
-    'Regeneration retires the fixture and assignments, replacing them with fresh Last Ember clocks',
+    'Regeneration retires the fixture and assignments, replacing them with fresh composed scenario clocks',
   );
   assert.deepEqual(errors, []);
   await mkdir('test-results', { recursive: true });

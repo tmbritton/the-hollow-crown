@@ -32,7 +32,7 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 | Shift | Run |
 | Space | Jump (one jump per press) |
 | X | Cancel travel, pursuit, and attacks |
-| E | Interact: doors, chests, altar, portraits, throne; begin shrine work or disable its hostile focus |
+| E | Interact: doors, chests, altar, portraits, throne; begin shrine work, disable its hostile focus, or recover nearby loose tribute |
 | E / Escape while inspecting | Return to the overhead view |
 | Q / R | Rotate the overhead camera by 90° |
 | Mouse wheel | Zoom |
@@ -68,6 +68,33 @@ The clock announces the plan, but reveals the worker's name only after its visib
 Menus, portrait inspection and hidden tabs pause simulation. Focus loss, teleport and death
 cancel unfinished hero work; respawn preserves committed seals, disabled equipment and outcomes.
 Regeneration resets everything. These optional outcomes never replace the altar-before-throne goal.
+
+### Independent rival: royal tribute
+
+The shrine/smithy warning also announces **Carry away the royal tribute — 4**. Entering the
+stairs or stable can activate this plan separately. The existing **three stairs kobolds** supply
+one porter at a time; the other survivors retain their ordinary species behavior. Four gold-bound
+crates occupy a reserved **stairs cache**, separate from the three core reliquaries. Each porter
+must reach a crate, spend **20 uninterrupted seconds packing it**, carry it through ordinary
+navigation, then spend **8 uninterrupted seconds unloading at the marked stable hatch**. Only
+that delivery fills one clock segment. The clock remains in the scrolling agenda off-screen.
+
+- **Intercept:** ordinary combat interrupts packing/unloading. Killing a carrier drops its
+  undelivered crate at its feet. A surviving original pack member must travel to the drop and pack
+  it again before carrying it. Goblin/kobold hostility is unchanged.
+- **Recover:** press **E** within reach of a loose crate, including an uncollected cache crate.
+  It is secured once for **+10 health**, even if a porter had claimed it but not finished pickup.
+  Recovery is immediate; the hero does not acquire a carried inventory item. Delivered crates
+  cannot be recovered by killing their former porter.
+- **Outcome:** four deliveries complete the theft. If no original worker survives, or every
+  remaining crate has been recovered, further deliveries are thwarted. Partial deliveries stay
+  recorded; remaining undelivered crates can still be recovered after the plan is thwarted.
+
+Restoring, corrupting or repairing the shrine does not stop tribute deliveries; tribute outcomes
+do not resolve the shrine contest. Menus, inspection and hidden tabs pause both. Hero command
+cleanup, teleport and checkpoint respawn preserve committed deliveries/recoveries and cargo;
+regeneration replaces the whole run. Gold floor sockets identify the cache and a barred hatch
+with violet lamps identifies the exit. Packing/unloading poses follow actual work time.
 
 **Within-run record:** expand the record in the pause menu to reread visited room captions,
 inspected portraits and identified inhabitants. Each source is recorded once, when its caption
@@ -163,6 +190,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/objectives.ts` | Pure run-owned objective clocks, fresh work-condition batches, deduplicated contributions and atomic exclusive races (O1) |
 | `src/objectiveWork.ts` | ECS work assignments/sites, simulation-only action cycles and post-combat commit validation (O2) |
 | `src/lastEmber.ts` / `src/lastEmberRendering.ts` | Composable Last Ember plan, authoritative interactions/outcome effects, knowledge-filtered clocks and procedural seals (O3) |
+| `src/tribute.ts` / `src/cargo.ts` / `src/tributeRendering.ts` | Independent four-delivery plan, bounded porter selection, ECS cargo lifecycle/recovery and procedural cargo/hatch (O4) |
 | `src/observation.ts` | Bounded camera-to-rendered-surface visibility checks for target captions, deaths, killers and remains |
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
 | `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
@@ -221,7 +249,7 @@ The `run` entity owns a `discoveries` component, independent of actor health and
 truth. Replacing the ECS replaces knowledge; respawning the player does not. UI code holds the
 same component reference and presents only its detached snapshot in the record panel.
 
-Scenario installation attaches `objectives`, `objectiveWork` and `lastEmber` to the `run` entity.
+Scenario installation attaches `objectives`, `objectiveWork`, `lastEmber` and `tribute` to the `run` entity.
 Actor `work` components own assignments/action charts. The actual shrine/anvil prop entities own
 their `workSite` components; the anvil's `focus` chart exposes irreversible disabling through the
 site's enabled accessor. The runtime advances work around movement/combat and consumes newly emitted
@@ -270,7 +298,7 @@ npm run test:models
 
 The latest XState includes model-testing tools in **`xstate/graph`**. `tests/models/` generates paths to every modeled state and extends each path with every candidate event, including ignored/invalid attempts and self-loops. Inspector microstep data measures every declared transition branch, including guards and eventless transitions. Invariants are checked after each stable step, and the pure simulation adapter is compared against a live XState actor.
 
-The suite currently covers **19 machines, 87 declared atomic states, and 168 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
+The suite currently covers **20 machines, 92 declared atomic states, and 175 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
 
 ### Rendering choices
 
@@ -476,16 +504,39 @@ advance/commit; a change invalidates the partial cycle. `job(actor)` returns an 
 assignment's real approach and optional `workSite.facing`. Species perception runs first; only an
 unengaged actor services the job instead of its ordinary idle activity. Threats keep normal tactics.
 
-### Last Ember implementation and O4 handoff
+### Composed Last Ember and tribute plans
 
-O3 is implemented and independently reviewed. `prepareLastEmber(ecs,
+O3 is complete at **`9be81bb`**. O4 is implemented and independently reviewed READY.
+`prepareLastEmber(ecs,
 world, player)` attaches the scenario and sites and returns `{ scenario, plan, bindings }` without
-installing O1/O2. `main.ts` calls `installObjectiveWork` once after preparation. For O4, prepare its
-sites and fragment too, concatenate both fragments' objective/race/binding arrays, then use that same
-single installation. Keep one `advance` and one post-hazard `commit` per fixed step. Pass the newly
-emitted outcomes to each scenario consumer; Last Ember filters its own IDs and deduplicates effects.
-The integrated independent-plan regression verifies that completing restoration leaves unrelated
-work and its existing record/system intact. O4 cargo/carriers are not implemented.
+installing O1/O2. `prepareTribute(ecs, world, player)` similarly attaches cargo/sites and returns
+`{ scenario, plan, bindings }`. `main.ts` concatenates both fragments before **one installation**,
+with one `advance` and one post-hazard `commit` per fixed step. Last Ember consumes only its own
+new outcomes. Tribute's terminal result is derived from O1, with cargo transfers committed inside
+O2; neither scenario calls `ObjectiveRecord.resolveStep` separately.
+
+O4 extends bindings with a side-effect-free `task(actorEntity): WorkTask | null` selector.
+`WorkTask` supplies `siteId`, `duration` and optional `cargo: { id, operation: 'pickup' | 'deliver' }`.
+Without a selector, the existing static binding is the task. O2 validates the exact resource/entity,
+owner, lifecycle revision, phase, site and duration at both boundaries. Cargo work requires amount
+one. Pickup settles a real action with **zero clock credit**; delivery changes cargo to terminal
+`delivered` only alongside its accepted one-segment receipt. `availability().thwarted` supplies a
+permanent resource-exhaustion reason in that same O1 batch, taking precedence over unfinished work.
+
+Each cargo ECS entity owns its `Cargo` lifecycle (`loose → claimed → carried → delivered`, plus
+`recovered` and nonterminal drops), transform and pickup work site. Claims bind original executor
+instances, not just IDs. `synchronizeCargo` runs at both O2 boundaries, follows the supported carrier
+position and releases cargo after death/removal. `Tribute.update()` selects one bounded porter;
+`nearby()` / `recover()` implement the actual player-access checks. `clock`, `recovered` and `agenda()`
+are read views; the agenda announces group/route/progress without inventing hidden names or causes.
+
+`planTribute` selects at most 81 candidates per room from the already-reserved central floor network,
+then stores plain sites in `world.tribute`; `tributeBlueprint` returns a detached copy. Final generation
+validates every pre-altar pickup/intervention and delivery route. Initial enemies/gatherings avoid those
+faces. Identity is now `layout-v3 / keep-v4 / last-ember-v1+tribute-v1`, preserving layout/art RNG streams.
+The 100 new tribute seeds retain 21 enemies and three reliquaries. Longest shrine/cache tile route is
+126 steps: about 26s walking, plus 36s ordinary restoration, versus at least 112s porter work **plus
+physical travel**. This geometric response budget excludes combat and dynamic obstruction delays.
 
 `lastEmberPlan` authors restoration/profanation plus separate one-segment cleansing/repair clocks.
 Follow-up availability reads the original terminal outcome and the actual focus component. Original
@@ -498,8 +549,8 @@ hero's successful work, while the rite is learned only when its inspection capti
 `src/generation/lastEmber.ts` reuses the entrance shrine's reserved work face, the forge recipe's
 anvil approach and an entrance portrait. Validation checks all three before the altar with ordinary
 navigation and rejects interactions that could steal E from another authored approach. Missing or
-invalid sites use the existing bounded 40-attempt generator. `last-ember-v1` is a separate scenario
-revision in generation identity/reports, preserving existing layout/keep RNG streams. Some seeds
+invalid sites use the existing bounded 40-attempt generator. `last-ember-v1+tribute-v1` is a separate
+scenario revision in generation identity/reports, preserving existing layout/keep RNG streams. Some seeds
 now accept a later attempt; `trial-23` rejects its former attempt 1 because a promised site is missing.
 
 The 100 O3 seeds retain 21 enemies and four goblins, with no replacement workers. Their longest
@@ -529,6 +580,8 @@ npm run test:objective-work
 BROWSER=firefox npm run test:objective-work
 npm run test:last-ember
 BROWSER=firefox npm run test:last-ember
+npm run test:tribute
+BROWSER=firefox npm run test:tribute
 npm run test:movement
 npm run test:animation
 npm run test:jump
@@ -560,6 +613,12 @@ knowledge boundaries, and desktop/narrow/short-window clocks. Reports and review
 `test-results/{chromium,firefox}-last-ember*`. Scene placement and temporary actor fixtures make
 specific outcomes deterministic; the full browser suite separately traverses three complete keeps
 with ordinary AI and living collision enabled.
+
+The tribute suite also supports both browsers and needs the dev server. It exercises installed
+O3/O4 composition, real E restoration/recovery and pointer combat, off-screen AI deliveries,
+survivor takeover, persistent partial/terminal cargo, menu/inspection pause, respawn and regeneration.
+Reports and reviewed cargo/hatch/desktop/narrow/short-window captures use
+`test-results/{chromium,firefox}-tribute*`. Three same-seed regenerations check stable scene resources.
 
 The discovery suite expects a dev server and supports Chromium and Firefox. It uses real E,
 target clicks and pause-menu controls with deterministic placement/step fixtures. It checks
@@ -601,7 +660,7 @@ It returns the accepted world and a JSON-safe trace with seed, generator/content
 zero-based attempt numbers, and placement/validation rejection reasons. A `GenerationError`
 retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
 `maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v3` / `keep-v4`,
-with scenario revision `last-ember-v1`.
+with scenario revision `last-ember-v1+tribute-v1`.
 Scene recipes change seeded furniture layouts and can change which layout attempt is accepted;
 the original topology RNG salt is retained. Older-version seed layouts are historical.
 `world.keep` adds one of three authored

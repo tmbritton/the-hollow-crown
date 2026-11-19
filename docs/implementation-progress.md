@@ -8,7 +8,11 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
 - **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1, D1 (`e6591df`), O1 (`6f79a97`) and O2
-  (`d698f27`) and O3. Independent O3 review returned READY; O4 is next.**
+  (`d698f27`), O3 (`9be81bb`) and O4. Independent O4 review returned READY.**
+- O4: **228 pure/model tests**, strict typing, format/lint/build; **20 machines / 92 states /
+  175 branches**. Tribute browsers: **9 checks each** in Chromium and Firefox. Chromium O3 **14**,
+  O2 **17**, movement **13**, combat **14**, social **9**, full gameplay **23**, and production smoke
+  pass. New 100-seed routes/population/pacing and three-seed physical takeover checks pass.
 - O3: **214 pure/model tests**, strict typing, format/lint/build pass; **19 machines / 87 states /
   168 branches**. Last Ember **14**, objective work **17**, combat **14**, discoveries **17** each
   in Chromium and Firefox; Firefox inspection **13**; Chromium full **23**, movement **13**,
@@ -48,10 +52,46 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | D1 | Complete | Hidden melee death reproduced first; follow-up cost regression failed with 8,000 matrix calls / 600 bounds refreshes over four off-ray queries | 155 tests, format/lint/build; discovery 17 and combat 14 each browser, inspection 13, animation 28, social 9, production and CPU probes pass; independent review cleared | `e6591df` |
 | O1 | Complete | Initial missing APIs and reason/visibility regressions; five review regressions reproduced metadata retention and partial commits | 178 tests, format/lint/build pass; independent READY review: 42 focused tests, original probes and 18 malformed-reason cases | `6f79a97` |
 | O2 | Complete | Initial missing-module/lifetime reds; both duration corrections reproduced false monster-first results; decimal sweep and pure/model/browser regressions precede work-unit fix | 202 tests/check/build, 1,200-duration sweep, work 17 each browser; independent READY review cleared both blockers and passed 46 additional probes | `d698f27` |
-| O3 | Complete | Missing scenario API and focus model failed first; `ember-70` reproduced shrine stealing the clue's E approach before correction | 214 tests/check/build, 100 O3 seeds, Last Ember 14 each browser plus regression suites; independent review READY | This commit |
-| O4 | Planned, separate next slice | Pending | Pending | — |
+| O3 | Complete | Missing scenario API and focus model failed first; `ember-70` reproduced shrine stealing the clue's E approach before correction | 214 tests/check/build, 100 O3 seeds, Last Ember 14 each browser plus regression suites; independent review READY | `9be81bb` |
+| O4 | Complete | Missing tribute/cargo APIs; actual return-route stall, blocked-status and retired-scenario regressions failed before corrections | 228 tests/check/build, 100 tribute seeds, both tribute browsers, affected regressions/full Chromium/production pass; independent review READY | This commit |
 
 ## Work log
+
+### O4 — independent royal tribute plan — 2026-11-19
+
+- Baseline **`9be81bb`** (O3 committed, review READY). Implementation and independent review
+  were separate delivery gates; the final reviewer returned READY.
+- **Red:** `node --test tests/tribute.test.ts tests/models.test.ts` failed on missing tribute and
+  cargo-machine modules before production edits. The authored contracts covered deterministic
+  routes, unique cargo ownership, physical pickup/delivery, ready-boundary death/interruption,
+  recovery, persistent partial deliveries, independent/simultaneous outcomes and off-screen AI.
+- The actual porter delivered once then stalled returning through a room corner. A focused
+  regression showed `goTo` succeeding while the first `steer` returned null. Support checks now
+  partition at tile crossings so long smoothing segments cannot miss short unsupported intervals.
+  The original porter completes four deliveries; three additional seeded survivors physically
+  recover and deliver their predecessor's dropped crate.
+- Two later regression failures preceded fixes: blocked cargo was mislabeled Interrupted, and
+  an old scenario attempted assignment after work retirement. Both pass. A damaged-world report
+  fixture also exposed recomputation of authored sites; sites now remain plain generated data,
+  with final route validation separate from the detached blueprint read API.
+- Added four ECS cargo charts, existing-pack serial porter selection, shared O2 phase/task
+  validation, same-batch delivery receipts, E recovery, persistent clock, procedural coffers,
+  cache sockets, hatch and carry pose. Normal hostility, living bodies, corpses and doors remain
+  authoritative. Composition installs once; no scenario submits a separate O1 update.
+- **Green:** 228 tests and build pass, including 20-machine model coverage and 100 new tribute
+  seeds (longest shrine/cache route 126 tiles, unchanged 21 enemies/three core reliquaries).
+  Both tribute browser runs pass nine checks; three repeated regenerations per browser stabilize
+  scene resources. Sequential Chromium O3/O2/movement/combat/social/full gameplay and production
+  checks pass. Detailed actual results and reviewed captures are in `VERIFICATION.md`.
+- Browser fixtures were updated for five freshly composed clocks and to isolate idle social
+  gatherings from the stairs pack's new porter priority. Assertions still exercise real movement,
+  combat, social interruption/return, and reset behavior. No new hardware/gallery claim.
+- Independent review returned READY after rerunning 228 tests/check/build, both tribute browsers,
+  Chromium work/Last Ember/movement/combat/social and production smoke. Twenty-five additional
+  resource/ownership/interruption probes passed, including exact 1,200/480-tick work boundaries.
+  Its only finding was a stale README scenario revision, corrected before commit.
+- User feedback identified excessive duplicated browser verification. The delivery loop now records
+  focused iteration, one affected-browser pass, and review-specific probes instead of blanket reruns.
 
 ### O3 — playable Last Ember contest — 2026-11-19
 
@@ -496,8 +536,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
 
 ## Follow-ups and blockers
 
-- O2 is complete at `d698f27`; O3 is complete with independent review READY. O4 is next,
-  composing into the same run plan.
+- O2 is complete at `d698f27`; O3 is complete at `9be81bb`; O4 completes the composed run plan
+  with independent review READY. The dependency-ordered feature sequence through O4 is delivered.
 - No current O1 correctness blocker: final independent review is READY. D1's camera-occlusion
   and CPU-cost corrections were also cleared; G3's full-browser follow-up is resolved by T1.
 - Phase 0 diagnostic/gallery implementation and high-quality hardware sampling are done.

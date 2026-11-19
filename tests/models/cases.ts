@@ -24,6 +24,7 @@ import { feedbackMachine } from '../../src/machines/ui/feedback.ts';
 import { objectiveMachine } from '../../src/machines/world/objective.ts';
 import { workMachine } from '../../src/machines/actors/work.ts';
 import { focusMachine } from '../../src/machines/world/focus.ts';
+import { cargoMachine } from '../../src/machines/world/cargo.ts';
 
 const facts = (changes: Partial<MonsterPerception> = {}): MonsterPerception => ({
   type: 'THINK',
@@ -89,6 +90,29 @@ const swing = {
 };
 
 export const modelCases = [
+  modelCase(cargoMachine, {
+    inputs: [undefined],
+    abstractContext: ({ context }) => [context.owner],
+    events: () => [
+      { type: 'CLAIM' as const, actor: 'a' },
+      { type: 'CLAIM' as const, actor: 'b' },
+      { type: 'CLAIM' as const, actor: '' },
+      { type: 'PICKUP' as const, actor: 'a' },
+      { type: 'PICKUP' as const, actor: 'b' },
+      { type: 'DELIVER' as const, actor: 'a' },
+      { type: 'DELIVER' as const, actor: 'b' },
+      { type: 'DROP' as const },
+      { type: 'RECOVER' as const },
+    ],
+    invariant: (state, before) => {
+      assert.equal(
+        state.context.owner !== null,
+        state.matches('claimed') || state.matches('carried'),
+      );
+      if (before?.matches('delivered')) assert.ok(state.matches('delivered'));
+      if (before?.matches('recovered')) assert.ok(state.matches('recovered'));
+    },
+  }),
   modelCase(focusMachine, {
     inputs: [undefined],
     events: () => [{ type: 'DISABLE' as const }],

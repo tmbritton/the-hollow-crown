@@ -2,7 +2,7 @@
 export const GENERATOR_VERSION = 'layout-v3';
 export const CONTENT_VERSION = 'keep-v4';
 /** Independent scenario revision preserves the established keep/art RNG streams. */
-export const SCENARIO_VERSION = 'last-ember-v1';
+export const SCENARIO_VERSION = 'last-ember-v1+tribute-v1';
 export const MAX_GENERATION_ATTEMPTS = 40;
 
 export interface GenerationIdentity {

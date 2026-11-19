@@ -13,7 +13,7 @@ function geometryDigest(world: World): string {
       JSON.stringify(
         { ...world, tiles: [...world.tiles], reserved: [...world.reserved] },
         (key, value) =>
-          ['keep', 'royal', 'description', 'factIds'].includes(key) ? undefined : value,
+          ['keep', 'royal', 'description', 'factIds', 'tribute'].includes(key) ? undefined : value,
       ),
     )
     .digest('hex');
@@ -31,7 +31,7 @@ test('diagnostic generation preserves the versioned scene geometry fixture', () 
     seed: world.seed,
     generatorVersion: 'layout-v3',
     contentVersion: 'keep-v4',
-    scenarioVersion: 'last-ember-v1',
+    scenarioVersion: 'last-ember-v1+tribute-v1',
   });
   assert.equal(report.acceptedAttempt, world.attempt);
   assert.deepEqual(report.attempts, [{ attempt: 0, stage: 'accepted', reasons: [] }]);

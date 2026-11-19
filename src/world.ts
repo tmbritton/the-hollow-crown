@@ -5,6 +5,7 @@ import { generateKeepIdentity } from './generation/keep.ts';
 import { applyKeepPresentation } from './generation/keepPresentation.ts';
 import { planScene } from './generation/scenes.ts';
 import { emberBlueprint } from './generation/lastEmber.ts';
+import { planTribute, tributeBlueprint } from './generation/tribute.ts';
 import { Navigator } from './navigation.ts';
 import type { KeepIdentity } from './generation/keep.ts';
 import { randomFrom } from './generation/random.ts';
@@ -618,6 +619,11 @@ function buildAttempt(seed: string, attempt: number, keep: KeepIdentity): World 
       }
     }
   }
+  try {
+    world.tribute = planTribute(world);
+  } catch {
+    return ['Missing reserved tribute sites'];
+  }
   return world;
 }
 
@@ -704,6 +710,22 @@ export function validateDungeon(world: World): string[] {
   for (const [id] of ROOM_DEFINITIONS) if (!world.roomById[id]) errors.push(`Missing ${id}`);
   const before = reachableTiles(world, false),
     after = reachableTiles(world, true);
+  try {
+    const sites = tributeBlueprint(world),
+      navigation = new Navigator(world);
+    for (const site of [...sites.cargo, sites.exit])
+      if (
+        !world.reserved.has(key(site.x, site.z)) ||
+        !before.has(key(site.x, site.z)) ||
+        !navigation.goTo(world.spawn, site, { openDoors: true })
+      )
+        errors.push(`Tribute approach inaccessible: ${site.id}`);
+    for (const cargo of sites.cargo)
+      if (!navigation.goTo(cargo, sites.exit, { openDoors: true }))
+        errors.push(`Tribute delivery inaccessible: ${cargo.id}`);
+  } catch {
+    errors.push('Missing reserved tribute sites');
+  }
   try {
     const sites = emberBlueprint(world);
     const navigation = new Navigator(world);

@@ -95,6 +95,12 @@ export const ACTOR_OBSERVATION_RADIUS = 4;
 
 /** Render-only deformation: the motor, collision ellipsoid and attack clock stay authoritative. */
 export function animateActors(ecs: ECS, dt: number, time = 0, world?: NavigationWorld): void {
+  const carrying = new Set(
+    ecs.query('cargo').flatMap((e) => {
+      const c = e.require('cargo');
+      return c.state === 'carried' && c.owner ? [c.owner] : [];
+    }),
+  );
   for (const entity of ecs.query('actor', 'rig', 'movement', 'transform')) {
     const actor = new Actor(entity),
       rig = entity.require('rig'),
@@ -168,6 +174,11 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       }
     }
     blendPose(pose, rig.socialPose, rig.socialBlend);
+    if (carrying.has(entity) && !actor.attack.target && !actor.attack.swing && !working) {
+      pose.leftArm = pose.rightArm = -0.65;
+      pose.leftElbow = pose.rightElbow = 1.05;
+      pose.lean += 0.1;
+    }
     // Keep the measured gait and ground contact under the upper-body weapon action.
     blendPose(pose, rig.attackPose, rig.attackBlend, Math.min(1, actor.motion.actualSpeed / 0.8));
     applyJumpPose(pose, actor.jump);

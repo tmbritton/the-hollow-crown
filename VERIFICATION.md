@@ -4,9 +4,80 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
-### First playable Last Ember contest (O3) — 2026-11-19
+### Independent royal tribute plan (O4) — 2026-11-19
 
-Implemented from clean **`d698f27`** (O2). **Independent review returned READY**, with no blockers.
+Implemented against **`9be81bb`** (O3 committed, independently reviewed READY).
+**Independent O4 review returned READY**, with no blocking findings.
+
+#### Test-first evidence
+
+- Initial `node --test tests/tribute.test.ts tests/models.test.ts` failed on missing
+  `src/tribute.ts` and `src/machines/world/cargo.ts`, before production implementation.
+- A real off-screen porter delivered once, then stalled returning to the cache. The focused
+  corner regression failed because `goTo` accepted a route whose first `steer` returned null.
+  Tile-boundary support partitioning now rejects that short unsupported corner; the real porter
+  delivers all four crates. Ordinary movement/navigation regressions and full gameplay pass.
+- Follow-up targeted tests reproduced **4 pass / 2 fail**: blocked work appeared Interrupted,
+  and a retired scenario tried assigning through its removed work system. Both now pass.
+- The first broad run exposed a damaged-world report fixture trying to recompute tribute sites
+  from replaced tiles. Generated sites now persist as plain blueprint data; validation still
+  rejects inaccessible routes. The report and original geometry fixtures pass.
+- Browser fixture corrections handled CSS-capitalized labels, the new five-clock reset contract,
+  and ordinary social tests explicitly isolating gatherings from the pack's new job priority.
+
+#### Checks actually run
+
+| Check | Result |
+| --- | --- |
+| Strict typing, `npm run format:check`, `npm run lint`, `git diff --check` | Pass |
+| `npm test` | **228 passed**, including pure/generation/model tests |
+| Cargo model | **5/5 states, 7/7 branches**, 70 generated paths, 480 cyclic steps |
+| All models | **20 machines / 92 atomic states / 175 transition branches** |
+| `npm run build` | Pass; existing large-chunk warning remains |
+| `npm run test:tribute`, then Firefox | **9 checks each** |
+| `npm run test:last-ember` | **14 Chromium checks** |
+| `npm run test:objective-work` | **17 Chromium checks** |
+| `npm run test:movement` | **13 Chromium checks** |
+| `npm run test:combat` | **14 Chromium checks** |
+| `npm run test:social` | **9 Chromium checks** |
+| `npm run test:browser` | **23 Chromium checks**, three physically completed seeded keeps |
+| `npm run test:production` | Pass, including absence of development hooks |
+
+The new **100 `tribute-*` seed** corpus checks deterministic sites, reserved and reachable
+pickup/intervention/delivery routes, safe initial population approaches, four unique crates,
+three declared existing kobolds, 21 total enemies and three unchanged core reliquaries.
+Longest shrine/cache route: **126 tile steps**, ~26s walking plus 36s ordinary restoration,
+versus at least **112s** packing/unloading plus real porter travel. Combat/obstructions can delay
+either side; this is a geometric response budget. Existing O3 and generation corpora also pass.
+
+Pure integration covers pickup without credit, remote/blocked work, last-boundary damage/death,
+denial while pickup is ready, original-instance ownership, survivor takeover, terminal replay,
+partial deliveries, recovery/respawn/reset, and simultaneous independent O3/O4 completion.
+Three additional keeps (`CINDER-42`, `VIOLET-7`, `tribute-12`) physically exercise survivor pickup
+and delivery; MOURNING-731's live AI delivers all four through ordinary doors and corpse terrain.
+
+Both tribute browser suites use real E and pointer combat with deterministic isolation fixtures.
+They verify active off-screen clocks, shrine-first independence, ordinary lethal interception,
+E recovery once, real survivor travel, partial thwarting, terminal delivered loot, menu/inspection
+pause, blur, checkpoint respawn and fresh regeneration. Three repeated same-seed regenerations
+per browser have stable resource counts and no page errors. Chromium samples: **2,151 meshes,
+28 materials, 4 textures, 47 effects, 34 generated shader sources** in that fixture.
+
+Reviewed cargo/carrier, drop, hatch, recovered cache and 1440×900 / 600×900 / 400×800 / 900×600
+agenda captures, plus refreshed social/movement/combat captures. Reports/captures are under
+`test-results/{chromium,firefox}-tribute*`. Rendering suites ran sequentially and close browsers
+in `finally`. No new full Firefox, hardware profile, gallery or standalone report export is claimed.
+
+Independent review reran 228 tests/check/build, tribute in both browsers, Chromium objective-work,
+Last Ember, movement, combat and social, plus production smoke. Twenty-five additional pickup/delivery
+probes passed for damage/death, ownership/resource replacement, interruption, height/obstruction,
+recovery/replay and retirement. Exact 1,200-tick pickup and 480-tick delivery boundaries passed.
+The reviewer inspected cargo/drop/hatch/packing and responsive agenda captures. Its non-blocking
+README scenario-version correction was applied; documentation-only cleanup required no browser rerun.
+
+### First playable Last Ember contest (O3) — 2026-11-19 (committed baseline)
+
+Implemented from clean **`d698f27`** (O2), committed as **`9be81bb`**. **Independent review returned READY**, with no blockers.
 
 #### Test-first and correction evidence
 

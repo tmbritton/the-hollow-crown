@@ -5,6 +5,7 @@ import type { World } from '../worldTypes.ts';
 import type { GenerationTrace } from './identity.ts';
 import { SCENARIO_VERSION } from './identity.ts';
 import { EMBER, emberBlueprint } from './lastEmber.ts';
+import { TRIBUTE, tributeBlueprint } from './tribute.ts';
 
 /** Analyze an initial blueprint in an isolated registry; never sample mutable run state. */
 export function createGenerationReport(world: World, trace: GenerationTrace) {
@@ -111,6 +112,13 @@ export function createGenerationReport(world: World, trace: GenerationTrace) {
       activation: 'approach entrance shrine or enter smithy',
       rivalCycleSeconds: 20,
       rivalCapacity: 6,
+    },
+    tribute: {
+      sites: tributeBlueprint(world),
+      activation: 'approach entrance shrine or enter smithy, stairs or stable',
+      pickupSeconds: TRIBUTE.pickupSeconds,
+      deliverySeconds: TRIBUTE.deliverySeconds,
+      capacity: 4,
     },
     bounds: { ...world.bounds },
     graph: {

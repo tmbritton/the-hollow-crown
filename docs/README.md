@@ -3,7 +3,7 @@
 | Document | Purpose |
 | --- | --- |
 | [Implementation path](implementation-path.md) | Dependency-ordered feature slices and the test-first, verification, review, commit workflow. |
-| [Implementation progress](implementation-progress.md) | Delivery tracker, test-first evidence, checks and review. O1: `6f79a97`; O2: `d698f27`; O3 implemented and independently reviewed. O4 is next. |
+| [Implementation progress](implementation-progress.md) | Delivery tracker, test-first evidence, checks and review. O1: `6f79a97`; O2: `d698f27`; O3: `9be81bb`; O4 implemented and independently reviewed READY. |
 | [Procedural content improvement plan](procedural-content-improvement-plan.md) | Shared keep identities, composed scenes, memorable inhabitants, discoveries, adventure grammars, and seed-review tooling. Recommended next procedural-content slice. |
 | [Encounter narrative design notes](encounter-narrative-design-notes.md) | Jon Ingold's Narrative Sorcery talk: order-independent encounters, defensive logic, player knowledge, consequences, and a proposed watchkeeper scenario. |
 | [Ravenloft scenario design notes](ravenloft-scenario-design-notes.md) | Thirteen board-game adventures distilled into objective structures, staged reveals, pressure, remote weaknesses, alternative resolutions, and proposed dungeon scenarios. |

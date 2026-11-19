@@ -4,6 +4,7 @@ import type { InspectionTarget } from './inspection.ts';
 import type { RoyalPortrait } from './royalty.ts';
 import type { KeepIdentity } from './generation/keep.ts';
 import type { ScenePlacement } from './generation/scenes.ts';
+import type { TributeBlueprint } from './generation/tribute.ts';
 
 export type Random = () => number;
 export type Axis = 'x' | 'z';
@@ -184,6 +185,7 @@ export function hasApproach(entity: Entity): entity is ApproachableEntity {
 }
 
 export interface World {
+  tribute?: TributeBlueprint;
   seed: string;
   keep: KeepIdentity;
   attempt: number;

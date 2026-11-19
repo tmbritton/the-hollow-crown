@@ -173,6 +173,28 @@ export class Navigator {
   ): boolean {
     if (this.world.blockers.some((box) => segmentIntersectsBox(from, to, box, CLEARANCE)))
       return false;
+    // Uniform samples can miss a very short unsupported interval at a room corner.
+    // Partition at every center/corner tile crossing; support is constant between
+    // these boundaries. A long smoothed route and its short steering probes agree.
+    const crossings = [0, 1];
+    for (const axis of ['x', 'z'] as const) {
+      const delta = to[axis] - from[axis];
+      if (Math.abs(delta) < 1e-12) continue;
+      for (const offset of [-CLEARANCE, 0, CLEARANCE]) {
+        const a = from[axis] + offset,
+          b = to[axis] + offset;
+        for (let edge = Math.floor(Math.min(a, b) + 0.5) + 0.5; edge < Math.max(a, b); edge++) {
+          const t = (edge - a) / delta;
+          if (t > 0 && t < 1) crossings.push(t);
+        }
+      }
+    }
+    crossings.sort((a, b) => a - b);
+    for (let i = 1; i < crossings.length; i++) {
+      const t = (crossings[i - 1] + crossings[i]) / 2;
+      if (!this.staticClear({ x: from.x + (to.x - from.x) * t, z: from.z + (to.z - from.z) * t }))
+        return false;
+    }
     const steps = Math.max(1, Math.ceil(distance(from, to) / SAMPLE_SPACING));
     let previous = heightAt(this.world, from.x, from.z);
     if (previous === null) return false;

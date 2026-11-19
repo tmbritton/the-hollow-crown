@@ -35,10 +35,10 @@ the earlier player-triggered danger-clock proposal is a mechanics reference.
 | O4 | Independent second rival plan | Add only after O3: bounded carriers/cargo, real deliveries and visible counterplay; unrelated goals continue independently. |
 
 O1 is complete at `6f79a97`; O2 physical work/runtime boundaries are complete at `d698f27`, with
-independent review READY. O3 is implemented and independently reviewed: the playable
+independent review READY. O3 is complete at `9be81bb` and independently reviewed: the playable
 Last Ember scenario, physical worker priorities, clocks, outcomes and recovery are integrated.
-Independent O3 review returned READY. O4 is the next slice.
-Its plan must compose with O3 before the single run installation; see the README API handoff.
+Independent O3 and O4 reviews returned READY. O4's plan composes with O3 before the single
+run installation; see README. The feature sequence above is implemented.
 
 Each row may be split further if review reveals a coherent smaller feature. Later priorities
 can change based on evidence from the corpus/gallery and play review. Broad roster expansion,
@@ -51,8 +51,13 @@ inventory, campaign persistence and alternative victory modes retain their roadm
 3. Implement the smallest coherent change, then refactor while tests pass.
 4. Run `npm run format:check`, `npm run lint`, `npm test`, and `npm run build`.
    Run affected browser suites for runtime/input/rendering behavior and inspect their captures.
+   During iteration, use focused failing regressions. Run one appropriate browser verification
+   pass per feature; reserve full gameplay/cross-browser expansion for cross-cutting changes or
+   unresolved concerns. Run rendering-heavy checks sequentially and close their browsers.
 5. Request an independent sub-agent code review of the feature diff. Address findings and
    rerun the checks affected by any fixes. Record the review outcome.
+   Reviewers reuse recorded verification and prioritize diff inspection and independent targeted
+   failure probes. Repeat broad suites only when findings, fixes or uncertain evidence justify it.
 6. Update documentation and verification records with only checks actually run. Inspect
    status, diff, and recent history; stage intended files and commit the feature with hooks.
 7. Record the commit and continue to the next feature. Keep generated artifacts ignored.

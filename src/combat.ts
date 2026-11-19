@@ -7,6 +7,7 @@ import { heightAt, randomFrom, tileAt } from './world.ts';
 import type { Point, Random, Spawn, World } from './worldTypes.ts';
 import { seedSocialGroups } from './social.ts';
 import { seedInhabitant, seedEmberWorker } from './generation/inhabitants.ts';
+import { tributeBlueprint } from './generation/tribute.ts';
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 export const MELEE_RANGE = 1.5;
@@ -63,6 +64,8 @@ export function hostile(a: Actor, b: Actor): boolean {
 }
 
 export function seedEnemies(ecs: ECS, world: World): Actor[] {
+  const tribute = tributeBlueprint(world),
+    approaches = [...tribute.cargo, tribute.exit];
   const random = randomFrom(`${world.seed}:enemies`),
     enemies: Actor[] = [];
   const groups: [World['rooms'][number]['id'], EnemyKind, number][] = [
@@ -92,6 +95,7 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
         ({ tile }) =>
           actor.navigator.canStand(tile) &&
           enemies.every((e) => distance(e.position, tile) > 1.25) &&
+          approaches.every((p) => distance(p, tile) > 1.2) &&
           world.entities.every((e) => !e.approach || distance(e.approach, tile) > 1.2),
       );
       const spawn =

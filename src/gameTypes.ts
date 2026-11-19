@@ -41,6 +41,7 @@ export interface Game {
   combat: CombatSystem;
   enemyRendering: EnemyRendering;
   emberRendering: { update(): void };
+  tributeRendering: { update(): void };
   observation: CameraObservation;
   inspection: InspectionController;
   time: number;

@@ -2,6 +2,7 @@ import type { Actor } from './actors.ts';
 import type { Spawn, World } from './worldTypes.ts';
 import { randomFrom } from './world.ts';
 import type { ECS } from './ecs.ts';
+import { tributeBlueprint } from './generation/tribute.ts';
 
 export type SocialActivity = 'cards' | 'hackysack' | 'smoke';
 export interface SocialGroup {
@@ -14,6 +15,8 @@ export interface SocialGroup {
 
 /** Place gatherings on validated floor. Each participant owns its own behavior. */
 export function seedSocialGroups(actors: Actor[], world: World): void {
+  const tribute = tributeBlueprint(world),
+    approaches = [...tribute.cargo, tribute.exit];
   const random = randomFrom(`${world.seed}:social`);
   const activities: SocialActivity[] = ['cards', 'hackysack', 'smoke'];
   for (let i = activities.length - 1; i > 0; i--) {
@@ -54,6 +57,7 @@ export function seedSocialGroups(actors: Actor[], world: World): void {
             (p, i) =>
               members[i].navigator.canStand(p) &&
               members[i].navigator.segmentClear(tile, p) &&
+              approaches.every((at) => Math.hypot(p.x - at.x, p.z - at.z) > 1.2) &&
               world.entities.every(
                 (entity) =>
                   !entity.approach ||

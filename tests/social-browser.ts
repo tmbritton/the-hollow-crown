@@ -26,10 +26,18 @@ try {
     if (activity !== 'cards')
       await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
     await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
-    const fixture = await page.evaluate((activity) => {
+    const fixture = await page.evaluate(async (activity) => {
       const d = window.__dungeon,
         g = d.game;
       d.engine.stopRenderLoop();
+      // This fixture isolates ordinary idle gatherings; the tribute suite exercises
+      // the same pack's higher-priority physical job and combat interruptions.
+      g.ecs.get('run')!.remove('tribute');
+      const path = '/src/actors.ts';
+      const { teleportActor }: typeof import('../src/actors.ts') = await import(path);
+      for (const actor of g.combat.enemies)
+        if (actor.entity.get('work')?.objectiveId === 'tribute:carry-away' && actor.brain)
+          teleportActor(actor, g.world, actor.brain.home);
       const group = g.combat.enemies.find(
         (actor) => actor.kind === 'kobold' && actor.brain?.social?.activity === activity,
       )?.brain?.social;

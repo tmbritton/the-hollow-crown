@@ -2,9 +2,10 @@
 
 **Status:** authoritative user-directed target. O1 is complete and independently reviewed at
 `6f79a97`; O2's physical work and runtime boundaries are complete and independently reviewed at
-`d698f27`. **O3 (§6) is implemented and independently reviewed.**
+`d698f27`. **O3 (§6) is complete at `9be81bb`, independently reviewed READY.**
 The Last Ember now has physical worker navigation/defense, visible clocks, all three
-race outcomes and finite recovery. O4's independent cargo/carrier plan remains proposed.
+race outcomes and finite recovery. **O4's independent cargo/carrier plan is implemented,
+independently reviewed READY.**
 See [implementation progress](implementation-progress.md).
 
 **Date:** 2026-11-18.
@@ -113,7 +114,7 @@ The ordinary Crown objective remains available. A generated level can also conta
 | **Recover the old rite** | Player; offered only when relevant evidence exists and is discovered | A factual discovery unlocks a stronger restoration method. This small version needs no separate clock. | Spend time investigating while other plans continue, or use the ordinary method. |
 | **Carry away the royal tribute — 4** | A separate kobold group; enemy-only, with a visible active clock | Distinct deliveries to an exit remove a bounded optional cache. | Intercept carriers, recover undelivered cargo, or block a supported route. |
 
-The goblin and kobolds are separate groups under current species-hostility behavior. Any cooperation or shared faction assignment awaits the planned faction system. Objective work and focus disabling are implemented in O3; cargo ownership and deliveries remain proposed for O4.
+The goblin and kobolds are separate groups under current species-hostility behavior. Any cooperation or shared faction assignment awaits the planned faction system. Objective work and focus disabling are implemented in O3; cargo ownership and deliveries are implemented in O4, pending independent review.
 
 This creates a route decision: finishing the shrine quickly may allow the tribute to leave; intercepting carriers may give the ward-breaker time to corrupt the shrine. Killing the ward-breaker first can remove that pressure but costs travel and combat time. Learning the rite may repay the detour by reducing the work needed afterward.
 
@@ -156,6 +157,21 @@ The follow-up uses the same shrine and a once-only interaction rather than silen
 Within-run respawn preserves committed progress, actor deaths, disabled equipment, and resolved outcomes. It clears unfinished hero work. Regeneration replaces all of them. Menus, inspection, and hidden-tab suspension follow the existing simulation pause policy.
 
 After this slice works, add the second independent monster plan and evaluate whether the player has enough information and travel time to make an interesting choice between them.
+
+### Delivered O4 scope (pending independent review)
+
+Four unique optional crates in the stairs room, one existing three-kobold roster and a declared
+stable hatch. One porter at a time performs 20s packing, real travel and 8s unloading; only a
+validated delivery advances the four-segment clock. Death drops only undelivered cargo; surviving
+original workers travel to recover it. E secures nearby loose cargo for +10 health once per crate.
+All remaining cargo denied or no surviving original workers thwarts further deliveries, preserving
+earlier progress. Four deliveries permanently complete the theft. Neither outcome resolves O3.
+
+Both warnings activate at the shrine/smithy; entering stairs/stable can activate tribute earlier.
+The 100 tribute seeds' longest shrine/cache route is 126 tile steps, allowing ~26s walking plus
+36s restoration against a minimum 112s porter work plus travel. This is a geometric response budget,
+not a combat-difficulty guarantee. Both plans share one O2 installation and post-combat commit.
+See README for API, controls and persistence; VERIFICATION records actual checks.
 
 ## 7. Visible clocks without an overloaded HUD
 

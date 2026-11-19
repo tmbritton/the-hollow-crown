@@ -32,6 +32,8 @@ import { DiscoveryRecord } from './discoveries.ts';
 import { prepareLastEmber, emberClue, EMBER } from './lastEmber.ts';
 import { installObjectiveWork } from './objectiveWork.ts';
 import { createLastEmberRendering } from './lastEmberRendering.ts';
+import { prepareTribute } from './tribute.ts';
+import { createTributeRendering } from './tributeRendering.ts';
 import type { ObservedEvent } from './discoveries.ts';
 import { generationIdentity } from './generation/identity.ts';
 import { CameraObservation, updateInstanceMatrices } from './observation.ts';
@@ -309,10 +311,19 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     { onDeath: observeDeath },
   );
   const emberPlan = prepareLastEmber(ecs, world, player.actor);
-  // Compose future scenario fragments here, before this single run installation.
-  installObjectiveWork(ecs, world, emberPlan.plan, emberPlan.bindings);
+  const tributePlan = prepareTribute(ecs, world, player.actor);
+  installObjectiveWork(
+    ecs,
+    world,
+    {
+      objectives: [...emberPlan.plan.objectives, ...tributePlan.plan.objectives],
+      races: [...emberPlan.plan.races, ...tributePlan.plan.races],
+    },
+    [...emberPlan.bindings, ...tributePlan.bindings],
+  );
   const ember = emberPlan.scenario;
   const emberRendering = createLastEmberRendering(scene, ecs, materials);
+  const tributeRendering = createTributeRendering(scene, ecs, materials, shadow);
   const clue = world.entities.find((e) => e.id === ember.sites.clue.id);
   if (clue?.inspection) clue.inspection.description += `\n\n${emberClue(world).description}`;
   const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
@@ -387,6 +398,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     combat,
     enemyRendering,
     emberRendering,
+    tributeRendering,
     observation: new CameraObservation(camera, [
       ...ecs.query('rig').map((entity) => ({
         root: entity.require('rig').root,
@@ -484,6 +496,14 @@ function interact() {
   if (!ui.ready || paused()) return;
   if (game.inspection.active) {
     game.inspection.close();
+    return;
+  }
+  const tribute = game.ecs.get('run')?.get('tribute');
+  if (tribute?.recover()) {
+    ui.setHealth(game.player.health);
+    ui.toast(
+      `Royal tribute secured · ${tribute.recovered} of 4 recovered (+10 health). Delivered crates remain lost.`,
+    );
     return;
   }
   const ember = game.ecs.get('run')?.get('lastEmber');
@@ -600,11 +620,24 @@ function tick(dt: number): void {
   }
   updateDoors(game.ecs, dt);
   const ember = game.ecs.get('run')?.get('lastEmber');
-  if (ember?.approachActivation())
+  const tribute = game.ecs.get('run')?.get('tribute');
+  const emberWarning = ember?.approachActivation(),
+    tributeWarning = tribute?.approachActivation();
+  if (emberWarning || tributeWarning)
     ui.toast(
-      'Last Ember threatened: a goblin is preparing six 20-second rites at the smithy focus. Restore the entrance shrine, lure or defeat the worker, or disable the focus.',
+      [
+        emberWarning
+          ? 'Last Ember threatened: six 20-second rites at the smithy. Restore the shrine or disable its focus.'
+          : '',
+        tributeWarning
+          ? 'Royal tribute threatened: kobold porters carry four crates from the stairs cache to the stable hatch. Intercept them; E recovers loose cargo.'
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
       10000,
     );
+  tribute?.update();
   const work = game.ecs.get('run')?.get('objectiveWork');
   work?.advance(game.steps, dt);
   const locked = game.combat.pursue(game.player.actor, dt);
@@ -729,10 +762,21 @@ function renderUpdate(dt: number): void {
   game.nearest = game.inspection.active ? null : findInteraction();
   const ember = game.ecs.get('run')?.get('lastEmber');
   const emberSite = !game.inspection.active && ember?.nearby();
-  ui.prompt(ember && emberSite ? ember.prompt(emberSite) : promptFor(game.nearest));
+  const tribute = game.ecs.get('run')?.get('tribute');
+  ui.prompt(
+    !game.inspection.active && tribute?.nearby()
+      ? 'Recover royal tribute (+10 health)'
+      : ember && emberSite
+        ? ember.prompt(emberSite)
+        : promptFor(game.nearest),
+  );
   const worker = ember ? game.combat.actor(EMBER.worker) : undefined;
-  ui.agenda(ember?.agenda(!!worker && observesActor(worker)) ?? []);
+  ui.agenda([
+    ...(tribute?.agenda() ?? []),
+    ...(ember?.agenda(!!worker && observesActor(worker)) ?? []),
+  ]);
   game.emberRendering.update();
+  game.tributeRendering.update();
   const target = game.combat.actor(game.player.actor.attack.target);
   ui.combatTarget(target && observesActor(target) ? target : null, game.playTime);
   const record = discoveryRecord();

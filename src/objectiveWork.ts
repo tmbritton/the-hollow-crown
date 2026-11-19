@@ -12,6 +12,8 @@ import type {
 } from './objectives.ts';
 import { WorkAction, WORK_UNITS_PER_SECOND } from './machines/actors/work.ts';
 import type { Spawn } from './worldTypes.ts';
+import { synchronizeCargo } from './cargo.ts';
+import type { Cargo } from './cargo.ts';
 
 export interface WorkSite {
   /** Reachable floor in front of the real prop/interaction, never its solid center. */
@@ -28,6 +30,13 @@ export interface WorkAvailability {
   revision?: string | number;
   /** Optional authored method credit; sampled at both boundaries like its revision. */
   amount?: number;
+  /** Permanent resource exhaustion, sampled in the same post-combat batch. */
+  thwarted?: string;
+}
+export interface WorkTask {
+  siteId: string;
+  duration: number;
+  cargo?: { id: string; operation: 'pickup' | 'deliver' };
 }
 export interface ObjectiveWorkBinding {
   objectiveId: string;
@@ -36,6 +45,8 @@ export interface ObjectiveWorkBinding {
   amount?: number;
   /** Read current ECS/world/knowledge facts; must be side-effect free. */
   availability?: () => WorkAvailability;
+  /** Physical phase selection only; O2 validates and commits resource transfers. */
+  task?: (actor: Entity) => WorkTask | null;
 }
 interface Sample {
   participant: ObjectiveParticipant;
@@ -45,6 +56,8 @@ interface Sample {
   dependencies: (Entity | undefined)[];
   revision: WorkAvailability['revision'];
   amount: number;
+  duration: number;
+  resource?: { entity: Entity; cargo: Cargo; revision: number; operation: 'pickup' | 'deliver' };
 }
 interface Pending {
   actor: Entity;
@@ -108,6 +121,7 @@ export class ObjectiveWorkSystem {
         duration: binding.duration,
         amount: binding.amount ?? 1,
         availability: binding.availability,
+        task: binding.task,
       });
     }
     if (this.bindings.size !== record.snapshot().objectives.length)
@@ -160,7 +174,8 @@ export class ObjectiveWorkSystem {
     if (!assignment) return null;
     const objective = this.record.get(assignment.objectiveId);
     const binding = this.bindings.get(assignment.objectiveId)!;
-    const site = this.ecs.get(binding.siteId)?.get('workSite');
+    const task = this.task(actor, binding);
+    const site = task && this.ecs.get(task.siteId)?.get('workSite');
     return objective.activated &&
       objective.status === 'unresolved' &&
       site?.enabled &&
@@ -179,6 +194,7 @@ export class ObjectiveWorkSystem {
     if (
       typeof value.available !== 'boolean' ||
       (value.reason !== undefined && !value.reason.trim()) ||
+      (value.thwarted !== undefined && !value.thwarted.trim()) ||
       (value.amount !== undefined &&
         (!Number.isSafeInteger(value.amount) || value.amount < 1 || value.amount > 64)) ||
       (value.revision !== undefined &&
@@ -191,7 +207,19 @@ export class ObjectiveWorkSystem {
       reason: value.reason,
       revision: value.revision,
       amount: value.amount,
+      thwarted: value.thwarted,
     };
+  }
+  private task(actor: Actor, binding: ObjectiveWorkBinding): WorkTask | null {
+    const task = binding.task ? binding.task(actor.entity) : binding;
+    if (
+      task &&
+      (!task.siteId.trim() ||
+        task.duration <= 0 ||
+        !Number.isFinite(task.duration * WORK_UNITS_PER_SECOND))
+    )
+      throw new Error('Invalid physical work task');
+    return task;
   }
   private sample(
     actor: Actor,
@@ -199,7 +227,10 @@ export class ObjectiveWorkSystem {
     availability: WorkAvailability,
   ): Sample {
     const objective = this.record.get(binding.objectiveId);
-    const site = this.ecs.get(binding.siteId),
+    const task = this.task(actor, binding);
+    const resource = task?.cargo && this.ecs.get(task.cargo.id);
+    const cargo = resource?.get('cargo');
+    const site = task ? this.ecs.get(task.siteId) : undefined,
       location = site?.get('workSite');
     const sample: Sample = {
       participant: { id: actor.id, eligible: actor.alive, status: 'working' },
@@ -209,6 +240,11 @@ export class ObjectiveWorkSystem {
       dependencies: objective.dependencies.map((id) => this.ecs.get(id)),
       revision: availability.revision,
       amount: availability.amount ?? binding.amount ?? 1,
+      duration: task?.duration ?? binding.duration,
+      resource:
+        resource && cargo && task?.cargo
+          ? { entity: resource, cargo, revision: cargo.revision, operation: task.cargo.operation }
+          : undefined,
     };
     const deny = (status: 'blocked' | 'interrupted', reason: string) => {
       sample.participant.status = status;
@@ -216,6 +252,12 @@ export class ObjectiveWorkSystem {
       return sample;
     };
     if (!actor.alive) return deny('interrupted', 'Executor is dead');
+    if (
+      !task ||
+      (task.cargo &&
+        (!cargo || sample.amount !== 1 || !cargo.accepts(actor.entity, task.cargo.operation)))
+    )
+      return deny('blocked', 'No assigned cargo');
     if (actor.attack.target || actor.attack.swing || actor.attack.interaction)
       return deny('interrupted', 'Executor is engaged');
     if (
@@ -275,6 +317,11 @@ export class ObjectiveWorkSystem {
       samePoint(before.approach, after.approach) &&
       before.revision === after.revision &&
       before.amount === after.amount &&
+      before.duration === after.duration &&
+      before.resource?.entity === after.resource?.entity &&
+      before.resource?.cargo === after.resource?.cargo &&
+      before.resource?.revision === after.resource?.revision &&
+      before.resource?.operation === after.resource?.operation &&
       before.dependencies.every((entity, i) => entity === after.dependencies[i])
     );
   }
@@ -296,6 +343,7 @@ export class ObjectiveWorkSystem {
       dt <= 0
     )
       throw new Error('Invalid work step or duration');
+    synchronizeCargo(this.ecs, this.world);
     const availability = new Map(
       [...this.bindings].map(([id, binding]) => [id, this.availability(binding)]),
     );
@@ -323,7 +371,7 @@ export class ObjectiveWorkSystem {
         work.interrupt('Work conditions changed');
       }
       if (!work.snapshot().cycleId) {
-        work.chart.send({ type: 'START', id: `work:${++this.serial}`, duration: binding.duration });
+        work.chart.send({ type: 'START', id: `work:${++this.serial}`, duration: sample.duration });
         this.anchors.set(work, sample);
       }
       work.chart.send({ type: 'TICK', dt });
@@ -338,10 +386,12 @@ export class ObjectiveWorkSystem {
     this.current();
     if (!this.pending || this.pending.step !== step)
       throw new Error('Mismatched work commit boundary step');
+    synchronizeCargo(this.ecs, this.world);
     const availability = new Map(
       [...this.bindings].map(([id, binding]) => [id, this.availability(binding)]),
     );
     const contributions = [];
+    const transfers: { pending: Pending; resource: NonNullable<Sample['resource']> }[] = [];
     for (const pending of this.pending.cycles) {
       const { actor: entity, work, cycleId } = pending;
       const actor = this.actor(entity.id);
@@ -356,13 +406,16 @@ export class ObjectiveWorkSystem {
         this.stall(work, sample);
         continue;
       }
-      if (work.snapshot().status === 'ready')
-        contributions.push({
-          id: cycleId,
-          objectiveId: work.objectiveId,
-          participantId: entity.id,
-          amount: sample.amount,
-        });
+      if (work.snapshot().status === 'ready') {
+        if (sample.resource) transfers.push({ pending, resource: sample.resource });
+        if (sample.resource?.operation !== 'pickup')
+          contributions.push({
+            id: cycleId,
+            objectiveId: work.objectiveId,
+            participantId: entity.id,
+            amount: sample.amount,
+          });
+      }
     }
     const conditions: ObjectiveConditions[] = [];
     const disruptions = [];
@@ -392,6 +445,7 @@ export class ObjectiveWorkSystem {
         reason: gate.reason,
         participants,
       });
+      if (gate.thwarted) disruptions.push({ objectiveId: id, reason: gate.thwarted });
       if (
         objective.owner.kind !== 'player' &&
         objective.eligibleParticipants.every((id) => !this.actor(id)?.alive)
@@ -413,6 +467,21 @@ export class ObjectiveWorkSystem {
         reason,
       })),
     });
+    // Transfer only validated actions. Pickup has no clock credit; a delivery's resource
+    // becomes terminal only with its accepted receipt from this SAME objective batch.
+    for (const { pending, resource } of transfers) {
+      const objective = this.record.get(pending.work.objectiveId);
+      const accepted =
+        resource.operation === 'deliver'
+          ? result.contributions.some(
+              (receipt) => receipt.id === pending.cycleId && receipt.credited === 1,
+            )
+          : objective.activated && objective.status === 'unresolved' && objective.available;
+      if (accepted) {
+        resource.cargo.commit(pending.actor, resource.operation);
+        if (resource.operation === 'deliver') cancelWork(new Actor(pending.actor));
+      }
+    }
     for (const { work } of this.pending.cycles) work.chart.send({ type: 'SETTLE' });
     for (const entity of this.ecs.query('work'))
       if (this.record.get(entity.require('work').objectiveId).status !== 'unresolved')
