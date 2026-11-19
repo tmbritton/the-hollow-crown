@@ -8,6 +8,7 @@ import type { MonsterBehavior, BrainState } from './machines/monsters/index.ts';
 import type { SocialGroup } from './social.ts';
 import type { BodySize } from './occupancy.ts';
 import type { Jump } from './jump.ts';
+import type { InhabitantIdentity } from './generation/inhabitants.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
 import type {
   DoorEntity,
@@ -25,6 +26,7 @@ export type EnemyKind = Exclude<ActorKind, 'player'>;
 export interface Components {
   transform: Spawn & { heading: number };
   actor: { kind: ActorKind; speed: number; opensDoors: boolean };
+  inhabitant: InhabitantIdentity;
   body: BodySize;
   health: Health;
   movement: {

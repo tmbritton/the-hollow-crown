@@ -62,6 +62,13 @@ Each dungeon seeds **21 enemies** outside the entrance and altar rooms:
 
 Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
 
+Each keep names **one of its existing inhabitants**: an Ashen Foundry skeleton watchkeeper,
+a Drowned Court goblin lookout, or a Pilgrim Redoubt kobold card dealer. A simplified gathering
+uses the truthful “Token Keeper” title instead. A crown clasp, mourning band or royal tokens
+identify the character. Selecting it shows its name, home, usual behavior and a link to the
+keep's founding house. Its health, hostility and species tactics follow the ordinary rules;
+the identity stays with it through pursuit, return and death.
+
 Clicking an enemy locks onto it: the player follows its changing position, stops in melee reach, and blends from movement into wind-up, sword strike, and recovery. Holding the button keeps that target even as the enemy and camera move; releasing retains the command. Click another enemy to retarget, or click the floor / press WASD or X to cancel. A red ground ring and health display identify the target.
 
 Damage occurs at the strike's impact, with range and cover checked again. Living characters emit red blood fragments; skeletons emit pale bone dust. Dead enemies collapse into persistent, non-blocking corpses until regeneration. Death returns the player to the checkpoint with 2.5 seconds of protection. Chests and the altar still restore health.
@@ -293,7 +300,7 @@ The generator also provides a pure `generateDungeonWithReport(seed)` API in `src
 It returns the accepted world and a JSON-safe trace with seed, generator/content versions,
 zero-based attempt numbers, and placement/validation rejection reasons. A `GenerationError`
 retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
-`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v3` / `keep-v3`.
+`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v3` / `keep-v4`.
 Scene recipes change seeded furniture layouts and can change which layout attempt is accepted;
 the original topology RNG salt is retained. Older-version seed layouts are historical.
 `world.keep` adds one of three authored
@@ -347,6 +354,11 @@ sockets per support, with at most four props. Required pairs must fit and connec
 supports fall back to omission. Existing static batching, materials and collision adapters render
 them. The movement suite clicks every accepted work face and returns to the room center in the
 showcase seed; pure tests validate final decorated scenes over an additional 100 seeds.
+
+`src/generation/inhabitants.ts` selects the named character after enemy and social placement,
+using stable actor IDs and its actual gathering. The ECS `inhabitant` component owns its initial
+home/group identity and fact links; generation reports include a detached copy under the chosen
+encounter. The visual identifier adds at most five small meshes using existing materials.
 
 ## Planning documents
 

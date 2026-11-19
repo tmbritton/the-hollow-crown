@@ -114,8 +114,14 @@ export class UI {
   combatTarget(actor: Actor | null): void {
     const panel = $('combat-target');
     panel.hidden = !actor?.alive;
-    if (actor)
-      panel.textContent = `${actor.kind.toUpperCase()} · ${Math.ceil(actor.health.current)} / ${actor.health.max} · ${actor.brain?.state ?? 'attack'}`;
+    if (actor) {
+      const identity = actor.entity.get('inhabitant');
+      const status = `${actor.kind.toUpperCase()} · ${Math.ceil(actor.health.current)} / ${actor.health.max} · ${actor.brain?.state ?? 'attack'}`;
+      panel.textContent = identity
+        ? `${identity.name}, ${identity.title}\n${status}\n${identity.description}`
+        : status;
+      panel.classList.toggle('named', !!identity);
+    }
   }
   damage(): void {
     const flash = $('damage-flash');

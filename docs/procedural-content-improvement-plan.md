@@ -2,7 +2,8 @@
 
 **Status:** roadmap in progress. Phase 0 diagnostics, fixed metadata corpus and visual gallery
 are implemented, along with shared keep-history data, linked portrait/room captions, and
-bounded forge/bakery placement recipes with reserved work paths.
+bounded forge/bakery placement recipes with reserved work paths, and one named existing
+inhabitant per keep with a procedural identifier and factual target caption.
 See [implementation progress](implementation-progress.md) for verification and remaining
 baseline, scene-composition and visual-identity gates. Unmarked work below remains proposed.
 
@@ -338,7 +339,7 @@ Proposed additions: pure tests for identity/history consistency, independent RNG
   - [ ] Architectural heraldry and physical memorial evidence; full visual profile review.
 - [x] Build forge and bakery placement recipes with reserved gameplay space and bounded prop counts.
   - [ ] Extend with causal contact detail and profile-linked physical evidence.
-- [ ] Add one named inhabitant per keep, using current species and social/combat capabilities.
+- [x] Add one named inhabitant per keep, using current species and social/combat capabilities.
 - [ ] Run the first-delivery review gate and revise weakly differentiated profiles.
 - [ ] Update [verification records](../VERIFICATION.md) with actual measured results before marking the delivery complete.
 

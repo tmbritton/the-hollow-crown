@@ -6,6 +6,7 @@ import { segmentIntersectsBox } from './navigation.ts';
 import { heightAt, randomFrom, tileAt } from './world.ts';
 import type { Point, Random, Spawn, World } from './worldTypes.ts';
 import { seedSocialGroups } from './social.ts';
+import { seedInhabitant } from './generation/inhabitants.ts';
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 export const MELEE_RANGE = 1.5;
@@ -108,6 +109,7 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
     }
   }
   seedSocialGroups(enemies, world);
+  seedInhabitant(world, enemies);
   return enemies;
 }
 

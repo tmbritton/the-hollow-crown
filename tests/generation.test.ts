@@ -5,7 +5,7 @@ import { generateDungeon, generateDungeonWithReport } from '../src/world.ts';
 import { GenerationError, MAX_GENERATION_ATTEMPTS } from '../src/generation/identity.ts';
 import type { World } from '../src/worldTypes.ts';
 
-// layout-v3 / keep-v3 geometry fixtures, including accepted scene provenance.
+// layout-v3 / keep-v4 geometry fixtures, including accepted scene provenance.
 // Older layout-v2 fixtures were intentionally superseded when scene recipes shipped.
 function geometryDigest(world: World): string {
   return createHash('sha256')
@@ -24,13 +24,13 @@ test('diagnostic generation preserves the versioned scene geometry fixture', () 
   assert.deepEqual(world, generateDungeon('MOURNING-731'));
   assert.equal(
     geometryDigest(world),
-    'b6bec2e428b21e713379b59c84bade079accdb5e7ba2b29849894743bbf6a2d8',
+    '6917c654ceadf6cefc292a09e3cb5106b4a25726f4fea8259168dcd5efe2ae10',
     'versioned diagnostics must not consume generation randomness',
   );
   assert.deepEqual(report.identity, {
     seed: world.seed,
     generatorVersion: 'layout-v3',
-    contentVersion: 'keep-v3',
+    contentVersion: 'keep-v4',
   });
   assert.equal(report.acceptedAttempt, world.attempt);
   assert.deepEqual(report.attempts, [{ attempt: 0, stage: 'accepted', reasons: [] }]);
@@ -49,7 +49,7 @@ test('retries retain reproducible rejection reasons and the accepted zero-based 
   });
   assert.equal(
     geometryDigest(world),
-    'fbf753a3d3294d9807f393cb776419a9477329fa52a27f86b11d6f08c59f055f',
+    '3b78457ac18997ee4ea19c259dffa679ef895586b505f0cd5233502b627db4b7',
     'retrying seeds retain their versioned accepted geometry',
   );
   assert.deepEqual(report.attempts[1], { attempt: 1, stage: 'accepted', reasons: [] });

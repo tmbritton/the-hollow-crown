@@ -31,6 +31,7 @@ export function createGenerationReport(world: World, trace: GenerationTrace) {
       h: actor.position.h,
       group: actor.brain?.pack || null,
       activity: actor.brain?.social?.activity ?? null,
+      inhabitant: structuredClone(actor.entity.get('inhabitant') ?? null),
     }))
     .sort((a, b) => compareIds(a.id, b.id));
   const rooms = world.rooms

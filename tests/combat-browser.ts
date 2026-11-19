@@ -56,6 +56,7 @@ async function fixture(kind: EnemyKind, x = 4, z = 0) {
       g.player.actor.health.invulnerable = 0;
       g.player.actor.attack.cooldown = 0;
       g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
+      g.camera.beta = 0.64;
       g.camera.radius = g.desiredRadius = 20;
       d.step([], 1);
       g.scene.render();
@@ -97,7 +98,14 @@ async function clickEnemy(id: string, hold = false) {
   assert.equal(await page.evaluate(() => window.__dungeon.game.player.actor.attack.target), id);
 }
 async function capture(name: string) {
-  await page.evaluate(() => window.__dungeon.game.scene.render());
+  await page.evaluate(async () => {
+    // Viewport changes can clear WebGL after a manual render while the game loop is paused.
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    window.__dungeon.engine.resize();
+    window.__dungeon.game.scene.render();
+  });
   await page.screenshot({ path: `test-results/${browserName}-combat-${name}.png` });
 }
 
@@ -122,6 +130,77 @@ try {
   assert.ok(counts.doors > 0);
   assert.equal(counts.health, 100);
   pass('Player, enemies, tiles, doors and render rigs use the live ECS registry');
+
+  for (const seed of ['VIOLET-7', 'inhabitant-0', 'MOURNING-731']) {
+    await page.evaluate((seed) => window.__dungeon.regenerate(seed), seed);
+    await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
+    const named = await page.evaluate(() => {
+      const g = window.__dungeon.game;
+      const actors = g.combat.enemies.filter((a) => a.entity.has('inhabitant'));
+      if (actors.length !== 1) throw new Error('Expected one named inhabitant');
+      const actor = actors[0];
+      return {
+        ...actor.entity.require('inhabitant'),
+        markers: actor.entity
+          .require('render')
+          .meshes.filter((m) => m.name.includes(':inhabitant:'))
+          .map((m) => ({ name: m.name, enabled: m.isEnabled() })),
+      };
+    });
+    assert.ok(named.markers.length >= 2 && named.markers.length <= 5);
+    assert.ok(named.markers.every((m) => m.enabled));
+    await fixture(named.kind);
+    await page.evaluate((id) => {
+      const d = window.__dungeon,
+        g = d.game;
+      for (const actor of g.combat.enemies)
+        Object.assign(actor.position, { x: 1000, z: 1000, h: 0 });
+      const actor = g.combat.actor(id)!;
+      Object.assign(actor.position, { x: 4, z: 0, h: 0, heading: Math.PI });
+      actor.entity.require('rig').socialBlend = 0;
+      d.step([], 1);
+    }, named.actorId);
+    await clickEnemy(named.actorId);
+    await step(1);
+    const caption = await page.locator('#combat-target').textContent();
+    assert.ok(caption?.includes(`${named.name}, ${named.title}`));
+    assert.ok(caption?.includes(named.description));
+    assert.ok(caption?.includes(named.kind.toUpperCase()));
+    await capture(`named-${named.kind}`);
+    for (const width of [600, 900]) {
+      await page.setViewportSize({ width, height: 800 });
+      const captionBounds = await page.locator('#combat-target').boundingBox();
+      assert.ok(
+        captionBounds && captionBounds.x >= 0 && captionBounds.x + captionBounds.width <= width,
+      );
+      for (const selector of ['.map-panel', '.quest-panel']) {
+        if (!(await page.locator(selector).isVisible())) continue;
+        const panel = await page.locator(selector).boundingBox();
+        assert.ok(panel);
+        const overlaps =
+          captionBounds.x < panel.x + panel.width &&
+          captionBounds.x + captionBounds.width > panel.x &&
+          captionBounds.y < panel.y + panel.height &&
+          captionBounds.y + captionBounds.height > panel.y;
+        assert.ok(!overlaps, `${width}px caption overlaps ${selector}`);
+      }
+      await capture(`named-${named.kind}-${width}`);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.evaluate((id) => {
+      const g = window.__dungeon.game;
+      const actor = g.combat.actor(id)!;
+      g.camera.target.set(actor.position.x, actor.position.h + 1, actor.position.z);
+      g.camera.radius = 7;
+      g.camera.beta = 1.2;
+      actor.entity.require('rig').root.rotation.y = Math.PI;
+    }, named.actorId);
+    await capture(`named-${named.kind}-detail`);
+    await page.keyboard.press('KeyX');
+    await step(1);
+    assert.ok(await page.locator('#combat-target').isHidden());
+  }
+  pass('Named inhabitant has a bounded visible motif and factual responsive target caption');
 
   const blockingGoblin = await fixture('goblin', 1.3);
   await page.keyboard.down('KeyD');

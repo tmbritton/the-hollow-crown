@@ -59,6 +59,20 @@ export function createEnemyRendering(
         p('cloth', 'pack sash', [0.13, 0.55, 0.39], [0.1, 0.84, 0]);
       }
     }
+    const identity = actor.entity.get('inhabitant');
+    if (identity?.motif === 'crown-clasp') {
+      p('cloth', 'inhabitant:strap', [0.16, 0.55, 0.04], [0, 1.02, 0.18]);
+      p('gold', 'inhabitant:crown-base', [0.42, 0.09, 0.08], [0, 1.05, 0.22]);
+      for (const x of [-0.16, 0, 0.16])
+        p('gold', 'inhabitant:crown-point', [0.09, 0.17, 0.08], [x, 1.16, 0.22]);
+    } else if (identity?.motif === 'mourning-band') {
+      p('dark', 'inhabitant:mourning-band', [0.64, 0.18, 0.05], [0, 0.97, 0.21]);
+      p('gold', 'inhabitant:clasp', [0.14, 0.16, 0.07], [0.16, 0.97, 0.25]);
+    } else if (identity?.motif === 'royal-tokens') {
+      p('cloth', 'inhabitant:token-band', [0.56, 0.2, 0.06], [0, 0.73, 0.21]);
+      for (const x of [-0.18, 0, 0.18])
+        p('gold', 'inhabitant:token', [0.13, 0.16, 0.08], [x, 0.72, 0.26]);
+    }
     const arms: TransformNode[] = [],
       forearms: TransformNode[] = [],
       legs: TransformNode[] = [],

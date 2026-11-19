@@ -4,6 +4,33 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Named inhabitants (N1) — 2026-11-18
+
+- Test-first identity/lifecycle/report contracts failed before implementation. The browser
+  then failed on the missing visual identifier before ornament/target presentation was added.
+  Five pure contracts now cover 60 seeded keeps, all profiles, ordering independence, factual
+  card-game fallback, fixed health/hostility, corpse persistence, regeneration and report isolation.
+- The corpus exposed `trial-24`: a card player can stand on a corridor landing. Its new
+  regression failed before resolving the home room through the actual gathering center.
+- `npm run check`: **130 pure/model tests**, strict type checking, lint and formatting pass.
+  `npm run build` passes. Identity is **layout-v3 / keep-v4**; the content-version change also
+  advances versioned semantic recipe/history streams, so geometry fixtures were refreshed.
+- Combat: **13 checks each in Chromium and Firefox**, exercising all three ornaments and
+  factual captions through real targeting. Review found HUD overlap at 600/900px; added a
+  failing rectangle-intersection regression, fixed responsive width budgets, and reran both
+  browser suites successfully. Follow-up independent review cleared the issue.
+- Full Chromium gameplay: **23 checks**; social: **9 checks**; generation-browser agreement,
+  production smoke, 100-seed export and refreshed **48-view gallery** pass. Five regenerations
+  stabilize at **2,097 meshes, 28 materials, 4 textures, 48 effects and 34 shader sources**.
+- Independent review also passed **29 focused tests and 500 additional seeds**: exactly one
+  named inhabitant and 21 enemies per keep, with 187 dealers, 147 lookouts and 166 watchkeepers.
+  Three additional doorway-home cases used their gathering room correctly.
+- Reviewed normal and 600/900px captions plus crown-clasp, mourning-band and token close-ups.
+  Two initial Chromium close-up captures were blank following viewport resize; waiting for
+  rendering frames before explicit resize/render fixed the capture fixture, and the refreshed
+  screenshots were reviewed. Firefox close-ups also show the distinct ornaments.
+- The broad unlabeled profile/architectural-art gate remains open; named identity is delivered.
+
 ### Integrated forge/bakery recipes (S1b) — 2026-11-18
 
 - World/report integration contracts failed on missing scene provenance before implementation.

@@ -7,9 +7,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **Completed G1–G3, T1, I1–I2 and S1a–S1b. Next: N1 memorable inhabitant.**
-- Latest checkpoint: 125 pure/model tests, lint, formatting and build pass; 23 Chromium full
-  checks, 13 movement checks in each browser, nine Chromium social checks, production smoke,
+- **Completed G1–G3, T1, I1–I2, S1a–S1b and N1. Next: D1 within-run discovery record.**
+- Latest checkpoint: 130 pure/model tests, lint, formatting and build pass; 23 Chromium full
+  checks, 13 combat checks in each browser, nine Chromium social checks, production smoke,
   generation checks and the refreshed 48-view gallery pass. Per-feature details are below.
 
 ## Feature tracker
@@ -23,9 +23,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | I1 | Complete | Keep contract failed before API; 200-seed chronology/reference invariants | 113 tests/check, build, generation browser and corpus pass; all review findings addressed | `624f8d4` |
 | I2 | Complete | Presentation contract failed before API; review regression reproduced swapped painting identities | 117 tests/check/build, Firefox inspection 13 and portraits, Chromium full 23, production, generation and gallery pass; follow-up review cleared | `a2ba6cf` |
 | S1a | Complete | Initial contracts failed on missing module; review regression reproduced thin-barrier crossing | 123 tests/check/build pass; independent follow-up review cleared the swept-clearance fix | `a65c239` |
-| S1b | Complete | World/report contracts failed on missing scene provenance; final-world navigation over 100 additional seeds | 125 tests/check/build, both movement browsers, Chromium full/social, production, generation and gallery pass; independent 500-seed review cleared | This commit |
-| N1 | Next | Pending | Stable identity/home/group for one existing inhabitant; factual target text and readable current behavior | — |
-| D1 | Planned | Pending | Pending | — |
+| S1b | Complete | World/report contracts failed on missing scene provenance; final-world navigation over 100 additional seeds | 125 tests/check/build, both movement browsers, Chromium full/social, production, generation and gallery pass; independent 500-seed review cleared | `2e93f62` |
+| N1 | Complete | Identity/report and visual tests failed first; corpus doorway-home and review HUD-overlap regressions failed before fixes | 130 tests/check/build, both combat browsers, full/social, production, generation and gallery pass; independent review cleared | This commit |
+| D1 | Next | Pending | Once-only learned facts/observed events, inspection integration, respawn persistence and regeneration reset | — |
 | O1–O4 | Planned | Pending | Pending | — |
 
 ## Work log
@@ -132,6 +132,22 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Independent review cleared the integration after 33 focused tests and 500 extra seeds,
   including swept reserved-network connectivity, workface round trips and ECS references.
 
+### N1 — one memorable existing inhabitant
+
+- Selected a profile-linked skeleton watchkeeper, goblin lookout or actual card-playing kobold
+  after final enemy/social placement. A simplified gathering gets the honest keeper fallback.
+  Names use a separate semantic stream; identity owns stable initial home/group/fact references.
+- Added at most five existing-material ornament meshes and a factual target caption. The
+  existing population, health, hostility and behavior charts continue to govern the character.
+- Test-first identity/report failures and missing-rendered-marker failure preceded implementation.
+  Added the failing `trial-24` doorway-home regression after the corpus exposed it.
+- Advanced content to `keep-v4`; 130 pure/model tests/check/build, both combat browsers (13 each),
+  Chromium full (23) and social (9), production, generation/corpus and the refreshed gallery pass.
+- Independent review checked another 500 seeds and found a responsive caption collision. Its
+  600/900px non-intersection regression failed first, then passed in both browsers after the CSS
+  fix. Follow-up review cleared the feature. Refreshed/reviewed resized Chromium close-ups after
+  correcting a capture-only WebGL resize race; all three ornaments are visible in close-up.
+
 ## Follow-ups and blockers
 
 - No current correctness blocker. G3's full-browser follow-up is resolved by T1.
@@ -142,5 +158,6 @@ Execution record for [implementation path](implementation-path.md). Started **20
   Phase 1 art/readability gate remain open. Captions/palettes alone do not satisfy that gate.
 - S1's anchor/socket placement and integration are delivered. Causal contact detail and
   profile-led composition can build on these recipes during the broader visual-identity gate.
-- Next N1: one named existing inhabitant, linked to keep history and stable home/group data,
-  with factual target presentation and existing species/social behavior preserved.
+- Next D1: a within-run record of learned facts and actual observed events, keyed by stable
+  IDs. Start test-first with deduplication, respawn retention and regeneration reset, then
+  integrate portrait inspection and observed named inhabitants. Persistent exports remain later.
