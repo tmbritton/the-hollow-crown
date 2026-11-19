@@ -196,7 +196,7 @@ export function buildPortraits(
       id: entity.id,
       title: r.title,
       subtitle: `HOUSE ${r.house.toUpperCase()} · YEAR ${r.year}`,
-      description: '128 × 160 procedural pixels · Press E or Escape to return.',
+      description: `${r.description ? `${r.description} ` : ''}128 × 160 procedural pixels · Press E or Escape to return.`,
       getView: () => ({
         focus: new Vector3(
           entity.x - portrait.dx * 0.08,

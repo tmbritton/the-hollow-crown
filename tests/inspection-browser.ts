@@ -25,6 +25,24 @@ const waitForReturn = () => page.waitForFunction(() => !window.__dungeon.game.in
 try {
   await page.goto(`${process.env.DEMO_URL || 'http://localhost:5173'}/?debug&seed=MOURNING-731`);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
+  for (const room of ['entrance', 'crypt', 'altar'] as const) {
+    const evidence = await page.evaluate((room) => {
+      const d = window.__dungeon,
+        w = d.game.world;
+      d.teleport(w.roomById[room].x, w.roomById[room].z);
+      d.step([], 1);
+      return { description: w.roomById[room].description, title: w.keep.monarchs[2].title };
+    }, room);
+    assert.equal(await page.locator('#room-description').textContent(), evidence.description);
+    assert.ok(evidence.description.includes(evidence.title));
+  }
+  await page.screenshot({ path: 'test-results/keep-altar-history.png' });
+  await page.evaluate(() => {
+    const d = window.__dungeon;
+    d.teleport(d.game.world.spawn.x, d.game.world.spawn.z);
+    d.step([], 1);
+  });
+  pass('Three separated room captions display the shared keep history and altar instruction');
   const prevented = await page.evaluate(() => {
     const canvas = document.getElementById('game'),
       results = [];
@@ -76,6 +94,21 @@ try {
   await page.waitForTimeout(1100);
   await page.keyboard.press('KeyE');
   await waitForView();
+  const royal = await page.evaluate((id) => {
+    const entity = window.__dungeon.game.world.entities.find((e) => e.id === id);
+    if (entity?.type !== 'portrait') throw new Error('Missing portrait identity');
+    return entity.royal;
+  }, portraitId);
+  assert.equal(await page.locator('#inspection-title').textContent(), royal.title);
+  assert.equal(
+    await page.locator('#inspection-subtitle').textContent(),
+    `HOUSE ${royal.house.toUpperCase()} · YEAR ${royal.year}`,
+  );
+  assert.ok(royal.description);
+  assert.ok(
+    (await page.locator('#inspection-description').textContent())?.includes(royal.description),
+  );
+  pass('Portrait inspection displays the linked monarch, house, date and founding history');
   const before = await page.evaluate((id) => {
     const g = window.__dungeon.game,
       p = g.dungeon.portraits.find((p) => p.entity.id === id);

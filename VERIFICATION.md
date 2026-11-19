@@ -4,6 +4,33 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Linked portraits and room evidence — 2026-11-18
+
+- `npm run check`: **117 tests**, strict type checking, lint and formatting pass.
+  `npm run build` and production smoke pass, with the existing bundle-size warning.
+- Test-first presentation contracts failed before implementation. Thirty seeds check all
+  three monarch subjects, matching houses, painting dates within reigns, shared core traits
+  and valid portrait fact references. Separate targeted fixtures check idempotence, direct
+  progression text and entity-order independence.
+- Independent review reproduced an entity-order-dependent subject swap. A new regression
+  failed before the fix; painting randomness now uses placement identity and mandatory
+  subject selection uses a total deterministic order. Exact subtitle/date assertions were
+  added, and the founder-history browser check was named accurately.
+  Follow-up review cleared the blocker and verified 768 portrait-metadata comparisons across
+  reversed/shuffled/renumbered entity collections from 32 seeds.
+- `npm run test:inspection`: **13 Firefox checks** pass, including shared evidence in three
+  room captions and linked portrait captions. `npm run test:portraits`: four distinct GPU
+  paintings pass. Reviewed `inspection-high-detail.png`, `keep-altar-history.png` and portrait
+  captures; the longer text remains framed at normal and narrow viewport sizes.
+- `npm run test:browser`: **23 Chromium checks** pass, including three complete seeds.
+  The full Firefox gameplay pass remains the T1 baseline; current Firefox coverage is the
+  inspection and portrait suites above.
+- Generation-browser agreement, 100-seed metadata export, **48-view gallery** and five
+  stable same-seed regenerations pass for `layout-v2` / `keep-v2`. Geometry-only digests were
+  captured before presentation edits and remain unchanged afterward.
+- This is linked narrative/portrait presentation. Architectural heraldry, composed scenes,
+  memorable inhabitants and the full visually distinguishable profile gate remain planned.
+
 ### Shared keep identity foundation — 2026-11-18
 
 - Test-first keep contracts failed before the new API existed; five checks now cover

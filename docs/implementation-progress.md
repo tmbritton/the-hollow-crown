@@ -7,7 +7,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **I1 verified and reviewed; committing next. I2 presentation follows.**
+- **I2 verified; review findings fixed. Next dependency-ready feature: S1 scene recipes.**
 
 ## Feature tracker
 
@@ -17,9 +17,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | G2 | Complete | Report contract failed before API; review regression reproduced biased gallery sampling | 106 tests, typecheck, lint, format, build and 100-seed export pass; both review findings addressed | `4c3820c` |
 | G3 | Complete | Real browser failed on missing report API before implementation | 108 tests/check/build, targeted browser, production, 48 captures and 5 regeneration checks pass; both review findings fixed | `8ad2d83` |
 | T1 | Complete | Stationary skeleton fixture failed at `[0,2]` before fix | 23 full-browser checks pass in Chromium and Firefox; 108 tests/check/build pass; review suggestion applied | `bb56640` |
-| I1 | Verified; ready to commit | Keep contract failed before API; 200-seed chronology/reference invariants | 113 tests/check, build, generation browser and corpus pass; all review findings addressed | Pending |
-| I2 | Next | Pending | Pending | — |
-| S1, N1, D1 | Planned | Pending | Pending | — |
+| I1 | Complete | Keep contract failed before API; 200-seed chronology/reference invariants | 113 tests/check, build, generation browser and corpus pass; all review findings addressed | `624f8d4` |
+| I2 | Verified; ready to commit | Presentation contract failed before API; review regression reproduced swapped painting identities | 117 tests/check/build, Firefox inspection 13 and portraits, Chromium full 23, production, generation and gallery pass | Pending |
+| S1 | Next | Pending | Start with bounded forge/bakery recipe definitions and reserved approaches | — |
+| N1, D1 | Planned | Pending | Pending | — |
 | O1–O4 | Planned | Pending | Pending | — |
 
 ## Work log
@@ -60,7 +61,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
   resource samples match. Reviewed screenshots and widened the camera to keep altars in frame.
 - Review fixes exclude invalid frozen-loop performance counters and exercise a live blueprint
   mutation to distinguish initial capture from recomputation. Targeted checks pass after fixes.
-- Full-browser traversal failure is recorded explicitly above; no full-suite pass is claimed.
+- Full-browser traversal failed at this stage; T1 below subsequently resolved it.
 
 ### T1 — live-blocker traversal
 
@@ -73,8 +74,6 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Completed a fresh high-quality desktop-GPU profile (ten rooms, Inspector open/close).
   See `VERIFICATION.md` for actual measurements and the earlier interrupted-run qualification.
 
-## Follow-ups and blockers
-
 ### I1 — shared keep history
 
 - Added three authored profile families, shared houses, three successive monarchs, semantic
@@ -85,7 +84,24 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Review improvements pin all three profile-family identities and test nested report isolation.
 - Visible portrait/room evidence is I2; this feature does not claim the full profile art gate.
 
+### I2 — linked portraits and room evidence
+
+- Bound accepted geometry to three monarch subjects and valid painting years, shared house
+  palettes/core traits and factual inspection captions. Entrance/crypt/altar/throne captions
+  refer to the generated history while keeping the altar gate instruction explicit.
+- Kept layout RNG/geometry stable; content version advances to `keep-v2` for changed presentation.
+- Review found paintings swapped subjects when entity arrays were reversed. Added a failing
+  regression, then keyed painting streams by placement with a total assignment ordering.
+- All 117 pure/model checks, 13 Firefox inspection checks, four-portrait GPU check, 23 Chromium
+  full checks, production smoke, generation browser/corpus and refreshed gallery pass.
+
+## Follow-ups and blockers
+
 - No current correctness blocker. G3's full-browser follow-up is resolved by T1.
 - Phase 0 diagnostic/gallery implementation and high-quality hardware sampling are done.
   Low-quality hardware sampling and generation-latency reporting remain to complete its
   full performance baseline; do not claim Phase 0 entirely complete yet.
+- Shared architectural heraldry, composition-driven profile differences and the full
+  Phase 1 art/readability gate remain open. Captions/palettes alone do not satisfy that gate.
+- S1 should begin with forge/bakery anchor/socket recipes, meaningful narrow-room and rotated
+  placement tests, bounded deterministic fallbacks and reserved movement/interaction space.

@@ -1,6 +1,9 @@
 import type { Random } from './worldTypes.ts';
 
 export interface RoyalPortrait {
+  personId?: string;
+  factIds?: string[];
+  description?: string;
   title: string;
   house: string;
   year: number;

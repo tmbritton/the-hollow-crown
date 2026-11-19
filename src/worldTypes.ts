@@ -61,6 +61,7 @@ export interface Room extends LayoutNode, Spawn {
   name: string;
   kicker: string;
   description: string;
+  factIds?: string[];
   w: number;
   d: number;
   shape: RoomShape;

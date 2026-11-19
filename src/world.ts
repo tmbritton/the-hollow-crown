@@ -2,6 +2,7 @@ import { generateRoyalPortrait } from './royalty.ts';
 import { required } from './assert.ts';
 import { hasApproach } from './worldTypes.ts';
 import { generateKeepIdentity } from './generation/keep.ts';
+import { applyKeepPresentation } from './generation/keepPresentation.ts';
 import type { KeepIdentity } from './generation/keep.ts';
 import { randomFrom } from './generation/random.ts';
 export { randomFrom } from './generation/random.ts';
@@ -646,6 +647,7 @@ export function generateDungeonWithReport(
     report.attempts.push({ attempt, stage: reasons.length ? 'validation' : 'accepted', reasons });
     if (!reasons.length) {
       report.acceptedAttempt = attempt;
+      applyKeepPresentation(world);
       return { world, report };
     }
   }

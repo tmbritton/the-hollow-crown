@@ -78,7 +78,8 @@ Sword wind-up, contact and follow-through are sampled against that same impact c
 - Stone variation, tile seams, wood grain, graphic lighting bands, water ripples/foam, animated lava fissures, fire, embers, and altar runes.
 - Shared walk/run/start/stop/jump/attack/death animation, enemy models, blood and dust particles, crossbow bolts, door hinges, chest lids, floating votives, and flickering lights.
 - Four themed workspaces: a butchery, blacksmith, bakery, and underground lizard stable. Furnishings include hanging cuts, cleavers, furnaces, anvils, bread ovens, loaves, flour sacks, feed troughs, tack, and two animated saddled lizards.
-- Framed 32 × 40 pixel-art royal portraits. **E** moves the camera to an eye-level close-up and switches the same artwork to **128 × 160** with finer facial features, hair strands, jewelry, embroidery, and canvas texture. The monarch's identity remains the same. Movement pauses during inspection; **E**, **Escape**, or the return button restores the overhead view.
+- Three keep-history profiles—**Ashen Foundry, Drowned Court, and Pilgrim Redoubt**—with a shared house and three successive monarchs. Entrance, crypt, altar, and throne captions refer to the same history; the altar still gives direct gate-unlocking instructions.
+- Framed 32 × 40 pixel-art royal portraits depict those linked monarchs, sharing the house palette and each subject's core appearance while varying the painting composition. **E** moves the camera to an eye-level close-up with a factual name/date/history caption and switches the artwork to **128 × 160** detail. Movement pauses during inspection; **E**, **Escape**, or the return button restores the overhead view.
 
 There are **no imported models, image textures, sprites, animation clips, fonts, or environment maps**. Shadows and glow use runtime-generated render targets. UI uses system fonts, CSS, text symbols, and a second canvas for the map.
 
@@ -92,6 +93,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | --- | --- |
 | `src/worldTypes.ts` | Rooms, tiles, connections, props, and discriminated entity types |
 | `src/world.ts` | Deterministic generation, tile heights, room graph, progression validation |
+| `src/generation/` | Version identity, semantic RNG streams, keep history/presentation, diagnostic reports and corpus selection |
 | `src/ecs.ts` | Typed component registry, entity lifecycle and indexed component queries |
 | `src/worldEntities.ts` | Generated world registration and shared door animation/collision system |
 | `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
@@ -290,13 +292,16 @@ The generator also provides a pure `generateDungeonWithReport(seed)` API in `src
 It returns the accepted world and a JSON-safe trace with seed, generator/content versions,
 zero-based attempt numbers, and placement/validation rejection reasons. A `GenerationError`
 retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
-`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v2` / `keep-v1`.
+`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v2` / `keep-v2`.
 Layout RNG retains its existing interpretation. `world.keep` adds one of three authored
 profiles (Ashen Foundry, Drowned Court, Pilgrim Redoubt), a shared house, three successive
 monarchs and a short linked history. It is generated once before layout retries using
 independent versioned semantic streams; cosmetic random draws cannot reroll it. Stable
 person/fact/event IDs are scoped to that versioned run. `report.keep` is a detached snapshot.
-This is the data foundation; connecting portraits and room presentation is the next slice.
+Accepted placements are bound to those facts for portrait subjects, painting dates, palettes
+and room captions. Painting streams use placement identity and deterministic ordering, so
+reordering entity arrays cannot swap subjects. Broader architectural heraldry and profile-led
+scene composition remain planned.
 
 ```sh
 npm run report:generation

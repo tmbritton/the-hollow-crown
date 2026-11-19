@@ -3,28 +3,33 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { generateDungeon, generateDungeonWithReport } from '../src/world.ts';
 import { GenerationError, MAX_GENERATION_ATTEMPTS } from '../src/generation/identity.ts';
+import type { World } from '../src/worldTypes.ts';
+
+// Captured before identity presentation: only authored text/facts/portrait traits are omitted.
+function geometryDigest(world: World): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify(
+        { ...world, tiles: [...world.tiles], reserved: [...world.reserved] },
+        (key, value) =>
+          ['keep', 'royal', 'description', 'factIds'].includes(key) ? undefined : value,
+      ),
+    )
+    .digest('hex');
+}
 
 test('diagnostic generation preserves the existing seed interpretation and geometry', () => {
   const { world, report } = generateDungeonWithReport('MOURNING-731');
   assert.deepEqual(world, generateDungeon('MOURNING-731'));
   assert.equal(
-    createHash('sha256')
-      .update(
-        JSON.stringify({
-          ...world,
-          keep: undefined,
-          tiles: [...world.tiles],
-          reserved: [...world.reserved],
-        }),
-      )
-      .digest('hex'),
-    '5fa00fe3cb3ffbd04d0b31e73d1a9ae8a687bdb9ad323df24fcf203848c8d569',
+    geometryDigest(world),
+    '67e30061eca028b56754a5c31a1442655d0c280df447aaedb100f6bf41924526',
     'versioned diagnostics must not consume generation randomness',
   );
   assert.deepEqual(report.identity, {
     seed: world.seed,
     generatorVersion: 'layout-v2',
-    contentVersion: 'keep-v1',
+    contentVersion: 'keep-v2',
   });
   assert.equal(report.acceptedAttempt, world.attempt);
   assert.deepEqual(report.attempts, [{ attempt: 0, stage: 'accepted', reasons: [] }]);
@@ -42,17 +47,8 @@ test('retries retain reproducible rejection reasons and the accepted zero-based 
     reasons: ['Furniture front inaccessible: tack-rack-stable-30'],
   });
   assert.equal(
-    createHash('sha256')
-      .update(
-        JSON.stringify({
-          ...world,
-          keep: undefined,
-          tiles: [...world.tiles],
-          reserved: [...world.reserved],
-        }),
-      )
-      .digest('hex'),
-    'd87d51c70a0f36bdc39c491d9a63bee8857c41442883f4d77fcab860c809f5b3',
+    geometryDigest(world),
+    'fef12b885ab14b70bd64e3e0f2644ffa5f505ff66137c23ad2f1f90d38dcdb76',
     'retrying seeds retain their historical accepted geometry',
   );
   assert.deepEqual(report.attempts[1], { attempt: 1, stage: 'accepted', reasons: [] });
