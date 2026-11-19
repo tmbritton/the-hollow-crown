@@ -5,6 +5,8 @@ import { generateKeepIdentity } from './generation/keep.ts';
 import { applyKeepPresentation } from './generation/keepPresentation.ts';
 import type { KeepIdentity } from './generation/keep.ts';
 import { randomFrom } from './generation/random.ts';
+import { localPoint, footprint, inwardRotations } from './generation/placement.ts';
+export { localPoint, footprint } from './generation/placement.ts';
 export { randomFrom } from './generation/random.ts';
 import {
   GenerationError,
@@ -19,7 +21,6 @@ import type {
   Connection,
   Entity,
   Footprint,
-  Frame,
   LayoutNode,
   Pair,
   Placement,
@@ -78,22 +79,6 @@ export const ROOM_DEFINITIONS: readonly [RoomId, string, string, string][] = [
   ['stable', 'The Scale & Saddle', 'XIII · THE UNDERSTABLE', 'Patient eyes watch from the straw.'],
 ];
 
-export function localPoint(frame: Frame, x: number, z: number): Point {
-  const c = Math.round(Math.cos(frame.rotation || 0)),
-    s = Math.round(Math.sin(frame.rotation || 0));
-  return { x: frame.x + x * c + z * s, z: frame.z - x * s + z * c };
-}
-export function footprint(object: Footprint): Footprint {
-  const swap = Math.abs(Math.round(Math.sin(object.rotation || 0))) === 1;
-  return { x: object.x, z: object.z, w: swap ? object.d : object.w, d: swap ? object.w : object.d };
-}
-function inwardRotations(room: Room, position: Point): number[] {
-  const dx = room.x - position.x,
-    dz = room.z - position.z;
-  const scores = [-dz, -dx, dz, dx];
-  const best = Math.max(...scores);
-  return [0, 1, 2, 3].filter((quarter) => scores[quarter] >= best - 1e-9);
-}
 export function tileAt(world: Pick<World, 'tiles'>, x: number, z: number): Tile | undefined {
   return world.tiles.get(key(Math.round(x), Math.round(z)));
 }

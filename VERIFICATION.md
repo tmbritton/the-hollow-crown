@@ -4,6 +4,21 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Bounded scene planner (S1a) — 2026-11-18
+
+- Test-first planner contracts failed on the missing API before implementation. Six tests
+  now exercise both workspaces in narrow/full rooms at every cardinal orientation, bounded
+  retries and optional omissions, connected work paths, ramp/collider rejection, deterministic
+  ordering, serializability and input isolation.
+- `npm run check`: **123 pure/model tests**, type checking, lint and formatting pass.
+  `npm run build` passes with the existing large-chunk warning.
+- Shared placement geometry was extracted without changing the running generator; historical
+  world digest checks still pass. Runtime recipe integration/browser review is S1b.
+- Independent review reproduced a thin-barrier crossing. The regression failed before sharing
+  runtime navigation's swept-box test with planner edges. Follow-up review cleared the fix
+  with 26 targeted tests and eight additional barrier/detour probes. Exact anchor-budget and
+  failed-required-pair rollback fixtures also pass.
+
 ### Linked portraits and room evidence — 2026-11-18
 
 - `npm run check`: **117 tests**, strict type checking, lint and formatting pass.

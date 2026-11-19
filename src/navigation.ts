@@ -1,5 +1,7 @@
 import { heightAt, key, tileAt } from './world.ts';
-import type { DoorEntity, Footprint, Point, World } from './worldTypes.ts';
+import type { DoorEntity, Point, World } from './worldTypes.ts';
+import { segmentIntersectsBox } from './generation/placement.ts';
+export { segmentIntersectsBox } from './generation/placement.ts';
 import { Statechart } from './machines/statechart.ts';
 import { navigationMachine } from './machines/navigation/travel.ts';
 import type { CollisionBody, Occupancy } from './occupancy.ts';
@@ -28,28 +30,6 @@ const CARDINALS = [
   [0, -1],
 ] as const;
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
-
-/** Exact slab intersection avoids tunnelling through thin cover or clipping corners. */
-export function segmentIntersectsBox(from: Point, to: Point, box: Footprint, padding = 0): boolean {
-  let enter = 0,
-    exit = 1;
-  for (const axis of ['x', 'z'] as const) {
-    const half = (axis === 'x' ? box.w : box.d) / 2 + padding;
-    const delta = to[axis] - from[axis],
-      low = box[axis] - half,
-      high = box[axis] + half;
-    if (Math.abs(delta) < 1e-10) {
-      if (from[axis] <= low || from[axis] >= high) return false;
-    } else {
-      const a = (low - from[axis]) / delta,
-        b = (high - from[axis]) / delta;
-      enter = Math.max(enter, Math.min(a, b));
-      exit = Math.min(exit, Math.max(a, b));
-      if (enter >= exit) return false;
-    }
-  }
-  return enter < exit;
-}
 
 /** Pick the actual tile elevations, including stepped landings and liquid surfaces.
  * Decorative meshes and camera cutaways do not change the navigation surface. */

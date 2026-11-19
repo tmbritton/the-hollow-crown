@@ -7,7 +7,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **Completed G1–G3, T1 and I1–I2. Next dependency-ready feature: S1 scene recipes.**
+- **Completed G1–G3, T1 and I1–I2. Active: S1 scene recipes.**
 - Latest checkpoint: 117 pure/model tests, lint, formatting and build pass; 23 Chromium full
   checks, 13 Firefox inspection checks, portrait GPU checks, production smoke, generation
   checks and the refreshed 48-view gallery pass. Per-feature details are below.
@@ -22,7 +22,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | T1 | Complete | Stationary skeleton fixture failed at `[0,2]` before fix | 23 full-browser checks pass in Chromium and Firefox; 108 tests/check/build pass; review suggestion applied | `bb56640` |
 | I1 | Complete | Keep contract failed before API; 200-seed chronology/reference invariants | 113 tests/check, build, generation browser and corpus pass; all review findings addressed | `624f8d4` |
 | I2 | Complete | Presentation contract failed before API; review regression reproduced swapped painting identities | 117 tests/check/build, Firefox inspection 13 and portraits, Chromium full 23, production, generation and gallery pass; follow-up review cleared | `a2ba6cf` |
-| S1 | Next | Pending | Start with bounded forge/bakery recipe definitions and reserved approaches | — |
+| S1a | Complete | Initial contracts failed on missing module; review regression reproduced thin-barrier crossing | 123 tests/check/build pass; independent follow-up review cleared the swept-clearance fix | This commit |
+| S1b | Next | Pending | Integrate recipes into world generation, report provenance, verify traversal and rendered composition | — |
 | N1, D1 | Planned | Pending | Pending | — |
 | O1–O4 | Planned | Pending | Pending | — |
 
@@ -97,6 +98,23 @@ Execution record for [implementation path](implementation-path.md). Started **20
   regression, then keyed painting streams by placement with a total assignment ordering.
 - All 117 pure/model checks, 13 Firefox inspection checks, four-portrait GPU check, 23 Chromium
   full checks, production smoke, generation browser/corpus and refreshed gallery pass.
+
+### S1a — bounded scene planner
+
+- Added pure forge/bakery recipe planning with semantic prop IDs, a focal/work pair, two
+  optional roles, twelve relative sockets per role and at most 96 anchor candidates.
+- Paths connect each work face to the room center before later support props are placed.
+  Existing reservations, colliders, blocked tiles and ramp support constrain placement.
+  Failed required pairs retry anchors transactionally; optional roles retry sockets then omit.
+- `node --test tests/scenes.test.ts` failed first on the missing planner. Six passing
+  contracts include both recipes in 13- and 17-tile rooms at all four orientations,
+  unreachable/blocked/outward anchors, mutation isolation and tile-order independence.
+- Review reproduced a path crossing a thin collider between clear cell centers. A failing
+  regression preceded the fix: planner edges now use the same exact swept-box test as runtime
+  navigation. Follow-up review passed 26 targeted tests and eight rotated/detour barrier probes.
+  Added its requested exact anchor-budget and failed-required-pair rollback fixtures.
+- `npm run check` passes all 123 tests, lint and formatting; `npm run build` passes.
+  This is the standalone planner; runtime integration and rendered checks follow in S1b.
 
 ## Follow-ups and blockers
 
