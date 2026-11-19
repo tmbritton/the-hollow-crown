@@ -4,6 +4,27 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Live-blocker traversal and refreshed hardware sample — 2026-11-18
+
+- Added a deterministic stationary-skeleton browser fixture. It failed before the driver
+  fix at waypoint `[0,2]`, blocked by the living body. The driver now uses ordinary timed
+  combat to clear nearby blockers and rebuilds its independent terrain route afterward.
+  Physical movement, actor collision and the altar/throne completion assertions remain active.
+- `npm run test:browser` and `BROWSER=firefox npm run test:browser`: **23 checks each pass**,
+  completing `MOURNING-731`, `CINDER-42` and `VIOLET-7`. This resolves the G3 follow-up below.
+- `npm run check`: **108 pure/model tests**, type checking, lint and formatting pass.
+  `npm run build` passes with the existing large-chunk warning.
+- Independent review found no blockers. Added its requested finite-immunity restoration
+  assertion and reran the Chromium suite successfully.
+- `npm run profile` completed a fresh **high-quality**, 1920×1080, RTX 2070 / Chromium
+  159.0.8154.6 run. An earlier combined-command run exhausted its shell budget; only the
+  completed standalone run is used here. Ten room means range from **16.76–18.07 ms**
+  (**55.3–59.7 FPS**); the throne sample's p95 is **34.7 ms**. Draw calls range **345–684**,
+  geometry totals **188,770 mesh triangles**, and sampled JS heap is approximately
+  **140–172 MB**. Inspector opened/closed and no browser errors were recorded.
+  `test-results/hardware-profile.json` contains the per-room values. Low-quality hardware
+  sampling and generation-latency measurements remain Phase 0 follow-ups.
+
 ### Development reports and visual seed gallery — 2026-11-18
 
 - `npm run check`: **108 tests**, type checking, lint and formatting pass.

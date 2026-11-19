@@ -7,7 +7,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **G3 verified and reviewed; committing next. Investigate the full-browser route failure next.**
+- **T1 verified and reviewed; committing next. Shared keep identity is next.**
 
 ## Feature tracker
 
@@ -15,8 +15,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | --- | --- | --- | --- | --- |
 | G1 | Complete | Four contract tests failed on missing API, then passed; historical first-attempt/retry geometry digests | 101 tests, typecheck, lint, format, build pass; independent review cleared, two test improvements applied | `592a84e` |
 | G2 | Complete | Report contract failed before API; review regression reproduced biased gallery sampling | 106 tests, typecheck, lint, format, build and 100-seed export pass; both review findings addressed | `4c3820c` |
-| G3 | Verified; ready to commit | Real browser failed on missing report API before implementation | 108 tests/check/build, targeted browser, production, 48 captures and 5 regeneration checks pass; both review findings fixed | Pending |
-| T1 | Next (discovered blocker) | Full browser traversal failed twice with live actors | Investigate static keyboard route driver | — |
+| G3 | Complete | Real browser failed on missing report API before implementation | 108 tests/check/build, targeted browser, production, 48 captures and 5 regeneration checks pass; both review findings fixed | `8ad2d83` |
+| T1 | Verified; ready to commit | Stationary skeleton fixture failed at `[0,2]` before fix | 23 full-browser checks pass in Chromium and Firefox; 108 tests/check/build pass; review suggestion applied | Pending |
 | I1–I2 | Planned | Pending | Pending | — |
 | S1, N1, D1 | Planned | Pending | Pending | — |
 | O1–O4 | Planned | Pending | Pending | — |
@@ -51,13 +51,6 @@ Execution record for [implementation path](implementation-path.md). Started **20
   preceded the fix. Added encounter coordinates, group and activity checks against real
   registered-world/player seeding as requested. All 106 tests and export/build checks pass.
 
-## Follow-ups and blockers
-
-- Full gameplay browser suite's static landmark route driver collided with live actors on
-  two runs. Investigate and repair this verification gap before identity/content work.
-- Fresh hardware performance numbers remain a separate Phase 0 requirement; historical
-  numbers in `VERIFICATION.md` are not a current measurement.
-
 ### G3 — development report and gallery
 
 - Added a guarded initial report snapshot and real-browser isolation/persistence/regeneration checks.
@@ -67,3 +60,21 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Review fixes exclude invalid frozen-loop performance counters and exercise a live blueprint
   mutation to distinguish initial capture from recomputation. Targeted checks pass after fixes.
 - Full-browser traversal failure is recorded explicitly above; no full-suite pass is claimed.
+
+### T1 — live-blocker traversal
+
+- Reproduced the static driver's failure with a deliberately placed stationary skeleton.
+- Added bounded ordinary pursuit/attacks when blocked, then replanned from the actual
+  position. Retained independent terrain routing and physical collision; no actor deletion
+  or direct damage. Per-walk protection is restored in `finally`.
+- Both Chromium and Firefox now pass all 23 full-suite checks. Independent review found
+  no blockers; its requested finite-immunity restoration assertion passes in Chromium.
+- Completed a fresh high-quality desktop-GPU profile (ten rooms, Inspector open/close).
+  See `VERIFICATION.md` for actual measurements and the earlier interrupted-run qualification.
+
+## Follow-ups and blockers
+
+- No current correctness blocker. G3's full-browser follow-up is resolved by T1.
+- Phase 0 diagnostic/gallery implementation and high-quality hardware sampling are done.
+  Low-quality hardware sampling and generation-latency reporting remain to complete its
+  full performance baseline; do not claim Phase 0 entirely complete yet.

@@ -1,6 +1,8 @@
 # The Hollow Crown — procedural content improvement plan
 
-**Status:** proposed roadmap; implementation tasks below are pending.
+**Status:** roadmap in progress. Phase 0 diagnostics, fixed metadata corpus and visual gallery
+are implemented; see [implementation progress](implementation-progress.md) for verification
+and remaining baseline work. Later phases below remain proposed.
 
 **Date:** 2026-11-18.
 

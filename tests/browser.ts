@@ -105,8 +105,8 @@ async function room(id: RoomId) {
   }, id);
 }
 
-// A data-driven pathfinder: the test must discover routes, just like the player.
-// It uses the real controller/collision/interaction updates, not teleportation.
+// Terrain routing remains independent of production navigation. A living blocker must
+// be defeated through ordinary pursuit/attacks before the physical route is replanned.
 async function walkTo(x: number, z: number) {
   const result = await page.evaluate(
     ({ x, z }) => {
@@ -114,83 +114,122 @@ async function walkTo(x: number, z: number) {
         g = d.game,
         p = g.player.root.position,
         w = g.world;
-      const key = (x: number, z: number) => `${Math.round(x)},${Math.round(z)}`;
-      const start = key(p.x, p.z),
-        goal = key(x, z),
-        parents = new Map<string, string | null>([[start, null]]),
-        queue = [start];
-      const gate = w.entities.find((e) => e.type === 'door' && e.requiresAltar && e.locked);
-      for (let i = 0; i < queue.length && !parents.has(goal); i++) {
-        const tile = w.tiles.get(queue[i]);
-        if (!tile) throw new Error('Missing navigation tile');
-        for (const [dx, dz] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ]) {
-          const next = w.tiles.get(key(tile.x + dx, tile.z + dz));
-          if (!next || next.blocked || next.surface === 'lava' || Math.abs(next.h - tile.h) > 0.65)
-            continue;
-          if (
-            gate?.type === 'door' &&
-            (gate.axis === 'x'
-              ? next.x === gate.x && Math.abs(next.z - gate.z) <= 1
-              : next.z === gate.z && Math.abs(next.x - gate.x) <= 1)
-          )
-            continue;
-          const k = key(next.x, next.z);
-          if (parents.has(k)) continue;
-          parents.set(k, queue[i]);
-          queue.push(k);
-        }
-      }
-      if (!parents.has(goal))
-        return { ok: false, reason: 'No navigation route', goal, position: p.asArray() };
-      const route: number[][] = [];
-      for (let at: string | null = goal; at !== null; at = parents.get(at) ?? null)
-        route.unshift(at.split(',').map(Number));
-      for (const [index, [tx, tz]] of route.entries()) {
-        const finalWaypoint = index === route.length - 1;
-        let reached = false,
-          stuck = 0;
-        for (let i = 0; i < 150; i++) {
-          const remaining = Math.hypot(tx - p.x, tz - p.z);
-          if (remaining < 0.075 && (!finalWaypoint || g.player.motion.speed === 0)) {
-            reached = true;
-            break;
+      const immunity = g.player.actor.health.invulnerable;
+      g.player.actor.health.invulnerable = Infinity;
+      try {
+        route: for (let replans = 0; replans <= g.combat.enemies.length; replans++) {
+          const key = (x: number, z: number) => `${Math.round(x)},${Math.round(z)}`;
+          const start = key(p.x, p.z),
+            goal = key(x, z),
+            parents = new Map<string, string | null>([[start, null]]),
+            queue = [start];
+          const gate = w.entities.find((e) => e.type === 'door' && e.requiresAltar && e.locked);
+          for (let i = 0; i < queue.length && !parents.has(goal); i++) {
+            const tile = w.tiles.get(queue[i]);
+            if (!tile) throw new Error('Missing navigation tile');
+            for (const [dx, dz] of [
+              [1, 0],
+              [-1, 0],
+              [0, 1],
+              [0, -1],
+            ]) {
+              const next = w.tiles.get(key(tile.x + dx, tile.z + dz));
+              if (
+                !next ||
+                next.blocked ||
+                next.surface === 'lava' ||
+                Math.abs(next.h - tile.h) > 0.65
+              )
+                continue;
+              if (
+                gate?.type === 'door' &&
+                (gate.axis === 'x'
+                  ? next.x === gate.x && Math.abs(next.z - gate.z) <= 1
+                  : next.z === gate.z && Math.abs(next.x - gate.x) <= 1)
+              )
+                continue;
+              const k = key(next.x, next.z);
+              if (parents.has(k)) continue;
+              parents.set(k, queue[i]);
+              queue.push(k);
+            }
           }
-          const door = w.entities.find(
-            (e) =>
-              e.type === 'door' && !e.open && !e.locked && Math.hypot(e.x - p.x, e.z - p.z) < 2.3,
-          );
-          if (door) {
-            d.interact();
-            d.step([], 60);
+          if (!parents.has(goal))
+            return { ok: false, reason: 'No navigation route', goal, position: p.asArray() };
+          const route: number[][] = [];
+          for (let at: string | null = goal; at !== null; at = parents.get(at) ?? null)
+            route.unshift(at.split(',').map(Number));
+          for (const [index, [tx, tz]] of route.entries()) {
+            const finalWaypoint = index === route.length - 1;
+            let reached = false,
+              stuck = 0;
+            for (let i = 0; i < 150; i++) {
+              const remaining = Math.hypot(tx - p.x, tz - p.z);
+              if (remaining < 0.075 && (!finalWaypoint || g.player.motion.speed === 0)) {
+                reached = true;
+                break;
+              }
+              const door = w.entities.find(
+                (e) =>
+                  e.type === 'door' &&
+                  !e.open &&
+                  !e.locked &&
+                  Math.hypot(e.x - p.x, e.z - p.z) < 2.3,
+              );
+              if (door) {
+                d.interact();
+                d.step([], 60);
+              }
+              const codes = [];
+              if (tx - p.x > 0.045) codes.push('KeyD');
+              else if (tx - p.x < -0.045) codes.push('KeyA');
+              if (tz - p.z > 0.045) codes.push('KeyW');
+              else if (tz - p.z < -0.045) codes.push('KeyS');
+              // Release before the final waypoint and let the real controller brake.
+              // Merely passing the point at full speed is no longer a settled arrival.
+              if (finalWaypoint && remaining < g.player.motion.speed * 0.06 + 0.03)
+                codes.length = 0;
+              const old = p.clone();
+              d.step(codes, 1);
+              if (old.subtract(p).lengthSquared() < 1e-7) stuck++;
+              else stuck = 0;
+              if (stuck > 15) break;
+            }
+            if (!reached) {
+              const blocker = g.combat.enemies
+                .filter(
+                  (enemy) =>
+                    enemy.alive &&
+                    Math.abs(enemy.position.h - p.y) < 0.9 &&
+                    Math.hypot(enemy.position.x - p.x, enemy.position.z - p.z) < 2.5,
+                )
+                .sort(
+                  (a, b) =>
+                    Math.hypot(a.position.x - p.x, a.position.z - p.z) -
+                    Math.hypot(b.position.x - p.x, b.position.z - p.z),
+                )[0];
+              if (blocker) {
+                g.combat.target(g.player.actor, blocker);
+                // Bounded normal combat: no direct damage, actor deletion or disabled collision.
+                for (let frame = 0; frame < 1800 && blocker.alive; frame++) d.step([], 1);
+                g.player.actor.attack.cancel();
+                g.player.actor.navigator.cancel();
+                if (!blocker.alive) continue route;
+              }
+              return {
+                ok: false,
+                reason: 'Physical collision',
+                waypoint: [tx, tz],
+                position: p.asArray(),
+              };
+            }
           }
-          const codes = [];
-          if (tx - p.x > 0.045) codes.push('KeyD');
-          else if (tx - p.x < -0.045) codes.push('KeyA');
-          if (tz - p.z > 0.045) codes.push('KeyW');
-          else if (tz - p.z < -0.045) codes.push('KeyS');
-          // Release before the final waypoint and let the real controller brake.
-          // Merely passing the point at full speed is no longer a settled arrival.
-          if (finalWaypoint && remaining < g.player.motion.speed * 0.06 + 0.03) codes.length = 0;
-          const old = p.clone();
-          d.step(codes, 1);
-          if (old.subtract(p).lengthSquared() < 1e-7) stuck++;
-          else stuck = 0;
-          if (stuck > 15) break;
+          return { ok: true, position: p.asArray() };
         }
-        if (!reached)
-          return {
-            ok: false,
-            reason: 'Physical collision',
-            waypoint: [tx, tz],
-            position: p.asArray(),
-          };
+        return { ok: false, reason: 'Traversal replan budget exhausted', position: p.asArray() };
+      } finally {
+        g.player.actor.health.invulnerable = immunity;
       }
-      return { ok: true, position: p.asArray() };
     },
     { x, z },
   );
@@ -467,6 +506,37 @@ try {
   assert.equal((await snapshot()).health, 100);
   assert.ok(Math.hypot((await snapshot()).position[0], (await snapshot()).position[2]) < 0.1);
   pass('Lava damage and respawn');
+  // Regression: a static terrain route cannot walk through a stationary living body.
+  await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
+  await settle();
+  await north();
+  const blockingActor = await page.evaluate(() => {
+    const g = window.__dungeon.game;
+    const actor = g.combat.enemies.find((e) => e.kind === 'skeleton');
+    if (!actor?.brain) throw new Error('Missing traversal blocker');
+    actor.attack.cancel();
+    actor.navigator.cancel();
+    actor.brain.think = Infinity;
+    Object.assign(actor.position, { x: 0, z: 2, h: 0 });
+    actor.entity.get('collision')?.sync?.(actor.position);
+    g.player.actor.health.invulnerable = 0;
+    return actor.id;
+  });
+  await walkTo(0, 4);
+  assert.equal(
+    await page.evaluate(() => window.__dungeon.game.player.actor.health.invulnerable),
+    0,
+  );
+  assert.equal(
+    await page.evaluate((id) => window.__dungeon.game.ecs.get(id)?.has('corpse'), blockingActor),
+    true,
+  );
+  assert.ok(Math.hypot((await snapshot()).position[0], (await snapshot()).position[2] - 4) < 0.1);
+  pass(
+    'Landmark driver clears a living blocker through ordinary combat and resumes physical travel',
+  );
+  await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
+  await settle();
   await completeRun(true);
   pass('Dynamic route through landmarks, altar, gate, and throne completes');
   assert.equal(await page.evaluate(() => window.__dungeon.game.dungeon.creatures.length), 2);
