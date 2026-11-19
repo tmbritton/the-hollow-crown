@@ -9,6 +9,7 @@ import { registerWorld, updateDoors } from '../src/worldEntities.ts';
 import type { NavigationWorld } from '../src/navigation.ts';
 import type { DoorEntity, Tile } from '../src/worldTypes.ts';
 import { Health } from '../src/machines/actors/health.ts';
+import { RUN_SPEED, WALK_SPEED } from '../src/locomotion.ts';
 
 function fixture() {
   const ecs = new ECS(),
@@ -136,6 +137,17 @@ test('goblins flee both the player and other species at close range', () => {
   }
 });
 
+test('fleeing goblins outpace walking but a running player can close the gap', () => {
+  const f = fixture();
+  f.player.position.x = -2;
+  const goblin = f.enemy('goblin', 0);
+  f.step(24);
+  assert.equal(goblin.brain?.state, 'flee');
+  assert.ok(goblin.motion.actualSpeed > WALK_SPEED);
+  assert.ok(goblin.motion.actualSpeed < WALK_SPEED * 1.15);
+  assert.ok(goblin.motion.actualSpeed < RUN_SPEED);
+});
+
 test('goblins hide behind cover, peek out and launch ranged attacks', () => {
   const f = fixture();
   f.player.position.x = 0;
@@ -224,6 +236,67 @@ test('melee resolves at impact and cannot hit through furniture, shut doors or a
   f.world.entities.push(door);
   assert.equal(clearSight(f.world, f.player.position, target.position), false);
   assert.equal(f.combat.startAttack(f.player, target), false);
+});
+
+test('locked pursuit keeps moving through windup, impact and recovery against a fleeing target', () => {
+  const f = fixture();
+  f.player.position.x = -4;
+  const target = f.enemy('goblin', -2.6, 0, false);
+  target.motion.speed = 5.2;
+  const phases = new Set<string>();
+  assert.ok(f.combat.target(f.player, target));
+  let strikes = 0;
+  for (let i = 0; i < 120 && target.alive; i++) {
+    const locked = f.combat.pursue(f.player, 1 / 60);
+    const swing = f.player.attack.swing;
+    moveActor(f.player, f.world, { locked, speed: RUN_SPEED }, 1 / 60);
+    if (swing) {
+      assert.ok(f.player.motion.actualSpeed > 0.1, 'a melee swing must not lock the motor');
+      phases.add(swing.resolved ? 'recovery' : 'windup');
+    }
+    const health = target.health.current;
+    f.combat.update(1 / 60);
+    if (target.health.current < health) {
+      assert.equal(health - target.health.current, strikes ? 12 : 24);
+      strikes++;
+      phases.add('impact');
+    }
+    if (target.alive) moveActor(target, f.world, { direction: { x: 1, z: 0 }, speed: 5.2 }, 1 / 60);
+    assert.ok(Math.hypot(f.player.position.x - target.position.x, f.player.position.z) >= 0.9);
+  }
+  assert.deepEqual([...phases].sort(), ['impact', 'recovery', 'windup']);
+  assert.equal(strikes, 2, 'moving pursuit must land both ordinary timed strikes');
+  assert.equal(f.player.attack.target, null);
+  assert.equal(f.player.navigator.active, false);
+});
+
+test('moving swings still miss targets that escape reach or move behind cover before impact', () => {
+  for (const obstruction of ['range', 'cover', 'door'] as const) {
+    const f = fixture();
+    f.player.position.x = 0;
+    const target = f.enemy('goblin', 1.4, 0, false);
+    f.combat.target(f.player, target);
+    f.step(5, true);
+    assert.ok(f.player.attack.swing);
+    assert.ok(f.player.position.x > 0, 'windup advances the chase');
+    if (obstruction === 'range') target.position.x = 10;
+    else if (obstruction === 'cover')
+      f.world.blockers.push({ id: 'wall', x: 0.9, z: 0, w: 0.1, d: 16 });
+    else
+      f.world.entities.push({
+        id: 'gate',
+        type: 'door',
+        x: 0.9,
+        z: 0,
+        h: 0,
+        axis: 'x',
+        open: false,
+        locked: true,
+        requiresAltar: true,
+      });
+    f.step(12, true);
+    assert.equal(target.health.current, target.health.max, obstruction);
+  }
 });
 
 test('crossbow bolts are dodgable and stop at cover or closed doors', () => {

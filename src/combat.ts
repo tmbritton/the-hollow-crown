@@ -12,6 +12,7 @@ const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 export const MELEE_RANGE = 1.5;
 export const ATTACK_DURATION = 0.62;
 export const ATTACK_IMPACT = 0.25;
+export const GOBLIN_FLEE_SPEED = 5.2;
 
 /** Conservative cover/weapon visibility: void, cliffs, furniture and solid doors occlude. */
 export function clearSight(world: NavigationWorld, from: Spawn, to: Spawn): boolean {
@@ -204,7 +205,7 @@ export class CombatSystem {
         : !this.inMelee(actor, target)
     )
       return false;
-    actor.navigator.cancel();
+    if (ranged || actor.kind !== 'player') actor.navigator.cancel();
     const started = actor.attack.start(
       {
         target: target.id,
@@ -236,21 +237,52 @@ export class CombatSystem {
         actor.attack.target = null;
         actor.navigator.cancel();
       }
-      return !!actor.attack.swing;
+      return !!actor.attack.swing && (actor.kind !== 'player' || actor.attack.swing.ranged);
     }
     if (actor.jump.active) return false;
-    if (actor.attack.swing) return true;
+    if (actor.attack.swing && (actor.kind !== 'player' || actor.attack.swing.ranged)) return true;
     if (this.inMelee(actor, target)) {
-      actor.navigator.cancel();
       this.startAttack(actor, target);
-      return true;
+      // Only proximity to a stationary target stops the player's chase, never the swing clock.
+      if (
+        actor.kind !== 'player' ||
+        (distance(actor.position, target.position) <= 1.05 && target.motion.actualSpeed < 0.08)
+      ) {
+        actor.navigator.cancel();
+        return true;
+      }
+    }
+    // Refresh the short, clear approach every step. A fleeing target must not leave us
+    // braking at a stale waypoint during windup or recovery. Longer/obstructed routes
+    // still use the bounded replanning cadence below and normal door/occupancy rules.
+    const separation = distance(actor.position, target.position);
+    if (actor.kind === 'player' && separation > 0.95 && separation < 3) {
+      const goal = {
+        x: target.position.x + ((actor.position.x - target.position.x) / separation) * 0.95,
+        z: target.position.z + ((actor.position.z - target.position.z) / separation) * 0.95,
+      };
+      if (
+        actor.navigator.canOccupy(goal) &&
+        actor.navigator.segmentClear(
+          actor.position,
+          goal,
+          true,
+          actor.navigator.occupancy?.bodies(),
+        ) &&
+        this.route(actor, goal)
+      ) {
+        actor.attack.repath = 0.15;
+        actor.attack.blocked = 0;
+        return false;
+      }
     }
     actor.attack.repath -= dt;
     if (actor.attack.repath <= 0) {
       actor.attack.repath = 0.3;
       if (
         actor.navigator.destination &&
-        distance(actor.navigator.destination, target.position) < 1.3
+        distance(actor.navigator.destination, target.position) < 1.3 &&
+        target.motion.actualSpeed < 0.08
       )
         return false;
       const angle = Math.atan2(
@@ -594,7 +626,16 @@ export class CombatSystem {
             swinging: !!actor.attack.swing,
           }),
         );
-        moveActor(actor, this.world, { locked: !!actor.attack.swing }, dt);
+        moveActor(
+          actor,
+          this.world,
+          {
+            locked: !!actor.attack.swing,
+            speed:
+              actor.kind === 'goblin' && brain.state === 'flee' ? GOBLIN_FLEE_SPEED : undefined,
+          },
+          dt,
+        );
       }
       const swing = actor.attack.advance(dt);
       if (!swing) continue;

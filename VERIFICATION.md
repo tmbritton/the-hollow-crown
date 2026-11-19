@@ -4,6 +4,34 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Moving pursuit attacks — 2026-11-18
+
+- Click-locked player pursuit now advances during melee wind-up, impact and recovery.
+  Clear close approaches update every simulation step, with a tighter pursuit arrival brake;
+  stationary targets still have a stopping distance. Damage retains its existing impact clock,
+  range, elevation and cover checks. Moving attack animation preserves gait and foot contact.
+- Goblins flee at **5.2 units/second**, above the player's **4.8** walk and below the **7.4**
+  Shift-run. Other goblin movement retains its existing speed.
+- Three new pure regressions failed first on the old movement lock/flee speed. They now pass:
+  moving pursuit lands both ordinary hits, fleeing speed stays between walk and run, and escaped
+  or newly occluded targets cannot be hit through range, furniture or a locked door.
+- `npm run format:check`, `npm run lint`, `npm test` (**133 pure/model tests**, including strict
+  type checking), and `npm run build` pass. The build retains its existing large-chunk warning.
+- `npm run test:combat` and `BROWSER=firefox npm run test:combat`: **14 checks each** pass,
+  including real held-click/Shift pursuit of a live fleeing goblin, moving wind-up/recovery,
+  two timed strikes, living-body separation, cancellation, respawn and regeneration.
+- Chromium movement: **13 checks**; jump: **8 checks**; animation: **28 pose captures** pass.
+  The new animation comparison checks the leg excursion across all four moving-sword poses;
+  its initial two-pose comparison sampled similar parts of the gait cycle and was corrected.
+- Reviewed the animation sheet and Firefox moving wind-up/contact captures: the sword action
+  remains readable over distinct strides, and the chase produces visible blood at impact.
+  Final format/lint/typecheck and diff-whitespace checks pass. Broader full-gameplay, social,
+  production-smoke and gallery results below remain their recorded feature baselines.
+
+- Independent pre-commit review found no blockers: 56 focused tests, 1,124 generated-world
+  close-pursuit probes, target stop/reversal and door probes, and nine Chromium moving-swing
+  lifecycle cases pass. The reviewer also inspected the moving combat and animation captures.
+
 ### Named inhabitants (N1) — 2026-11-18
 
 - Test-first identity/lifecycle/report contracts failed before implementation. The browser

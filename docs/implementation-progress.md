@@ -7,10 +7,11 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **Completed G1–G3, T1, I1–I2, S1a–S1b and N1. Next: D1 within-run discovery record.**
-- Latest checkpoint: 130 pure/model tests, lint, formatting and build pass; 23 Chromium full
-  checks, 13 combat checks in each browser, nine Chromium social checks, production smoke,
-  generation checks and the refreshed 48-view gallery pass. Per-feature details are below.
+- **Completed G1–G3, T1, I1–I2, S1a–S1b, N1 and the user-requested GF1 game-feel detour.
+  Next roadmap feature: D1 within-run discovery record.**
+- Latest checkpoint: 133 pure/model tests, lint, formatting and build pass; 14 combat checks
+  in each browser, 13 Chromium movement checks, eight jump checks and 28 animation captures pass.
+  Broader full-gameplay/social/production/generation/gallery results remain the N1 baseline below.
 
 ## Feature tracker
 
@@ -24,7 +25,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | I2 | Complete | Presentation contract failed before API; review regression reproduced swapped painting identities | 117 tests/check/build, Firefox inspection 13 and portraits, Chromium full 23, production, generation and gallery pass; follow-up review cleared | `a2ba6cf` |
 | S1a | Complete | Initial contracts failed on missing module; review regression reproduced thin-barrier crossing | 123 tests/check/build pass; independent follow-up review cleared the swept-clearance fix | `a65c239` |
 | S1b | Complete | World/report contracts failed on missing scene provenance; final-world navigation over 100 additional seeds | 125 tests/check/build, both movement browsers, Chromium full/social, production, generation and gallery pass; independent 500-seed review cleared | `2e93f62` |
-| N1 | Complete | Identity/report and visual tests failed first; corpus doorway-home and review HUD-overlap regressions failed before fixes | 130 tests/check/build, both combat browsers, full/social, production, generation and gallery pass; independent review cleared | This commit |
+| N1 | Complete | Identity/report and visual tests failed first; corpus doorway-home and review HUD-overlap regressions failed before fixes | 130 tests/check/build, both combat browsers, full/social, production, generation and gallery pass; independent review cleared | `4f45a2c` |
+| GF1 | Complete | Moving-pursuit, escaped/occluded-target and goblin flee-speed regressions failed first | 133 tests, format/lint/build, both combat browsers, Chromium movement/jump/animation pass; independent review cleared | This commit |
 | D1 | Next | Pending | Once-only learned facts/observed events, inspection integration, respawn persistence and regeneration reset | — |
 | O1–O4 | Planned | Pending | Pending | — |
 
@@ -147,6 +149,21 @@ Execution record for [implementation path](implementation-path.md). Started **20
   600/900px non-intersection regression failed first, then passed in both browsers after the CSS
   fix. Follow-up review cleared the feature. Refreshed/reviewed resized Chromium close-ups after
   correcting a capture-only WebGL resize race; all three ornaments are visible in close-up.
+
+### GF1 — moving pursuit attacks (user-requested game-feel detour)
+
+- Click-locked player pursuit now swings in range while moving through the entire attack.
+  Close clear approaches refresh each fixed step; a tighter pursuit arrival brake prevents
+  lagging behind moving targets. Stationary targets still have a stopping distance.
+- Layered sword animation over the moving leg gait and retained normal foot placement.
+  Goblin fleeing is 5.2 units/second, slightly faster than walking but catchable with Shift.
+- Three failing pure regressions preceded the fix. All 133 pure/model tests, formatting,
+  lint and build pass; combat passes 14 checks in each browser. Chromium movement (13),
+  jump (8) and the expanded 28-pose animation sheet pass. Reviewed moving combat/pose captures.
+- Scope follows the user's click-locked chase clarification. D1 remains the next roadmap slice.
+  Independent review cleared the feature after 56 focused tests, 1,124 close-pursuit probes
+  and nine real-browser moving-swing lifecycle probes. Suggested additional persisted foot
+  contact/lifecycle assertions are non-blocking follow-ups.
 
 ## Follow-ups and blockers
 

@@ -60,10 +60,25 @@ export function resetActorRig(rig: Components['rig']): void {
   rig.attackPose = rig.socialPose = null;
 }
 
-function blendPose(pose: LocomotionPose, target: LocomotionPose | null, weight: number): void {
+function blendPose(
+  pose: LocomotionPose,
+  target: LocomotionPose | null,
+  weight: number,
+  moving = 0,
+): void {
   if (!target) return;
-  for (const key of Object.keys(pose) as (keyof LocomotionPose)[])
-    pose[key] += (target[key] - pose[key]) * weight;
+  for (const key of Object.keys(pose) as (keyof LocomotionPose)[]) {
+    const lowerBody =
+      key === 'leftLeg' ||
+      key === 'rightLeg' ||
+      key === 'leftKnee' ||
+      key === 'rightKnee' ||
+      key === 'bob' ||
+      key === 'lift' ||
+      key === 'stretch' ||
+      key === 'reach';
+    pose[key] += (target[key] - pose[key]) * weight * (lowerBody ? 1 - moving : 1);
+  }
 }
 
 /** Render-only deformation: the motor, collision ellipsoid and attack clock stay authoritative. */
@@ -138,7 +153,8 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       }
     }
     blendPose(pose, rig.socialPose, rig.socialBlend);
-    blendPose(pose, rig.attackPose, rig.attackBlend);
+    // Keep the measured gait and ground contact under the upper-body weapon action.
+    blendPose(pose, rig.attackPose, rig.attackBlend, Math.min(1, actor.motion.actualSpeed / 0.8));
     applyJumpPose(pose, actor.jump);
     const dynamics = actor.motion.animation;
     const sin = Math.sin(rig.root.rotation.y),

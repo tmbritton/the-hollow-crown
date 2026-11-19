@@ -369,6 +369,69 @@ try {
   );
   pass('Living enemies bleed on impact; released clicks retain the target until death');
 
+  const fleeing = await fixture('goblin', 2.5);
+  await page.evaluate((id) => {
+    const actor = window.__dungeon.game.combat.actor(id)!;
+    actor.enableAI();
+  }, fleeing);
+  await clickEnemy(fleeing, true);
+  await page.keyboard.down('ShiftLeft');
+  const chase = (frames: number, stopAtWindup = false) =>
+    page.evaluate(
+      ({ id, frames, stopAtWindup }) => {
+        const d = window.__dungeon,
+          g = d.game,
+          actor = g.player.actor,
+          target = g.combat.actor(id)!;
+        const samples = [];
+        for (let i = 0; i < frames && target.alive; i++) {
+          d.step(['ShiftLeft'], 1);
+          const swing = actor.attack.swing;
+          samples.push({
+            phase: swing ? (swing.resolved ? 'recovery' : 'windup') : 'chasing',
+            speed: actor.motion.actualSpeed,
+            targetSpeed: target.motion.actualSpeed,
+            health: target.health.current,
+            distance: Math.hypot(
+              actor.position.x - target.position.x,
+              actor.position.z - target.position.z,
+            ),
+            leg: g.player.legs[0].rotation.x,
+            arm: g.player.arms[1].rotation.x,
+          });
+          if (stopAtWindup && swing && swing.elapsed >= 0.12) break;
+        }
+        return samples;
+      },
+      { id: fleeing, frames, stopAtWindup },
+    );
+  const runningWindup = await chase(180, true);
+  assert.equal(runningWindup.at(-1)?.phase, 'windup');
+  await capture('running-windup');
+  const runningContact = await chase(12);
+  await capture('running-contact');
+  const runningRecovery = await chase(180);
+  await page.keyboard.up('ShiftLeft');
+  await page.mouse.up();
+  const runningSamples = [...runningWindup, ...runningContact, ...runningRecovery];
+  for (const phase of ['windup', 'recovery'])
+    assert.ok(
+      runningSamples.filter((s) => s.phase === phase && s.speed > 1).length >= 8,
+      `${phase} must carry the chase forward`,
+    );
+  assert.ok(runningSamples.some((s) => s.targetSpeed > 4.8 && s.targetSpeed < 5.3));
+  assert.ok(runningSamples.every((s) => s.distance >= 0.9 - 1e-6));
+  const movingSwings = runningSamples.filter((s) => s.phase !== 'chasing' && s.speed > 1);
+  assert.ok(
+    Math.max(...movingSwings.map((s) => s.leg)) - Math.min(...movingSwings.map((s) => s.leg)) > 0.4,
+  );
+  assert.ok(movingSwings.some((s) => s.arm < -1));
+  assert.deepEqual([...new Set(runningSamples.map((s) => s.health))], [36, 12, 0]);
+  assert.equal(await page.evaluate(() => window.__dungeon.game.player.actor.attack.target), null);
+  pass(
+    'Held target lock and Shift chase a live fleeing goblin, striking on the move with an active leg gait',
+  );
+
   const moving = await fixture('kobold', 4);
   await clickEnemy(moving, true);
   await step(12);

@@ -50,7 +50,7 @@ export function placeFeet(
       plant.anchor = null;
       continue;
     }
-    const moving = motion.actualSpeed > 0.08 && rig.attackBlend < 0.15;
+    const moving = motion.actualSpeed > 0.08;
     const phase =
       (((state.stride + Math.PI / 2 + i * Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     const stance = !moving || phase < Math.PI;
@@ -65,7 +65,7 @@ export function placeFeet(
       plant.anchor = null;
       continue;
     }
-    if (!stance || !moving || actor.jump.active || rig.attackBlend > 0.15) plant.anchor = null;
+    if (!stance || !moving || actor.jump.active) plant.anchor = null;
     else if (!plant.anchor) plant.anchor = { ...target, h: support };
     if (plant.anchor) {
       const dx = plant.anchor.x - actor.position.x,

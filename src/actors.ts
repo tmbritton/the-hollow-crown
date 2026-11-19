@@ -196,7 +196,10 @@ export function moveActor(
     !actor.jump.airborne &&
     (tileAt(world, p.x, p.z)?.surface === 'water' || actor.navigator.occupancy?.slowedAt(p));
   const speed = (intent.speed ?? actor.entity.require('actor').speed) * (slowed ? 0.52 : 1);
-  const desired = length > 1e-5 ? Math.min(speed, steering ? steering.remaining * 9 : Infinity) : 0;
+  // Pursuit needs a tighter arrival brake to stay within weapon reach of a moving target.
+  const arrivalRate = actor.attack.target ? 16 : 9;
+  const desired =
+    length > 1e-5 ? Math.min(speed, steering ? steering.remaining * arrivalRate : Infinity) : 0;
   motion.speed = easeSpeed(motion.speed, desired, dt);
   let travel = motion.speed * dt;
   if (steering)

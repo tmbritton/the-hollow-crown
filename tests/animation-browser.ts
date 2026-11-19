@@ -5,7 +5,16 @@ import type { DebugWindow } from './browserTypes.ts';
 import type { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 declare const window: DebugWindow;
-type Clip = 'start' | 'walk' | 'run' | 'stop' | 'melee' | 'ranged' | 'death' | 'jump';
+type Clip =
+  | 'start'
+  | 'walk'
+  | 'run'
+  | 'stop'
+  | 'melee'
+  | 'running-melee'
+  | 'ranged'
+  | 'death'
+  | 'jump';
 const browser = await chromium.launch({
   headless: true,
   args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
@@ -68,7 +77,7 @@ try {
         Object.assign(actor.position, { x: 0, z: 0, h: 0, heading: Math.PI / 2 });
         actor.entity.get('collision')?.sync?.(actor.position);
         rig.root.rotation.y = actor.position.heading;
-        if (clip === 'walk' || clip === 'run' || clip === 'stop') {
+        if (clip === 'walk' || clip === 'run' || clip === 'stop' || clip === 'running-melee') {
           actor.motion.actualSpeed = clip === 'walk' ? WALK_SPEED : RUN_SPEED;
           actor.motion.wantsMovement = true;
           for (let i = 0; i < 120; i++) animateActors(g.ecs, 1 / 60, 0, g.world);
@@ -82,7 +91,7 @@ try {
           actor.motion.actualSpeed = 0;
           actor.motion.wantsMovement = false;
         }
-        if (clip === 'melee' || clip === 'ranged') {
+        if (clip === 'melee' || clip === 'running-melee' || clip === 'ranged') {
           actor.attack.start(
             {
               target: 'pose-fixture',
@@ -108,7 +117,10 @@ try {
         g.camera.radius = 6.5;
         g.camera.target.set(clip === 'death' ? 0.6 : 0, clip === 'jump' ? 1.25 : 0.9, 0);
         g.scene.render();
-        const blade = clip === 'melee' ? g.scene.getMeshByName('sword blade') : null;
+        const blade =
+          clip === 'melee' || clip === 'running-melee'
+            ? g.scene.getMeshByName('sword blade')
+            : null;
         const stock =
           clip === 'ranged' ? g.scene.getMeshByName(`${actor.id}:crossbow stock`) : null;
         const V = g.camera.target.constructor as typeof Vector3;
@@ -178,6 +190,18 @@ try {
   await sample('melee', 19, 'Sword: follow-through');
   const recovered = await sample('melee', 45, 'Sword: recovered');
   assert.ok(Math.abs(recovered.arm) < 0.02);
+  const movingWindup = await sample('running-melee', 10, 'Running sword: wind-up');
+  const movingContact = await sample('running-melee', 15, 'Running sword: contact');
+  const movingFollowThrough = await sample('running-melee', 19, 'Running sword: follow-through');
+  const movingRecovery = await sample('running-melee', 28, 'Running sword: recovery');
+  assert.ok(movingWindup.arm < -1.5 && movingContact.swordReach! > 0.9);
+  const movingLegs = [movingWindup, movingContact, movingFollowThrough, movingRecovery].map(
+    (pose) => pose.leg,
+  );
+  assert.ok(
+    Math.max(...movingLegs) - Math.min(...movingLegs) > 0.4,
+    'legs keep striding through the swing',
+  );
   const aim = await sample('ranged', 26, 'Crossbow: aim');
   const recoil = await sample('ranged', 30, 'Crossbow: recoil');
   assert.ok(aim.arm < -1.4 && recoil.lean < 0);
