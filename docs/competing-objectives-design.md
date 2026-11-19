@@ -1,11 +1,10 @@
 # Competing objectives — a level with several agendas
 
-**Status:** authoritative user-directed target. O1's pure domain foundation (ownership/eligibility,
-knowledge/activation, bounded clocks, atomic exclusive races and latched outcomes) is complete and
-independently reviewed at `6f79a97`. O2's physical work cycles, ECS assignments, authoritative
-commit boundary and pause/reset integration are complete; final independent review is READY,
-clearing both duration-boundary blockers. O3 is next and has not started.
-Autonomous job selection, authored scenarios and objective-clock UI follow in O3–O4.
+**Status:** authoritative user-directed target. O1 is complete and independently reviewed at
+`6f79a97`; O2's physical work and runtime boundaries are complete and independently reviewed at
+`d698f27`. **O3 (§6) is implemented and independently reviewed.**
+The Last Ember now has physical worker navigation/defense, visible clocks, all three
+race outcomes and finite recovery. O4's independent cargo/carrier plan remains proposed.
 See [implementation progress](implementation-progress.md).
 
 **Date:** 2026-11-18.
@@ -114,13 +113,22 @@ The ordinary Crown objective remains available. A generated level can also conta
 | **Recover the old rite** | Player; offered only when relevant evidence exists and is discovered | A factual discovery unlocks a stronger restoration method. This small version needs no separate clock. | Spend time investigating while other plans continue, or use the ordinary method. |
 | **Carry away the royal tribute — 4** | A separate kobold group; enemy-only, with a visible active clock | Distinct deliveries to an exit remove a bounded optional cache. | Intercept carriers, recover undelivered cargo, or block a supported route. |
 
-The goblin and kobolds are separate groups under current species-hostility behavior. Any cooperation or shared faction assignment awaits the planned faction system. Cargo ownership, objective work, and focus disruption are proposed mechanics, not current creature abilities.
+The goblin and kobolds are separate groups under current species-hostility behavior. Any cooperation or shared faction assignment awaits the planned faction system. Objective work and focus disabling are implemented in O3; cargo ownership and deliveries remain proposed for O4.
 
 This creates a route decision: finishing the shrine quickly may allow the tribute to leave; intercepting carriers may give the ward-breaker time to corrupt the shrine. Killing the ward-breaker first can remove that pressure but costs travel and combat time. Learning the rite may repay the detour by reducing the work needed afterward.
 
 Not every objective needs to be achievable in one run. Optional outcomes can trade off, but the map should make the choice understandable and preserve the required completion path.
 
 ## 6. First playable objective-system slice
+
+**Implemented O3, 2026-11-19; independent review READY.** The following describes the delivered
+scope. The authored activation is approach to the entrance shrine (four units from its work face)
+or entry into the smithy. Restoration uses six 6-second cycles; the entrance portrait's factual
+rite gives two seals per cycle. Profanation requires six 20-second cycles at the forge anvil.
+The named executor is the existing smithy goblin; it retains the profile-linked identity when
+already named. Restore/cleanse/repair heal 30/10/15 once, with separate follow-up objective IDs.
+Sites reuse reserved geometry and are validated before the altar; no hidden replacement actor
+or equipment repair exists. See README for controls, composition APIs and exact pause/cancel rules.
 
 Build a small version of the example before introducing several competing groups:
 

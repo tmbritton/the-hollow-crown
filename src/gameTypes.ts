@@ -40,6 +40,7 @@ export interface Game {
   ecs: ECS;
   combat: CombatSystem;
   enemyRendering: EnemyRendering;
+  emberRendering: { update(): void };
   observation: CameraObservation;
   inspection: InspectionController;
   time: number;

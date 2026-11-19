@@ -3,6 +3,8 @@ import { ECS } from '../ecs.ts';
 import { key, reachableTileDistances, tileAt, validateDungeon } from '../world.ts';
 import type { World } from '../worldTypes.ts';
 import type { GenerationTrace } from './identity.ts';
+import { SCENARIO_VERSION } from './identity.ts';
+import { EMBER, emberBlueprint } from './lastEmber.ts';
 
 /** Analyze an initial blueprint in an isolated registry; never sample mutable run state. */
 export function createGenerationReport(world: World, trace: GenerationTrace) {
@@ -102,6 +104,14 @@ export function createGenerationReport(world: World, trace: GenerationTrace) {
     trace: structuredClone(trace),
     keep: structuredClone(world.keep),
     scenes: structuredClone(world.scenes),
+    lastEmber: {
+      version: SCENARIO_VERSION,
+      sites: emberBlueprint(world),
+      workerId: EMBER.worker,
+      activation: 'approach entrance shrine or enter smithy',
+      rivalCycleSeconds: 20,
+      rivalCapacity: 6,
+    },
     bounds: { ...world.bounds },
     graph: {
       components,

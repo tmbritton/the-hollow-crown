@@ -3,14 +3,15 @@ import type { EnemyKind } from '../ecs.ts';
 import type { RoomId, Spawn, World } from '../worldTypes.ts';
 import { required } from '../assert.ts';
 import { generationIdentity } from './identity.ts';
-import { randomStream } from './random.ts';
+import { randomFrom, randomStream } from './random.ts';
+import { EMBER } from './lastEmber.ts';
 
 export interface InhabitantIdentity {
   id: string;
   actorId: string;
   kind: EnemyKind;
   name: string;
-  role: 'watchkeeper' | 'lookout' | 'dealer' | 'keeper';
+  role: 'watchkeeper' | 'lookout' | 'dealer' | 'keeper' | 'ward-breaker';
   title: string;
   house: string;
   homeRoom: RoomId;
@@ -108,5 +109,35 @@ export function seedInhabitant(world: World, actors: readonly Actor[]): void {
     factIds: [founding.id],
     motif,
     description: `${world.roomById[homeRoom].name}. ${activity} Bears ${ornament} of House ${world.keep.house}, whose ${founder.title} founded the keep.`,
+  });
+}
+
+/** Give the existing smithy goblin a job identity; retain the standout's name when shared. */
+export function seedEmberWorker(world: World, actors: readonly Actor[]): void {
+  const actor = actors.find((a) => a.id === EMBER.worker);
+  if (!actor?.brain) return;
+  const activity =
+    'When the Last Ember awakens, works the smithy focus when unthreatened; seeks cover and fires when attacked.';
+  const existing = actor.entity.get('inhabitant');
+  if (existing) {
+    if (!existing.description.includes(activity)) existing.description += ` ${activity}`;
+    return;
+  }
+  actor.entity.add('inhabitant', {
+    id: 'inhabitant:ward-breaker',
+    actorId: actor.id,
+    kind: 'goblin',
+    name: ['Sedge', 'Nim', 'Brindle', 'Vetch'][
+      Math.floor(randomFrom(`${world.seed}:ember:name`)() * 4)
+    ],
+    role: 'ward-breaker',
+    title: 'Ember Ward-breaker',
+    house: world.keep.house,
+    homeRoom: 'smithy',
+    home: { ...actor.brain.home },
+    groupId: null,
+    factIds: [],
+    motif: 'mourning-band',
+    description: `${world.roomById.smithy.name}. ${activity}`,
   });
 }

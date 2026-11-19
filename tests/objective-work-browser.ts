@@ -47,6 +47,7 @@ async function fixture(
       const { stopActor }: typeof import('../src/actors.ts') = await import(actorPath);
       const d = window.__dungeon,
         g = d.game;
+      g.ecs.get('run')!.remove('lastEmber');
       for (const actor of g.combat.enemies) {
         actor.entity.remove('brain');
         stopActor(actor);
@@ -324,7 +325,8 @@ try {
     const d = window.__dungeon,
       g = d.game,
       actor = g.combat.enemies[0];
-    d.teleport(-5, 0);
+    // An assigned idle worker now services its job; a nearby threat must still win priority.
+    d.teleport(0, 0);
     const before = { ...actor.position };
     actor.enableAI();
     actor.brain!.think = 0;
@@ -477,9 +479,14 @@ try {
     window.__dungeon.regenerate('MOURNING-731');
   });
   await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
-  assert.equal(
-    await page.evaluate(() => window.__dungeon.game.ecs.get('run')!.has('objectives')),
-    false,
+  assert.ok(
+    await page.evaluate(() => {
+      const record = window.__dungeon.game.ecs.get('run')!.require('objectives').snapshot();
+      return (
+        record.objectives.length === 4 &&
+        record.objectives.every((o) => o.id.startsWith('ember:') && o.progress === 0)
+      );
+    }),
   );
   assert.equal(await page.evaluate(() => window.__dungeon.game.ecs.query('work').length), 0);
   assert.equal(
@@ -495,7 +502,7 @@ try {
     'A retained system must reject stale simulation callbacks after regeneration',
   );
   pass(
-    'Regeneration retires the fixture and all assignments; ordinary worlds have no dummy clocks',
+    'Regeneration retires the fixture and assignments, replacing them with fresh Last Ember clocks',
   );
   assert.deepEqual(errors, []);
   await mkdir('test-results', { recursive: true });

@@ -5,7 +5,14 @@ import { Actor } from './actors.ts';
 import type { Components, ECS } from './ecs.ts';
 import { animateLocomotion, WALK_SPEED } from './locomotion.ts';
 import type { LocomotionPose } from './locomotion.ts';
-import { applyJumpPose, attackPose, deathPose, hackySackKick, socialPose } from './actionPoses.ts';
+import {
+  applyJumpPose,
+  attackPose,
+  deathPose,
+  hackySackKick,
+  socialPose,
+  workPose,
+} from './actionPoses.ts';
 import { volumeScale } from './animationCurves.ts';
 import { heightAt, tileAt } from './world.ts';
 import type { NavigationWorld } from './navigation.ts';
@@ -100,7 +107,9 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     rig.root.rotation.y += turn * (1 - Math.exp(-18 * dt));
     const corpse = entity.get('corpse');
     const relaxing = isSocializing(actor);
-    for (const mesh of rig.equipment ?? []) mesh.setEnabled(!relaxing);
+    const work = entity.get('work')?.snapshot();
+    const working = work?.status === 'working' || work?.status === 'ready';
+    for (const mesh of rig.equipment ?? []) mesh.setEnabled(!relaxing && !working);
     if (corpse) {
       const fall = deathPose(corpse.age);
       const scale = volumeScale(fall.stretch, fall.reach);
@@ -142,8 +151,9 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     if (swing)
       rig.attackPose = attackPose(swing.elapsed, swing.duration, swing.impact, swing.ranged);
     // Retain the sampled pose on interruption, including the ranged recoil, while it fades.
-    rig.socialBlend += ((relaxing ? 1 : 0) - rig.socialBlend) * (1 - Math.exp(-18 * dt));
-    if (relaxing) {
+    rig.socialBlend += ((relaxing || working ? 1 : 0) - rig.socialBlend) * (1 - Math.exp(-18 * dt));
+    if (working) rig.socialPose = workPose(work.elapsed);
+    else if (relaxing) {
       const phase = time + (actor.brain?.social?.phase ?? 0) + (actor.brain?.slot ?? 0) * 1.7;
       const activity = actor.brain?.state;
       if (activity === 'cards' || activity === 'smoke') {

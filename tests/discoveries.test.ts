@@ -18,7 +18,9 @@ test('generated truth is not knowledge; only presented sources teach their expli
   const record = new DiscoveryRecord(generationIdentity(world.seed));
   const portrait = world.entities.find((e) => e.type === 'portrait')!;
   const evidence = portraitDiscovery(portrait);
-  const named = seedEnemies(new ECS(), world).find((a) => a.entity.has('inhabitant'))!;
+  const named = seedEnemies(new ECS(), world).find(
+    (a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout',
+  )!;
   inhabitantDiscovery(named.entity.require('inhabitant'));
   landmarkDiscovery(world.roomById.crypt);
   assert.deepEqual(record.snapshot().discoveries, []);
@@ -171,6 +173,8 @@ test('discovery identity follows seeded placement and semantic roles, not mutabl
     before,
   );
   assert.equal(landmarkDiscovery(world.roomById.altar).id, 'landmark:altar');
-  const named = seedEnemies(new ECS(), world).find((a) => a.entity.has('inhabitant'))!;
+  const named = seedEnemies(new ECS(), world).find(
+    (a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout',
+  )!;
   assert.equal(inhabitantDiscovery(named.entity.require('inhabitant')).id, 'inhabitant:standout');
 });

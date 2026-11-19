@@ -32,7 +32,7 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 | Shift | Run |
 | Space | Jump (one jump per press) |
 | X | Cancel travel, pursuit, and attacks |
-| E | Open/close doors, open a chest, activate the altar, inspect a portrait, claim the throne |
+| E | Interact: doors, chests, altar, portraits, throne; begin shrine work or disable its hostile focus |
 | E / Escape while inspecting | Return to the overhead view |
 | Q / R | Rotate the overhead camera by 90° |
 | Mouse wheel | Zoom |
@@ -43,6 +43,31 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 **Objective:** find and kindle the violet altar, pass through the newly unsealed throne-room gate, and claim the Hollow Crown. Water slows you down; lava damages you. Death returns you to the entrance, or to the altar after activation. Three optional reliquaries restore health and count toward the completion summary.
 
 The route changes with the seed: explore the branching passages and watch the minimap for unexplored chambers. Activating the altar reveals the throne's crown marker. The minimap is north-up even when the camera rotates and automatically fits each generated layout.
+
+### Optional contest: the Last Ember
+
+Approaching the **entrance shrine** (within four units of its work face) or entering the
+**smithy** activates the contest and announces its visible rival clock. The existing smithy
+goblin must walk to the anvil's profaning focus, then complete **six 20-second work cycles**.
+It defends itself against ordinary hostile species and the player, abandoning unfinished work
+while fighting or moving. It returns after losing a threat and keeps working off-screen.
+
+At the shrine, **E** starts repeated six-second restoration cycles; **X**, movement, targeting,
+jumping or damage interrupts unfinished work. Completed seals remain. Reading the inscription
+in the **entrance portrait** teaches the old rite: two seals per cycle instead of one. You can
+also lure or kill the unique worker, or approach the anvil and press **E** to disable its focus.
+The clock announces the plan, but reveals the worker's name only after its visible target caption.
+
+- **Restore first:** restore six seals, thwart profanation and receive +30 health once.
+- **Goblin first:** the shrine becomes corrupted and original restoration is permanently lost.
+  Disable the focus, then perform one six-second cleansing at the shrine for +10 health once.
+- **Same-step completion:** the ward fractures. Disable the focus, then perform one six-second
+  repair for +15 health once. Neither exclusive victory is installed.
+- Killing the worker or disabling the focus **after** profanation cannot rewrite that outcome.
+
+Menus, portrait inspection and hidden tabs pause simulation. Focus loss, teleport and death
+cancel unfinished hero work; respawn preserves committed seals, disabled equipment and outcomes.
+Regeneration resets everything. These optional outcomes never replace the altar-before-throne goal.
 
 **Within-run record:** expand the record in the pause menu to reread visited room captions,
 inspected portraits and identified inhabitants. Each source is recorded once, when its caption
@@ -69,12 +94,16 @@ Each dungeon seeds **21 enemies** outside the entrance and altar rooms:
 
 Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
 
-Each keep names **one of its existing inhabitants**: an Ashen Foundry skeleton watchkeeper,
+Each keep names a **profile-linked existing inhabitant**: an Ashen Foundry skeleton watchkeeper,
 a Drowned Court goblin lookout, or a Pilgrim Redoubt kobold card dealer. A simplified gathering
 uses the truthful “Token Keeper” title instead. A crown clasp, mourning band or royal tokens
 identify the character. Selecting it nearby with a clear view shows its name, home, usual behavior and a link to the
 keep's founding house. Its health, hostility and species tactics follow the ordinary rules;
 the identity stays with it through pursuit, return and death.
+
+The Last Ember also names the existing smithy goblin as its ward-breaker. In Drowned Court keeps
+this is the same named lookout; other profiles have a second named character. No enemies are
+added, replaced or given different health/hostility rules.
 
 The record distinguishes witnessing the named inhabitant's death from later finding its remains.
 Observation requires an enabled character within eight units, an unobstructed player sightline,
@@ -133,6 +162,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/discoveries.ts` | Pure within-run knowledge record, explicit source disclosures, observed events and detached read snapshots |
 | `src/objectives.ts` | Pure run-owned objective clocks, fresh work-condition batches, deduplicated contributions and atomic exclusive races (O1) |
 | `src/objectiveWork.ts` | ECS work assignments/sites, simulation-only action cycles and post-combat commit validation (O2) |
+| `src/lastEmber.ts` / `src/lastEmberRendering.ts` | Composable Last Ember plan, authoritative interactions/outcome effects, knowledge-filtered clocks and procedural seals (O3) |
 | `src/observation.ts` | Bounded camera-to-rendered-surface visibility checks for target captions, deaths, killers and remains |
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
 | `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
@@ -191,10 +221,11 @@ The `run` entity owns a `discoveries` component, independent of actor health and
 truth. Replacing the ECS replaces knowledge; respawning the player does not. UI code holds the
 same component reference and presents only its detached snapshot in the record panel.
 
-Scenario installation attaches `objectives` and `objectiveWork` to the `run` entity. Actor `work`
-components own assignments and action charts; `workSite` components mark real interaction approaches.
-The runtime advances installed work around movement/combat. Ordinary worlds receive their first
-authored objective plan in O3; the O2 development-browser fixture installs a plan on the existing world.
+Scenario installation attaches `objectives`, `objectiveWork` and `lastEmber` to the `run` entity.
+Actor `work` components own assignments/action charts. The actual shrine/anvil prop entities own
+their `workSite` components; the anvil's `focus` chart exposes irreversible disabling through the
+site's enabled accessor. The runtime advances work around movement/combat and consumes newly emitted
+outcomes after hazards, before respawn. Every ordinary world installs the composed plan once.
 
 Components describe transform, health, actor capabilities, movement, navigation, attack state, AI, interaction intent, corpse state, collision adapters, render rigs, and effects. Indexed queries visit only entities with the requested components; adding/removing components updates those indexes immediately. `Actor` is a checked view over these components, not an inheritance hierarchy or another copy of state.
 
@@ -239,7 +270,7 @@ npm run test:models
 
 The latest XState includes model-testing tools in **`xstate/graph`**. `tests/models/` generates paths to every modeled state and extends each path with every candidate event, including ignored/invalid attempts and self-loops. Inspector microstep data measures every declared transition branch, including guards and eventless transitions. Invariants are checked after each stable step, and the pure simulation adapter is compared against a live XState actor.
 
-The suite currently covers **18 machines, 85 declared atomic states, and 167 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
+The suite currently covers **19 machines, 87 declared atomic states, and 168 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
 
 ### Rendering choices
 
@@ -388,7 +419,7 @@ negative, zero, fractional, nonfinite, exact, overfill and over-limit credit eve
 terminal results. Domain tests cover batch permutations, isolation, deduplication and limits beyond
 that finite machine partition.
 
-### Physical objective work (O2; complete and independently reviewed)
+### Physical objective work (O2; `d698f27`, complete and independently reviewed)
 
 `installObjectiveWork(ecs, world, plan, bindings)` installs a fresh O1 record and work system on
 the existing `run`. Each binding supplies `objectiveId`, an ECS `siteId`, a positive `duration`
@@ -439,9 +470,44 @@ overfill is clipped before conversion. Interruption, cancellation and settlement
   commands clear, but enemy simulation continues. `retire()` cancels every assignment and detaches
   the system before regeneration, rejecting retained old-run callbacks.
 
-Normal generated worlds install no placeholder objective or clock. The development-browser fixture
-uses existing actors, geometry, doors, combat and modal handlers. Work poses, clock HUD, authored
-workstation/AI choices, Last Ember outcomes and multi-seed pacing are the O3 integration work.
+O3 extends availability samples with optional integer `amount` (1–64): learned methods can change
+credit without replacing a clock or reinstalling the plan. Amount and revision are both sampled at
+advance/commit; a change invalidates the partial cycle. `job(actor)` returns an active, available
+assignment's real approach and optional `workSite.facing`. Species perception runs first; only an
+unengaged actor services the job instead of its ordinary idle activity. Threats keep normal tactics.
+
+### Last Ember implementation and O4 handoff
+
+O3 is implemented and independently reviewed. `prepareLastEmber(ecs,
+world, player)` attaches the scenario and sites and returns `{ scenario, plan, bindings }` without
+installing O1/O2. `main.ts` calls `installObjectiveWork` once after preparation. For O4, prepare its
+sites and fragment too, concatenate both fragments' objective/race/binding arrays, then use that same
+single installation. Keep one `advance` and one post-hazard `commit` per fixed step. Pass the newly
+emitted outcomes to each scenario consumer; Last Ember filters its own IDs and deduplicates effects.
+The integrated independent-plan regression verifies that completing restoration leaves unrelated
+work and its existing record/system intact. O4 cargo/carriers are not implemented.
+
+`lastEmberPlan` authors restoration/profanation plus separate one-segment cleansing/repair clocks.
+Follow-up availability reads the original terminal outcome and the actual focus component. Original
+race outcomes never reset. `LastEmber.state` derives from O1 charts; its effect ledger only prevents
+duplicate rewards. `startHero`, `disableFocus` and `nearby` check actual player approach/access.
+`agenda(workerObserved)` filters owner names and reasons through D1 knowledge/observation; strategic
+clock announcements do not create journal discoveries. Shrine captions are learned through E or the
+hero's successful work, while the rite is learned only when its inspection caption opens.
+
+`src/generation/lastEmber.ts` reuses the entrance shrine's reserved work face, the forge recipe's
+anvil approach and an entrance portrait. Validation checks all three before the altar with ordinary
+navigation and rejects interactions that could steal E from another authored approach. Missing or
+invalid sites use the existing bounded 40-attempt generator. `last-ember-v1` is a separate scenario
+revision in generation identity/reports, preserving existing layout/keep RNG streams. Some seeds
+now accept a later attempt; `trial-23` rejects its former attempt 1 because a promised site is missing.
+
+The 100 O3 seeds retain 21 enemies and four goblins, with no replacement workers. Their longest
+shrine/focus route is 128 tile steps; accepted attempts range from 0–2. At 4.8 units/s, that route plus
+36 seconds of ordinary restoration takes about 63 seconds, versus 120 seconds of uninterrupted rival
+work. This is a geometric response budget, not a guarantee against combat/obstruction delays.
+Twelve procedural seals show work/progress and restored, corrupted, fractured or disabled equipment;
+actor work poses follow actual O2 elapsed time.
 
 ## Verification
 
@@ -461,6 +527,8 @@ npm run test:discoveries
 BROWSER=firefox npm run test:discoveries
 npm run test:objective-work
 BROWSER=firefox npm run test:objective-work
+npm run test:last-ember
+BROWSER=firefox npm run test:last-ember
 npm run test:movement
 npm run test:animation
 npm run test:jump
@@ -484,6 +552,14 @@ The objective-work suite expects a dev server and supports Chromium and Firefox.
 development-only bindings on existing actors/sites, then exercises the real fixed-step loop,
 movement, attacks, doors, pause/inspection/visibility handlers, respawn and regeneration. Its
 JSON reports are `test-results/{chromium,firefox}-objective-work.json`.
+
+The Last Ember suite exercises the installed scenario with real E, X, movement/target clicks,
+inspection and menu input. It covers navigation/off-screen work, luring, killing, focus intervention,
+all race outcomes and recovery, cancellation/respawn/reset, optional failure with Crown victory,
+knowledge boundaries, and desktop/narrow/short-window clocks. Reports and reviewed captures use
+`test-results/{chromium,firefox}-last-ember*`. Scene placement and temporary actor fixtures make
+specific outcomes deterministic; the full browser suite separately traverses three complete keeps
+with ordinary AI and living collision enabled.
 
 The discovery suite expects a dev server and supports Chromium and Firefox. It uses real E,
 target clicks and pause-menu controls with deterministic placement/step fixtures. It checks
@@ -524,7 +600,8 @@ The generator also provides a pure `generateDungeonWithReport(seed)` API in `src
 It returns the accepted world and a JSON-safe trace with seed, generator/content versions,
 zero-based attempt numbers, and placement/validation rejection reasons. A `GenerationError`
 retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
-`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v3` / `keep-v4`.
+`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v3` / `keep-v4`,
+with scenario revision `last-ember-v1`.
 Scene recipes change seeded furniture layouts and can change which layout attempt is accepted;
 the original topology RNG salt is retained. Older-version seed layouts are historical.
 `world.keep` adds one of three authored

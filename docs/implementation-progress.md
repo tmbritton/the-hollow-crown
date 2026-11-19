@@ -7,10 +7,14 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1, D1 (`e6591df`), O1 (`6f79a97`) and O2.
-  O2's final independent review is READY. Next: O3, the first playable Last Ember contest
-  (not started).**
-- O2 decimal timebase correction: **202 tests**, strict typing, formatting, lint and build pass. Model totals:
+- **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1, D1 (`e6591df`), O1 (`6f79a97`) and O2
+  (`d698f27`) and O3. Independent O3 review returned READY; O4 is next.**
+- O3: **214 pure/model tests**, strict typing, format/lint/build pass; **19 machines / 87 states /
+  168 branches**. Last Ember **14**, objective work **17**, combat **14**, discoveries **17** each
+  in Chromium and Firefox; Firefox inspection **13**; Chromium full **23**, movement **13**,
+  social **9**, animation **28 captures**, production smoke and 100-seed report export pass.
+  New 100-seed O3 traversal/interaction coverage and screenshot review are recorded below.
+- Historical O2 decimal timebase correction: **202 tests**, strict typing, formatting, lint and build pass. Model totals:
   **18 machines / 85 states / 167 branches**. Objective-work browser checks pass **17 each**
   in Chromium and Firefox, sequentially. Chromium combat **14**, movement **13**, jump **8**,
   Firefox inspection **13**, and production smoke retain their initial O2 verification baseline.
@@ -43,10 +47,70 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | GF1 | Complete | Moving-pursuit, escaped/occluded-target and goblin flee-speed regressions failed first | 133 tests, format/lint/build, both combat browsers, Chromium movement/jump/animation pass; independent review cleared | `cd415d1` |
 | D1 | Complete | Hidden melee death reproduced first; follow-up cost regression failed with 8,000 matrix calls / 600 bounds refreshes over four off-ray queries | 155 tests, format/lint/build; discovery 17 and combat 14 each browser, inspection 13, animation 28, social 9, production and CPU probes pass; independent review cleared | `e6591df` |
 | O1 | Complete | Initial missing APIs and reason/visibility regressions; five review regressions reproduced metadata retention and partial commits | 178 tests, format/lint/build pass; independent READY review: 42 focused tests, original probes and 18 malformed-reason cases | `6f79a97` |
-| O2 | Complete | Initial missing-module/lifetime reds; both duration corrections reproduced false monster-first results; decimal sweep and pure/model/browser regressions precede work-unit fix | 202 tests/check/build, 1,200-duration sweep, work 17 each browser; independent READY review cleared both blockers and passed 46 additional probes | This commit |
-| O3–O4 | Planned | Pending | Pending | — |
+| O2 | Complete | Initial missing-module/lifetime reds; both duration corrections reproduced false monster-first results; decimal sweep and pure/model/browser regressions precede work-unit fix | 202 tests/check/build, 1,200-duration sweep, work 17 each browser; independent READY review cleared both blockers and passed 46 additional probes | `d698f27` |
+| O3 | Complete | Missing scenario API and focus model failed first; `ember-70` reproduced shrine stealing the clue's E approach before correction | 214 tests/check/build, 100 O3 seeds, Last Ember 14 each browser plus regression suites; independent review READY | This commit |
+| O4 | Planned, separate next slice | Pending | Pending | — |
 
 ## Work log
+
+### O3 — playable Last Ember contest — 2026-11-19
+
+- Started from verified clean **`d698f27`**. Read the authoritative competing-objectives §6,
+  implementation path/progress, O1/O2 APIs, generation/placement, ECS, work/combat, discovery,
+  rendering and statechart/model contracts. Independent review subsequently cleared the feature.
+- **Test first:** `node --test tests/last-ember.test.ts` failed on missing `src/lastEmber.ts` before
+  implementation. Outcome, once-only reward, clue, unique-worker death, off-screen navigation/
+  defense and 100-seed route contracts were authored first. The focus model and component test
+  subsequently failed on missing `src/machines/world/focus.ts` / `focus` before that lifecycle
+  was added. Existing O1/O2 charts own the race/work transitions; focus adds two states/one branch.
+- Local review added a first-failing interaction regression: **10 pass / 1 fail**, `ember-70`,
+  “ember:shrine must not steal E from portrait-10.” Portrait placement now excludes those work
+  approaches, and final validation rejects overlapping E approaches. Real E inspection of that
+  regression seed passes in both browsers. A temporary-obstruction case also checks final
+  navigation validation, no off-screen credit and no disclosure of an unseen cause.
+- Final screenshot review caught stale recovery directions after cleansing/repair. The focused
+  monster-first/contested tests failed **0 pass / 2 fail** before correction. Live clock copy now
+  preserves the historical loss/fracture while reporting recovery already completed, and describes
+  completed profanation in the past tense instead of claiming the cleansed shrine is still corrupted.
+- Reused the entrance shrine, reserved smithy anvil approach and entrance portrait; no late
+  blocker placement. `workSite` attaches to actual prop ECS entities. Missing/inaccessible sites
+  reject through existing bounded generation retries. Added independent `last-ember-v1` identity
+  without rerolling established keep/art streams. `trial-23` now accepts attempt 2: its previous
+  attempt 1 lacks a promised site. Updated its explicit trace/digest fixture after inspection.
+- Activation: within four units of the shrine's approach or entering the smithy, with immediate
+  visible warning/clock. Six 20s rival cycles; six 6s hero cycles, two seals per cycle after
+  actual clue inspection. Method amount/revision revalidate both work boundaries. Ordinary
+  threat perception/tactics take priority; assigned idle workers navigate to the authored face.
+  The existing smithy goblin is named, retaining its N1 identity where applicable. Population
+  remains 21 enemies/four goblins; there is no replacement or hostility change.
+- All race results and later kill/disable semantics are implemented. Cleansing/repair are separate
+  one-segment, six-second follow-ups gated by the latched original outcome and disabled focus.
+  Rewards are once-only +30/+10/+15 health; outcome effects consume only emitted IDs with a replay
+  ledger. Required progression remains separate. Lifecycle state derives from O1/O2/focus charts.
+- Run composition calls `prepareLastEmber`, then installs the plan **once**. The README documents
+  O4 fragment concatenation before that installation. An integrated independent-clock fixture
+  continues through restoration and completes without replacing its record/system or sharing rewards.
+- Added compact persistent clocks with observed/learned name/reason filtering; twelve procedural
+  seals and work poses follow actual clocks. Inspected desktop, named-worker, 600×900, 400×800 and
+  900×600 captures. Corrected a short-window warning/agenda overlap found during screenshot review.
+- **Checks actually run:** 214 pure/model tests including strict typing, format/lint/build,
+  `git diff --check`; 100 O3 seeds plus existing multi-seed suites; `report:generation` exports
+  100 valid corpus seeds and 12 selections. O3 maximum shrine/focus path: **128 tile steps**;
+  largest accepted zero-based attempt: **2**. Travel at 4.8 plus 36s work is ~63s versus the
+  minimum 120s rival work; this is a geometry budget, not measured combat difficulty.
+- Sequential browsers: Last Ember **14 each**, O2 work **17 each**, combat **14 each**, discoveries
+  **17 each**, Firefox inspection **13**, Chromium movement **13**, social **9**, animation
+  **28 captures**, production smoke. Chromium full suite **23**, including physical completion
+  of MOURNING-731/CINDER-42/VIOLET-7 with ordinary AI/collision. Its initial combined command
+  timed out at 300s after 19 passes; standalone rerun with a 600s budget passed all 23.
+- Updated old fixtures to select the profile standout specifically, select the portrait entry
+  instead of the newly appended rite, expect fresh O3 clocks after regeneration, and introduce a
+  real threat in the final-frame AI interruption test (idle assigned actors now service their job).
+  These retain the original assertions' purpose. New real-input tests also cover optional loss
+  followed by altar/throne victory. Reports/captures remain ignored under `test-results/`.
+- Remaining delivery gate: **independent review**, then any authorized future commit. The existing
+  large-bundle build warning persists. Broader gallery/hardware/Firefox full-suite results remain
+  historical unless explicitly listed above. O4 cargo/carriers are not implemented here.
 
 ### O2 final independent review — READY
 
@@ -56,8 +120,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - The reviewer also passed **46 additional below/above-boundary, half-step and carry-reset probes**.
   No blockers remain. These are attributed independent results, separate from the implementation
   runs recorded below.
-- O2 is complete and authorized for its feature commit with normal hooks. O3 is next and has
-  not started; this delivery ends with O2.
+- At this historical checkpoint O2 was ready for its feature commit (subsequently `d698f27`);
+  O3 had not started.
 
 ### O2 final-review correction — decimal simulation timebase — 2026-11-19
 
@@ -421,10 +485,19 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - O1 is complete and authorized for the feature commit. No new browser checks are claimed.
   **At this historical O1 checkpoint, O2 was next and had not started.**
 
+### O3 final independent review — READY
+
+- Reviewer reran 214 tests/check/build and all listed O3 browser suites; no blockers found.
+- Another 100 seeds retained reachable sites and population; longest shrine/focus route was
+  130 tile steps, largest accepted attempt 3. Twelve new-seed workers navigated and committed.
+- Forty-eight reordered outcome/interruption/recovery probes and twelve exact-boundary races
+  passed, including ordinary/learned rites and one-tick early/tied/late completion.
+- The independent reviewer inspected desktop/narrow/short-window clocks, work and outcome captures.
+
 ## Follow-ups and blockers
 
-- O2 is complete with final independent review READY and no remaining blockers.
-  O3's Last Ember scenario, work/clock presentation and multi-seed pacing are next; O3 has not started.
+- O2 is complete at `d698f27`; O3 is complete with independent review READY. O4 is next,
+  composing into the same run plan.
 - No current O1 correctness blocker: final independent review is READY. D1's camera-occlusion
   and CPU-cost corrections were also cleared; G3's full-browser follow-up is resolved by T1.
 - Phase 0 diagnostic/gallery implementation and high-quality hardware sampling are done.

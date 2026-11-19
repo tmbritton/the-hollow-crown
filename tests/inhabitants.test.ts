@@ -5,7 +5,7 @@ import { seedEnemies, CombatSystem, hostile } from '../src/combat.ts';
 import { createActor } from '../src/actors.ts';
 import { ECS } from '../src/ecs.ts';
 import { createGenerationReport } from '../src/generation/report.ts';
-import { seedInhabitant } from '../src/generation/inhabitants.ts';
+import { seedInhabitant, seedEmberWorker } from '../src/generation/inhabitants.ts';
 
 test('every profile names one existing inhabitant with a truthful home, group and keep fact', () => {
   const profiles = new Set<string>();
@@ -13,7 +13,7 @@ test('every profile names one existing inhabitant with a truthful home, group an
     const world = generateDungeon(`inhabitant-${i}`);
     const enemies = seedEnemies(new ECS(), world);
     assert.equal(enemies.length, 21);
-    const named = enemies.filter((a) => a.entity.has('inhabitant'));
+    const named = enemies.filter((a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout');
     assert.equal(named.length, 1, 'one existing enemy must have a stable identity');
     const actor = named[0];
     const identity = actor.entity.require('inhabitant');
@@ -50,12 +50,17 @@ test('every profile names one existing inhabitant with a truthful home, group an
     profiles.add(world.keep.profile.id);
     const repeated = seedEnemies(new ECS(), generateDungeon(world.seed));
     assert.deepEqual(
-      repeated.find((a) => a.entity.has('inhabitant'))!.entity.require('inhabitant'),
+      repeated
+        .find((a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout')!
+        .entity.require('inhabitant'),
       identity,
     );
     seedInhabitant(world, [...repeated].reverse());
+    seedEmberWorker(world, repeated);
     assert.deepEqual(
-      repeated.filter((a) => a.entity.has('inhabitant')).map((a) => a.entity.require('inhabitant')),
+      repeated
+        .filter((a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout')
+        .map((a) => a.entity.require('inhabitant')),
       [identity],
     );
   }
@@ -64,7 +69,9 @@ test('every profile names one existing inhabitant with a truthful home, group an
 
 test('a card player on a doorway tile retains the gathering room as its home', () => {
   const world = generateDungeon('trial-24');
-  const actor = seedEnemies(new ECS(), world).find((a) => a.entity.has('inhabitant'))!;
+  const actor = seedEnemies(new ECS(), world).find(
+    (a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout',
+  )!;
   const identity = actor.entity.require('inhabitant');
   assert.equal(tileAt(world, identity.home.x, identity.home.z)?.room, undefined);
   const center = actor.brain!.social!.center;
@@ -123,7 +130,7 @@ test('inhabitant identity survives movement, combat and corpse creation and rese
 test('initial encounter reports expose a detached named inhabitant', () => {
   const { world, report: trace } = generateDungeonWithReport('MOURNING-731');
   const report = createGenerationReport(world, trace);
-  const named = report.encounters.filter((e) => e.inhabitant !== null);
+  const named = report.encounters.filter((e) => e.inhabitant?.id === 'inhabitant:standout');
   assert.equal(named.length, 1);
   assert.equal(named[0].inhabitant!.actorId, named[0].id);
   const expected = structuredClone(report);

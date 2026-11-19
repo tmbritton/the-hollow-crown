@@ -1,12 +1,15 @@
 /** Bump these when the public seed interpretation or authored content changes. */
 export const GENERATOR_VERSION = 'layout-v3';
 export const CONTENT_VERSION = 'keep-v4';
+/** Independent scenario revision preserves the established keep/art RNG streams. */
+export const SCENARIO_VERSION = 'last-ember-v1';
 export const MAX_GENERATION_ATTEMPTS = 40;
 
 export interface GenerationIdentity {
   seed: string;
   generatorVersion: string;
   contentVersion: string;
+  scenarioVersion?: string;
 }
 
 export interface GenerationAttempt {
@@ -22,7 +25,12 @@ export interface GenerationTrace {
 }
 
 export function generationIdentity(seed: string): GenerationIdentity {
-  return { seed, generatorVersion: GENERATOR_VERSION, contentVersion: CONTENT_VERSION };
+  return {
+    seed,
+    generatorVersion: GENERATOR_VERSION,
+    contentVersion: CONTENT_VERSION,
+    scenarioVersion: SCENARIO_VERSION,
+  };
 }
 
 export class GenerationError extends Error {

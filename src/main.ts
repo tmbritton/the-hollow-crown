@@ -29,6 +29,9 @@ import { CombatSystem, clearSight, seedEnemies } from './combat.ts';
 import { cancelAttack, cancelWork, requestJump } from './actors.ts';
 import type { Actor } from './actors.ts';
 import { DiscoveryRecord } from './discoveries.ts';
+import { prepareLastEmber, emberClue, EMBER } from './lastEmber.ts';
+import { installObjectiveWork } from './objectiveWork.ts';
+import { createLastEmberRendering } from './lastEmberRendering.ts';
 import type { ObservedEvent } from './discoveries.ts';
 import { generationIdentity } from './generation/identity.ts';
 import { CameraObservation, updateInstanceMatrices } from './observation.ts';
@@ -305,6 +308,13 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     world.seed,
     { onDeath: observeDeath },
   );
+  const emberPlan = prepareLastEmber(ecs, world, player.actor);
+  // Compose future scenario fragments here, before this single run installation.
+  installObjectiveWork(ecs, world, emberPlan.plan, emberPlan.bindings);
+  const ember = emberPlan.scenario;
+  const emberRendering = createLastEmberRendering(scene, ecs, materials);
+  const clue = world.entities.find((e) => e.id === ember.sites.clue.id);
+  if (clue?.inspection) clue.inspection.description += `\n\n${emberClue(world).description}`;
   const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
   // Render batches can serve many logical tiles/props without duplicating geometry.
   const actorMeshes = new Set(
@@ -338,6 +348,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       player.root.setEnabled(false);
       player.marker.setEnabled(false);
       ui.openInspection(target, game.playTime);
+      if (target.id === ember.sites.clue.id) discoveries.present(emberClue(world), game.playTime);
     },
     onClose: () => {
       keys.clear();
@@ -375,6 +386,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     ecs,
     combat,
     enemyRendering,
+    emberRendering,
     observation: new CameraObservation(camera, [
       ...ecs.query('rig').map((entity) => ({
         root: entity.require('rig').root,
@@ -474,6 +486,31 @@ function interact() {
     game.inspection.close();
     return;
   }
+  const ember = game.ecs.get('run')?.get('lastEmber');
+  const site = ember?.nearby();
+  if (ember && site) {
+    if (site === 'focus') {
+      if (ember.disableFocus()) {
+        const evidence = {
+          id: 'ember:focus-disabled',
+          kind: 'landmark' as const,
+          subjectId: ember.sites.focus.id,
+          title: 'Profaning focus disabled',
+          description:
+            'You disabled the smithy focus. Unfinished profanation cannot resume; completed corruption is not undone.',
+          factIds: [],
+        };
+        ui.toast(evidence.description);
+        discoveryRecord().present(evidence, game.playTime);
+      } else ui.toast(ember.prompt(site));
+    } else {
+      const evidence = ember.shrineEvidence();
+      ui.toast(evidence.description, 6500);
+      discoveryRecord().present(evidence, game.playTime);
+      ember.startHero();
+    }
+    return;
+  }
   const e = findInteraction();
   if (!e) return;
   if (e.inspection) {
@@ -562,6 +599,12 @@ function tick(dt: number): void {
     cancelAttack(game.player.actor);
   }
   updateDoors(game.ecs, dt);
+  const ember = game.ecs.get('run')?.get('lastEmber');
+  if (ember?.approachActivation())
+    ui.toast(
+      'Last Ember threatened: a goblin is preparing six 20-second rites at the smithy focus. Restore the entrance shrine, lure or defeat the worker, or disable the focus.',
+      10000,
+    );
   const work = game.ecs.get('run')?.get('objectiveWork');
   work?.advance(game.steps, dt);
   const locked = game.combat.pursue(game.player.actor, dt);
@@ -575,7 +618,17 @@ function tick(dt: number): void {
   }
   // COMMIT BOUNDARY: movement, attacks/projectiles and hazards have all resolved.
   // Validate before respawn can make a killed hero appear eligible again.
-  work?.commit(game.steps);
+  const outcome = work?.commit(game.steps);
+  if (ember && outcome) {
+    const reward = ember.reward;
+    ember.consume(outcome.outcomes);
+    if (ember.reward > reward) {
+      const evidence = ember.shrineEvidence();
+      discoveryRecord().present(evidence, game.playTime);
+      ui.toast(evidence.description, 6500);
+    }
+  }
+  if (game.player.health > healthBefore) ui.setHealth(game.player.health);
   if (game.player.health < healthBefore) {
     ui.setHealth(game.player.health);
     ui.damage();
@@ -674,7 +727,12 @@ function renderUpdate(dt: number): void {
       Math.sin(game.time * 13 + source.phase) * 0.06;
   });
   game.nearest = game.inspection.active ? null : findInteraction();
-  ui.prompt(promptFor(game.nearest));
+  const ember = game.ecs.get('run')?.get('lastEmber');
+  const emberSite = !game.inspection.active && ember?.nearby();
+  ui.prompt(ember && emberSite ? ember.prompt(emberSite) : promptFor(game.nearest));
+  const worker = ember ? game.combat.actor(EMBER.worker) : undefined;
+  ui.agenda(ember?.agenda(!!worker && observesActor(worker)) ?? []);
+  game.emberRendering.update();
   const target = game.combat.actor(game.player.actor.attack.target);
   ui.combatTarget(target && observesActor(target) ? target : null, game.playTime);
   const record = discoveryRecord();

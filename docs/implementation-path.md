@@ -34,11 +34,11 @@ the earlier player-triggered danger-clock proposal is a mechanics reference.
 | O3 | First playable Last Ember contest | Reachable shrine/focus/clue, named goblin worker, visible rival clock, restoration/profanation/contested outcomes and bounded recovery. Preserve required progression and verify multiple seeds. |
 | O4 | Independent second rival plan | Add only after O3: bounded carriers/cargo, real deliveries and visible counterplay; unrelated goals continue independently. |
 
-O1 is complete at `6f79a97` as an independently reviewed pure domain component. O2 physical work
-and runtime commit boundaries are complete, with final independent review READY and both timing
-blockers cleared; see the progress tracker for test-first evidence and verification. O3 is next
-and has not started: it authors the first playable Last Ember scenario, workstation/AI choices
-and visible clock presentation; O4 follows it.
+O1 is complete at `6f79a97`; O2 physical work/runtime boundaries are complete at `d698f27`, with
+independent review READY. O3 is implemented and independently reviewed: the playable
+Last Ember scenario, physical worker priorities, clocks, outcomes and recovery are integrated.
+Independent O3 review returned READY. O4 is the next slice.
+Its plan must compose with O3 before the single run installation; see the README API handoff.
 
 Each row may be split further if review reveals a coherent smaller feature. Later priorities
 can change based on evidence from the corpus/gallery and play review. Broad roster expansion,

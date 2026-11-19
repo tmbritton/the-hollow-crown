@@ -136,7 +136,9 @@ try {
     await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
     const named = await page.evaluate(() => {
       const g = window.__dungeon.game;
-      const actors = g.combat.enemies.filter((a) => a.entity.has('inhabitant'));
+      const actors = g.combat.enemies.filter(
+        (a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout',
+      );
       if (actors.length !== 1) throw new Error('Expected one named inhabitant');
       const actor = actors[0];
       return {

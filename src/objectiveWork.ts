@@ -18,12 +18,16 @@ export interface WorkSite {
   approach: Spawn;
   radius: number;
   enabled: boolean;
+  /** Authored direction toward the mechanism, in world radians. */
+  facing?: number;
 }
 export interface WorkAvailability {
   available: boolean;
   reason?: string;
   /** Authoritative resource/method identity. A change cancels the current cycle. */
   revision?: string | number;
+  /** Optional authored method credit; sampled at both boundaries like its revision. */
+  amount?: number;
 }
 export interface ObjectiveWorkBinding {
   objectiveId: string;
@@ -40,6 +44,7 @@ interface Sample {
   approach: Spawn | undefined;
   dependencies: (Entity | undefined)[];
   revision: WorkAvailability['revision'];
+  amount: number;
 }
 interface Pending {
   actor: Entity;
@@ -149,6 +154,20 @@ export class ObjectiveWorkSystem {
     actor.entity.add('work', new WorkAction(actor.entity, objectiveId));
     return true;
   }
+  /** Idle species behavior may service an assigned job. Combat retains priority. */
+  job(actor: Actor): (Spawn & { facing?: number }) | null {
+    const assignment = actor.entity.get('work');
+    if (!assignment) return null;
+    const objective = this.record.get(assignment.objectiveId);
+    const binding = this.bindings.get(assignment.objectiveId)!;
+    const site = this.ecs.get(binding.siteId)?.get('workSite');
+    return objective.activated &&
+      objective.status === 'unresolved' &&
+      site?.enabled &&
+      this.availability(binding).available
+      ? { ...site.approach, facing: site.facing }
+      : null;
+  }
   private actor(id: string): Actor | undefined {
     const entity = this.ecs.get(id);
     return entity && actorComponents.every((name) => entity.has(name))
@@ -160,12 +179,19 @@ export class ObjectiveWorkSystem {
     if (
       typeof value.available !== 'boolean' ||
       (value.reason !== undefined && !value.reason.trim()) ||
+      (value.amount !== undefined &&
+        (!Number.isSafeInteger(value.amount) || value.amount < 1 || value.amount > 64)) ||
       (value.revision !== undefined &&
         typeof value.revision !== 'string' &&
         (typeof value.revision !== 'number' || !Number.isFinite(value.revision)))
     )
       throw new Error('Invalid work availability');
-    return { available: value.available, reason: value.reason, revision: value.revision };
+    return {
+      available: value.available,
+      reason: value.reason,
+      revision: value.revision,
+      amount: value.amount,
+    };
   }
   private sample(
     actor: Actor,
@@ -182,6 +208,7 @@ export class ObjectiveWorkSystem {
       approach: location ? { ...location.approach } : undefined,
       dependencies: objective.dependencies.map((id) => this.ecs.get(id)),
       revision: availability.revision,
+      amount: availability.amount ?? binding.amount ?? 1,
     };
     const deny = (status: 'blocked' | 'interrupted', reason: string) => {
       sample.participant.status = status;
@@ -247,6 +274,7 @@ export class ObjectiveWorkSystem {
       !!after.approach &&
       samePoint(before.approach, after.approach) &&
       before.revision === after.revision &&
+      before.amount === after.amount &&
       before.dependencies.every((entity, i) => entity === after.dependencies[i])
     );
   }
@@ -333,7 +361,7 @@ export class ObjectiveWorkSystem {
           id: cycleId,
           objectiveId: work.objectiveId,
           participantId: entity.id,
-          amount: binding.amount!,
+          amount: sample.amount,
         });
     }
     const conditions: ObjectiveConditions[] = [];
@@ -397,8 +425,8 @@ export class ObjectiveWorkSystem {
   }
 }
 
-/** Scenario installation replaces the run record atomically; ordinary O2 worlds install no
- * artificial clock. O3 authors bindings on real reserved work faces and assigns its executors. */
+/** Install the composed scenario fragments once per run. Reinstallation replaces all progress;
+ * assignment/reset paths must use the existing system instead. */
 export function installObjectiveWork(
   ecs: ECS,
   world: NavigationWorld,

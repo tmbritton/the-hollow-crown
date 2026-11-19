@@ -6,7 +6,7 @@ import { segmentIntersectsBox } from './navigation.ts';
 import { heightAt, randomFrom, tileAt } from './world.ts';
 import type { Point, Random, Spawn, World } from './worldTypes.ts';
 import { seedSocialGroups } from './social.ts';
-import { seedInhabitant } from './generation/inhabitants.ts';
+import { seedInhabitant, seedEmberWorker } from './generation/inhabitants.ts';
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 export const MELEE_RANGE = 1.5;
@@ -111,6 +111,7 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
   }
   seedSocialGroups(enemies, world);
   seedInhabitant(world, enemies);
+  seedEmberWorker(world, enemies);
   return enemies;
 }
 
@@ -462,7 +463,21 @@ export class CombatSystem {
           ? brain.social.activity
           : 'smoke',
     });
-    this.applyBehaviorEffects(actor, target, effects);
+    const job =
+      !target && !actor.attack.swing ? this.ecs.get('run')?.get('objectiveWork')?.job(actor) : null;
+    if (job) {
+      if (distance(actor.position, job) > 0.1) {
+        if (
+          !actor.navigator.active ||
+          !actor.navigator.destination ||
+          distance(actor.navigator.destination, job) > 0.1
+        )
+          this.route(actor, job);
+      } else {
+        actor.navigator.cancel();
+        if (job.facing !== undefined) actor.position.heading = job.facing;
+      }
+    } else this.applyBehaviorEffects(actor, target, effects);
   }
 
   private applyBehaviorEffects(

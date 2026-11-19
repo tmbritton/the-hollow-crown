@@ -4,6 +4,8 @@ import { hasApproach } from './worldTypes.ts';
 import { generateKeepIdentity } from './generation/keep.ts';
 import { applyKeepPresentation } from './generation/keepPresentation.ts';
 import { planScene } from './generation/scenes.ts';
+import { emberBlueprint } from './generation/lastEmber.ts';
+import { Navigator } from './navigation.ts';
 import type { KeepIdentity } from './generation/keep.ts';
 import { randomFrom } from './generation/random.ts';
 import { localPoint, footprint, inwardRotations } from './generation/placement.ts';
@@ -561,6 +563,19 @@ function buildAttempt(seed: string, attempt: number, keep: KeepIdentity): World 
         )
           continue;
         const approach = { x: tile.x - dx * 2, z: tile.z - dz * 2 };
+        // Existing shrine/forge work faces are real E interactions too. Keep the clue's
+        // viewing approach outside their activation radius, before selecting a portrait.
+        if (
+          props.some(
+            (prop) =>
+              ((prop.type === 'shrine' && prop.room === 'entrance') ||
+                (prop.type === 'anvil' && prop.room === 'smithy')) &&
+              prop.frontClearance &&
+              Math.hypot(prop.frontClearance.x - approach.x, prop.frontClearance.z - approach.z) <
+                1.1,
+          )
+        )
+          continue;
         if (
           ![0, 1, 2].every((s) => {
             const t = tileAt(world, tile.x - dx * s, tile.z - dz * s);
@@ -689,6 +704,29 @@ export function validateDungeon(world: World): string[] {
   for (const [id] of ROOM_DEFINITIONS) if (!world.roomById[id]) errors.push(`Missing ${id}`);
   const before = reachableTiles(world, false),
     after = reachableTiles(world, true);
+  try {
+    const sites = emberBlueprint(world);
+    const navigation = new Navigator(world);
+    for (const site of Object.values(sites))
+      if (
+        !before.has(key(Math.round(site.approach.x), Math.round(site.approach.z))) ||
+        !world.reserved.has(key(Math.round(site.approach.x), Math.round(site.approach.z))) ||
+        !navigation.goTo(world.spawn, site.approach, { openDoors: true })
+      )
+        errors.push(`Last Ember approach inaccessible: ${site.id}`);
+    for (const site of [sites.shrine, sites.focus])
+      if (
+        world.entities.some(
+          (entity) =>
+            entity.approach &&
+            Math.hypot(entity.approach.x - site.approach.x, entity.approach.z - site.approach.z) <
+              1.1,
+        )
+      )
+        errors.push(`Last Ember interaction overlaps another approach: ${site.id}`);
+  } catch {
+    errors.push('Missing Last Ember shrine, focus or clue');
+  }
   const altar = world.entities.find((e) => e.type === 'altar'),
     throne = world.entities.find((e) => e.type === 'throne');
   const approachKey = (e: Entity | undefined): string =>

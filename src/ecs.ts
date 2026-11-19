@@ -13,6 +13,9 @@ import type { DiscoveryRecord } from './discoveries.ts';
 import type { ObjectiveRecord } from './objectives.ts';
 import type { ObjectiveWorkSystem, WorkSite } from './objectiveWork.ts';
 import type { WorkAction } from './machines/actors/work.ts';
+import type { LastEmber } from './lastEmber.ts';
+import type { Statechart } from './machines/statechart.ts';
+import type { focusMachine } from './machines/world/focus.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
 import type {
   DoorEntity,
@@ -33,6 +36,8 @@ export interface Components {
   objectiveWork: ObjectiveWorkSystem;
   work: WorkAction;
   workSite: WorkSite;
+  lastEmber: LastEmber;
+  focus: Statechart<typeof focusMachine>;
   transform: Spawn & { heading: number };
   actor: { kind: ActorKind; speed: number; opensDoors: boolean };
   inhabitant: InhabitantIdentity;

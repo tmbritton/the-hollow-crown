@@ -51,7 +51,9 @@ async function namedFixture() {
       actor.attack.reset();
       Object.assign(actor.position, { x: 1000, z: 1000, h: 0 });
     }
-    const named = g.combat.enemies.find((a) => a.entity.has('inhabitant'))!;
+    const named = g.combat.enemies.find(
+      (a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout',
+    )!;
     d.teleport(0, 0);
     g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
     g.camera.beta = 0.64;
@@ -338,8 +340,10 @@ try {
   assert.ok(await page.locator('#inspection').isVisible());
   const inspected = await snapshot();
   assert.equal(inspected.discoveries.filter((d) => d.kind === 'portrait').length, 1);
-  assert.equal(inspected.discoveries.at(-1)!.title, portrait.title);
-  assert.deepEqual(inspected.discoveries.at(-1)!.factIds, portrait.factIds);
+  const portraitEntry = inspected.discoveries.find((d) => d.kind === 'portrait')!;
+  assert.equal(portraitEntry.title, portrait.title);
+  assert.deepEqual(portraitEntry.factIds, portrait.factIds);
+  assert.ok(inspected.discoveries.some((d) => d.id === 'ember:old-rite'));
   assert.ok(!inspected.factIds.includes('fact:memorial'));
   await page.evaluate(() => {
     const g = window.__dungeon.game;

@@ -101,6 +101,7 @@ export function isSocializing(actor: Actor): boolean {
     actor.alive &&
     !actor.attack.target &&
     !actor.attack.swing &&
+    !actor.entity.has('work') &&
     (state === 'cards' || state === 'hackysack' || state === 'smoke')
   );
 }

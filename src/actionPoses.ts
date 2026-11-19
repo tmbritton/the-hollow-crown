@@ -141,6 +141,18 @@ export function hackySackKick(progress: number, receiving: boolean): number {
       ]);
 }
 
+/** Held channel pose follows actual work time, never a render-owned contribution timer. */
+export function workPose(elapsed: number): LocomotionPose {
+  const pose = attackPose(0, 1, 0.5, false);
+  const pulse = Math.sin((elapsed * Math.PI * 2) / 3);
+  pose.leftArm = pose.rightArm = -1.15 - pulse * 0.12;
+  pose.leftElbow = pose.rightElbow = 0.65;
+  pose.armSpread = 0.35;
+  pose.lean = 0.12;
+  pose.bob = -0.05 + pulse * 0.015;
+  return pose;
+}
+
 export function socialPose(activity: SocialActivity, time: number, kick = 0): LocomotionPose {
   const pose = attackPose(0, 1, 0.5, false);
   if (activity === 'cards') {

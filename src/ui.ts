@@ -10,6 +10,7 @@ import type { SessionEvent } from './machines/ui/session.ts';
 import { feedbackMachine } from './machines/ui/feedback.ts';
 import { inhabitantDiscovery, landmarkDiscovery } from './discoveries.ts';
 import type { DiscoveryRecord } from './discoveries.ts';
+import type { AgendaClock } from './lastEmber.ts';
 
 export class UI {
   readonly map: HTMLCanvasElement;
@@ -28,6 +29,7 @@ export class UI {
   roomId: RoomId | null = null;
   private mapScale = 1;
   private mapCenter = { x: 0, z: 0 };
+  private agendaText = '';
 
   get ready(): boolean {
     return (
@@ -77,6 +79,7 @@ export class UI {
     this.transition({ type: document.hidden ? 'HIDE' : 'SHOW' });
   }
   reset(world: World, record: DiscoveryRecord): void {
+    this.agenda([]);
     this.currentWorld = world;
     this.currentRecord = record;
     element('discovery-record', HTMLDetailsElement).open = false;
@@ -103,6 +106,36 @@ export class UI {
     $('toast').textContent = message;
     this.toastState.send({ type: 'SHOW', now: performance.now(), duration });
     $('toast').classList.add('visible');
+  }
+  agenda(clocks: AgendaClock[]): void {
+    const serialized = JSON.stringify(clocks);
+    if (serialized === this.agendaText) return;
+    this.agendaText = serialized;
+    const panel = $('agenda');
+    panel.hidden = clocks.length === 0;
+    panel.replaceChildren(
+      ...clocks.map((clock) => {
+        const row = document.createElement('article');
+        row.dataset.objective = clock.id;
+        row.classList.toggle('player-clock', clock.owner === 'You');
+        const heading = document.createElement('strong');
+        heading.textContent = `${clock.title} · ${clock.progress}/${clock.capacity}`;
+        const owner = document.createElement('span');
+        owner.textContent = `${clock.owner} · ${clock.status}`;
+        const segments = document.createElement('div');
+        segments.className = 'clock-segments';
+        segments.setAttribute('aria-hidden', 'true');
+        for (let i = 0; i < clock.capacity; i++) {
+          const segment = document.createElement('i');
+          segment.classList.toggle('filled', i < clock.progress);
+          segments.append(segment);
+        }
+        const detail = document.createElement('small');
+        detail.textContent = clock.detail;
+        row.append(heading, owner, segments, detail);
+        return row;
+      }),
+    );
   }
   room(room: Room, at = 0): void {
     if (!room || room.id === this.roomId) return;

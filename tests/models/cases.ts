@@ -23,6 +23,7 @@ import { inspectorMachine } from '../../src/machines/ui/inspector.ts';
 import { feedbackMachine } from '../../src/machines/ui/feedback.ts';
 import { objectiveMachine } from '../../src/machines/world/objective.ts';
 import { workMachine } from '../../src/machines/actors/work.ts';
+import { focusMachine } from '../../src/machines/world/focus.ts';
 
 const facts = (changes: Partial<MonsterPerception> = {}): MonsterPerception => ({
   type: 'THINK',
@@ -88,6 +89,13 @@ const swing = {
 };
 
 export const modelCases = [
+  modelCase(focusMachine, {
+    inputs: [undefined],
+    events: () => [{ type: 'DISABLE' as const }],
+    invariant: (state, before) => {
+      if (before?.matches('disabled')) assert.ok(state.matches('disabled'));
+    },
+  }),
   modelCase(workMachine, {
     inputs: [undefined],
     // Integer and authored decimal boundaries, with every fixed tick represented.

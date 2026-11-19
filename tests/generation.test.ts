@@ -5,7 +5,7 @@ import { generateDungeon, generateDungeonWithReport } from '../src/world.ts';
 import { GenerationError, MAX_GENERATION_ATTEMPTS } from '../src/generation/identity.ts';
 import type { World } from '../src/worldTypes.ts';
 
-// layout-v3 / keep-v4 geometry fixtures, including accepted scene provenance.
+// layout-v3 / keep-v4 / last-ember-v1 fixtures, including reserved-site validation.
 // Older layout-v2 fixtures were intentionally superseded when scene recipes shipped.
 function geometryDigest(world: World): string {
   return createHash('sha256')
@@ -31,6 +31,7 @@ test('diagnostic generation preserves the versioned scene geometry fixture', () 
     seed: world.seed,
     generatorVersion: 'layout-v3',
     contentVersion: 'keep-v4',
+    scenarioVersion: 'last-ember-v1',
   });
   assert.equal(report.acceptedAttempt, world.attempt);
   assert.deepEqual(report.attempts, [{ attempt: 0, stage: 'accepted', reasons: [] }]);
@@ -39,9 +40,9 @@ test('diagnostic generation preserves the versioned scene geometry fixture', () 
 
 test('retries retain reproducible rejection reasons and the accepted zero-based attempt', () => {
   const { world, report } = generateDungeonWithReport('trial-23');
-  assert.equal(world.attempt, 1);
-  assert.equal(report.acceptedAttempt, 1);
-  assert.equal(report.attempts.length, 2);
+  assert.equal(world.attempt, 2);
+  assert.equal(report.acceptedAttempt, 2);
+  assert.equal(report.attempts.length, 3);
   assert.deepEqual(report.attempts[0], {
     attempt: 0,
     stage: 'validation',
@@ -49,10 +50,15 @@ test('retries retain reproducible rejection reasons and the accepted zero-based 
   });
   assert.equal(
     geometryDigest(world),
-    '3b78457ac18997ee4ea19c259dffa679ef895586b505f0cd5233502b627db4b7',
+    'c2d9fb0b4ebafb621e956a8c824cd041e89ec21f1f595de197c83e6514b62c58',
     'retrying seeds retain their versioned accepted geometry',
   );
-  assert.deepEqual(report.attempts[1], { attempt: 1, stage: 'accepted', reasons: [] });
+  assert.deepEqual(report.attempts[1], {
+    attempt: 1,
+    stage: 'validation',
+    reasons: ['Missing Last Ember shrine, focus or clue'],
+  });
+  assert.deepEqual(report.attempts[2], { attempt: 2, stage: 'accepted', reasons: [] });
   assert.deepEqual(report, generateDungeonWithReport('trial-23').report);
 });
 
