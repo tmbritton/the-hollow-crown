@@ -229,6 +229,7 @@ export class CombatSystem {
           ? 1.75
           : 1.15 + (actor.brain?.slot ?? 0) * 0.18,
     );
+    if (started) actor.entity.get('work')?.interrupt('Attack started');
     actor.position.heading = Math.atan2(
       target.position.x - actor.position.x,
       target.position.z - actor.position.z,
@@ -540,6 +541,7 @@ export class CombatSystem {
   damage(target: Actor, amount: number, source?: Actor): boolean {
     if (!target.alive || (source && !hostile(source, target)) || !target.health.damage(amount))
       return false;
+    target.entity.get('work')?.interrupt('Executor hurt');
     this.hitParticles(target, source);
     if (target.health.current === 0) {
       stopActor(target);

@@ -4,7 +4,121 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
-### Objective domain foundation (O1) — 2026-11-19
+### Physical interruptible objective work (O2) — 2026-11-19
+
+Completed against clean O1 **`6f79a97`**. Final independent review is **READY**, with both
+duration-boundary blockers cleared and no remaining blockers. O3 is next and has not started.
+
+#### Final independent review — READY
+
+The reviewer reported **202 tests/checks and the production build passing**, the **1,200-duration
+sweep over 4,323,600 fixed ticks**, and **17 objective-work checks in each of Chromium and Firefox**.
+It also passed **46 additional below/above-boundary, half-step and carry-reset probes**. Both the
+original fractional-duration blocker and the remaining decimal-race blocker are cleared.
+These are attributed independent-review results, separate from the implementation runs below.
+O2 is complete and authorized for the feature commit; O3 remains the next feature.
+
+#### Decimal work-unit timebase correction
+
+- Follow-up reviewer reproduced 6.9s × 3 credit versus three 2.3s × 1 cycles resolving
+  monster-first; its original 198 checks passed, with no other reported blockers.
+- Before production edits, `node --test tests/objective-work.test.ts`: **19 pass / 4 fail**.
+  The installed race emitted `corrupted` instead of `fractured`. The 1,200-duration sweep
+  (0.1–120s in tenths, **4,323,600 actual ticks**) reproduced **3.7 → 3.6999999999999997** and
+  **6.9 → 6.8999999999999995**, still `working`; half-final-frame and restarted 6.9s cases
+  also missed completion. Existing immediately-below-duration tests passed.
+- `node --test tests/models.test.ts`: **20 pass / 1 fail**, on the new 3.7s/222-tick trace.
+  `npm run test:objective-work` failed in Chromium before the fix at absolute step **422**
+  (activation 8 + 414 work steps), rival **3/completed**, hero **0/lost**, `monster-first`.
+- The clock now uses compensated **60 Hz work units**, a strict unit comparison and elapsed
+  seconds derived as **units/60**. Conversion retains the signed fractional remainder around
+  the nearest simulation boundary, avoiding both `8.3 * 60 > 498` drift and multiplication
+  collisions at adjacent doubles. There is no completion epsilon. Binding/machine validation
+  rejects nonfinite scaled durations; tick overfill is clipped before conversion. Carry resets
+  across interruption, blocking, cancellation and settlement.
+- All 1,200 durations now finish on their intended boundary. Regression coverage includes
+  genuinely incomplete values immediately below 3/120 seconds and `23/60`, an authored duration
+  immediately above `11/60`, a half-completed final step, and fresh cycles after each reset path.
+- Focused work/model run: **44 passed**. Final `npm run format:check`, `npm run lint`, `npm test`
+  (**202 tests**, including strict typing), `npm run build` and `git diff --check` pass.
+  Final work model: **5/5 states, 7/7 branches, 8,206 generated paths, 480 cyclic steps**;
+  total model coverage remains **18 machines / 85 states / 167 branches**. Vite retains its
+  existing large-chunk warning.
+- Sequential `npm run test:objective-work` and `BROWSER=firefox npm run test:objective-work`:
+  **17 checks each**, no page errors. At work step 413, hero/rival progress is **0/2**, no outcome;
+  step 414 commits both final contributions, yielding **3/3 contested** and one outcome retained
+  for another 60 steps. Absolute final steps: **424 Chromium / 439 Firefox**. Evidence is under
+  `decimalRace` in `test-results/{chromium,firefox}-objective-work.json`; the earlier three-second
+  race and all prior work checks also pass. No rendering change or new screenshots.
+- Final review was pending at this checkpoint; the READY verdict above clears the correction.
+  Prior verification below is historical; no separate local rerun of reviewer-only probes is claimed.
+
+#### First duration correction (historical seconds-based baseline)
+
+- Reviewer reported a late three-second completion that changed an equal-time race to monster-first;
+  its other 97 lifecycle probes passed (reviewer results, not an additional local run).
+- Before production edits, `node --test tests/objective-work.test.ts`: **15 pass / 4 fail**.
+  At 180 × `1/60`, elapsed was **2.9999999999999942**, status `working`. Durations
+  **4, 5, 6, 8, 25, 30, 60, 120** were also late (120 ended at **119.99999999999447**).
+  Conversely, the old tolerance accepted actually incomplete **2.9999999999999996** seconds.
+  The installed capacity-three race (hero 3s × 3 credit; rival three 1s × 1 cycles) emitted
+  `corrupted`/monster-first instead of `fractured`/contested.
+- `node --test tests/models.test.ts`: **20 pass / 1 fail**, on the new generated 180-fractional-tick
+  trace. `npm run test:objective-work` failed the same race in Chromium's real main loop:
+  activation step 10 → commit step **190**, rival **3/completed**, hero **0/lost**.
+- Work now uses Kahan compensated summation and a strict duration comparison. The numerical carry
+  resets with cycle lifecycle transitions; the public work snapshot contract is unchanged.
+  Exact boundary, no-early-credit (including the previous representable doubles below 3 and 120),
+  partial final-frame and installed race regressions all pass.
+- `node --test tests/objective-work.test.ts tests/models.test.ts`: **40 pass**.
+  The work model covers **5/5 states, 7/7 branches, 3,185 generated paths, 480 cyclic steps**;
+  total coverage remains **18 machines / 85 states / 167 branches**.
+- `npm run format:check`, `npm run lint`, `npm test` (**198 tests**, including strict typing),
+  `npm run build`, and `git diff --check` pass. The existing large-chunk warning remains.
+- Sequential `npm run test:objective-work` and `BROWSER=firefox npm run test:objective-work`:
+  **16 checks each**, no page errors. At work step 179, hero/rival progress is **0/2**, no outcome;
+  at 180, **3/3 contested**, with both contributions in one batch and one latched outcome after
+  another 60 steps. Absolute final commit steps were **190 Chromium / 204 Firefox**, reflecting
+  their pre-fixture startup time. Before/boundary evidence is under `timingRace` in
+  `test-results/{chromium,firefox}-objective-work.json`. No rendering change or new screenshots.
+- Follow-up review was pending at this checkpoint; initial O2 browser/production checks below are
+  historical baselines.
+
+#### Initial O2 verification (before duration correction)
+
+- Test-first commands `node --test tests/objective-work.test.ts` and
+  `node --test tests/models.test.ts` failed on missing `src/objectiveWork.ts` and
+  `src/machines/actors/work.ts`. The preimplementation Chromium browser run failed fetching the
+  missing work module from Vite. The contracts/assertions preceded implementation.
+- Local self-review reproduced two further regressions before fixing them: the pure retained
+  partial-handle case returned **1 credit instead of 0** (**14 pass / 1 fail**), and the browser's
+  retained old system accepted `advance` after regeneration (**13 preceding checks passed**).
+  Shared cancellation now clears the action chart; commit rejects detached/replaced handles;
+  regeneration explicitly retires the old service and cancels all assignments.
+- An intermediate browser fixture failed with enemy progress **0 instead of 1** because removing
+  its AI retained prior movement state. The fixture now calls the production `stopActor` operation.
+- Final `npm run format:check`, `npm run lint`, `npm test` (**194 tests**, including strict typing)
+  and `npm run build` pass. Vite retains the existing >500 kB chunk warning. Focused work/model
+  run: **36 tests**. New work model: **5 states / 7 branches**, **102 generated paths / 480 cyclic
+  steps**; totals **18 machines / 85 states / 167 branches**.
+- `git diff --check` passes; generated reports/captures remain ignored.
+- `npm run test:objective-work` and `BROWSER=firefox npm run test:objective-work`: **15 checks
+  each**, sequentially. Real keyboard movement, pointer attack/nonlethal hit and fresh-cycle
+  resumption, species AI movement, generated door E/collider access, solid furnishing denial,
+  off-screen work, menu/inspection/visibility pause, blur, teleport, checkpoint respawn,
+  completion-boundary melee death, a two-ready-cycles/third-party-kill race and stale-run/reset
+  behavior all pass. Hidden-tab suspension
+  dispatches the real visibility handler with a deterministic `document.hidden` fixture.
+  Reports: `test-results/{chromium,firefox}-objective-work.json`.
+- Sequential affected regressions: `npm run test:combat` (**14 Chromium**), `npm run test:movement`
+  (**13 Chromium**), `npm run test:jump` (**8 Chromium**), `npm run test:inspection` (**13 Firefox**),
+  and `npm run test:production` all pass. Reviewed refreshed combat-running-contact,
+  movement-route and inspection-high-detail screenshots. This slice adds no work pose/HUD artwork.
+- The fixture installs real work in the existing seeded world; normal worlds have no dummy clock.
+  O3 still owns Last Ember authoring, autonomous job priorities, work/clock presentation, outcome
+  effects and multi-seed pacing. Broader gallery, discovery and hardware results below are historical.
+
+### Objective domain foundation (O1) — 2026-11-19 (historical baseline)
 
 Completed against committed D1 **`e6591df`**; final independent review is **READY**. This slice adds
 the pure objective record, lifecycle machine and typed ECS slot. Runtime work/scenario/UI wiring
@@ -17,7 +131,7 @@ passing (**22 objective contracts**), with **17 machines / 80 states / 160 branc
 The reviewer also reran the original blocker probes and **18 malformed-reason cases**, plus type
 checking, formatting, lint and diff-whitespace checks: all passed. These are attributed reviewer
 results, separate from the implementation's full-suite/build checks below. No new browser checks
-are claimed. O1 is complete; O2 is next and has not started.
+are claimed. O1 was complete at this checkpoint; O2 had not yet started.
 
 #### Structural-input review correction
 

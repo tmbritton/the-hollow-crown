@@ -2,8 +2,11 @@
 
 **Status:** authoritative user-directed target. O1's pure domain foundation (ownership/eligibility,
 knowledge/activation, bounded clocks, atomic exclusive races and latched outcomes) is complete and
-independently reviewed. Autonomous monster work, scenario integration and objective-clock
-UI remain planned in O2–O4. See [implementation progress](implementation-progress.md).
+independently reviewed at `6f79a97`. O2's physical work cycles, ECS assignments, authoritative
+commit boundary and pause/reset integration are complete; final independent review is READY,
+clearing both duration-boundary blockers. O3 is next and has not started.
+Autonomous job selection, authored scenarios and objective-clock UI follow in O3–O4.
+See [implementation progress](implementation-progress.md).
 
 **Date:** 2026-11-18.
 

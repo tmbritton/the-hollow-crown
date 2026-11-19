@@ -7,18 +7,25 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1, D1 (`e6591df`) and O1. Next: O2
-  interruptible objective work (not started).**
+- **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1, D1 (`e6591df`), O1 (`6f79a97`) and O2.
+  O2's final independent review is READY. Next: O3, the first playable Last Ember contest
+  (not started).**
+- O2 decimal timebase correction: **202 tests**, strict typing, formatting, lint and build pass. Model totals:
+  **18 machines / 85 states / 167 branches**. Objective-work browser checks pass **17 each**
+  in Chromium and Firefox, sequentially. Chromium combat **14**, movement **13**, jump **8**,
+  Firefox inspection **13**, and production smoke retain their initial O2 verification baseline.
+  Implementation used no subagents; independent-review results are attributed below.
 - O1 verification after both input-boundary review corrections: **178 tests**, strict typing,
   formatting, lint and build pass. Objective
-  model coverage adds five states/five branches; current totals are 17 machines / 80 states / 160 branches.
+  model coverage added five states/five branches; that baseline covered 17 machines / 80 states / 160 branches.
 - Latest D1 checkpoint: 155 pure/model/geometry tests, lint, formatting and build pass; 17 discovery
   checks and 14 combat checks in each browser, plus 13 Firefox inspection checks pass.
   Production smoke, 28 animation captures and nine Chromium social checks also pass. The CPU
   A/B/A probe and preparation-budget regressions pass; precise timings are in `VERIFICATION.md`.
   Other browser/gallery/performance results remain the recorded earlier feature baselines.
-- Final independent O1 review returned **READY**, clearing both input-boundary blockers. Reviewer
-  checks are attributed below. O2–O4 remain in dependency order; this delivery ends with O1.
+- Final independent O1 review returned **READY**, clearing both input-boundary blockers. O2's
+  final independent review also returned **READY**, clearing both duration-boundary blockers.
+  Reviewer checks, including 46 additional boundary/half-step/carry-reset probes, are attributed below.
 
 ## Feature tracker
 
@@ -35,10 +42,115 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | N1 | Complete | Identity/report and visual tests failed first; corpus doorway-home and review HUD-overlap regressions failed before fixes | 130 tests/check/build, both combat browsers, full/social, production, generation and gallery pass; independent review cleared | `4f45a2c` |
 | GF1 | Complete | Moving-pursuit, escaped/occluded-target and goblin flee-speed regressions failed first | 133 tests, format/lint/build, both combat browsers, Chromium movement/jump/animation pass; independent review cleared | `cd415d1` |
 | D1 | Complete | Hidden melee death reproduced first; follow-up cost regression failed with 8,000 matrix calls / 600 bounds refreshes over four off-ray queries | 155 tests, format/lint/build; discovery 17 and combat 14 each browser, inspection 13, animation 28, social 9, production and CPU probes pass; independent review cleared | `e6591df` |
-| O1 | Complete | Initial missing APIs and reason/visibility regressions; five review regressions reproduced metadata retention and partial commits | 178 tests, format/lint/build pass; independent READY review: 42 focused tests, original probes and 18 malformed-reason cases | This commit |
-| O2–O4 | Planned | Pending | Pending | — |
+| O1 | Complete | Initial missing APIs and reason/visibility regressions; five review regressions reproduced metadata retention and partial commits | 178 tests, format/lint/build pass; independent READY review: 42 focused tests, original probes and 18 malformed-reason cases | `6f79a97` |
+| O2 | Complete | Initial missing-module/lifetime reds; both duration corrections reproduced false monster-first results; decimal sweep and pure/model/browser regressions precede work-unit fix | 202 tests/check/build, 1,200-duration sweep, work 17 each browser; independent READY review cleared both blockers and passed 46 additional probes | This commit |
+| O3–O4 | Planned | Pending | Pending | — |
 
 ## Work log
+
+### O2 final independent review — READY
+
+- Reviewer cleared both duration-boundary blockers and reported **202 tests/checks and the build
+  passing**, the **1,200-duration sweep over 4,323,600 fixed ticks**, and **17 objective-work
+  checks each in Chromium and Firefox**.
+- The reviewer also passed **46 additional below/above-boundary, half-step and carry-reset probes**.
+  No blockers remain. These are attributed independent results, separate from the implementation
+  runs recorded below.
+- O2 is complete and authorized for its feature commit with normal hooks. O3 is next and has
+  not started; this delivery ends with O2.
+
+### O2 final-review correction — decimal simulation timebase — 2026-11-19
+
+- Follow-up reviewer reported the remaining 6.9s/three 2.3s race blocker; its original 198 checks
+  passed with no other blockers. Before production edits, `node --test tests/objective-work.test.ts`
+  reproduced **19 pass / 4 fail**. The installed race emitted `corrupted`, and the 1,200-duration
+  sweep (0.1–120s in tenths, all actual fixed ticks) included **3.7 → 3.6999999999999997** and
+  **6.9 → 6.8999999999999995**, both still working. Partial-last-frame and restarted 6.9s cases
+  also remained unfinished. Existing immediate-below-boundary checks passed.
+- `npm run test:objective-work` reproduced monster-first in the main loop at absolute step
+  **422** (activation 8 + 414 work steps): rival **3/completed**, hero **0/lost**.
+  Added conversion-boundary regressions where raw multiplication collapses distinct values:
+  immediately below `23/60`, and an authored duration immediately above `11/60`.
+- The extended model also failed before production edits (**20 pass / 1 fail**) on a generated
+  3.7-second/222-tick trace. Production now accumulates compensated 60 Hz units, converts both
+  ticks and durations relative to their nearest simulation boundary with the signed remainder
+  retained, compares units strictly, and exposes elapsed seconds as units/60. No epsilon snapping.
+  The carry resets on cycle lifecycle transitions; binding validation rejects nonfinite scaling.
+- The 1,200-duration sweep now passes all **4,323,600 actual fixed ticks**, including each last
+  incomplete frame. Previous immediate-below-duration tests, new multiplication-boundary cases,
+  half-final-step work, and interrupted/blocked/cancelled/settled carry resets pass.
+- Final checks: **202 full tests** including typing, format/lint/build and `git diff --check` pass.
+  The focused work/model run passed **44 tests**. Final work model: **8,206 generated paths /
+  480 cyclic steps**, all five states/seven branches, including decimal and finite-overflow partitions.
+- Both work browser suites passed **17 checks each**, sequentially. At work step 413: hero **0**,
+  rival **2**, no outcome. Step 414: both **3/contested**, two final contributions in one batch,
+  one outcome still latched after another 60 steps. Absolute final steps were **424 Chromium /
+  439 Firefox**; `decimalRace` in the JSON reports retains before/boundary snapshots.
+- Final review was pending at this checkpoint; the READY verdict above clears both timing blockers.
+  No commits or agents were used at this checkpoint. The prior 198-check result is reviewer-reported;
+  older verification below remains a historical baseline. Existing large-chunk warning persists.
+
+### O2 first duration correction — historical seconds-based baseline — 2026-11-19
+
+- Reviewer reported the three-second boundary/race blocker, with 97 other lifecycle probes
+  passing. Before production edits, `node --test tests/objective-work.test.ts` reproduced
+  **15 pass / 4 fail**: 180 fixed ticks left elapsed at **2.9999999999999942**; durations
+  **4, 5, 6, 8, 25, 30, 60, 120** also finished late; an actually incomplete
+  **2.9999999999999996** seconds was rounded up; the capacity-three race emitted `corrupted`
+  rather than `fractured`.
+- The expanded finite model failed its generated 180-fractional-tick trace (**20 pass / 1 fail**).
+  `npm run test:objective-work` also failed before production edits: at runtime step **190**
+  (activation step 10 + 180 work steps), rival progress was **3/completed**, hero **0/lost**,
+  and `monster-first` was latched. Independent review was pending at this checkpoint; no commit or agents.
+- Replaced naive summation/tolerance with a chart-owned Kahan carry and strict `elapsed >= duration`
+  completion. Start, interruption, cancellation and settlement reset the carry. Public work snapshots
+  retain their existing fields. No callback, assignment, commit-boundary or scenario API changed.
+- Four new regression contracts now pass, covering every listed duration's exact boundary,
+  one-frame/half-frame incompletion, representable values immediately below 3/120 seconds, and
+  the installed capacity-three race. The model explicitly enumerates the three-second action's
+  180 fractional ticks: **3,185 generated paths / 480 cyclic steps**, all five states/seven branches.
+- Final checks: **40 focused work/model tests**, **198 full tests** including typing,
+  format/lint/build and diff-whitespace checks pass. Sequential objective-work browsers:
+  **16 each in Chromium/Firefox**. Both show hero **0**, rival **2**, no outcome at work step 179;
+  step 180 credits both to **3**, emits only `fractured`/contested and remains latched for 60 more
+  steps. Reports retain before/boundary snapshots. Existing build chunk warning remains.
+- Follow-up review was pending at this checkpoint. The reviewer's other 97 lifecycle probes are attributed results,
+  not a separately rerun local suite; other initial O2 browser results below remain historical.
+
+### O2 — physical interruptible objective work — 2026-11-19
+
+- Clean baseline confirmed at O1 `6f79a97`. Scope: physical ECS work, two-phase simulation
+  advancement/commit validation, interruption, lifetime identity and existing pause/reset paths.
+  Last Ember authoring remains O3. The initial implementation used no subagents and made no commit.
+- Before implementation, `node --test tests/objective-work.test.ts` failed with
+  `ERR_MODULE_NOT_FOUND` for `src/objectiveWork.ts`. The real Chromium run
+  `node tests/objective-work-browser.ts` failed fetching that same missing module from Vite.
+  Pure contracts and browser movement/menu/impact/reset assertions were written first.
+- Model tests also failed on the missing `src/machines/actors/work.ts` before implementation.
+- A later retained-handle regression failed **14 pass / 1 fail**: reattaching a cancelled
+  partial component credited **1 instead of 0**. Cancellation now retires its chart cycle,
+  and the commit boundary clears detached/replaced pending handles before they can be reused.
+- A subsequent real-browser stale-run regression failed after regeneration: a retained old
+  system still accepted `advance`. Explicit run retirement now cancels all assignments and
+  detaches the system before scene/ECS replacement; retained callbacks fail closed.
+- Run-owned work service, actor-owned assignments and site components read actual health,
+  combat, navigation, support, geometry, dependencies and prerequisites. Unique cycle IDs bind
+  actual actor/site instances. Advance precedes movement/combat; one commit batch follows all
+  combat/projectiles/hazards and precedes respawn/rendering. Partial and ready cycles both revalidate.
+- Menus/inspection/hidden tabs freeze simulation; hero cleanup cancels unfinished work. Visible
+  blur clears hero commands but continues enemy simulation, matching the existing pause policy.
+  Committed history survives respawn. No default clock/scenario, work pose or objective HUD was added.
+- **194 pure/model tests**, format/lint/build pass. O2 adds **15 simulation contracts** and a
+  five-state/seven-branch model (102 generated paths / 480 cyclic steps). Browser work checks:
+  **15 each in Chromium/Firefox**, including the two-ready-cycles/third-party-kill race. Sequential
+  regressions: Chromium combat **14**, movement **13**,
+  jump **8**, Firefox inspection **13**, production smoke. Reviewed refreshed combat-contact,
+  movement-route and portrait-inspection captures. Existing large-bundle warning persists.
+- API handoff is in `README.md`: `installObjectiveWork`, `activate`, `discover`, `assign`,
+  `advance`/`commit`, `cancelWork`, detached work snapshots and `retire`. O3 supplies reserved
+  workstations, job/navigation priorities, clock presentation and outcome effects. Resource/method
+  changes must be represented by the availability sample's revision. Independent review was pending
+  at this checkpoint; it was subsequently cleared above.
 
 ### Planning — 2026-11-18
 
@@ -307,10 +419,12 @@ Execution record for [implementation path](implementation-path.md). Started **20
   type checking, formatting, lint and diff-whitespace checks: all passed. These are attributed
   reviewer results; the implementation's 178-test/build verification is recorded above.
 - O1 is complete and authorized for the feature commit. No new browser checks are claimed.
-  **O2 interruptible objective work is next and has not started.**
+  **At this historical O1 checkpoint, O2 was next and had not started.**
 
 ## Follow-ups and blockers
 
+- O2 is complete with final independent review READY and no remaining blockers.
+  O3's Last Ember scenario, work/clock presentation and multi-seed pacing are next; O3 has not started.
 - No current O1 correctness blocker: final independent review is READY. D1's camera-occlusion
   and CPU-cost corrections were also cleared; G3's full-browser follow-up is resolved by T1.
 - Phase 0 diagnostic/gallery implementation and high-quality hardware sampling are done.

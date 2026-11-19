@@ -118,14 +118,22 @@ export function cancelAttack(actor: Actor): void {
   actor.attack.cancel();
 }
 
+/** Retire the unfinished cycle as well as detaching the assignment. */
+export function cancelWork(actor: Actor): void {
+  actor.entity.get('work')?.chart.send({ type: 'CANCEL' });
+  actor.entity.remove('work');
+}
+
 export function requestJump(actor: Actor): boolean {
   if (!actor.alive || !actor.jump.request()) return false;
+  actor.entity.get('work')?.interrupt('Jump started');
   // Preserve pursuit and floor commands, but do not resolve an interrupted sword strike.
   actor.attack.interrupt();
   return true;
 }
 
 export function stopActor(actor: Actor, cancelCombat = true): void {
+  cancelWork(actor);
   actor.navigator.cancel();
   actor.motion.speed = 0;
   actor.motion.actualSpeed = 0;

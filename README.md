@@ -132,6 +132,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/inspection.ts` | Typed inspection targets, camera transitions, framing, lifecycle, and camera restoration |
 | `src/discoveries.ts` | Pure within-run knowledge record, explicit source disclosures, observed events and detached read snapshots |
 | `src/objectives.ts` | Pure run-owned objective clocks, fresh work-condition batches, deduplicated contributions and atomic exclusive races (O1) |
+| `src/objectiveWork.ts` | ECS work assignments/sites, simulation-only action cycles and post-combat commit validation (O2) |
 | `src/observation.ts` | Bounded camera-to-rendered-surface visibility checks for target captions, deaths, killers and remains |
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
 | `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
@@ -190,8 +191,10 @@ The `run` entity owns a `discoveries` component, independent of actor health and
 truth. Replacing the ECS replaces knowledge; respawning the player does not. UI code holds the
 same component reference and presents only its detached snapshot in the record panel.
 
-`Components.objectives` provides the typed ownership slot for an `ObjectiveRecord`. O1 tests
-attach it to a run entity; gameplay installation follows with objective work/scenario integration.
+Scenario installation attaches `objectives` and `objectiveWork` to the `run` entity. Actor `work`
+components own assignments and action charts; `workSite` components mark real interaction approaches.
+The runtime advances installed work around movement/combat. Ordinary worlds receive their first
+authored objective plan in O3; the O2 development-browser fixture installs a plan on the existing world.
 
 Components describe transform, health, actor capabilities, movement, navigation, attack state, AI, interaction intent, corpse state, collision adapters, render rigs, and effects. Indexed queries visit only entities with the requested components; adding/removing components updates those indexes immediately. `Actor` is a checked view over these components, not an inheritance hierarchy or another copy of state.
 
@@ -212,14 +215,14 @@ game.ecs.remove(entity.id);
 
 `createActor` composes the standard character components. Player input and AI supply intents to the same movement/pathfinding/door and combat systems. Babylon collision and visual rigs are separate adapters. A door-opening capability distinguishes clever actors from skeletons; locked gates block everyone. New component types belong in the `Components` interface, with systems querying the combinations they require.
 
-The fixed-step order is door state → player intent/pursuit → shared movement → enemy decisions/movement and shared attacks → projectiles/particles → shared rig animation. Menus and inspection suspend simulation. Blood/dust are capped at 192 live particle entities and bolts at 32; fixed thin-instance pools render them without allocating new meshes per hit. Corpse entities retain their original meshes.
+The fixed-step order is door state → objective prework → player intent/pursuit and movement → enemy decisions/movement and shared attacks → projectiles/particles → terrain damage → objective commit validation → player respawn → shared rig animation. Menus, inspection and hidden tabs suspend simulation. Blood/dust are capped at 192 live particle entities and bolts at 32; fixed thin-instance pools render them without allocating new meshes per hit. Corpse entities retain their original meshes.
 
 ### Declarative state machines
 
 All state-machine definitions live under `src/machines/`:
 
 - `monsters/skeleton.ts`, `monsters/goblin.ts`, `monsters/kobold.ts`: independent species machines. Shared perception contracts and the factory live alongside them. Species charts select named effects; combat systems carry out pathfinding, pursuit, fleeing and attacks.
-- `actors/`: attack wind-up/impact/recovery/death, mutually exclusive pursuit/door commands, health/protection/death, and locomotion phases.
+- `actors/`: attack wind-up/impact/recovery/death, mutually exclusive pursuit/door commands, health/protection/death, locomotion phases, and interruptible objective work cycles.
 - `navigation/`: route following, waiting for an opening door, arrival and blocked/stuck cancellation.
 - `world/`: door locks/opening/closing, one-way chest claiming, altar-to-crown progression, and objective terminal lifecycles.
 - `ui/`: loading/play/menu/inspection/victory, independent tab visibility and map visibility, inspection-camera transitions, held-pointer modes, transient feedback, and asynchronous Inspector requests.
@@ -236,7 +239,7 @@ npm run test:models
 
 The latest XState includes model-testing tools in **`xstate/graph`**. `tests/models/` generates paths to every modeled state and extends each path with every candidate event, including ignored/invalid attempts and self-loops. Inspector microstep data measures every declared transition branch, including guards and eventless transitions. Invariants are checked after each stable step, and the pure simulation adapter is compared against a live XState actor.
 
-The suite currently covers **17 machines, 80 declared atomic states, and 160 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
+The suite currently covers **18 machines, 85 declared atomic states, and 167 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
 
 ### Rendering choices
 
@@ -328,8 +331,9 @@ Gameplay key handlers cancel native letter-key text actions, including repeats, 
 
 `new ObjectiveRecord(plan)` creates a pure run record. `get(id)` and `snapshot()` return detached
 plain data; `resolveStep(batch)` returns detached contribution receipts and **only newly emitted
-outcomes**. O1 is complete and independently reviewed. Playable work, clocks and the
-Last Ember scenario follow in O2/O3; existing altar-to-throne gameplay still uses its own chart.
+outcomes**. O1 is complete and independently reviewed. O2 supplies physical work and runtime
+boundaries below; O3 authors the first playable Last Ember scenario and clock presentation.
+Existing altar-to-throne gameplay still uses its own chart.
 
 Both input boundaries project only declared fields into detached contracts before validation or
 mutation, including nested owners, outcomes and participants. Structurally richer objects may carry
@@ -384,6 +388,61 @@ negative, zero, fractional, nonfinite, exact, overfill and over-limit credit eve
 terminal results. Domain tests cover batch permutations, isolation, deduplication and limits beyond
 that finite machine partition.
 
+### Physical objective work (O2; complete and independently reviewed)
+
+`installObjectiveWork(ecs, world, plan, bindings)` installs a fresh O1 record and work system on
+the existing `run`. Each binding supplies `objectiveId`, an ECS `siteId`, a positive `duration`
+in simulation seconds, and optional integer `amount` (default one). Each objective needs one binding.
+Attach `workSite: { approach: { x, z, h }, radius, enabled }` to the actual site entity; the radius
+must be in `(0, 2]`. Its approach is supported, navigable floor in front of the object. Installing
+a new plan replaces progress; use installation once per run, rather than as an assignment reset.
+Timing uses compensated **60 Hz work units**: a normal `1/60` step contributes exactly one unit,
+and snapshots expose seconds as `units / 60`. Both ticks and authored durations convert relative
+to the nearest simulation boundary while retaining their signed fractional remainder. This avoids
+decimal multiplication drift without an early-completion epsilon. Duration scaling must stay finite;
+overfill is clipped before conversion. Interruption, cancellation and settlement reset the carry.
+
+- `activate(...ids)` / `discover(...ids)` queue separate grants for the next commit. Activation
+  announcements retain O1's visibility contract and do not teach journal facts. No camera/render
+  visibility check gates work: eligible off-screen actors keep working during active simulation.
+- `assign(actor, objectiveId)` accepts only a living current ECS instance in the declared roster,
+  with at most one assignment. It returns false rather than replacing an assignment. O3 selects
+  jobs and drives ordinary navigation/species priorities; assignment itself neither teleports nor
+  suppresses AI. `cancelWork(actor)` in `actors.ts` retires the unfinished cycle and detaches it.
+- The optional side-effect-free `availability()` samples authoritative prerequisites and returns
+  `{ available, reason?, revision? }`. Include the actual resource/method identity or version in
+  `revision` whenever it can change during a cycle. Temporary denial cancels partial work while
+  preserving committed progress. Health remains solely in the existing health component.
+- O1 essential dependency IDs resolve through the ECS. Removal, death/corpse, or a disabled
+  dependency `workSite` permanently thwarts its dependent objectives. Losing every declared
+  non-player executor also thwarts that plan. Survivors must be assigned and physically present;
+  player death instead preserves the objective for checkpoint recovery.
+- `advance(step, dt)` runs **before movement/combat**. Only active, available, living, grounded,
+  stationary and unengaged workers accrue time. Support height, work-face distance, props, living
+  bodies, actual door collision and clear access are checked through shared world/navigation APIs.
+  Both the actor and its approach must be occupiable; looking through a closed door is insufficient.
+- `commit(step)` runs **after combat/projectiles and terrain damage, before respawn/rendering**.
+  It revalidates every partial/ready cycle against current facts, exact actor/site/dependency
+  instances, position, resource revision and cycle identity. Attack, accepted damage and jump
+  hooks also invalidate transient interruptions. All surviving completed actions enter one O1
+  batch, so a same-step kill cannot credit work or manufacture a tie. Earlier commits remain.
+- Cycle IDs are run-wide and allocated afresh after interruption; their internal pending records
+  bind actual ECS instances, never just actor IDs. There is no completion-callback API. Duplicate
+  advance/commit calls and stale systems reject. `commit` returns O1 receipts/new outcomes for
+  O3's once-only world effects. Do not also submit raw batches to that installed record.
+- `actor.entity.get('work')?.snapshot()` returns detached assignment/status/cycle/elapsed/duration
+  data. Objective snapshots are the last committed world sample; work snapshots reflect immediate
+  cancellation. UI must still apply O1's visibility and D1's evidence boundaries to details/reasons.
+- Keyboard/floor/target commands and X cancel hero work. Menu, inspection and focus-loss cleanup
+  also cancel it; teleport and death use the shared stop path. Menu/inspection/hidden-tab pauses
+  freeze enemy cycles without catch-up. Visible-window blur follows the existing policy: hero
+  commands clear, but enemy simulation continues. `retire()` cancels every assignment and detaches
+  the system before regeneration, rejecting retained old-run callbacks.
+
+Normal generated worlds install no placeholder objective or clock. The development-browser fixture
+uses existing actors, geometry, doors, combat and modal handlers. Work poses, clock HUD, authored
+workstation/AI choices, Last Ember outcomes and multi-seed pacing are the O3 integration work.
+
 ## Verification
 
 ```sh
@@ -400,6 +459,8 @@ npm run test:portraits
 npm run test:inspection
 npm run test:discoveries
 BROWSER=firefox npm run test:discoveries
+npm run test:objective-work
+BROWSER=firefox npm run test:objective-work
 npm run test:movement
 npm run test:animation
 npm run test:jump
@@ -418,6 +479,11 @@ The animation suite also expects a dev server. It samples the production rigs in
 The combat suite also expects a dev server. It uses real clicks/holds to verify pursuit, retargeting, attack poses, repeated damage, corpses, hit particles, cancellations, door clicks, respawn and regeneration. Pure ECS/AI tests cover skeleton hostility, goblin cover/flight/projectiles, kobold flanking, shared movement/doors, and bounded effect lifetimes. The movement suite first checks a fresh-world floor click and arrival with all living actor bodies present, then hides/freezes enemies and removes their body components to isolate the remaining floor-selection checks. The full-route autopilot keeps AI and living-body collision active, temporarily grants the test player immunity, and clears nearby blockers through ordinary pursuit and attacks before replanning physical travel. Damage and death are checked separately.
 
 The social suite also expects a dev server. It checks each activity's stable gathering, visible props and relaxed equipment, interruption by a visible threat, and return after the threat is lost. It captures `test-results/<browser>-social-{cards,hackysack,smoke}.png`. Pure social tests validate seeded placements and ensure relayed pack alerts expire instead of keeping every member permanently agitated.
+
+The objective-work suite expects a dev server and supports Chromium and Firefox. It installs
+development-only bindings on existing actors/sites, then exercises the real fixed-step loop,
+movement, attacks, doors, pause/inspection/visibility handlers, respawn and regeneration. Its
+JSON reports are `test-results/{chromium,firefox}-objective-work.json`.
 
 The discovery suite expects a dev server and supports Chromium and Firefox. It uses real E,
 target clicks and pause-menu controls with deterministic placement/step fixtures. It checks

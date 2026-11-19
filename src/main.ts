@@ -26,7 +26,7 @@ import { pickGround } from './navigation.ts';
 import { MOVEMENT_KEYS } from './locomotion.ts';
 import { ECS } from './ecs.ts';
 import { CombatSystem, clearSight, seedEnemies } from './combat.ts';
-import { cancelAttack, requestJump } from './actors.ts';
+import { cancelAttack, cancelWork, requestJump } from './actors.ts';
 import type { Actor } from './actors.ts';
 import { DiscoveryRecord } from './discoveries.ts';
 import type { ObservedEvent } from './discoveries.ts';
@@ -98,6 +98,7 @@ function navigatePointer(clientX: number, clientY: number, feedback = false): vo
   const rect = canvas.getBoundingClientRect();
   if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom)
     return;
+  cancelWork(game.player.actor);
   const ray = game.scene.createPickingRay(
     clientX - rect.left,
     clientY - rect.top,
@@ -221,6 +222,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   inspectorToken = null;
   inspector.send({ type: 'CLOSE' });
   if (game) {
+    game.ecs.get('run')?.get('objectiveWork')?.retire();
     game.inspection.dispose();
     const shaderNames = game.scene.materials
       .filter((m): m is CustomMaterial => m instanceof CustomMaterial)
@@ -547,7 +549,7 @@ function interact() {
 }
 
 function tick(dt: number): void {
-  if (game.inspection.active) return;
+  if (!ui.ready || paused() || game.inspection.active) return;
   game.time += dt;
   game.playTime += dt;
   game.steps++;
@@ -556,20 +558,24 @@ function tick(dt: number): void {
   if (keys.has('Space') && !jump.held) requestJump(game.player.actor);
   jump.held = keys.has('Space');
   if ([...MOVEMENT_KEYS].some((key) => keys.has(key))) {
+    cancelWork(game.player.actor);
     cancelAttack(game.player.actor);
   }
   updateDoors(game.ecs, dt);
+  const work = game.ecs.get('run')?.get('objectiveWork');
+  work?.advance(game.steps, dt);
   const locked = game.combat.pursue(game.player.actor, dt);
   const tile = movePlayer(game.player, game.world, keys, game.camera, dt, locked);
   game.combat.update(dt);
-  animateActors(game.ecs, dt, game.time, game.world);
-  game.enemyRendering.update();
   if (tile?.room) ui.room(game.world.roomById[tile.room], game.playTime);
   game.damageCooldown -= dt;
   if (tile?.surface === 'lava' && !game.player.actor.jump.airborne && game.damageCooldown <= 0) {
     game.combat.damage(game.player.actor, 18);
     game.damageCooldown = 0.6;
   }
+  // COMMIT BOUNDARY: movement, attacks/projectiles and hazards have all resolved.
+  // Validate before respawn can make a killed hero appear eligible again.
+  work?.commit(game.steps);
   if (game.player.health < healthBefore) {
     ui.setHealth(game.player.health);
     ui.damage();
@@ -585,6 +591,8 @@ function tick(dt: number): void {
     game.damageCooldown = 1;
     ui.toast('You fall. The last safe flame calls you back.', 4500);
   }
+  animateActors(game.ecs, dt, game.time, game.world);
+  game.enemyRendering.update();
   for (const entity of game.ecs.query('interaction')) {
     const e = entity.require('interaction');
     if (e.type === 'chest') animateChest(e, dt);
@@ -746,6 +754,7 @@ window.addEventListener('keydown', (event) => {
   // Keep editable fields and browser shortcuts outside gameplay input handling.
   if (gameKeys.has(event.code)) event.preventDefault();
   if (MOVEMENT_KEYS.has(event.code)) {
+    if (game) cancelWork(game.player.actor);
     pointer.send({ type: 'CANCEL' });
     game?.player.navigator.cancel();
     if (game) {
@@ -753,6 +762,7 @@ window.addEventListener('keydown', (event) => {
     }
   }
   if (event.code === 'KeyX') {
+    if (game) cancelWork(game.player.actor);
     keys.clear();
     pointer.send({ type: 'CANCEL' });
     game?.player.navigator.cancel();
