@@ -4,6 +4,70 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Objective domain foundation (O1) — 2026-11-19
+
+Completed against committed D1 **`e6591df`**; final independent review is **READY**. This slice adds
+the pure objective record, lifecycle machine and typed ECS slot. Runtime work/scenario/UI wiring
+remains O2–O4; browser, gallery and hardware measurements below retain their historical qualifications.
+
+#### Final independent review — READY
+
+The reviewer confirmed both input-boundary blockers resolved and reported **42 focused tests**
+passing (**22 objective contracts**), with **17 machines / 80 states / 160 branches** covered.
+The reviewer also reran the original blocker probes and **18 malformed-reason cases**, plus type
+checking, formatting, lint and diff-whitespace checks: all passed. These are attributed reviewer
+results, separate from the implementation's full-suite/build checks below. No new browser checks
+are claimed. O1 is complete; O2 is next and has not started.
+
+#### Structural-input review correction
+
+- Independent review reported 37 targeted tests and 3,136 oracle combinations passing, with two
+  input-boundary blockers and no other blockers. Those are reviewer-reported results, not a new
+  oracle run in this correction.
+- Test-first `node --test tests/objectives.test.ts`: **17 pass / 5 fail** before production edits.
+  A structurally enriched contribution's retained `work.cycle` changed from **1 to 99** after caller
+  mutation; an `onCommit` method poisoned `snapshot()` with `DataCloneError`. Enriched conditions
+  and plans also threw on `onCancel`; the rejected-step fixture showed **step 0** and discovery /
+  activation already committed instead of the original step-null, undiscovered/dormant snapshot.
+- Plan and step boundaries now project declared fields (including nested contracts and arrays)
+  before validation/mutation. History persists only declared contribution fields. Optional work
+  reasons are validated before commit. No caller metadata or callbacks enter runtime records.
+- All five regressions pass, including post-submit mutations, exact equivalence to plain-contract
+  inputs, clone-safe snapshots and full-snapshot rejection atomicity. Correcting either a condition
+  or participant reason succeeds at the same step with the same action ID and all expected outcomes.
+- `node --test tests/objectives.test.ts tests/models.test.ts`: **42 pass**; `npm run typecheck`,
+  `npm run format:check`, `npm run lint`, `npm test` (**178 tests**) and `npm run build` pass.
+  `git diff --check` passes. Model coverage remains **17 machines / 80 states / 160 branches**;
+  Vite retains its existing large-chunk warning. No browser suites were run for this pure correction.
+- Follow-up review was pending at this checkpoint; the READY verdict above clears both corrections.
+
+#### Initial O1 implementation baseline (before independent review)
+
+- Initial red: `node --test tests/objectives.test.ts` failed with `ERR_MODULE_NOT_FOUND` for
+  `src/objectives.ts`; `node --test tests/models.test.ts` failed with the same error for
+  `src/machines/world/objective.ts`. Both test files/specifications preceded implementation.
+- Follow-up red: `node --test tests/objectives.test.ts` reported **15 pass / 2 fail** before
+  corrections: `undefined` instead of `Route obstructed` in the aggregate work reason, and
+  `Missing expected exception` for an exclusive monster rival with announcements disabled.
+  A preceding edit had a missing brace in a new test fixture (`ERR_INVALID_TYPESCRIPT_SYNTAX`);
+  that fixture was corrected before the assertion-based red run.
+- Final focused run: `node --test tests/objectives.test.ts tests/models.test.ts` — **37 pass**,
+  followed by a passing `npm run typecheck`. The 17 objective contracts include **216** plan /
+  contribution / condition permutations, duplicate/conflicting action IDs, fresh eligibility,
+  blocked/interrupted resumption, irreversible disruption/dependency precedence, terminal replay,
+  independent clocks/races, actual credited overfill, group takeover, ECS lifetime, detached
+  contracts and transactional plan/batch/history limits. Additional permutations cover simultaneous
+  disruption reasons, repeated dependency invalidation and group readiness.
+- Objective model: **5/5 states, 5/5 branches**, **154 generated paths**, **480 cyclic steps**;
+  empty/partial/full progress and invalid/partial/exact/overfill/over-limit credits are documented
+  finite partitions. Total model coverage is **17 machines / 80 atomic states / 160 branches**.
+- `npm run format:check`, `npm run lint`, `npm test` (**173 tests**, including strict typing),
+  `npm run build`, and `git diff --check` pass. Vite retains its existing large-chunk warning.
+- No browser suites were added or run for this pure-domain slice. Local self-review addressed the
+  two regressions, removed redundant race flags, and checked detached nonempty receipts and limits.
+  Independent review was pending at that checkpoint; its two findings are corrected above.
+  No subagents were launched and no commit was made.
+
 ### Within-run discovery record (D1) — 2026-11-18
 
 Implemented against `cd415d1`. Initial independent review found a camera-occlusion blocker.

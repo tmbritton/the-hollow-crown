@@ -131,6 +131,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/royalty.ts` / `src/portraits.ts` | Seeded royal identities, pixel-art shader, and wall-mounted frames |
 | `src/inspection.ts` | Typed inspection targets, camera transitions, framing, lifecycle, and camera restoration |
 | `src/discoveries.ts` | Pure within-run knowledge record, explicit source disclosures, observed events and detached read snapshots |
+| `src/objectives.ts` | Pure run-owned objective clocks, fresh work-condition batches, deduplicated contributions and atomic exclusive races (O1) |
 | `src/observation.ts` | Bounded camera-to-rendered-surface visibility checks for target captions, deaths, killers and remains |
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
 | `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
@@ -189,6 +190,9 @@ The `run` entity owns a `discoveries` component, independent of actor health and
 truth. Replacing the ECS replaces knowledge; respawning the player does not. UI code holds the
 same component reference and presents only its detached snapshot in the record panel.
 
+`Components.objectives` provides the typed ownership slot for an `ObjectiveRecord`. O1 tests
+attach it to a run entity; gameplay installation follows with objective work/scenario integration.
+
 Components describe transform, health, actor capabilities, movement, navigation, attack state, AI, interaction intent, corpse state, collision adapters, render rigs, and effects. Indexed queries visit only entities with the requested components; adding/removing components updates those indexes immediately. `Actor` is a checked view over these components, not an inheritance hierarchy or another copy of state.
 
 ```ts
@@ -217,7 +221,7 @@ All state-machine definitions live under `src/machines/`:
 - `monsters/skeleton.ts`, `monsters/goblin.ts`, `monsters/kobold.ts`: independent species machines. Shared perception contracts and the factory live alongside them. Species charts select named effects; combat systems carry out pathfinding, pursuit, fleeing and attacks.
 - `actors/`: attack wind-up/impact/recovery/death, mutually exclusive pursuit/door commands, health/protection/death, and locomotion phases.
 - `navigation/`: route following, waiting for an opening door, arrival and blocked/stuck cancellation.
-- `world/`: door locks/opening/closing, one-way chest claiming, and altar-to-crown progression.
+- `world/`: door locks/opening/closing, one-way chest claiming, altar-to-crown progression, and objective terminal lifecycles.
 - `ui/`: loading/play/menu/inspection/victory, independent tab visibility and map visibility, inspection-camera transitions, held-pointer modes, transient feedback, and asynchronous Inspector requests.
 
 `Statechart` uses XState's `initialTransition` and `transition` APIs. Simulation sends explicit tick events; no wall-clock timers, background actors, or subscriptions run gameplay. Snapshot-backed accessors expose familiar `health.current`, `attack.target`, door flags, and inspection state without maintaining competing flags. Rendering interpolations, collision/path searches, and numerical geometry remain ordinary functions. UI-only fading accepts an explicit presentation timestamp.
@@ -232,7 +236,7 @@ npm run test:models
 
 The latest XState includes model-testing tools in **`xstate/graph`**. `tests/models/` generates paths to every modeled state and extends each path with every candidate event, including ignored/invalid attempts and self-loops. Inspector microstep data measures every declared transition branch, including guards and eventless transitions. Invariants are checked after each stable step, and the pure simulation adapter is compared against a live XState actor.
 
-The suite currently covers **16 machines, 75 declared atomic states, and 155 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
+The suite currently covers **17 machines, 80 declared atomic states, and 160 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
 
 ### Rendering choices
 
@@ -279,7 +283,7 @@ does not teach anything. `portraitDiscovery`, `landmarkDiscovery` and `inhabitan
 construct plain evidence from seeded presentation metadata. Fact links include only what the
 caption actually communicates, rather than all facts associated with a monarch or location.
 
-### Knowledge and future objective consumers
+### Knowledge and objective consumers
 
 `DiscoveryRecord` exposes `present(evidence, at)`, `recordEvent(event, at)`, `knows(factId)`,
 `hasDiscovery(id)`, `hasEvent(kind, subjectId)`, and `snapshot()`. Mutation methods return whether
@@ -293,7 +297,8 @@ its semantic inhabitant ID. Event IDs combine kind and subject. Snapshots contai
 `identity` (seed and generator/content versions), `discoveries`, `events`, and learned `factIds`.
 Seed/version identity describes the initial world, **not a unique run instance**: always resolve
 the current ECS component after regeneration. Objective availability and world completion must
-remain separate from `knows`/`hasDiscovery`. This slice adds no objective clocks or persistence.
+remain separate from `knows`/`hasDiscovery`. The discovery record owns neither objective clocks
+nor persistence.
 
 The combat system's optional `onDeath(victim, source)` callback fires synchronously only after
 an accepted lethal hit creates a corpse. The runtime filters that event by observation before
@@ -318,6 +323,66 @@ instance bounds. This remains conservative geometry sampling: a tiny exposed lim
 shader-discarded surface may not suffice to grant knowledge.
 
 Gameplay key handlers cancel native letter-key text actions, including repeats, while leaving text fields and browser shortcuts available.
+
+### Objective domain foundation (O1)
+
+`new ObjectiveRecord(plan)` creates a pure run record. `get(id)` and `snapshot()` return detached
+plain data; `resolveStep(batch)` returns detached contribution receipts and **only newly emitted
+outcomes**. O1 is complete and independently reviewed. Playable work, clocks and the
+Last Ember scenario follow in O2/O3; existing altar-to-throne gameplay still uses its own chart.
+
+Both input boundaries project only declared fields into detached contracts before validation or
+mutation, including nested owners, outcomes and participants. Structurally richer objects may carry
+adapter metadata/callbacks; these are ignored. Optional condition/participant reasons must be nonempty
+when supplied. Rejected batches preserve the entire record and permit a corrected same-step retry.
+
+- Definitions separate an owner (`player`, `actor` or `group`) from an explicit actor-ID roster.
+  Fresh `ObjectiveConditions` separately describe prerequisites (`available`) and each participant's
+  dynamic `eligible` / `working`, `interrupted`, `blocked` or `idle` status. Conditions are samples,
+  not copies of health, navigation or resource state.
+- `discover` and `activate` are separate, monotonic grants. Visibility is discovery **or** an authored
+  activation announcement. Exclusive monster rivals must announce on activation, even if unavailable;
+  announcement does not grant discovery, player eligibility or any journal facts.
+- Gather one `ObjectiveStep` after authoritative world/combat changes, using a strictly increasing
+  integer simulation-step index. Supply fresh conditions for unresolved objectives on each call;
+  omitted conditions fail closed. Repeated/decreasing steps throw, preventing accidental split-batch
+  winners. Pausing means not advancing/calling the resolver.
+- Supply completed work-action candidates in `contributions`. Only active, unresolved, available
+  objectives with an eligible working participant accept credit. Action IDs are run-wide: identical
+  duplicates credit once; conflicting payloads within a batch all reject; later replays never change
+  the first result. Rejected/interrupted IDs are also retired. A new work cycle needs a new ID.
+- `disruptions` permanently thwart explicit objectives; `invalidatedDependencies` permanently
+  invalidate only definitions listing that essential dependency. These take precedence over current
+  candidates. Prior committed progress and terminal outcomes persist. Temporary denial belongs in
+  conditions, allowing progress-preserving resumption or a declared roster survivor's takeover.
+- Exclusive `races` pair two objectives and author `playerFirst`, `monsterFirst` and `contested`
+  outcome IDs. All valid contributions land before race evaluation. Player-first completes restoration
+  and thwarts its rival; monster-first completes the rival and loses the player opportunity; a tie
+  marks both contested and emits one outcome. Terminal records cannot change. Unpaired clocks complete
+  independently, and a previously thwarted rival retains its original outcome when the survivor wins.
+- Snapshots expose lifecycle `status`, derived `workStatus` and known reasons independently from
+  availability/visibility. Terminal conditions retain their last sample. These are domain read models;
+  future UI must apply its knowledge boundary before presenting reasons or actor details.
+
+The boundary is deliberately small: explicit race pairs and essential-dependency references.
+Outcome-triggered availability is supplied through subsequent authoritative conditions; there is no
+general relationship-rule evaluator. O2 owns physical work, interruption/cancellation and assignment
+validation; O3 consumes authored outcome IDs for once-only world changes and recovery opportunities.
+Resolve the current ECS record after regeneration, preserve it across respawn, and clear unfinished
+hero work in the work adapter.
+
+`OBJECTIVE_LIMITS` bounds a plan to 32 objectives, 32 roster participants and 32 dependencies per
+objective, and integer capacities/contributions to 1–64. A batch accepts at most 256 candidates and
+a record remembers at most 4,096 distinct submitted action IDs, including rejections. Overflow and
+invalid references/duplicate definitions reject before mutation; duplicate replays remain legal at
+the history limit. Same-step overfill is allocated by action ID, saturates at capacity, and records
+actual credited segments. Objective, race and global outcome IDs are validated; an objective may
+belong to only one exclusive pair.
+
+The objective lifecycle model partitions progress into empty/partial/full at capacity two, with
+negative, zero, fractional, nonfinite, exact, overfill and over-limit credit events and all four
+terminal results. Domain tests cover batch permutations, isolation, deduplication and limits beyond
+that finite machine partition.
 
 ## Verification
 

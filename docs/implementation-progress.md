@@ -7,14 +7,18 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1 and D1. Next: O1 objective clocks.**
+- **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1, D1 (`e6591df`) and O1. Next: O2
+  interruptible objective work (not started).**
+- O1 verification after both input-boundary review corrections: **178 tests**, strict typing,
+  formatting, lint and build pass. Objective
+  model coverage adds five states/five branches; current totals are 17 machines / 80 states / 160 branches.
 - Latest D1 checkpoint: 155 pure/model/geometry tests, lint, formatting and build pass; 17 discovery
   checks and 14 combat checks in each browser, plus 13 Firefox inspection checks pass.
   Production smoke, 28 animation captures and nine Chromium social checks also pass. The CPU
   A/B/A probe and preparation-budget regressions pass; precise timings are in `VERIFICATION.md`.
   Other browser/gallery/performance results remain the recorded earlier feature baselines.
-- Final independent D1 review cleared correctness and performance after the two corrections.
-  Next action: implement O1 test-first, then O2–O4 in dependency order.
+- Final independent O1 review returned **READY**, clearing both input-boundary blockers. Reviewer
+  checks are attributed below. O2–O4 remain in dependency order; this delivery ends with O1.
 
 ## Feature tracker
 
@@ -30,8 +34,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | S1b | Complete | World/report contracts failed on missing scene provenance; final-world navigation over 100 additional seeds | 125 tests/check/build, both movement browsers, Chromium full/social, production, generation and gallery pass; independent 500-seed review cleared | `2e93f62` |
 | N1 | Complete | Identity/report and visual tests failed first; corpus doorway-home and review HUD-overlap regressions failed before fixes | 130 tests/check/build, both combat browsers, full/social, production, generation and gallery pass; independent review cleared | `4f45a2c` |
 | GF1 | Complete | Moving-pursuit, escaped/occluded-target and goblin flee-speed regressions failed first | 133 tests, format/lint/build, both combat browsers, Chromium movement/jump/animation pass; independent review cleared | `cd415d1` |
-| D1 | Complete | Hidden melee death reproduced first; follow-up cost regression failed with 8,000 matrix calls / 600 bounds refreshes over four off-ray queries | 155 tests, format/lint/build; discovery 17 and combat 14 each browser, inspection 13, animation 28, social 9, production and CPU probes pass; independent review cleared | This commit |
-| O1–O4 | Planned | Pending | Pending | — |
+| D1 | Complete | Hidden melee death reproduced first; follow-up cost regression failed with 8,000 matrix calls / 600 bounds refreshes over four off-ray queries | 155 tests, format/lint/build; discovery 17 and combat 14 each browser, inspection 13, animation 28, social 9, production and CPU probes pass; independent review cleared | `e6591df` |
+| O1 | Complete | Initial missing APIs and reason/visibility regressions; five review regressions reproduced metadata retention and partial commits | 178 tests, format/lint/build pass; independent READY review: 42 focused tests, original probes and 18 malformed-reason cases | This commit |
+| O2–O4 | Planned | Pending | Pending | — |
 
 ## Work log
 
@@ -248,10 +253,66 @@ Execution record for [implementation path](implementation-path.md). Started **20
   all indexed results (234 visible / 166 occluded); its A/B/A CPU rerun confirmed bounded work
   and 1.406/1.695ms observation means in Chromium/Firefox. All 155 tests and listed browsers reran.
 
+### O1 — objective clocks and atomic exclusive races — 2026-11-19
+
+- Implemented against clean D1 `e6591df`. Added pure `ObjectiveRecord`, typed ECS component slot
+  and synchronous XState lifecycle; gameplay installation remains with O2/O3.
+- Owners, explicit rosters, fresh dynamic eligibility/prerequisites/work status, discovery and
+  activation are independent. Active exclusive rivals must announce. Detached snapshots expose
+  reasons and lifecycle without granting journal knowledge.
+- One strictly increasing step batch validates transactionally, applies permanent disruption and
+  dependency invalidation before unfinished contributions, deduplicates/retires action IDs, then
+  resolves all clocks. Exclusive player-first/monster-first/contested outcomes latch once;
+  independent plans and previously committed history persist. Bounds reject before mutation.
+- Test-first: `node --test tests/objectives.test.ts` failed on missing `src/objectives.ts`;
+  `node --test tests/models.test.ts` failed on missing `src/machines/world/objective.ts`.
+  Later regression run failed in two assertions: blocked work returned no known reason, and an
+  exclusive rival could disable activation announcements. Both were corrected after reproduction.
+  An intervening malformed new test fixture failed parsing and was corrected before that red run.
+- Seventeen domain contracts include 216 plan/contribution/condition order permutations,
+  conflicting duplicate IDs, overfill, rejected-action replay, group survivor readiness, terminal
+  idempotence, separate races, explicit dependencies, ECS actor replacement/reset, detached
+  inputs/receipts/snapshots and transactional limit failures. The model documents finite numeric
+  partitions and reaches all five lifecycle states/branches (154 paths, 480 cyclic steps).
+- Local self-review removed redundant race flags in favor of lifecycle snapshots and added
+  nonempty receipt/dependency isolation plus bounded-history checks. Independent review was pending
+  at this checkpoint; its subsequent findings are addressed below. No subagents or commits.
+- `npm run format:check`, `npm run lint`, `npm test` (**173 tests**, including typing),
+  `npm run build` and `git diff --check` pass. Existing chunk warning persists. The final focused
+  domain/model command passes 37 tests. Browser baselines remain historical: this pure slice adds
+  no runtime wiring. See `README.md` for batch ordering, rejection/ID semantics and the O2 API handoff.
+
+### O1 review correction — structural input boundaries
+
+- Reviewer reported 37 targeted tests and 3,136 oracle combinations passing, with two blockers:
+  contribution spreads retained caller metadata, and cloning rich conditions could fail after
+  committing the step/discovery/activation. No other blockers were reported.
+- Five new typed structural-input regressions failed first (**17 pass / 5 fail**): retained nested
+  metadata changed history, callback fields caused `DataCloneError`, and the rejected batch left
+  step 0 plus discovery/activation committed. Enriched plans reproduced the same cloning issue.
+- Projected every declared plan/step contract and nested array before validation/mutation;
+  contribution history explicitly stores only its declared fields. Optional condition/participant
+  reasons now validate before commit. Extra adapter state and callbacks are ignored.
+- Regression coverage verifies post-submit mutation isolation, plain/enriched equivalence,
+  clone-safe history, whole-snapshot rejection atomicity and a corrected same-step/action-ID retry.
+- **42 focused domain/model tests**, **178 full tests**, strict typing, format/lint/build and
+  diff-whitespace checks pass. Existing build warning and historical browser qualifications remain.
+  Follow-up review was pending at this checkpoint; it subsequently cleared both corrections below.
+
+### O1 final independent review — READY
+
+- Reviewer confirmed both input-boundary blockers resolved and reported **42 focused tests**
+  passing, including **22 objective contracts**, with **17 machines / 80 states / 160 branches**.
+- Reviewer also reran the original blocker probes and **18 malformed-reason cases**, plus
+  type checking, formatting, lint and diff-whitespace checks: all passed. These are attributed
+  reviewer results; the implementation's 178-test/build verification is recorded above.
+- O1 is complete and authorized for the feature commit. No new browser checks are claimed.
+  **O2 interruptible objective work is next and has not started.**
+
 ## Follow-ups and blockers
 
-- No current correctness blocker. Independent review cleared D1's camera-occlusion and CPU-cost
-  corrections. G3's full-browser follow-up is resolved by T1.
+- No current O1 correctness blocker: final independent review is READY. D1's camera-occlusion
+  and CPU-cost corrections were also cleared; G3's full-browser follow-up is resolved by T1.
 - Phase 0 diagnostic/gallery implementation and high-quality hardware sampling are done.
   Low-quality hardware sampling and generation-latency reporting remain to complete its
   full performance baseline; do not claim Phase 0 entirely complete yet.

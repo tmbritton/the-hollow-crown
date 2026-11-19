@@ -10,6 +10,7 @@ import type { BodySize } from './occupancy.ts';
 import type { Jump } from './jump.ts';
 import type { InhabitantIdentity } from './generation/inhabitants.ts';
 import type { DiscoveryRecord } from './discoveries.ts';
+import type { ObjectiveRecord } from './objectives.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
 import type {
   DoorEntity,
@@ -26,6 +27,7 @@ export type ActorKind = 'player' | 'skeleton' | 'goblin' | 'kobold';
 export type EnemyKind = Exclude<ActorKind, 'player'>;
 export interface Components {
   discoveries: DiscoveryRecord;
+  objectives: ObjectiveRecord;
   transform: Spawn & { heading: number };
   actor: { kind: ActorKind; speed: number; opensDoors: boolean };
   inhabitant: InhabitantIdentity;

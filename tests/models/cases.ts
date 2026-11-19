@@ -21,6 +21,7 @@ import { sessionMachine } from '../../src/machines/ui/session.ts';
 import { pointerMachine } from '../../src/machines/ui/pointer.ts';
 import { inspectorMachine } from '../../src/machines/ui/inspector.ts';
 import { feedbackMachine } from '../../src/machines/ui/feedback.ts';
+import { objectiveMachine } from '../../src/machines/world/objective.ts';
 
 const facts = (changes: Partial<MonsterPerception> = {}): MonsterPerception => ({
   type: 'THINK',
@@ -86,6 +87,37 @@ const swing = {
 };
 
 export const modelCases = [
+  modelCase(objectiveMachine, {
+    inputs: [{ capacity: 2 }],
+    // Finite progress partition: empty / partial / full. IDs and step numbers do not
+    // affect guards. Credit partitions include invalid, partial, exact and overfill.
+    abstractContext: ({ context }) => context.progress,
+    events: (): EventFromLogic<typeof objectiveMachine>[] => [
+      ...[-1, 0, 0.5, NaN, Infinity, 1, 2, 64, 65].map((amount) => ({
+        type: 'CREDIT' as const,
+        amount,
+      })),
+      ...(['completed', 'thwarted', 'lost', 'contested'] as const).map((status) => ({
+        type: 'RESOLVE' as const,
+        status,
+        outcomeId: 'authored-outcome',
+        step: 1,
+      })),
+    ],
+    invariant: (state, before, event) => {
+      assert.ok(Number.isSafeInteger(state.context.progress));
+      assert.ok(state.context.progress >= 0 && state.context.progress <= state.context.capacity);
+      assert.equal(state.context.resolution === null, state.matches('unresolved'));
+      if (state.matches('completed') || state.matches('contested'))
+        assert.equal(state.context.progress, state.context.capacity);
+      if (before && !before.matches('unresolved')) {
+        assert.deepEqual(state.value, before.value);
+        assert.deepEqual(state.context, before.context, 'terminal history is immutable');
+      }
+      if (before && event?.type === 'CREDIT')
+        assert.ok(state.context.progress >= before.context.progress);
+    },
+  }),
   ...[skeletonMachine, goblinMachine, koboldMachine].map((machine) =>
     modelCase(machine, {
       inputs: [undefined],
