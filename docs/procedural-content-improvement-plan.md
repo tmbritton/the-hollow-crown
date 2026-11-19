@@ -1,7 +1,8 @@
 # The Hollow Crown — procedural content improvement plan
 
 **Status:** roadmap in progress. Phase 0 diagnostics, fixed metadata corpus and visual gallery
-are implemented, along with shared keep-history data and linked portrait/room captions.
+are implemented, along with shared keep-history data, linked portrait/room captions, and
+bounded forge/bakery placement recipes with reserved work paths.
 See [implementation progress](implementation-progress.md) for verification and remaining
 baseline, scene-composition and visual-identity gates. Unmarked work below remains proposed.
 
@@ -335,7 +336,8 @@ Proposed additions: pure tests for identity/history consistency, independent RNG
 - [ ] Connect related portraits, heraldry, room text, and altar evidence to shared facts.
   - [x] Linked portrait subjects/captions/core traits and entrance/crypt/altar/throne text.
   - [ ] Architectural heraldry and physical memorial evidence; full visual profile review.
-- [ ] Build forge and bakery scene recipes with reserved gameplay space and bounded detail.
+- [x] Build forge and bakery placement recipes with reserved gameplay space and bounded prop counts.
+  - [ ] Extend with causal contact detail and profile-linked physical evidence.
 - [ ] Add one named inhabitant per keep, using current species and social/combat capabilities.
 - [ ] Run the first-delivery review gate and revise weakly differentiated profiles.
 - [ ] Update [verification records](../VERIFICATION.md) with actual measured results before marking the delivery complete.

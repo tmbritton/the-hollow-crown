@@ -78,6 +78,7 @@ Sword wind-up, contact and follow-through are sampled against that same impact c
 - Stone variation, tile seams, wood grain, graphic lighting bands, water ripples/foam, animated lava fissures, fire, embers, and altar runes.
 - Shared walk/run/start/stop/jump/attack/death animation, enemy models, blood and dust particles, crossbow bolts, door hinges, chest lids, floating votives, and flickering lights.
 - Four themed workspaces: a butchery, blacksmith, bakery, and underground lizard stable. Furnishings include hanging cuts, cleavers, furnaces, anvils, bread ovens, loaves, flour sacks, feed troughs, tack, and two animated saddled lizards.
+- Forge and bakery recipes coordinate a furnace/anvil or oven/preparation-table pair, with optional tool, cooling, bread and flour sockets. Work paths connect their inward-facing approaches to the room center before background furnishings are placed; cramped arrangements retry bounded alternatives and omit optional supports.
 - Three keep-history profiles—**Ashen Foundry, Drowned Court, and Pilgrim Redoubt**—with a shared house and three successive monarchs. Entrance, crypt, altar, and throne captions refer to the same history; the altar still gives direct gate-unlocking instructions.
 - Framed 32 × 40 pixel-art royal portraits depict those linked monarchs, sharing the house palette and each subject's core appearance while varying the painting composition. **E** moves the camera to an eye-level close-up with a factual name/date/history caption and switches the artwork to **128 × 160** detail. Movement pauses during inspection; **E**, **Escape**, or the return button restores the overhead view.
 
@@ -93,7 +94,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | --- | --- |
 | `src/worldTypes.ts` | Rooms, tiles, connections, props, and discriminated entity types |
 | `src/world.ts` | Deterministic generation, tile heights, room graph, progression validation |
-| `src/generation/` | Version identity, semantic RNG streams, keep history/presentation, diagnostic reports and corpus selection |
+| `src/generation/` | Version identity, semantic RNG streams, keep history/presentation, scene recipes and shared placement geometry, diagnostic reports and corpus selection |
 | `src/ecs.ts` | Typed component registry, entity lifecycle and indexed component queries |
 | `src/worldEntities.ts` | Generated world registration and shared door animation/collision system |
 | `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
@@ -292,8 +293,10 @@ The generator also provides a pure `generateDungeonWithReport(seed)` API in `src
 It returns the accepted world and a JSON-safe trace with seed, generator/content versions,
 zero-based attempt numbers, and placement/validation rejection reasons. A `GenerationError`
 retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
-`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v2` / `keep-v2`.
-Layout RNG retains its existing interpretation. `world.keep` adds one of three authored
+`maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v3` / `keep-v3`.
+Scene recipes change seeded furniture layouts and can change which layout attempt is accepted;
+the original topology RNG salt is retained. Older-version seed layouts are historical.
+`world.keep` adds one of three authored
 profiles (Ashen Foundry, Drowned Court, Pilgrim Redoubt), a shared house, three successive
 monarchs and a short linked history. It is generated once before layout retries using
 independent versioned semantic streams; cosmetic random draws cannot reroll it. Stable
@@ -336,6 +339,14 @@ repeat-regeneration resource checks. The gallery advances one explicit simulatio
 view and excludes FPS/draw-call timing; it is a visual fixture rather than a hardware profile.
 Both tools accept `DEMO_URL` and require an already-running server. Chromium captures can
 take several minutes under software rendering.
+
+`world.scenes` records both accepted workshop recipes, semantic prop identities, reserved work
+paths, anchor attempts and socket outcomes. Scene props are shared by reference with ordinary
+world props; `report.scenes` is detached. Each recipe tries at most 96 anchors and twelve relative
+sockets per support, with at most four props. Required pairs must fit and connect; optional
+supports fall back to omission. Existing static batching, materials and collision adapters render
+them. The movement suite clicks every accepted work face and returns to the room center in the
+showcase seed; pure tests validate final decorated scenes over an additional 100 seeds.
 
 ## Planning documents
 

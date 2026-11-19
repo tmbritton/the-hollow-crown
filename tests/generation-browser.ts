@@ -33,6 +33,8 @@ try {
     const detached = d.generationReport();
     detached.trace.identity.seed = 'caller mutation';
     detached.rooms[0].name = 'caller mutation';
+    detached.scenes[0].sockets[0].reason = 'omitted';
+    d.game.world.scenes[0].reserved[0].x += 100;
     d.game.world.rooms[0].name = 'mutated live blueprint';
     const enemy = d.game.combat.enemies[0];
     d.game.combat.damage(enemy, 1000);
@@ -45,12 +47,12 @@ try {
     initial,
     'report must describe initial generation, not mutable play',
   );
-  await page.evaluate(() => window.__dungeon.regenerate('trial-27'));
+  await page.evaluate(() => window.__dungeon.regenerate('trial-23'));
   await page.waitForFunction(
-    () => window.__dungeon.ready && window.__dungeon.game.world.seed === 'trial-27',
+    () => window.__dungeon.ready && window.__dungeon.game.world.seed === 'trial-23',
   );
   const regenerated = await page.evaluate(() => window.__dungeon.generationReport());
-  const retry = generateDungeonWithReport('trial-27');
+  const retry = generateDungeonWithReport('trial-23');
   assertGenerationReportsMatch(regenerated, createGenerationReport(retry.world, retry.report));
   assert.deepEqual(errors, []);
   console.log(

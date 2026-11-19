@@ -154,6 +154,36 @@ try {
       enemy.entity.require('render').root?.setEnabled(false);
     }
   });
+  const scenes = await page.evaluate(() => {
+    const g = window.__dungeon.game;
+    return g.world.scenes.map((scene) => ({
+      room: scene.room,
+      center: { x: g.world.roomById[scene.room].x, z: g.world.roomById[scene.room].z },
+      props: scene.props.map((prop) => ({
+        id: prop.id,
+        front: prop.frontClearance!,
+        collider: g.scene.getMeshByName(prop.id)?.checkCollisions ?? false,
+      })),
+    }));
+  });
+  assert.equal(scenes.length, 2);
+  for (const scene of scenes) {
+    for (const prop of scene.props) {
+      assert.ok(prop.collider, `${prop.id}: rendered collider missing`);
+      await reset(scene.center);
+      await page.evaluate(() => {
+        const g = window.__dungeon.game;
+        g.camera.radius = g.desiredRadius = 35;
+      });
+      await click(prop.front);
+      await arrive(prop.front);
+      await click(scene.center);
+      await arrive(scene.center);
+    }
+    await page.evaluate(() => window.__dungeon.game.scene.render());
+    await page.screenshot({ path: `test-results/${browserName}-scene-${scene.room}.png` });
+  }
+  pass('Recipe work faces have rendered colliders and support real floor-click arrival and return');
   await reset();
   const target = { x: 3.2, z: 1.1 };
   await click(target);

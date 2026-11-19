@@ -5,7 +5,8 @@ import { generateDungeon, generateDungeonWithReport } from '../src/world.ts';
 import { GenerationError, MAX_GENERATION_ATTEMPTS } from '../src/generation/identity.ts';
 import type { World } from '../src/worldTypes.ts';
 
-// Captured before identity presentation: only authored text/facts/portrait traits are omitted.
+// layout-v3 / keep-v3 geometry fixtures, including accepted scene provenance.
+// Older layout-v2 fixtures were intentionally superseded when scene recipes shipped.
 function geometryDigest(world: World): string {
   return createHash('sha256')
     .update(
@@ -18,18 +19,18 @@ function geometryDigest(world: World): string {
     .digest('hex');
 }
 
-test('diagnostic generation preserves the existing seed interpretation and geometry', () => {
+test('diagnostic generation preserves the versioned scene geometry fixture', () => {
   const { world, report } = generateDungeonWithReport('MOURNING-731');
   assert.deepEqual(world, generateDungeon('MOURNING-731'));
   assert.equal(
     geometryDigest(world),
-    '67e30061eca028b56754a5c31a1442655d0c280df447aaedb100f6bf41924526',
+    'b6bec2e428b21e713379b59c84bade079accdb5e7ba2b29849894743bbf6a2d8',
     'versioned diagnostics must not consume generation randomness',
   );
   assert.deepEqual(report.identity, {
     seed: world.seed,
-    generatorVersion: 'layout-v2',
-    contentVersion: 'keep-v2',
+    generatorVersion: 'layout-v3',
+    contentVersion: 'keep-v3',
   });
   assert.equal(report.acceptedAttempt, world.attempt);
   assert.deepEqual(report.attempts, [{ attempt: 0, stage: 'accepted', reasons: [] }]);
@@ -37,36 +38,36 @@ test('diagnostic generation preserves the existing seed interpretation and geome
 });
 
 test('retries retain reproducible rejection reasons and the accepted zero-based attempt', () => {
-  const { world, report } = generateDungeonWithReport('trial-27');
+  const { world, report } = generateDungeonWithReport('trial-23');
   assert.equal(world.attempt, 1);
   assert.equal(report.acceptedAttempt, 1);
   assert.equal(report.attempts.length, 2);
   assert.deepEqual(report.attempts[0], {
     attempt: 0,
     stage: 'validation',
-    reasons: ['Furniture front inaccessible: tack-rack-stable-30'],
+    reasons: ['Furniture front inaccessible: meat-rack-butchery-44'],
   });
   assert.equal(
     geometryDigest(world),
-    'fef12b885ab14b70bd64e3e0f2644ffa5f505ff66137c23ad2f1f90d38dcdb76',
-    'retrying seeds retain their historical accepted geometry',
+    'fbf753a3d3294d9807f393cb776419a9477329fa52a27f86b11d6f08c59f055f',
+    'retrying seeds retain their versioned accepted geometry',
   );
   assert.deepEqual(report.attempts[1], { attempt: 1, stage: 'accepted', reasons: [] });
-  assert.deepEqual(report, generateDungeonWithReport('trial-27').report);
+  assert.deepEqual(report, generateDungeonWithReport('trial-23').report);
 });
 
 test('exhausted diagnostic generation retains a bounded trace rather than a generic error', () => {
   assert.throws(
-    () => generateDungeonWithReport('trial-27', { maxAttempts: 1 }),
+    () => generateDungeonWithReport('trial-23', { maxAttempts: 1 }),
     (error) => {
       assert.ok(error instanceof GenerationError);
-      assert.match(error.message, /trial-27/);
-      assert.equal(error.report.identity.seed, 'trial-27');
+      assert.match(error.message, /trial-23/);
+      assert.equal(error.report.identity.seed, 'trial-23');
       assert.equal(error.report.acceptedAttempt, null);
       assert.equal(error.report.attempts.length, 1);
       assert.deepEqual(
         error.report.attempts[0],
-        generateDungeonWithReport('trial-27').report.attempts[0],
+        generateDungeonWithReport('trial-23').report.attempts[0],
       );
       return true;
     },

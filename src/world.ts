@@ -3,6 +3,7 @@ import { required } from './assert.ts';
 import { hasApproach } from './worldTypes.ts';
 import { generateKeepIdentity } from './generation/keep.ts';
 import { applyKeepPresentation } from './generation/keepPresentation.ts';
+import { planScene } from './generation/scenes.ts';
 import type { KeepIdentity } from './generation/keep.ts';
 import { randomFrom } from './generation/random.ts';
 import { localPoint, footprint, inwardRotations } from './generation/placement.ts';
@@ -104,6 +105,7 @@ interface PlacementOptions {
 }
 
 function buildAttempt(seed: string, attempt: number, keep: KeepIdentity): World | string[] {
+  // Retain the established topology stream; layout-v3 changes furnishing placement below.
   const random = randomFrom(`${seed}:layout-v2:${attempt}`);
   const integer = (a: number, b: number) => a + Math.floor(random() * (b - a + 1));
   const pick = <T>(values: readonly T[]): T => values[integer(0, values.length - 1)];
@@ -217,6 +219,7 @@ function buildAttempt(seed: string, attempt: number, keep: KeepIdentity): World 
     entities: [],
     connections: [],
     props: [],
+    scenes: [],
     blockers: [],
     reserved: new Set(),
     spawn: { x: 0, z: 0, h: 0 },
@@ -502,18 +505,16 @@ function buildAttempt(seed: string, attempt: number, keep: KeepIdentity): World 
       add('butcher-block', 2.7, 1.9);
       add('barrel', 1.3, 1.3);
     }
-    if (r.id === 'smithy') {
-      if (!add('furnace', 2.7, 2.5) || !add('anvil', 1.6, 1.25))
-        return ['Cannot place required smithy furnishings'];
-      add('anvil', 1.6, 1.25);
-      add('tool-bench', 2.8, 1.4);
-      add('quench', 1.5, 1.5);
-    }
-    if (r.id === 'bakery') {
-      if (!add('bread-oven', 2.9, 2.7) || !add('bread-table', 2.8, 1.6))
-        return ['Cannot place required bakery furnishings'];
-      add('bread-rack', 2.1, 1.4);
-      add('flour-sacks', 1.7, 1.5);
+    if (r.id === 'smithy' || r.id === 'bakery') {
+      const result = planScene(generationIdentity(seed), r, world);
+      if (result.status === 'rejected')
+        return [`${result.reason} (${result.anchorAttempts} anchors)`];
+      world.scenes.push(result.scene);
+      for (const p of result.scene.reserved) reserve(p.x, p.z, 0);
+      for (const prop of result.scene.props) {
+        occupy(prop);
+        props.push(prop);
+      }
     }
     if (r.id === 'stable') {
       if (!add('lizard-stall', 4.4, 5.6) || !add('lizard-stall', 4.4, 5.6))
@@ -732,6 +733,17 @@ export function validateDungeon(world: World): string[] {
       errors.push(`Furniture faces away from room center: ${object.id}`);
     if (object.frontClearance && !after.has(key(object.frontClearance.x, object.frontClearance.z)))
       errors.push(`Furniture front inaccessible: ${object.id}`);
+  }
+  for (const room of ['smithy', 'bakery']) {
+    const scene = world.scenes.find((s) => s.room === room);
+    if (!scene) errors.push(`Missing ${room} scene recipe`);
+    else
+      for (const p of scene.reserved) {
+        if (!world.reserved.has(key(p.x, p.z)) || !before.has(key(p.x, p.z))) {
+          errors.push(`Scene work path inaccessible: ${scene.id}`);
+          break;
+        }
+      }
   }
   return errors;
 }

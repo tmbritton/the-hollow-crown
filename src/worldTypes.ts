@@ -3,6 +3,7 @@ import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { InspectionTarget } from './inspection.ts';
 import type { RoyalPortrait } from './royalty.ts';
 import type { KeepIdentity } from './generation/keep.ts';
+import type { ScenePlacement } from './generation/scenes.ts';
 
 export type Random = () => number;
 export type Axis = 'x' | 'z';
@@ -192,6 +193,7 @@ export interface World {
   entities: Entity[];
   connections: Connection[];
   props: Prop[];
+  scenes: ScenePlacement[];
   blockers: (Footprint & { id: string })[];
   reserved: Set<string>;
   spawn: Spawn;

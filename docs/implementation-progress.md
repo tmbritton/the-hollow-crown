@@ -7,10 +7,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Planning/source audit complete; working tree was clean at baseline `2654e65`.
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
-- **Completed G1–G3, T1 and I1–I2. Active: S1 scene recipes.**
-- Latest checkpoint: 117 pure/model tests, lint, formatting and build pass; 23 Chromium full
-  checks, 13 Firefox inspection checks, portrait GPU checks, production smoke, generation
-  checks and the refreshed 48-view gallery pass. Per-feature details are below.
+- **Completed G1–G3, T1, I1–I2 and S1a–S1b. Next: N1 memorable inhabitant.**
+- Latest checkpoint: 125 pure/model tests, lint, formatting and build pass; 23 Chromium full
+  checks, 13 movement checks in each browser, nine Chromium social checks, production smoke,
+  generation checks and the refreshed 48-view gallery pass. Per-feature details are below.
 
 ## Feature tracker
 
@@ -22,9 +22,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | T1 | Complete | Stationary skeleton fixture failed at `[0,2]` before fix | 23 full-browser checks pass in Chromium and Firefox; 108 tests/check/build pass; review suggestion applied | `bb56640` |
 | I1 | Complete | Keep contract failed before API; 200-seed chronology/reference invariants | 113 tests/check, build, generation browser and corpus pass; all review findings addressed | `624f8d4` |
 | I2 | Complete | Presentation contract failed before API; review regression reproduced swapped painting identities | 117 tests/check/build, Firefox inspection 13 and portraits, Chromium full 23, production, generation and gallery pass; follow-up review cleared | `a2ba6cf` |
-| S1a | Complete | Initial contracts failed on missing module; review regression reproduced thin-barrier crossing | 123 tests/check/build pass; independent follow-up review cleared the swept-clearance fix | This commit |
-| S1b | Next | Pending | Integrate recipes into world generation, report provenance, verify traversal and rendered composition | — |
-| N1, D1 | Planned | Pending | Pending | — |
+| S1a | Complete | Initial contracts failed on missing module; review regression reproduced thin-barrier crossing | 123 tests/check/build pass; independent follow-up review cleared the swept-clearance fix | `a65c239` |
+| S1b | Complete | World/report contracts failed on missing scene provenance; final-world navigation over 100 additional seeds | 125 tests/check/build, both movement browsers, Chromium full/social, production, generation and gallery pass; independent 500-seed review cleared | This commit |
+| N1 | Next | Pending | Stable identity/home/group for one existing inhabitant; factual target text and readable current behavior | — |
+| D1 | Planned | Pending | Pending | — |
 | O1–O4 | Planned | Pending | Pending | — |
 
 ## Work log
@@ -116,6 +117,21 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - `npm run check` passes all 123 tests, lint and formatting; `npm run build` passes.
   This is the standalone planner; runtime integration and rendered checks follow in S1b.
 
+### S1b — integrated scene recipes
+
+- Replaced independent smithy/bakery furnishing rolls with transactional recipe placements.
+  The accepted props retain ordinary world/ECS identity and collision registration; subsequent
+  pillars, supplies and rubble respect their reserved work paths. Reports clone provenance.
+- Test-first world/report assertions failed before integration. Two new pure contracts exercise
+  final decorated worlds, actual navigation, report isolation and invalidated work paths.
+- Advanced to `layout-v3` / `keep-v3`; intentionally refreshed geometry fixtures, preserving
+  the original topology stream and the old retry seed as a historical gallery comparison.
+- 125 pure/model tests/check/build, 13 movement checks in each browser, 23 Chromium full checks,
+  nine social checks, production smoke, generation/corpus and 48-view gallery all pass.
+  The five repeated gallery resource samples match; screenshots retain readable central routes.
+- Independent review cleared the integration after 33 focused tests and 500 extra seeds,
+  including swept reserved-network connectivity, workface round trips and ECS references.
+
 ## Follow-ups and blockers
 
 - No current correctness blocker. G3's full-browser follow-up is resolved by T1.
@@ -124,5 +140,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
   full performance baseline; do not claim Phase 0 entirely complete yet.
 - Shared architectural heraldry, composition-driven profile differences and the full
   Phase 1 art/readability gate remain open. Captions/palettes alone do not satisfy that gate.
-- S1 should begin with forge/bakery anchor/socket recipes, meaningful narrow-room and rotated
-  placement tests, bounded deterministic fallbacks and reserved movement/interaction space.
+- S1's anchor/socket placement and integration are delivered. Causal contact detail and
+  profile-led composition can build on these recipes during the broader visual-identity gate.
+- Next N1: one named existing inhabitant, linked to keep history and stable home/group data,
+  with factual target presentation and existing species/social behavior preserved.

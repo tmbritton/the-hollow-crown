@@ -4,6 +4,32 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Integrated forge/bakery recipes (S1b) — 2026-11-18
+
+- World/report integration contracts failed on missing scene provenance before implementation.
+  Both recipes now commit their props and reserved work paths before background furnishing.
+  Final-world tests cover 100 additional seeds, all orientations, optional omissions, real
+  navigation to work faces, shared prop identity, detached reports and damaged-path rejection.
+- `npm run check`: **125 pure/model tests**, strict type checking, lint and formatting pass.
+  `npm run build` and production smoke pass. Generation identity is now **layout-v3 / keep-v3**;
+  golden geometry fixtures were intentionally refreshed. `trial-23` pins the current retry
+  constraint; `trial-27` remains a historical regression in the gallery.
+- Movement: **13 checks each in Chromium and Firefox**, including rendered recipe colliders
+  and real floor-click arrival/return at every showcase work face. The capture camera was
+  widened after an initial fixture projected a work face under the HUD.
+- Full Chromium gameplay: **23 checks**, including physical completion of three seeds.
+  Social: **9 Chromium checks**. Development report agreement and the 100-seed export pass.
+- Refreshed **48-view gallery** and five same-seed regenerations pass. All five samples have
+  **2,077 meshes, 28 materials, 4 textures, 48 effects and 34 shader sources**. Compared with
+  the earlier gallery, this adds no material/texture/effect category; timing is not a hardware
+  measurement. Reviewed movement room captures, grayscale overview, and retry/high-door room
+  views: work furniture and broad central lanes remain readable.
+- Independent review found no blockers: **33 focused tests** and **500 additional seeds**,
+  checking 1,000 scenes, 3,345 props and 22,309 reserved points against swept clearance,
+  runtime navigation, ECS reference ownership and deterministic regeneration.
+- Physical heraldry, causal contact detail and profile-specific composition remain broader
+  procedural-content follow-ups; this delivers the two bounded placement recipes.
+
 ### Bounded scene planner (S1a) — 2026-11-18
 
 - Test-first planner contracts failed on the missing API before implementation. Six tests

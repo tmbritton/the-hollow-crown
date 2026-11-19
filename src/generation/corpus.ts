@@ -28,7 +28,7 @@ export function selectGallerySeeds(reports: readonly GenerationReport[]) {
   for (const seed of ['MOURNING-731', 'CINDER-42', 'VIOLET-7', 'trial-27'])
     add(
       sorted.find((r) => r.trace.identity.seed === seed),
-      seed === 'trial-27' ? 'retry regression' : 'showcase baseline',
+      seed === 'trial-27' ? 'historical retry regression' : 'showcase baseline',
     );
   const area = (r: GenerationReport) =>
     (r.bounds.maxX - r.bounds.minX) * (r.bounds.maxZ - r.bounds.minZ);
