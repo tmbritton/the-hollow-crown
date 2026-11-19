@@ -24,6 +24,7 @@
     "gallery:generation": "npm run typecheck && node tests/generation-gallery.ts",
     "test:browser": "node tests/browser.ts",
     "test:production": "node tests/production.ts",
+    "test:resources": "node tests/resources-browser.ts",
     "test:portraits": "node tests/portraits.ts",
     "test:inspection": "node tests/inspection-browser.ts",
     "test:discoveries": "node tests/discoveries-browser.ts",

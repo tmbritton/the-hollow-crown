@@ -1,11 +1,15 @@
-import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder.js';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Materials } from './materials.ts';
 import type { ECS } from './ecs.ts';
 import { EMBER } from './lastEmber.ts';
 
 /** Twelve bounded procedural seals, on existing solid furniture. Scene owns disposal. */
-export function createLastEmberRendering(scene: Scene, ecs: ECS, materials: Materials) {
+export function createLastEmberRendering(
+  scene: Scene,
+  ecs: ECS,
+  materials: Pick<Materials, 'gold' | 'iron' | 'cloth' | 'rune'>,
+) {
   const ember = ecs.get('run')!.require('lastEmber');
   const groups = (['shrine', 'focus'] as const).map((kind) => {
     const site = ember.sites[kind];
@@ -35,6 +39,11 @@ export function createLastEmberRendering(scene: Scene, ecs: ECS, materials: Mate
         return;
       }
       const record = ecs.get('run')!.require('objectives');
+      // State derives detached objective snapshots. Sample once for this synchronous update,
+      // never across updates: work commits/focus changes must be visible on the next frame.
+      const state = ember.state;
+      const fractured = state === 'fractured';
+      const corrupted = state === 'corrupted';
       for (const { kind, meshes } of groups) {
         const clock = record.get(kind === 'shrine' ? EMBER.restore : EMBER.profane);
         const actor = kind === 'shrine' ? ecs.get('player') : ecs.get(EMBER.worker);
@@ -42,14 +51,12 @@ export function createLastEmberRendering(scene: Scene, ecs: ECS, materials: Mate
         const pulse =
           work?.status === 'working' ? 1 + Math.sin(work.elapsed * Math.PI * 2) * 0.12 : 1;
         meshes.forEach((mesh, i) => {
-          const fractured = ember.state === 'fractured';
-          const corrupted = ember.state === 'corrupted';
           mesh.material =
             kind === 'focus' && !ember.focusEnabled
               ? materials.iron
               : fractured || corrupted
                 ? materials.cloth
-                : i < clock.progress || ['cleansed', 'repaired'].includes(ember.state)
+                : i < clock.progress || ['cleansed', 'repaired'].includes(state)
                   ? materials.rune
                   : materials.gold;
           mesh.scaling.setAll((i < clock.progress ? 1.2 : 0.8) * pulse);

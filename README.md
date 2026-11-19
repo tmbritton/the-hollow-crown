@@ -572,6 +572,7 @@ npx playwright install chromium firefox
 npm run test:browser
 BROWSER=firefox npm run test:browser
 npm run build && npm run test:production
+npm run test:resources
 npm run test:portraits
 npm run test:inspection
 npm run test:discoveries
@@ -592,6 +593,19 @@ npm run test:social
 ```
 
 The browser check starts a development server if needed, exercises the full game loop, completes three different seeds, and writes screenshots and JSON reports to `test-results/`. Chromium's automated smoke test explicitly uses software rendering for reproducibility; its FPS is not a hardware performance result.
+
+`test:resources` is a bounded Chromium/SwiftShader resource regression at 640×360, low quality.
+It exercises active play, menu pause/resume and three same-seed regenerations, measures seal-update
+snapshot reads, and records raw/post-GC JS heap, DOM listeners and rendering/ECS counts in
+`test-results/resource-report.json`. Work yields between batches of at most 12 simulation steps;
+the browser has a 60-second deadline after launch. This short check detects allocation-budget and
+resource-retention regressions, not long-running host/GPU stability. `RESOURCE_REPORT` overrides
+the report filename for before/after comparisons.
+
+The full browser, resource and production scripts reuse an existing server or own a direct Vite
+child with a strict port. Their shared `tests/testServer.ts` scope cleans up owned processes on
+startup, browser-launch and test failures as well as success; on POSIX it also terminates the
+owned process group. Reused servers stay running.
 
 The movement suite expects a running dev server. It sends real pointer/keyboard events, checks high-DPI and low-quality floor picking, routes around furniture and over stairs, checks doors and modal cancellation, and captures the destination marker and start/stop poses. Pure navigation and locomotion tests run with `npm test`.
 

@@ -4,7 +4,31 @@ Started **2026-11-18**. This is the execution order for the planning documents, 
 that their proposed systems already exist. Track actual work in
 [implementation progress](implementation-progress.md).
 
-## Chosen starting point
+## Current priority — user gameplay notes
+
+The dependency-ordered sequence through O4 is delivered. The user-directed notes in
+`docs/notes.md` take precedence over further roadmap expansion. Work in this order, keeping
+each slice test-first, independently reviewed and committed:
+
+| ID | Slice | Acceptance / verification |
+| --- | --- | --- |
+| P1 | Investigate long-running freezes and resource growth | Distinguish game/browser GPU and heap growth, Vite/dev-server memory, OpenCode/test-process load and host OOM/driver events. Use bounded, sequential measurements and cleanup; reproduce and fix identified application/tooling defects before further gameplay work. Do not assume a memory leak without evidence. Resource-fix slice delivered, independent review READY; original host/GPU freeze remains a separate unresolved follow-up. |
+| P2 | Make corpses traversal-friendly | Remove corpse speed penalties for player and enemies; use procedural stair-stepping/contact animation over corpses. Preserve water slowdown, living-body blocking, stable footing and cancellation/reset. |
+| P3 | Move toward blocked floor clicks | When the requested floor point is unreachable, choose the closest safely reachable point toward it from the current position. Preserve route clearance, void/door/locked-gate rules and precise arrival; handle genuinely immobile cases without repeated commands or loops. |
+| P4 | Give skeletons a lurching gait | Use a species-specific procedural gait with readable uneven weight transfer. Animation follows actual movement; navigation, impact timing and collision remain authoritative. |
+| P5 | Hold F to defend | A held shield state blocks frontal attacks, with a defined facing arc and readable raised-shield pose. Test front/side/rear melee and projectiles, release, attack interaction and all modal/death/reset cancellations. |
+| P6a | Introduce declarative kobold squad coordination | A group statechart coordinates at least three shield bearers and one spearman; individuals retain their own charts. Seeded population/encounter placement, occupancy and objective carrier assignments remain coherent. |
+| P6b | Deliver the phalanx encounter | Slow coordinated advance, shielded front rank, rear spear thrusts or javelins, a telegraphed shield-opening window, and coordinated backward withdrawal when losing. Test formation spacing, interruptions, casualties, narrow approaches and retreat without overlap or gate bypass. |
+| P7 | Publish the repository and GitHub Pages demo | Inspect repository/remotes and publishing configuration, make the intended repository public, build/deploy through GitHub Actions, and verify the deployed production game at its Pages base path. Keep development hooks and generated test artifacts out of the deployed app. |
+
+P1's resource-fix slice is delivered; **P2 corpse traversal is next**, not yet started. The original
+GPU/host freeze remains open for follow-up and is not claimed fixed by P1's bounded checks.
+
+P5 establishes the defensive behavior needed by P6. P6a and P6b split the formation request into
+reviewable slices. P7 follows the gameplay/stability pass. Historical broader art/performance
+milestones remain recorded, but do not supersede this user-directed queue.
+
+## Chosen starting point (historical)
 
 Start with Phase 0 of the [procedural-content plan](procedural-content-improvement-plan.md).
 The current generator already validates 100 seeds, but has no versioned diagnostic export
@@ -37,7 +61,7 @@ the earlier player-triggered danger-clock proposal is a mechanics reference.
 O1 is complete at `6f79a97`; O2 physical work/runtime boundaries are complete at `d698f27`, with
 independent review READY. O3 is complete at `9be81bb` and independently reviewed: the playable
 Last Ember scenario, physical worker priorities, clocks, outcomes and recovery are integrated.
-Independent O3 and O4 reviews returned READY. O4's plan composes with O3 before the single
+Independent O3 and O4 reviews returned READY; O4 is committed at `123b9a9`. Its plan composes with O3 before the single
 run installation; see README. The feature sequence above is implemented.
 
 Each row may be split further if review reveals a coherent smaller feature. Later priorities

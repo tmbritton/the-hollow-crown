@@ -8,7 +8,15 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Selected the procedural-content Phase 0 prerequisites as the first delivery sequence.
 - Planning committed as `822ec0c`; the pre-commit baseline passed all 97 tests, lint and format.
 - **Completed G1–G3, T1, I1–I2, S1a–S1b, N1, GF1, D1 (`e6591df`), O1 (`6f79a97`) and O2
-  (`d698f27`), O3 (`9be81bb`) and O4. Independent O4 review returned READY.**
+  (`d698f27`), O3 (`9be81bb`) and O4 (`123b9a9`). Independent O4 review returned READY.**
+- **P1 resource-fix slice delivered; independent review READY, no blockers.** Seal rendering now performs
+  at most five detached objective reads per update instead of 110; owned test-server startup/failure
+  cleanup is covered. The original host/GPU freeze remains unresolved. The user's `docs/notes.md`
+  takes priority over further roadmap expansion: stability, corpse traversal, blocked-click fallback,
+  skeleton gait, held-F defense, declarative kobold phalanxes, then public repository/Pages release.
+  **Next: P2 corpse traversal**, not yet started. P2–P7 remain planned; dependency order and
+  acceptance gates are in `implementation-path.md`.
+  The original notes remain the user's source of intent.
 - O4: **228 pure/model tests**, strict typing, format/lint/build; **20 machines / 92 states /
   175 branches**. Tribute browsers: **9 checks each** in Chromium and Firefox. Chromium O3 **14**,
   O2 **17**, movement **13**, combat **14**, social **9**, full gameplay **23**, and production smoke
@@ -53,9 +61,62 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | O1 | Complete | Initial missing APIs and reason/visibility regressions; five review regressions reproduced metadata retention and partial commits | 178 tests, format/lint/build pass; independent READY review: 42 focused tests, original probes and 18 malformed-reason cases | `6f79a97` |
 | O2 | Complete | Initial missing-module/lifetime reds; both duration corrections reproduced false monster-first results; decimal sweep and pure/model/browser regressions precede work-unit fix | 202 tests/check/build, 1,200-duration sweep, work 17 each browser; independent READY review cleared both blockers and passed 46 additional probes | `d698f27` |
 | O3 | Complete | Missing scenario API and focus model failed first; `ember-70` reproduced shrine stealing the clue's E approach before correction | 214 tests/check/build, 100 O3 seeds, Last Ember 14 each browser plus regression suites; independent review READY | `9be81bb` |
-| O4 | Complete | Missing tribute/cargo APIs; actual return-route stall, blocked-status and retired-scenario regressions failed before corrections | 228 tests/check/build, 100 tribute seeds, both tribute browsers, affected regressions/full Chromium/production pass; independent review READY | This commit |
+| O4 | Complete | Missing tribute/cargo APIs; actual return-route stall, blocked-status and retired-scenario regressions failed before corrections | 228 tests/check/build, 100 tribute seeds, both tribute browsers, affected regressions/full Chromium/production pass; independent review READY | `123b9a9` |
+| P1 | Resource-fix slice delivered; host freeze follow-up open | Seal budget failed at 110 reads/update; isolated startup-failure probe left Vite live; helper contracts failed before implementation | 236 tests, format/lint/build, bounded Chromium resources/dev smoke and production smoke pass; independent review READY: 8 targeted tests, 3 adversarial cleanup probes, diff check | This commit |
+| P2 | Next, not started | Corpse traversal without speed penalties; see implementation-path.md | Preserve water slowdown, living-body blocking and stable contact animation | — |
+| P3–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
 
 ## Work log
+
+### P1 — bounded resource investigation and reproduced fixes — 2026-11-19
+
+- Baseline **`123b9a9`**. Preserved the parent's priority-queue edits; read but did not edit or
+  stage the user's untracked `docs/notes.md`. Implementation used no subagents. Independent review
+  subsequently returned **READY**, with no blockers; the user authorized the feature commit.
+- **Attributed host evidence from the parent:** 31 GiB RAM, about 20 GiB available, no swap;
+  Vite RSS **2,444,048 KiB (~2.33 GiB)**, combined OpenCode processes about **4.5 GiB**. Previous
+  boot (`-1`), Nov 18 13:48–13:51: NVIDIA **615.78.08** TLB invalidation failures, **Xid 62 PMU
+  halt / Xid 154 recovery**, with no matching host OOM found in that audit. These are supplied
+  observations, not new measurements or proof that application allocations caused the freeze.
+- **Red:** after correcting a missing-worker test fixture, the null-engine seal regression had
+  **3 pass / 1 fail** at **110 reads/update** (26,400 detached snapshots in 240 updates). The real
+  browser independently failed the same five-read budget after passing its resource checks.
+  An earlier browser fixture failed because steps ran before scene readiness; it now explicitly
+  awaits loading and asserts all 120 steps actually ran in each regeneration.
+- **Fix:** sample chart-derived `LastEmber.state` once within each synchronous renderer update.
+  No cross-frame cache or parallel lifecycle flags. Materials, pulse/scale, fracture rotations,
+  progress, recovery, focus disabling and scenario removal have fresh-update regressions.
+- **Before/after:** Chromium synchronous seal-update CPU-path time for 240 updates was
+  **215.3 → 12.2 ms** (**0.897 → 0.051 ms/update**); detached reads **110 → 5**, a **95.45%**
+  reduction (6,600 → 300/s if called at 60 Hz). These isolated measurements are not GPU FPS.
+- **Tooling failure:** an isolated temporary-port probe injected launch rejection at the old
+  pre-`try` boundary and found Vite still serving. Normal npm-parent termination did stop that
+  server here; the suspected normal-teardown orphan was not reproduced. Added a shared owned
+  server scope around startup/launch/page/report operations. It starts Vite directly, uses a
+  strict port, bounds readiness and reaps its POSIX group, including a surviving descendant.
+  The contract file failed on the missing helper first; four tests then passed for success/failure,
+  external-server reuse, timeout/exit/spawn errors and parent-exit/descendant cleanup.
+- **Bounded resources:** Chromium SwiftShader only, low quality, 640×360, 60s browser deadline,
+  real input/menu pause/resume, at most 12 fixed steps per yielding batch, three regenerations.
+  Both before/after retain **2,151 meshes / 28 materials / 4 textures / 55 effects / 34 shader
+  sources / 5,738 ECS entities / 1 scene / 1 work system**, with 317 DOM nodes and 75 listeners.
+  Post-GC heap: before **98.89 / 99.58 / 100.22 MiB**; after **98.91 / 99.65 / 100.29 MiB**.
+  Raw heap varies much more (after **158.73 / 129.06 / 147.85 MiB**). Counts plateau; the small
+  retained-heap increase is similar before/after, within the 8 MiB regression budget, and is not
+  proof of indefinite stability. No retained-heap improvement is claimed from the churn fix.
+- **Implementation checks before review:** required format/lint/test/build commands each ran once after targeted passes:
+  **236 tests**, strict typing and **20 machines / 92 states / 175 branches** pass. Bounded resource
+  regression supplies the dev smoke; production smoke passes separately. Existing bundle warning
+  remains. No blanket browser-suite rerun, hardware-GPU stress or screenshot comparison was needed
+  for this data-identical render fix. Full measurements/reproduction are in `VERIFICATION.md`.
+- **Independent review — READY:** reviewer reported **8 targeted tests**, **3 adversarial cleanup
+  cases** (SIGTERM-resistant leader, descendant after leader exit, stalled readiness) and diff check
+  passing, with no blockers. It reused the implementation's 236-test/build/resource/production
+  results rather than repeating broad suites. These are attributed reviewer results. The normal
+  pre-commit hook remains the required final commit check. **P2 is next and has not started.**
+- **Open:** original GPU/host freeze diagnosis and long-duration/native-memory behavior. Terminal
+  objective-work sampling and possible duplicate worker/target visibility queries remain audit
+  candidates, not measured causes or additional optimizations in this slice.
 
 ### O4 — independent royal tribute plan — 2026-11-19
 

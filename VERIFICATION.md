@@ -4,6 +4,121 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### P1 — resource investigation/fixes — 2026-11-19 (independent review READY)
+
+Baseline **`123b9a9`**. Resource-fix slice delivered; independent review returned **READY**, no blockers.
+This fixes reproduced allocation churn and a test-server failure-path leak. **It does not prove
+the original computer freeze fixed.** Earlier feature/browser results below remain baselines.
+
+#### Host evidence and scope
+
+The parent supplied a read-only host audit: **31 GiB RAM / ~20 GiB available / zero swap**,
+Vite RSS **2,444,048 KiB (~2.33 GiB)** and combined OpenCode RSS about **4.5 GiB**. Boot `-1`
+logs at **Nov 18 13:48–13:51** contain NVIDIA **615.78.08** TLB invalidation failures,
+**Xid 62 (PMU halt)** and **Xid 154 (recovery)**, with no matching host OOM found in that audit.
+These are attributed evidence, not measurements repeated by this implementation. A single RSS
+snapshot does not establish a Vite/OpenCode leak; driver faults do not establish that the game's
+heap caused them. No OS, drivers, services or pre-existing user processes were changed.
+
+#### Red → green
+
+- `node --test tests/last-ember-rendering.test.ts`: after correcting a missing-worker fixture,
+  **3 pass / 1 fail**, observing **110 detached `ObjectiveRecord.get()` snapshots/update** instead
+  of the allowed five. These reads each call `structuredClone`; state was read repeatedly inside
+  the twelve-seal loop. Existing visual-state assertions already passed before the fix.
+- Cached only the derived state **within one synchronous update**. XState objective/focus/work
+  lifecycles remain authoritative. Subsequent updates reread progress and outcomes; tests cover
+  work pulse, restoration, corruption/fracture, cleansing/repair, disabled focus and scenario removal.
+- **4/4 renderer tests pass**, then **8/8 focused renderer/server tests pass**. One final isolated
+  renderer run also passed with the real `CustomMaterial` types used by the fixture.
+- An isolated temporary-port probe of the old startup sequence injected a browser-launch rejection
+  before its `try/finally`; the owned Vite server still answered afterward. The probe's own process
+  group was cleaned in `finally`. Killing only npm in a separate normal-teardown probe **did stop
+  serving here**, so no observed normal-teardown orphan is claimed.
+- `node --test tests/test-server.test.ts` failed first on the missing helper. Four passing contracts
+  now cover callback/launch rejection and normal return, preserving a reused external server,
+  readiness timeout/early exit/spawn error, and termination of an owned descendant listener even
+  after its parent exits. `tests/browser.ts` and `tests/production.ts` place launch and cleanup in
+  the shared scope. Browser close also survives page/report failures. Direct Vite startup avoids
+  npm/shell indirection, with strict ports and a 20s readiness deadline; POSIX teardown signals only
+  the newly created process group and awaits the child.
+
+#### Measured allocation/CPU-path cost
+
+| Probe | Before | After |
+| --- | --- | --- |
+| Detached reads per seal update, same idle-state fixture | **110** | **5** |
+| Reads over 240 updates | **26,400** | **1,200** |
+| Equivalent at 60 updates/s (arithmetic, not observed FPS) | **6,600/s** | **300/s** |
+| Chromium synchronous update time, 12 yielding batches × 20 | **215.3 ms total; 0.897 ms/update** | **12.2 ms total; 0.051 ms/update** |
+| Initial Node null-engine probe, 240 updates after 20 warmups | **122.65 ms wall / 140.42 ms process CPU** | **11.18 ms wall / 36.68 ms process CPU** |
+
+Read count is the regression assertion; timing is descriptive and includes JIT/GC/host noise.
+The Node green run overlapped the lightweight server test/browser startup; a later isolated typed
+fixture run measured **9.22 ms wall / 14.79 ms process CPU**, also five reads/update. These are
+bounded CPU-path observations, not a whole-game speedup or hardware-GPU frame-rate benchmark.
+
+#### Bounded browser/resource results
+
+`RESOURCE_REPORT=test-results/resource-baseline.json npm run test:resources` reproduced the
+read-budget failure before the fix. `npm run test:resources` then passed. **Chromium/SwiftShader**,
+**640×360**, low quality, `MOURNING-731`; one browser at a time, with a **60s deadline after launch**.
+The script exercises real keyboard movement, one second of menu idle, resume, then three identical
+regenerations. Each regeneration runs **120 fixed steps in ten 12-step batches**, yielding between
+tasks and rendering; no long synchronous simulation. Old scenes are disposed and work systems
+retired. CDP `HeapProfiler.collectGarbage` runs only in this isolated test browser, between raw and
+collected heap samples. The report records the renderer string and CPU task/script counters.
+
+| Three-regeneration samples | Before | After |
+| --- | --- | --- |
+| Raw used JS heap (MiB) | **150.31 / 133.70 / 136.16** | **158.73 / 129.06 / 147.85** |
+| Post-GC used JS heap (MiB) | **98.89 / 99.58 / 100.22** | **98.91 / 99.65 / 100.29** |
+| Backing storage bytes after GC | **15,690,980 each** | **15,691,438 each** |
+| Meshes / materials / textures | **2,151 / 28 / 4 each** | **2,151 / 28 / 4 each** |
+| Effects / generated shader sources | **55 / 34 each** | **55 / 34 each** |
+| ECS entities / scenes / objective-work systems | **5,738 / 1 / 1 each** | **5,738 / 1 / 1 each** |
+| DOM nodes / JS event listeners | **317 / 75 each** | **317 / 75 each** |
+
+Active/pause/resume keeps one render loop; the controlled regeneration phase intentionally stops
+it and renders explicitly. Menu idle freezes simulation (before **step 59 → 59**, after **53 → 53**)
+and resume advances it. After-fix paused post-GC heap is **98.05 → 98.33 MiB**. Counts plateau;
+post-GC heap increases about **1.38 MiB** over the three after samples, similar to **1.33 MiB** before,
+within the test's **8 MiB** allowance. This demonstrates substantial transient allocation and no
+whole-world retained-heap increase in this short sample. It does **not** establish an indefinite heap
+plateau or reduced retained memory. Browser-native/GPU memory and long-run host stability are unproven.
+
+The first browser fixture run was rejected for incomplete warmup (loading skipped most requested
+steps). The corrected fixture waits for scene readiness and asserts exactly 120 steps per cycle;
+only its corrected before/after reports are summarized above. An initial Vite optimization reload
+also required explicit same-seed regeneration before sampling, consistent with the game's refresh rules.
+
+#### Implementation checks actually run before review
+
+- `npm run format:check`, `npm run lint`, `npm test`, `npm run build`: each required command ran
+  **once after targeted passes**, all green; **236 tests**, strict types, **20 machines / 92 states /
+  175 branches**. Build retains its existing large-chunk warning.
+- Bounded resource/dev smoke: **pass** (`test-results/resource-report.json`); corrected red report
+  preserved as `test-results/resource-baseline.json`. Both completed without the deadline firing.
+- `npm run test:production`: **pass**, shaders/rendering, seed regeneration, menus, quality settings
+  and absent development hooks, using the owned-server lifecycle.
+- `git diff --check`: **pass**, including the documentation updates.
+- Render-state assertions establish unchanged materials/scales/rotations across transitions; no
+  intended visual change, so no new screenshot comparison. No broad gameplay suite, cross-browser
+  rerun or hardware-GPU stress was performed for this slice.
+
+#### Independent review — READY
+
+The reviewer reported **8 targeted tests**, **3 adversarial cleanup cases** and `git diff --check`
+passing, with no blockers. The additional cases cover a SIGTERM-resistant leader, a descendant
+surviving leader exit, and stalled readiness. Review reused the implementation's **236-test**,
+build, resource and production results above; no broad repeat was performed. These are attributed
+independent results. The user authorized the feature commit with the normal pre-commit hook.
+
+**P2 corpse traversal is next, not started.** The original host/driver freeze follow-up remains
+explicitly open. Terminal objective-work sampling and possible duplicate visibility queries are audit
+candidates, not measured causes addressed here. Parent priority edits are retained; raw `docs/notes.md`
+is untouched and excluded from the feature commit.
+
 ### Independent royal tribute plan (O4) — 2026-11-19
 
 Implemented against **`9be81bb`** (O3 committed, independently reviewed READY).
