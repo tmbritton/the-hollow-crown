@@ -95,13 +95,8 @@ export function createAnimationReview(
         drawnClearance: drawnSurface === null ? null : sole.y - drawnSurface,
         cornerClearances,
         anchor: anchor ? { ...anchor } : null,
-        // Existing plants refer to ankle x/z, not the toe-offset sole centre.
-        anchorError: anchor
-          ? Math.hypot(
-              foot.getAbsolutePosition().x - anchor.x,
-              foot.getAbsolutePosition().z - anchor.z,
-            )
-          : null,
+        // A3 plants refer to the final sole centre rather than the old ankle proxy.
+        anchorError: anchor ? Math.hypot(sole.x - anchor.x, sole.z - anchor.z) : null,
       };
     });
     const hands = rig.forearms.map((arm) => point(arm, 0, -0.27, 0));

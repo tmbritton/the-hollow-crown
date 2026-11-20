@@ -23,8 +23,8 @@ each slice test-first, independently reviewed and committed:
 | T2 | Faster test feedback — implemented, verified, review READY | At its checkpoint: core 301 / 26.79s versus the old 303.11s full run. Full 319-case coverage remains about 302s and is required in CI. Core retains all 22 machines / 105 states / 226 branches; original 8,206 work paths remain extended. |
 | A0 | Animation motion-review baseline — implemented, verified, independent review READY | 30 clips / 60 camera sequences / 856 world-pose samples; real input and fixed/slow playback, contact/grip-proxy metrics, 25-actor CPU/allocation/resource baseline and complete migration inventory. 302 everyday tests, affected animation and production smoke pass. See [baseline](animation-baseline.md). |
 | A1 | Shared humanoid rig definitions and bindings — complete, independent review READY | All 25 actors use typed semantic anatomy/profiles, quaternion pose/history buffers and one final binding writer. 428 samples match A0 within 2.384e−7; render identity, selection, reset and cost checks pass. See [rig foundation](rig-foundation.md). |
-| A2 | Coordinated full-body IK | Bounded pelvis/spine/shoulder adjustment plus limb IK; simultaneous foot contacts and hand grips, explicit priorities, infeasible-target fallbacks and final world-space validation. |
-| A3 | Locomotion and grounding migration | Convert idle/start/walk/run/stop, turns, skeleton lurch, crouch, backsteps, jumps and corpse/stair contacts for all actor kinds; preserve authoritative movement. |
+| A2 | Coordinated full-body IK — complete, independent review READY | Four-pass bounded solver, simultaneous contacts/grips, orientation/limits, explicit priorities and residuals. 323 everyday tests; 1,210 actual-mesh browser samples, resource plateau and bounded costs. See [solver contract](rig-solver.md). |
+| A3 | Locomotion and grounding migration — complete, independent review READY | All living actor kinds compose semantic poses and coordinated sole targets. 330 tests; 428 A0-identical authority samples, final sole/plant checks, animation/movement/jump/production passes and bounded cost/resource checks. See [grounding contract](rig-grounding.md). |
 | A4 | Action, equipment, work and social migration | Convert melee/crossbow/spear/javelin, guard/opening, weapon sockets, cards/smoke/hacky-sack, work/carry and the temporary death collapse to rig layers and targets. |
 | A5 | Humanoid-with-tail kobold rig | Replace the existing rigid tail stub with four articulated, tapered segments on every kobold; bounded secondary motion/clearance, visible silhouettes and formation-safe motion. |
 | A6 | Shield anticipation and reaction | Body/arm preparation, decisive guarding and controlled lowering; confirmed once-only directional block recoil and recovery. Preserve instant F defense and the phalanx's authoritative vulnerability windows. |
@@ -43,8 +43,8 @@ P6b is complete at `806a27b`; final independent review returned READY and cleare
 no blockers; the parent made the repository public, deployed through GitHub Actions and verified
 the actual hosted production game. **T2 test-feedback work is implemented and independently
 reviewed READY. A0 motion review is also implemented and independently reviewed READY.
-A1 shared rig definitions/bindings is also complete and reviewed READY. A2 coordinated full-body
-IK is next; A2–A7 remain planned before P8/P9.**
+A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration are also complete
+and reviewed READY. A4 action/equipment/work/social migration is next; A4–A7 remain planned before P8/P9.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -61,7 +61,7 @@ inventory and compaction handoff. Preserve the raw notes as the source of intent
 ## Before the next procedural-feature expansion — Effect refactor
 
 The user requested this scheduling boundary on **2026-11-20**. Continue the existing
-**A2–A7 → P8 → P9** queue; A2 remains the immediate next implementation. Complete the generation
+**A4–A7 → P8 → P9** queue after delivered A3; A4 is the immediate next implementation. Complete the generation
 slices below before authoring additional procedural scene recipes, keep variants, adventure
 grammars, or generated encounters/objectives. The default insertion point is after P9; if content
 work moves, its Effect prerequisite moves with it.

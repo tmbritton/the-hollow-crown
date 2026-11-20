@@ -88,6 +88,28 @@ export function multiply(
         a3 * b[bo + col * 4 + 3];
   }
 }
+/** Affine a*b for pose/binding transforms (bottom row 0,0,0,1). Same alias contract as multiply. */
+export function multiplyAffine(
+  a: Float64Array,
+  ao: number,
+  b: Float64Array,
+  bo: number,
+  out: Float64Array,
+  o: number,
+): void {
+  for (let row = 0; row < 3; row++) {
+    const a0 = a[ao + row],
+      a1 = a[ao + 4 + row],
+      a2 = a[ao + 8 + row],
+      a3 = a[ao + 12 + row];
+    out[o + row] = a0 * b[bo] + a1 * b[bo + 1] + a2 * b[bo + 2];
+    out[o + 4 + row] = a0 * b[bo + 4] + a1 * b[bo + 5] + a2 * b[bo + 6];
+    out[o + 8 + row] = a0 * b[bo + 8] + a1 * b[bo + 9] + a2 * b[bo + 10];
+    out[o + 12 + row] = a0 * b[bo + 12] + a1 * b[bo + 13] + a2 * b[bo + 14] + a3;
+  }
+  out[o + 3] = out[o + 7] = out[o + 11] = 0;
+  out[o + 15] = 1;
+}
 export function inverse(m: Float64Array, o: number, out: Float64Array): void {
   const a = m[o],
     b = m[o + 4],
@@ -126,7 +148,7 @@ export function evaluatePose(pose: PoseBuffer): void {
       parent = pose.definition.joints[i].parent;
     compose(pose.local[i], pose.matrices, o);
     if (parent < 0) for (let n = 0; n < 16; n++) pose.world[o + n] = pose.matrices[o + n];
-    else multiply(pose.world, parent * 16, pose.matrices, o, pose.world, o);
+    else multiplyAffine(pose.world, parent * 16, pose.matrices, o, pose.world, o);
   }
 }
 export function resetHistory(pose: PoseBuffer): void {

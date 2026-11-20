@@ -3,10 +3,12 @@
 | Document | Purpose |
 | --- | --- |
 | [Implementation path](implementation-path.md) | Dependency-ordered feature slices and the test-first, verification, review, commit workflow. |
-| [Implementation progress](implementation-progress.md) | Delivery tracker, checks and review. P1–P7 delivered; P7 published at `3934e17`. T2/A0 and A1 shared rigs are implemented and independently reviewed READY. A2 coordinated full-body IK is next. |
-| [Animation roadmap](animation-roadmap.md) | Shared humanoid/tailed rigs, complete animation migration, shield motion and later death physics. A0/A1 delivered; remaining feature-sized gates are planned. |
+| [Implementation progress](implementation-progress.md) | Delivery tracker, checks and review. P1–P7 delivered; P7 published at `3934e17`. T2/A0 and A1–A3 are implemented and independently reviewed READY. A4 action/equipment/work/social migration is next. |
+| [Animation roadmap](animation-roadmap.md) | Shared humanoid/tailed rigs, complete animation migration, shield motion and later death physics. A0–A3 delivered; remaining feature-sized gates are planned. |
 | [Animation baseline](animation-baseline.md) | A0 review controls, complete 30-clip inventory, reproducible captures, current foot/grip defects, 25-actor baseline and initial A1/A2 budgets. |
 | [Rig foundation](rig-foundation.md) | Implemented A1 semantic anatomy/profiles, pose and socket APIs, ECS ownership, compatibility/final-writer boundaries and parity/cost verification. |
+| [Rig solver](rig-solver.md) | Implemented A2 coordinated body/limb IK, target spaces and priorities, binding-compatible scale, singular projections, operation budgets and actual-mesh verification. |
+| [Rig grounding](rig-grounding.md) | Implemented A3 living pose/contact migration, slope-aware soles, fixed gameplay anchor, bounded final-surface checks, presentation snapshots and reset/death handoff. |
 | [Effect refactor plan](effect-refactor-plan.md) | Planned composable generation stages, typed failures and bounded local tracing, with a separate run-scope follow-up. Scheduled after the animation/death-physics queue and before further procedural-feature expansion. |
 | [Procedural content improvement plan](procedural-content-improvement-plan.md) | Shared keep identities, composed scenes, memorable inhabitants, discoveries, adventure grammars, and seed-review tooling. Further feature expansion follows the Effect generation adoption gate. |
 | [Encounter narrative design notes](encounter-narrative-design-notes.md) | Jon Ingold's Narrative Sorcery talk: order-independent encounters, defensive logic, player knowledge, consequences, and a proposed watchkeeper scenario. |

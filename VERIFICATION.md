@@ -4,6 +4,142 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### A3 — live locomotion and grounding migration — 2026-11-20 (verified, independent review READY)
+
+Living player/enemy rigs now compose semantic poses and coordinated sole targets through
+`GroundedLocomotion`, owned by `rigPose`. The gameplay root stays at authoritative elevation;
+pelvis pose carries bob, running lift and capped corpse assistance. Stance/swing/flight plans,
+slope-oriented soles and final footprint checks run inside the four-pass solver budget. See
+[docs/rig-grounding.md](docs/rig-grounding.md) for ownership, limits and A4 handoff.
+
+**Observed reds and fixes:** the first test failed on missing grounding. Initial browser traversal
+found **0.487658-unit** uphill skeleton penetration: stacking a full swing lift on a high corpse
+pushed the short leg into its singular fallback. Taking the maximum of swing/obstacle clearance
+and checking final ankle references as well as sole corners fixes the crossing. Moving lift beneath
+the anchor required changing the browser oracle to the actual bound hip, while preserving the
+existing lift thresholds. Authored Euler hints/full-range hinge output preserve action tests.
+
+Independent review then reproduced **0.621566-unit** sole movement on an identical repeated release
+frame, and retained hip Z **−0.121431** / thigh yaw **3.098876 rad** through reset/death. Both persisted
+review tests were run red before fixes. A retained input-keyed presentation snapshot now consumes
+contact decisions once; reset and temporary death settling handle all captured hip channels.
+
+**Final checks actually run:**
+
+- `npm run check`: **330 tests / 29.47s native runner elapsed**, typecheck, lint and format
+  (**175 files**) pass. Includes **seven new A3 pure/NullEngine regressions**: continuous multi-profile
+  ramps/corpse edges, fixed root/state preservation, phase/release/reset, repeated sampling, contact
+  refinement budget/stale-best protection, overlap/retirement/full-speed travel and actual adapter
+  reset/death handoff. Complete models remain **22 machines / 105 states / 226 branches**.
+- `npm run build` passes. Main bundle **1,662.86kB / 426.50kB gzip**, including the now-live solver;
+  the existing large-chunk warning remains. The parent did not run a new hosted/Pages deployment.
+- `A0_POSE_REPORT=test-results/animation-review-catalog.json npm run test:rig`: **428 samples /
+  all 30 clips**, **zero difference** in A0 gameplay/movement/action clocks. Pose parity is no longer
+  the migration assertion. Maximum actual drawn sole-corner penetration **2.553039750718966e−7**,
+  planted-sole drift **4.315629370066428e−6**, semantic FK/bound-joint mismatch
+  **5.644070261669216e−6**. Catalog terrain-query maximum **38 per actor**. Identity, shadows,
+  observation references, actual ray selection, current-position terrain lookup and history pass.
+- Existing `test:animation` passes moving flat/sloped/rotated corpse crossings, gait/action/jump,
+  skeleton sequences and reset checks. `test:movement` passes **16** checks; `test:jump` passes **8**.
+  `test:production` passes **five** local root checks, zero browser/network errors, no development
+  hooks or external requests. Suites ran sequentially after final source fixes.
+- Selected motion review: **eight clips / 16 camera replays**, matching snapshots between gameplay
+  and side views. Travel, lurch, stairs both ways, corpse traversal, jump, hide/peek and retreat.
+  Normal then quarter-speed generated-viewer playback exercised; two side sheets and dense
+  animation/skeleton captures inspected. Playback is 60 Hz simulation sampled at 10 Hz, not a
+  claim of every-frame human motion review. Historical A0 catalog JSON was preserved.
+- **2,291 meshes / 397 nodes / 28 materials / 4 textures / 5,767 entities** remain stable through
+  the workload and three regenerations. Fixed buffers/request snapshots and cached references reset
+  independently. Corpse-contact height remains **0.46**, visual corpse assistance **0.14**.
+
+**Bounded cost investigation:** initial integrated rig measurement was **2.3971ms mean / 3.60ms p95**,
+above A2's 2.2/3.4ms investigation thresholds. Intermediate standalone baseline runs measured
+**2.545 / 3.50ms** and **2.6592 / 4.60ms**. One bounded CDP CPU sample identified final binding,
+matrix work and validation among the main costs; its instrumented **3.0058 / 5.20ms** is not a
+comparable benchmark. Changes avoid unnecessary authored FK, cull distant corpse boxes once,
+skip obsolete solved-leg Euler hints and use an affine matrix fast path. Independent products,
+including supported aliasing, match the original implementation exactly.
+
+Final integrated 25-rig/four-corpse/four-action-kind workload, **60 warmup +240 measured updates**:
+**1.8625ms mean / 2.50ms p95**, **840 maximum / 516.83 mean terrain lookups/update**. The hard
+per-actor ceilings are **four passes / 16 limb solves / 249 solver joint evaluations / 66 floor /
+74 corpse queries**; running-flight planning can additionally evaluate the 20-joint authored pose.
+Statistical CDP allocation estimate **189,387,920 bytes** at 32KiB sampling includes setup/warmup/
+yields/instrumentation and collected objects. Chromium/SwiftShader, 800×600 CPU fixture; not exact
+allocations, retained heap, portable timing assertions or a GPU/FPS claim. Intermediate timing
+variation prevents attributing an exact speedup to one change.
+
+**Independent review: READY, both blockers cleared.** Initial reviewer probes covered **3,960**
+oblique multi-profile moving samples and **400** additional scale/envelope samples. Follow-up
+verified **zero** sole/knee displacement on the exact release reproduction, **44** snapshot
+invalidations, **640** actual production-animator NullEngine frames with three zero-time repeats
+each, and **48** changed/retired rendered-corpse cases. Repeats performed zero additional solves;
+pose/history/contact state remained stable. Reset/settled hip offsets are anatomical within
+floating-point tolerance, with zero yaw/roll; capture round-trip error is **2.98e−8**. It reused
+broad evidence and ran bounded probes; the parent ran final browser/core/build verification.
+
+**Worst remaining visual issue:** root-mounted/stowed equipment and carry/grip placement. A4 is
+the next migration slice. Capped contact and uncapped drawn-remains diagnostics remain separate;
+this delivery does not claim contacts above the authored corpse-height cap.
+
+### A2 — coordinated full-body target solver — 2026-11-20 (verified, independent review READY)
+
+The reusable pure solver coordinates required sole/grip frames, pelvis/spine/chest/shoulder
+compensation, unequal-length limb IK and periodic joint limits. Every pass validates all final
+end effectors; conflicts return finite residuals and explicit infeasibility. See
+[docs/rig-solver.md](docs/rig-solver.md) for target, scale, singular-projection and ownership contracts.
+Gameplay target planning/migration follows in A3/A4.
+
+**Observed reds and corrections:** the initial test failed on the missing solver module. Review
+reproduced a **0.128-unit** actual sole error from accepted logical-joint shear, a **0.458-unit**
+knee flip across a tiny bend-pole change, preserved-orientation error incorrectly reported as zero,
+zero-weight required contacts silently releasing, a π-boundary knee snap, and cumulative-scale
+failure changing the published result. Four persisted review tests failed before fixes. Recheck
+then found **0.422788 / 0.353553-unit** antipodal-transition/fold-threshold knee jumps; their persisted
+regression failed before replacing quaternion interpolation/hard switching with continuous goal
+direction regularization. Invalid scales are now rejected up front, including unrenderable shear.
+
+**Checks actually run:**
+
+- **14 new pure tests**; **968** temporal turn/step samples against independent Babylon FK,
+  **300** actual bound endpoint comparisons for root/spine/combined nonuniform scaling, maximum
+  mismatch **1.7858754167897082e−7**. Tests also cover singularities, opposite poles, limits,
+  priority/weight conflicts, spaces/socket bases, release, finite residuals and idempotence.
+- `npm test`: **323 pass / 28.15s native test-runner elapsed**. Complete machine coverage remains
+  **22 machines / 105 states / 226 branches**. Lint first rejected two unnecessary spreads in
+  test snapshots; the corrections pass focused tests and lint. Typecheck, format (**172 files**)
+  and build pass; the existing Vite bundle warning remains.
+- Final `npm run test:rig:solver`: **1,210 samples** across player, skeleton, goblin and both kobold
+  roles, each with planted support/turning and a sloping one-foot step plus two grips. Actual
+  mesh sole error **6.2478e−8**, forearm-end/grip error **0.009901774**, sole orientation error
+  **8.9407e−8 rad**, worst drawn sole-corner penetration **6.7480e−8**. Repeated zero-time
+  solves/rendering preserve pose/history and actor positions. Zero browser errors.
+- Normal then quarter-speed sampled replay exercised; front, side and actual gameplay-view
+  captures inspected. The existing `npm run test:animation` passes start/stop, gait, actions,
+  jump/landing, corpse contact, skeleton and reset checks; pose/contact sheets were inspected.
+- **2,291 meshes / 397 nodes / 28 materials / 4 textures / 5,767 entities** plateau after helper
+  disposal and three same-seed regenerations. One iteration failed because the initial world was
+  unpinned; the browser fixture now explicitly regenerates `MOURNING-731` before comparison.
+- Final isolated 25-rig solver workload, 60 warmup +240 measured updates: **1.185ms mean / 2.20ms
+  p95**, observed **2 passes / 8 limb solves / 147 joint evaluations**, zero terrain queries.
+  Mandatory per-call ceilings are **4 / 16 / 249 / 0**. An initial redundant-FK implementation
+  measured **2.2425 / 3.00ms**; limiting intermediate evaluations to affected ancestors reduces work.
+  Separate final A0 animation workload: **1.2208 / 1.90ms**, **42 terrain lookups/update**. A3 must
+  measure its actual combined migrated pipeline; these timings are not additive/integrated proof.
+- Chromium/SwiftShader, 800×600 CPU fixtures; no GPU/FPS claim. Statistical allocated-byte estimate
+  **80,504,464** at a 32KiB interval includes setup/target sampling/yields and collected objects,
+  not exact allocations or retained heap. Reports/captures remain ignored under `test-results/`.
+
+**Independent review: READY, all blockers cleared.** Reviewer reran the **14 focused tests** and
+independent Babylon-FK continuity probes. The exact antipodal/fold reproductions now move the knee
+by **7.45e−8 / 1.23e−7**, with bounded azimuth/fold-neighborhood sweeps also continuous. It rechecked
+scale/binding, orientation, weight/release, periodic limits and invalid-input result preservation.
+The reviewer reused broad evidence; the parent performed the final browser/core/build verification.
+
+**Worst remaining visible issue:** legacy sword/pipe attachments overlap the two-grip test frame.
+A4 migrates equipment and action attachment authoring. A2 establishes the solver/mesh contract;
+the sampled replays/captures do not establish final migrated gameplay acting quality. A3 is next.
+
 ### A1 — shared humanoid definitions and bindings — 2026-11-20 (verified, independent review READY)
 
 All **25 actors** now use the shared 20-joint humanoid definition, species profiles, numerical

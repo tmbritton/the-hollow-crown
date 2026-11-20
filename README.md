@@ -83,8 +83,10 @@ Use the actual run ID from the listing. After future deployments, record the dep
 workflow URL and hosted smoke result in `VERIFICATION.md`. P7 is complete. The planned
 [animation foundation](docs/animation-roadmap.md) has begun: **A0 motion review is implemented and
 independently reviewed READY**, and **A1's shared rig foundation is implemented and reviewed READY**.
-A2 coordinated full-body IK is next, then A3–A7, P8 directional ragdolls and P9 skeleton debris.
-See the [A0 baseline](docs/animation-baseline.md) and [A1 architecture](docs/rig-foundation.md).
+**A2's coordinated solver and A3's locomotion/contact migration are also implemented and independently reviewed READY.**
+A4 action/equipment/work/social migration is next, then A5–A7, P8 directional ragdolls and P9 skeleton debris.
+See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
+[A2 solver contracts](docs/rig-solver.md), and [A3 live grounding](docs/rig-grounding.md).
 
 ## Play
 
@@ -179,13 +181,14 @@ The adventurer briefly loads against travel before pushing off, then braces, rec
 Characters turn toward measured velocity and lean into acceleration, braking and turns. Articulated knees and two-bone leg solving keep stance feet near sampled ground heights, with short world-space foot plants released at reach limits or action changes. Running bounce follows cadence and gravity. Analytic damped springs absorb landing speed, ease cover crouches, and carry cape motion through interruptions. Sword interpolation carries velocity through contact instead of stopping at every intermediate pose. The overhead camera and ground ring follow the support plane through jumps.
 
 Corpse contact samples the actual oriented voxel boxes after the death pose settles (0.62s).
-The shared foot solver takes the highest nearby surface, adds swing-phase clearance, and rechecks
-the final reachable foot after leg solving, including retained plants and running-flight poses.
-The analytic leg inverse matches the rig's hip X/Z and knee X rotation order, with bounded reach
-and stable lateral contact even at zero down-distance on stairs.
-It uses a small visual pelvis rise for knee room. Corpse contact is capped at 0.46 units and pelvis
-assistance at 0.14; overlapping bodies cannot accumulate height. These are render-only adjustments: floor
-support, camera/rings, navigation, jump state and melee/projectile elevation remain unchanged.
+The shared rig planner builds stance/swing/flight sole targets, tilts feet to terrain slopes and
+checks final drawn sole corners after coordinated body/limb solving. World plants track the sole
+centre and release explicitly at reach/turn limits. Running flight and real jumps retain their
+authored poses. Contact corrections share a four-pass budget; repeated inspection reads the same
+completed presentation snapshot. Corpse contact is capped at 0.46 units and visual pelvis assistance
+at 0.14; overlapping bodies cannot accumulate height. Bob/lift/assistance sit beneath the fixed
+gameplay root. Floor support, camera/rings, navigation, jump state and melee/projectile elevation
+remain authoritative. See [the grounding contract](docs/rig-grounding.md).
 
 ### Enemies and combat
 
@@ -282,7 +285,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
 | `src/machines/actors/defense.ts` | Opt-in held-defense lifecycle and 120° incoming-direction test |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
-| `src/rigs/` | Shared semantic humanoid definitions/profiles, quaternion pose/FK buffers, sockets, numerical legacy bridge and final mesh bindings |
+| `src/rigs/` | Shared humanoid definitions/profiles, quaternion pose/FK, live locomotion/grounding planner, bounded target solver/residuals, compatibility bridge and final mesh bindings |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
 | `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original role/slot references, bounded physical rank assembly, shared attack/opening phases and unit withdrawal |
 | `src/attackKinds.ts` / `src/phalanxPoses.ts` | Shared action geometry/timing contracts and simulation-clock-sampled spear/throw presentation |
@@ -307,7 +310,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/locomotion.ts` | Movement speeds, acceleration/deceleration, and procedural start/travel/stop animation |
 | `src/skeletonGait.ts` | Stateless distance-sampled skeleton lurch and shared stance/swing phase mapping |
 | `src/jump.ts` | Frame-rate-independent jump trajectory, preload, airborne elevation and landing impacts |
-| `src/footPlacement.ts` | Bounded stance anchors, floor sampling and two-bone leg solving |
+| `src/footPlacement.ts` | Historical analytic leg/contact regression reference; live contacts use `src/rigs/grounding.ts` |
 | `src/animationCurves.ts` / `src/actionPoses.ts` | Smooth/velocity-continuous curves, analytic springs, volume-preserving deformation, jump/attack/death/social poses |
 | `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
@@ -402,7 +405,15 @@ inventory](docs/animation-baseline.md) for commands, measurements and qualificat
 `npm run test:rig` checks the shared rig's actual mesh/FK agreement, render-registration identity,
 selection, current-position terrain lookup and regeneration costs. With a preserved historical A0
 report, `A0_POSE_REPORT=test-results/animation-review-catalog.json npm run test:rig` also compares
-all 30 motion clips. See [the rig foundation](docs/rig-foundation.md) for ownership and APIs.
+all 30 clips' authoritative movement/action clocks. A3 intentionally changes their rendered poses.
+The rig suite now also checks final sole corners, sole-centred plants and contact budgets. See
+[the rig foundation](docs/rig-foundation.md) and [live grounding](docs/rig-grounding.md).
+
+`npm run test:rig:solver` exercises A2's simultaneous feet/grips and turning/sloped-step fixtures
+through existing mesh bindings for all five profiles/roles. It checks final drawn contacts,
+repeat application, 25-rig solve costs and regeneration; pure tests cover singularity/constraint policies. See
+[the solver contract](docs/rig-solver.md). A3 connects gameplay locomotion and contact targets;
+A4 continues action/equipment migration.
 
 ### Entity/component architecture
 
@@ -421,10 +432,10 @@ outcomes after hazards, before respawn. Every ordinary world installs the compos
 Components describe transform, health, actor capabilities, movement, navigation, attack state, AI, interaction intent, corpse state, collision adapters, render rigs, and effects. Indexed queries visit only entities with the requested components; adding/removing components updates those indexes immediately. `Actor` is a checked view over these components, not an inheritance hierarchy or another copy of state.
 
 Every rendered actor now owns a `rigPose` component: a shared immutable humanoid definition,
-independent numerical pose/history buffers and the binding to its existing geometry. Legacy
-animation and foot-contact samplers write numerical channels; the binding performs final mesh
-application. Logical hand/head joints and grip/sole frames add no scene nodes. Both kobold roles
-share anatomy, while equipment attachments retain their current presentation until A4.
+independent numerical pose/history buffers, the locomotion/contact planner, and the binding to
+existing geometry. Living motion produces canonical poses and sole targets; the binding performs
+final mesh application. Action/death compatibility channels remain for A4. Logical hand/head
+joints and grip/sole frames add no scene nodes. Both kobold roles share anatomy.
 
 ```ts
 import { Health } from './src/machines/actors/health.ts';

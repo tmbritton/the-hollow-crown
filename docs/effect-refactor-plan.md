@@ -2,8 +2,8 @@
 
 **Status:** planned; no production adoption has started. **Date:** 2026-11-20.
 
-**Scheduling:** complete the current animation work first. A2 remains next, followed by the
-existing A3–A7 and P8/P9 sequence in the [implementation path](implementation-path.md).
+**Scheduling:** complete the current animation work first. A2/A3 are delivered; continue the
+existing A4–A7 and P8/P9 sequence in the [implementation path](implementation-path.md).
 Schedule EF0–EF4 below **before the next expansion of procedurally generated features**—new
 scene recipes, keep variants, adventure grammars, or generated encounters/objectives. The default
 insertion point is after P9; if content work is rescheduled, carry this prerequisite with it.

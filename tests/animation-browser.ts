@@ -392,6 +392,15 @@ try {
           ? V.TransformNormal(new V(0, 0, 1), stock.getWorldMatrix()).normalize()
           : null;
         const scale = rig.root.scaling;
+        const grounding = actor.entity.require('rigPose').grounding;
+        // A3 keeps the root at authoritative elevation. Measure the visual lift from the actual
+        // bound hip relative to its authored bob, including the solver's body compensation.
+        const visualLift = grounding.active
+          ? rig.legs[0].getAbsolutePosition().y -
+            grounding.authored.local[grounding.authored.definition.index.pelvis].position.y *
+              scale.y +
+            grounding.visualLift
+          : rig.root.position.y;
         const result = {
           scale: scale.asArray(),
           volume: scale.x * scale.y * scale.z,
@@ -399,7 +408,8 @@ try {
           elbow: rig.forearms[1].rotation.x,
           arm: rig.arms[1].rotation.x,
           leg: rig.legs[0].rotation.x,
-          lift: rig.root.position.y,
+          lift: visualLift,
+          anchorHeight: rig.root.position.y,
           x: rig.root.position.x,
           z: rig.root.position.z,
           cape: rig.cape?.rotation.x,
@@ -423,6 +433,12 @@ try {
     assert.ok(Math.abs(result.volume - 1) < 1e-10);
     assert.equal(result.x, 0);
     assert.equal(result.z, 0);
+    if (clip !== 'death')
+      assert.equal(
+        result.anchorHeight,
+        result.elevation,
+        'grounding never moves the gameplay root',
+      );
     assert.ok(result.scale.every((value) => value > 0 && Number.isFinite(value)));
     captures.push({ title, image: (await page.screenshot()).toString('base64') });
     if (clip === 'run' && kind === 'player') {

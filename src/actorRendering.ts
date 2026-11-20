@@ -1,5 +1,5 @@
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder.js';
 import type { Scene } from '@babylonjs/core/scene';
 import { Actor } from './actors.ts';
 import type { Components, ECS } from './ecs.ts';
@@ -17,15 +17,15 @@ import { volumeScale } from './animationCurves.ts';
 import { heightAt, tileAt } from './world.ts';
 import type { NavigationWorld } from './navigation.ts';
 import { hackySackPass, isSocializing } from './social.ts';
-import '@babylonjs/core/Collisions/collisionCoordinator';
+import '@babylonjs/core/Collisions/collisionCoordinator.js';
 import type { Spawn } from './worldTypes.ts';
-import { placeFeet } from './footPlacement.ts';
 import { readCorpseTerrain } from './corpseRendering.ts';
 import { skeletonLurch } from './skeletonGait.ts';
 import { ATTACKS } from './attackKinds.ts';
 import { spearPose } from './phalanxPoses.ts';
 import { rigBinding } from './rigs/bindings.ts';
 import { profiles } from './rigs/humanoid.ts';
+import { copyLocal } from './rigs/ikMath.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -62,6 +62,7 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
 export function resetActorRig(renderRig: Components['rig'], position?: Spawn): void {
   const binding = rigBinding(renderRig),
     rig = binding.legacy;
+  binding.grounding.reset();
   binding.begin(0);
   if (position) rig.root.position.set(position.x, position.h, position.z);
   rig.root.rotation.x = rig.root.rotation.z = 0;
@@ -77,7 +78,8 @@ export function resetActorRig(renderRig: Components['rig'], position?: Spawn): v
   rig.javelin?.setEnabled(false);
   for (const limb of [...rig.arms, ...rig.forearms, ...rig.legs, ...rig.knees, ...rig.feet])
     limb.rotation.setAll(0);
-  for (const leg of rig.legs) leg.position.y = 0.55;
+  for (let i = 0; i < rig.legs.length; i++)
+    rig.legs[i].position.set((i ? 1 : -1) * binding.pose.definition.profile.hipWidth, 0.55, 0);
   for (const plant of rig.footPlants) plant.anchor = null;
   if (rig.cape) rig.cape.rotation.x = -0.16;
   rig.attackBlend = rig.socialBlend = 0;
@@ -126,6 +128,10 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       binding = entity.require('rigPose'),
       rig = binding.legacy,
       p = actor.position;
+    if (entity.has('corpse') && binding.grounding.active) {
+      binding.captureLegacy();
+      binding.grounding.reset();
+    }
     binding.begin(dt);
     rig.root.position.set(p.x, actor.elevation, p.z);
     const turn = Math.atan2(
@@ -169,8 +175,15 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       for (const arm of rig.forearms) arm.rotation.x *= 1 - settle;
       rig.legs.forEach((leg, i) => {
         leg.rotation.x += ((i ? 0.2 : -0.2) - leg.rotation.x) * settle;
+        leg.rotation.y *= 1 - settle;
         leg.rotation.z *= 1 - settle;
-        leg.position.y += (0.55 - leg.position.y) * settle;
+        const hip = (i ? 1 : -1) * binding.pose.definition.profile.hipWidth;
+        if (settle === 1) leg.position.set(hip, 0.55, 0);
+        else {
+          leg.position.x += (hip - leg.position.x) * settle;
+          leg.position.y += (0.55 - leg.position.y) * settle;
+          leg.position.z *= 1 - settle;
+        }
         rig.knees[i].rotation.x *= 1 - settle;
         rig.feet[i].rotation.scaleInPlace(1 - settle);
         rig.footPlants[i].anchor = null;
@@ -345,29 +358,36 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       pose.rightKnee *= 0.65;
       pose.lean *= -0.5;
     }
-    const scale = volumeScale(pose.stretch, pose.reach);
-    rig.root.scaling.set(scale.x, scale.y, scale.z);
-    rig.root.position.y += pose.lift;
-    placeFeet(actor, rig, pose, world, corpses);
+    const grounding = binding.grounding;
+    // Preserve the authored Euler branch as a binding hint while A4 action adapters still read
+    // these channels. The binding uses it only when it matches the final solved matrix.
     rig.arms[0].rotation.x = pose.leftArm;
     rig.arms[1].rotation.x = pose.rightArm;
-    rig.forearms[0].rotation.x = -pose.leftElbow;
-    rig.forearms[1].rotation.x = -pose.rightElbow;
     rig.arms[0].rotation.z = -pose.armSpread;
     rig.arms[1].rotation.z = pose.armSpread;
-    rig.body.rotation.x = pose.lean;
-    rig.body.rotation.y = pose.twist;
-    rig.body.rotation.z = pose.roll;
-    rig.body.position.y = pose.bob;
+    rig.forearms[0].rotation.x = -pose.leftElbow;
+    rig.forearms[1].rotation.x = -pose.rightElbow;
+    rig.body.rotation.set(pose.lean, pose.twist, pose.roll);
+    grounding.armYaw[0] = rig.arms[0].rotation.y;
+    grounding.armYaw[1] = rig.arms[1].rotation.y;
+    grounding.head.setAll(0);
     if (rig.head) {
       const lurch = skeletonLurch(dynamics.stride);
       const weight =
         actor.kind !== 'skeleton' || actor.jump.active
           ? 0
           : dynamics.blend * (1 - rig.attackBlend) * (1 - rig.socialBlend);
-      rig.head.rotation.set(lurch.headPitch * weight, 0, lurch.headRoll * weight);
+      grounding.head.set(lurch.headPitch * weight, 0, lurch.headRoll * weight);
     }
     if (rig.cape) rig.cape.rotation.x = pose.cape;
-    binding.commit();
+    const solved = grounding.sample(actor, pose, rig.root.rotation.y, world, corpses);
+    rig.root.scaling.copyFrom(solved.pose.local[0].scale);
+    // A4 retains the current equipment frame until its grips migrate; lift is now beneath the
+    // gameplay anchor, so root-mounted presentation receives the equivalent local offset.
+    for (const item of [rig.shield, rig.spear, rig.javelin])
+      if (item?.parent === rig.root)
+        item.position.y += grounding.visualLift / solved.pose.local[0].scale.y;
+    copyLocal(solved.pose.local, binding.pose.local);
+    binding.apply();
   }
 }

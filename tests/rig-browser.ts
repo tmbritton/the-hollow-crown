@@ -172,7 +172,10 @@ try {
     'terrain follows current motor position before rig application',
   );
   let samples = 0,
-    maximumJointError = 0;
+    maximumJointError = 0,
+    maximumSolePenetration = 0,
+    maximumPlantError = 0,
+    maximumTerrainQueries = 0;
   const frames = [];
   for (const item of catalog) {
     const name = `${item.profile}/${item.clip}`;
@@ -207,17 +210,59 @@ try {
             );
           }
         }
-        return { snapshot, error };
+        const grounding = binding.grounding;
+        let penetration = 0,
+          plantError = 0;
+        if (grounding.active) {
+          for (let i = 0; i < snapshot.feet.length; i++) {
+            if (grounding.contacts[i].target.release) continue;
+            for (const clearance of snapshot.feet[i].cornerClearances)
+              if (clearance) penetration = Math.max(penetration, -clearance.bounded);
+            plantError = Math.max(plantError, snapshot.feet[i].anchorError ?? 0);
+          }
+          if (
+            grounding.result.passes > 4 ||
+            grounding.result.limbSolves > 16 ||
+            grounding.terrainQueries > 66 ||
+            grounding.corpseQueries > 74
+          )
+            throw new Error('Grounding exceeded its per-actor budget');
+        }
+        return { snapshot, error, penetration, plantError, queries: grounding.terrainQueries };
       });
       assert.ok(result.error < 1e-5, `${name}/${frame} joint error ${result.error}`);
       maximumJointError = Math.max(maximumJointError, result.error);
+      assert.ok(
+        result.penetration <= 0.001,
+        `${name}/${frame}: sole penetration ${result.penetration}`,
+      );
+      assert.ok(result.plantError <= 0.02001, `${name}/${frame}: plant drift ${result.plantError}`);
+      maximumSolePenetration = Math.max(maximumSolePenetration, result.penetration);
+      maximumPlantError = Math.max(maximumPlantError, result.plantError);
+      maximumTerrainQueries = Math.max(maximumTerrainQueries, result.queries);
       samples++;
-      if (baseline.size)
-        compare(
-          result.snapshot,
-          baseline.get(name)!.find((f) => f.frame === frame)!.pose,
-          `${name}/${frame}`,
-        );
+      if (baseline.size) {
+        const expected = record(baseline.get(name)!.find((f) => f.frame === frame)!.pose),
+          actual = record(result.snapshot);
+        // A3 deliberately changes presentation. Retain A0's authoritative motor/action/gait trace.
+        for (const key of [
+          'id',
+          'kind',
+          'position',
+          'alive',
+          'enabled',
+          'speed',
+          'stride',
+          'jump',
+          'defending',
+          'attack',
+          'work',
+          'behavior',
+          'corpseAge',
+          'squad',
+        ])
+          compare(actual[key], expected[key], `${name}/${frame}/${key}`);
+      }
       frames.push({ name, frame, pose: result.snapshot });
       if (
         frame === 30 &&
@@ -278,7 +323,7 @@ try {
     window.rigIdentityCheck!();
     delete window.rigIdentityCheck;
   });
-  assert.equal(cost.maxTileQueries, 42, 'A1 bridge adds no contact queries');
+  assert.ok(cost.maxTileQueries <= 25 * 66, 'bounded A3 planning/final-contact queries');
   const resets = [];
   for (let i = 0; i < 3; i++) {
     await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
@@ -309,6 +354,11 @@ try {
         baselineCompared: baseline.size > 0,
         maximumDifference,
         maximumJointError,
+        maximumSolePenetration,
+        maximumPlantError,
+        maximumTerrainQueries,
+        baselineScope:
+          'authoritative gameplay and travel-driven animation clocks; A3 intentionally changes rendered poses',
         identityPreserved: true,
         selectionPassed: true,
         boundaries,

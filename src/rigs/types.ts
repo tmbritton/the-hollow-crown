@@ -30,6 +30,8 @@ export interface RigProfile {
   readonly shoulderHeight: number;
   readonly headHeight: number;
   readonly soleForward: number;
+  readonly soleHalfWidth: number;
+  readonly soleHalfDepth: number;
   readonly gait: 'ordinary' | 'skeleton';
   /** Authored gait normalization, not authoritative motor speed. */
   readonly gaitSpeed: number;
@@ -38,7 +40,7 @@ export interface JointDefinition {
   readonly name: JointName;
   readonly parent: number;
   readonly rest: XYZ;
-  /** Local primary axis / intrinsic Y-X-Z Euler limits in radians; metadata until A2. */
+  /** Local primary axis / intrinsic Y-X-Z Euler limits in radians, enforced by target solving. */
   readonly axis: XYZ;
   readonly limits: readonly [
     readonly [number, number],

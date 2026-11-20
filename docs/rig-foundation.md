@@ -1,7 +1,10 @@
 # A1 — shared humanoid rig foundation
 
 **2026-11-20. Implemented; independent review READY.** Builds on the
-[A0 baseline](animation-baseline.md). The next slice is A2's coordinated full-body target solver.
+[A0 baseline](animation-baseline.md). A2's [coordinated target solver](rig-solver.md) is now delivered;
+A3's [locomotion/contact migration](rig-grounding.md) is also delivered; A4 is next. The
+architecture/evidence below records the A1 checkpoint. A3 replaces living legacy leg writes with
+semantic poses/targets while retaining the compatibility boundary for A4.
 
 ## Contracts and ownership
 

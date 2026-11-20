@@ -9,16 +9,18 @@ import {
   createPose,
   evaluatePose,
   inverse,
-  multiply,
+  multiplyAffine as multiply,
   resetHistory,
   setEuler,
 } from './pose.ts';
 import { LegacyNode, sampleLegacy } from './legacy.ts';
 import type { LegacyRig } from './legacy.ts';
+import { GroundedLocomotion } from './grounding.ts';
 
 export interface RigBinding {
   readonly pose: PoseBuffer;
   readonly legacy: LegacyRig;
+  readonly grounding: GroundedLocomotion;
   readonly attachments: readonly {
     name: string;
     space: 'attachment-local';
@@ -28,6 +30,8 @@ export interface RigBinding {
   begin(dt: number): void;
   invalidateHistory(): void;
   commit(reset?: boolean): void;
+  /** Temporary A4 death handoff: capture the current binding output into legacy channels once. */
+  captureLegacy(): void;
   apply(): void;
 }
 const bindings = new WeakMap<Components['rig'], RigBinding>();
@@ -48,6 +52,7 @@ export function bindHumanoid(
   if (bindings.has(rig)) throw new Error('Humanoid rig already bound');
   if (rig.root.parent) throw new Error('Actor anchor must be a scene root');
   const nodes = new Map<Node, LegacyNode>();
+  const channels: { node: TransformNode; data: LegacyNode }[] = [];
   const numeric = (node: TransformNode): LegacyNode => {
     const existing = nodes.get(node);
     if (existing) return existing;
@@ -57,6 +62,7 @@ export function bindHumanoid(
     data.scaling.copyFrom(node.scaling);
     data.enabled = node.isEnabled(false);
     nodes.set(node, data);
+    channels.push({ node, data });
     return data;
   };
   const optional = (node: TransformNode | undefined) => (node ? numeric(node) : undefined);
@@ -95,6 +101,7 @@ export function bindHumanoid(
     });
   for (const key of ['attackBlend', 'attackPose', 'socialBlend', 'socialPose'] as const) alias(key);
   const pose = createPose(humanoid(profile));
+  const grounding = new GroundedLocomotion(pose.definition, rig.footPlants);
   sampleLegacy(legacy, pose);
   evaluatePose(pose);
   const scratch: JointPose = {
@@ -164,7 +171,7 @@ export function bindHumanoid(
   const extras = [rig.cape, rig.shield, rig.spear, rig.javelin].filter(
     (node): node is TransformNode => !!node,
   );
-  const visibility = [...nodes].filter(([node]) => node !== rig.root && node !== rig.body);
+  const visibility = channels.filter(({ node }) => node !== rig.root && node !== rig.body);
   const writeMatrix = (entry: Entry) => {
     const m = local,
       p = entry.pivot,
@@ -175,19 +182,31 @@ export function bindHumanoid(
       sz = Math.hypot(m[8], m[9], m[10]);
     if (Math.min(sx, sy, sz) < 1e-9 || !Number.isFinite(sx + sy + sz))
       throw new Error('Invalid binding scale');
-    setEuler(scratch, hint.rotation.x, hint.rotation.y, hint.rotation.z);
-    scratch.scale.copyFrom(hint.scaling);
-    scratch.position.setAll(0);
-    compose(scratch, hintMatrix);
-    let same = true;
-    for (let col = 0; col < 3; col++)
-      for (let row = 0; row < 3; row++)
-        if (Math.abs(m[col * 4 + row] - hintMatrix[col * 4 + row]) > 1e-10) same = false;
+    // Solved A3 legs have no authored Euler branch to preserve. Avoid reconstructing and
+    // comparing the obsolete legacy leg hint on every final application.
+    let same = !(grounding.active && entry.joint >= pose.definition.index.leftThigh);
+    if (same) {
+      setEuler(scratch, hint.rotation.x, hint.rotation.y, hint.rotation.z);
+      scratch.scale.copyFrom(hint.scaling);
+      scratch.position.setAll(0);
+      compose(scratch, hintMatrix);
+      for (let col = 0; col < 3; col++)
+        for (let row = 0; row < 3; row++)
+          if (Math.abs(m[col * 4 + row] - hintMatrix[col * 4 + row]) > 1e-10) same = false;
+    }
     if (same) {
       node.rotation.set(hint.rotation.x, hint.rotation.y, hint.rotation.z);
       sx = hint.scaling.x;
       sy = hint.scaling.y;
       sz = hint.scaling.z;
+    } else if (
+      (pose.definition.joints[entry.joint].name.endsWith('Shin') ||
+        pose.definition.joints[entry.joint].name.endsWith('Forearm')) &&
+      Math.max(Math.abs(m[1]), Math.abs(m[2]), Math.abs(m[4]), Math.abs(m[8])) < 1e-9
+    ) {
+      // The logical hinge has a full signed X range. Canonical Y-X-Z decomposition would turn
+      // a folded knee into an equivalent small X plus π yaw/roll, obscuring its actual bend.
+      node.rotation.set(Math.atan2(m[6] / sy, m[5] / sy), 0, 0);
     } else {
       const pitch = Math.asin(Math.max(-1, Math.min(1, -m[9] / sz)));
       const yaw =
@@ -208,6 +227,7 @@ export function bindHumanoid(
   const binding: RigBinding = {
     pose,
     legacy,
+    grounding,
     attachments: [
       ...(rig.shield
         ? [
@@ -239,7 +259,16 @@ export function bindHumanoid(
       legacy.root.rotation.copyFrom(rig.root.rotation);
     },
     invalidateHistory() {
+      if (grounding.active) binding.captureLegacy();
+      grounding.reset();
       resetPending = true;
+    },
+    captureLegacy() {
+      for (const { node, data } of channels) {
+        data.position.copyFrom(node.position);
+        data.rotation.copyFrom(node.rotation);
+        data.scaling.copyFrom(node.scaling);
+      }
     },
     commit(reset = false) {
       sampleLegacy(legacy, pose);
@@ -262,7 +291,7 @@ export function bindHumanoid(
         node.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
         node.scaling.set(data.scaling.x, data.scaling.y, data.scaling.z);
       }
-      for (const [node, data] of visibility) node.setEnabled(data.enabled);
+      for (const { node, data } of visibility) node.setEnabled(data.enabled);
       if (resetPending) {
         resetHistory(pose);
         resetPending = false;

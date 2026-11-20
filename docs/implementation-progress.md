@@ -26,12 +26,16 @@ Execution record for [implementation path](implementation-path.md). Started **20
    The public repository and HTTPS Pages demo are live. GitHub run **44745698117** succeeded;
    the parent's actual hosted smoke passed **five checks with zero errors**, with reviewed captures.
    **T2 faster test feedback and A0 motion review are implemented and verified, independent review READY.**
-   **A1 shared rig definitions/bindings is complete and independently reviewed READY; A2 is next.** Full-body IK, articulated tails, animation migration,
+   **A1 shared rigs, A2 coordinated solver and A3 locomotion/grounding are complete and independently reviewed READY.**
+   A2 implements the bounded numerical target solver and existing-mesh browser fixtures, including
+   simultaneous feet/grips, body correction, orientation, limits and explicit infeasibility.
+   A3 now supplies live semantic poses, slope-aware sole targets and bounded final-contact checks.
+   **A4 action/equipment/work/social migration is next.** Articulated tails,
    shield reaction and death physics remain planned. See [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **Effect adoption is planned before the next procedural-feature expansion.** Continue A2–A7
+- **Effect adoption is planned before the next procedural-feature expansion.** Continue A4–A7
   and P8/P9 first. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
   The source evaluation/scratch prototype does not constitute production implementation.
@@ -145,8 +149,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P7 | Complete; public repository and hosted demo verified; independent prepublish review READY | Real project-path browser rejected root-built `/assets/index-…js` before Pages build fix | Local 315 tests/full checks/build and independent probes pass. GitHub run 44745698117 succeeds (build 8m 47s, deploy 15s), including CI root/project smokes. Parent's actual hosted smoke: five checks, zero errors; hosted lowered/defending captures reviewed | `3934e17` |
 | T2 | Implemented and verified; independent review READY | Profile: 315 tests / 303.11s; broad seed/timing sweeps, repeated route searches and exhaustive model prefixes dominate | At T2 checkpoint: core 301 / 26.79s, full 319 / 301.57s; all original contracts retained, models 22/105/226 plus 8,206 extended work paths | `e86dd09` |
 | A0 | Complete; independent review READY | Browser red at missing `animation.pause`; review exposed reset freeze, abbreviated opening and capped diagnostic surface | 302 core tests, format/lint/build; controls and 25-actor baseline, 30 clips/60 views/856 samples, existing animation and root production smoke; review corrections independently cleared | `e86dd09` |
-| A1 | Complete; independent review READY | Missing rig/binding module reds; actual entering/leaving-lava regression failed before authoritative-position fix | 309 core tests; format/lint/build; 428 A0-matched samples, identity/selection/history/resource checks; animation, movement16, jump8, production5 pass; independent matrix/socket/invalid-input probes pass | Containing delivery |
-| A2–A7 | Planned after A1 | Coordinated full-body IK, animation migration, tailed kobolds, shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
+| A1 | Complete; independent review READY | Missing rig/binding module reds; actual entering/leaving-lava regression failed before authoritative-position fix | 309 core tests; format/lint/build; 428 A0-matched samples, identity/selection/history/resource checks; animation, movement16, jump8, production5 pass; independent matrix/socket/invalid-input probes pass | `d23ced6` |
+| A2 | Complete; independent review READY | Missing solver module, then persisted scale/reporting/limit/pole/fold review reds | 323 core tests; typecheck/lint/format/build; 968 FK, 300 scaled-binding and 1,210 browser samples; animation pass, captures reviewed, resource plateau; independent continuity probes clear blockers | Containing delivery |
+| A3 | Complete; independent review READY | Missing grounding module; high stacked corpse/swing lift; preserved release-frame and hip reset/death regressions failed before fixes | 330 tests; format/lint/build; 428 A0-identical authority samples, bounded final contacts; animation/movement16/jump8/production5; 1.863/2.50ms integrated CPU; independent lifecycle/geometry review READY | Containing delivery |
+| A4–A7 | Planned after A3 | Action/equipment/work/social migration, tailed kobolds, shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
 | P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 | EF0–EF4 | Planned after the animation/death-physics queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
@@ -154,12 +160,68 @@ Execution record for [implementation path](implementation-path.md). Started **20
 
 ## Work log
 
+### A3 — live locomotion and grounding migration — 2026-11-20
+
+- All living rigs now compose canonical semantic poses and coordinated sole targets. Gait/lurch,
+  acceleration/crouch springs, backsteps and jump/landing keep existing authoritative clocks.
+  Visual bob/lift/corpse assistance moves beneath the fixed gameplay root. See [contract](rig-grounding.md).
+- Slope-aware actual-foot footprints and final corner/ankle checks share the solver's four-pass
+  budget. Plants reference sole centres; stance has higher priority than swing/flight. Foot contact
+  and pelvis assistance retain 0.46/0.14 caps. Terrain/corpse queries are capped at 66/74 per actor.
+- Seven new pure/NullEngine tests pass. Initial red: missing grounding module. Browser iteration
+  caught 0.488-unit uphill skeleton penetration from stacking full swing lift on a high corpse;
+  using maximum clearance and final ankle checks fixes it. The root-lift oracle now reads actual
+  hip lift; equivalent Euler branches preserve existing weapon and hinge tests.
+- Review reproduced **0.622-unit** repeated-sample sole movement on a release frame and retained
+  **−0.121-unit hip Z / 3.099-rad thigh yaw** through reset/death. Persisted regressions failed
+  before fixed-step presentation snapshots and complete hip-channel cleanup. Independent recheck
+  **READY**, including 44 invalidation cases, 640 production frames with repeated zero-time reads,
+  48 rendered-corpse changes and 300 affine products.
+- Final `npm run check`: **330 tests / 29.47s native elapsed**, lint and format (**175 files**);
+  build passes. Models remain **22/105/226**. No production statechart or authoritative rule changes.
+- Final browser sequence: rig **428 samples / 30 clips**, **zero A0 authority drift**;
+  max actual sole penetration **2.553e−7**, sole plant drift **4.316e−6**, FK/binding error
+  **5.644e−6**. Animation, movement **16**, jump **8**, and root production **5** pass.
+- Integrated 25-actor/four-corpse workload is **1.8625ms mean / 2.50ms p95**, with **840** maximum
+  terrain lookups/update. Earlier samples above the investigation threshold prompted bounded CPU
+  sampling, affected-FK work, corpse-envelope filtering and affine/binding optimization. Historical
+  standalone samples and allocation qualifications are retained in VERIFICATION.md.
+- Eight selected clips / 16 camera replays pass; normal then quarter-speed viewer playback was
+  exercised and motion sheets inspected alongside dense gait/contact captures. Original scene
+  resources plateau through three regenerations. Equipment/carry grip placement remains A4's
+  largest visible migration task. This delivery combines A2 and A3.
+
+### A2 — coordinated full-body target solver — 2026-11-20
+
+- Implemented explicit target spaces, weighted priorities, release, bounded body compensation,
+  unequal-length limb IK, socket orientation, joint limits and final residuals. Solver buffers
+  are retained; gameplay/history remain caller-owned. See [contract and scale/fallback policy](rig-solver.md).
+- Initial regression failed on the missing solver. Review then reproduced binding-incompatible
+  logical-joint scaling, bend-pole/fold/antipodal discontinuities, omitted-orientation success,
+  zero-weight required release, π-wrap and cumulative-scale failure. Persisted regressions were
+  run red before fixes. Final independent review **READY**, all blockers cleared.
+- **323 everyday tests / 28.15s native elapsed** pass; typecheck, lint, format (**172 files**) and
+  production build pass. Two redundant test-array spreads were corrected after the lint check;
+  focused regressions and lint/format/typecheck/build passed afterwards. Models remain **22/105/226**.
+- **968** continuous pure samples use independent Babylon FK; **300** supported-scale endpoint
+  comparisons use actual mesh bindings, max mismatch **1.786e−7**. Final Chromium solver pass:
+  **1,210 samples**, max sole error **6.248e−8**, hand error **0.009902**, and corner penetration
+  **6.748e−8**. Repeated rendering/solving and three regenerations pass.
+- Isolated 25-rig solve mean/p95 **1.185 / 2.20ms**, observed **2 passes / 8 limbs / 147 joints**;
+  hard ceiling **4 / 16 / 249**, zero terrain queries. Separate existing A0 workload **1.221 / 1.90ms**,
+  42 terrain lookups. See verification for allocation scope and integrated A3 timing qualification.
+- Existing animation browser passes. Reviewed solver front/side/gameplay and animation captures;
+  legacy sword/pipe placement remains the worst visible equipment issue for A4. One browser
+  iteration caught an unpinned initial world in the resource comparison; explicit seeded regeneration
+  fixes the fixture. Final original scene counts plateau after temporary-helper disposal.
+
 ### Effect adoption plan — 2026-11-20 (planning only)
 
 - Added [effect-refactor-plan.md](effect-refactor-plan.md), preserving the source evaluation's
   findings and defining EF0–EF4 as a pre-content generation refactor, with EF5 scoped separately.
 - User requested scheduling before more procedurally generated features, while continuing the
-  current animation work. A2 remains next; the default insertion point follows A2–A7 and P8/P9.
+   current animation work. A2 was next at this planning checkpoint; the insertion point follows
+   the animation/death-physics queue.
 - The plan covers deterministic stage composition, selective typed failures, fresh attempt state,
   bounded local traces, synchronous API compatibility, cost measurements and per-slice gates.
   Application/dependency adoption remains planned.
