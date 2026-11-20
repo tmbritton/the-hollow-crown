@@ -22,6 +22,15 @@ export const jointNames = [
   'rightFoot',
 ] as const;
 export type JointName = (typeof jointNames)[number];
+export const tailNames = ['tailBase', 'tailMiddle', 'tailEnd', 'tailTip'] as const;
+export type TailName = (typeof tailNames)[number];
+export interface TailSegment {
+  readonly name: TailName;
+  readonly index: number;
+  readonly length: number;
+  readonly width: number;
+  readonly height: number;
+}
 export type SocketName = 'leftGrip' | 'rightGrip' | 'leftSole' | 'rightSole' | 'gaze' | 'back';
 export interface RigProfile {
   readonly id: 'player' | 'skeleton' | 'goblin' | 'kobold';
@@ -37,7 +46,7 @@ export interface RigProfile {
   readonly gaitSpeed: number;
 }
 export interface JointDefinition {
-  readonly name: JointName;
+  readonly name: JointName | TailName;
   readonly parent: number;
   readonly rest: XYZ;
   /** Local primary axis / intrinsic Y-X-Z Euler limits in radians, enforced by target solving. */
@@ -57,7 +66,8 @@ export interface LimbChain {
   readonly bendHint: XYZ;
 }
 export interface RigDefinition {
-  readonly family: 'humanoid';
+  readonly family: 'humanoid' | 'humanoid-with-tail';
+  readonly tail?: readonly TailSegment[];
   readonly profile: RigProfile;
   readonly joints: readonly JointDefinition[];
   readonly index: Readonly<Record<JointName, number>>;
@@ -70,7 +80,7 @@ export interface RigDefinition {
   >;
   /** Coarse anatomical mappings, not a physics implementation or one body per voxel. */
   readonly bodies: readonly {
-    readonly joint: JointName;
+    readonly joint: JointName | TailName;
     readonly center: XYZ;
     readonly size: XYZ;
   }[];

@@ -1,4 +1,4 @@
-import { jointNames } from './types.ts';
+import { jointNames, tailNames } from './types.ts';
 import type { JointDefinition, JointName, RigDefinition, RigProfile, XYZ } from './types.ts';
 
 function freeze<T>(value: T): T {
@@ -175,11 +175,16 @@ export function humanoid(profile: RigProfile): RigDefinition {
 }
 
 export function validateRig(rig: RigDefinition): void {
-  if (rig.joints.length !== jointNames.length) throw new Error('Invalid humanoid topology');
+  const tailed = rig.family === 'humanoid-with-tail';
+  if (
+    rig.joints.length !== jointNames.length + (tailed ? 4 : 0) ||
+    (tailed ? rig.tail?.length !== 4 : !!rig.tail)
+  )
+    throw new Error('Invalid humanoid topology');
   for (const [i, joint] of rig.joints.entries()) {
     if (
-      joint.name !== jointNames[i] ||
-      rig.index[joint.name] !== i ||
+      joint.name !== (i < jointNames.length ? jointNames[i] : tailNames[i - jointNames.length]) ||
+      (i < jointNames.length && rig.index[jointNames[i]] !== i) ||
       !Number.isInteger(joint.parent) ||
       joint.parent >= i ||
       joint.parent < -1 ||
@@ -195,6 +200,18 @@ export function validateRig(rig: RigDefinition): void {
     for (const [min, max] of joint.limits)
       if (!Number.isFinite(min) || !Number.isFinite(max) || min > max)
         throw new Error('Invalid joint limit');
+  }
+  for (const [i, segment] of (rig.tail ?? []).entries()) {
+    const joint = rig.joints[segment.index];
+    if (
+      segment.index !== jointNames.length + i ||
+      segment.name !== tailNames[i] ||
+      joint.parent !== (i ? rig.tail![i - 1].index : rig.index.pelvis) ||
+      ![segment.length, segment.width, segment.height].every((v) => Number.isFinite(v) && v > 0) ||
+      (i > 0 &&
+        (joint.rest[0] !== 0 || joint.rest[1] !== 0 || joint.rest[2] !== -rig.tail![i - 1].length))
+    )
+      throw new Error('Invalid tail chain');
   }
   for (const chain of Object.values(rig.chains)) {
     const middle = rig.joints[rig.index[chain.middle]],
@@ -227,7 +244,7 @@ export function validateRig(rig: RigDefinition): void {
   }
   for (const body of rig.bodies)
     if (
-      !(body.joint in rig.index) ||
+      !rig.joints.some((j) => j.name === body.joint) ||
       !body.center.every(Number.isFinite) ||
       !body.size.every((v) => Number.isFinite(v) && v > 0)
     )

@@ -10,7 +10,8 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { part } from './geometry.ts';
 import { bindActorCollision } from './actorRendering.ts';
 import { bindHumanoid } from './rigs/bindings.ts';
-import { profiles } from './rigs/humanoid.ts';
+import { humanoid, profiles } from './rigs/humanoid.ts';
+import { withTail } from './rigs/tail.ts';
 import type { CombatSystem } from './combat.ts';
 import type { Actor } from './actors.ts';
 import type { Materials, MaterialName } from './materials.ts';
@@ -44,6 +45,8 @@ export function createEnemyRendering(
     const p = (mat: MaterialName, name: string, size: Triple, pos: Triple, parent = body) =>
       part(scene, materials[mat], `${actor.id}:${name}`, size, pos, parent, shadow);
     const headMeshes: TransformNode[] = [];
+    const pelvisMeshes: TransformNode[] = [];
+    const tail: TransformNode[] | undefined = actor.kind === 'kobold' ? [] : undefined;
     const hp = (mat: MaterialName, name: string, size: Triple, pos: Triple) => {
       const mesh = p(mat, name, size, pos);
       headMeshes.push(mesh);
@@ -69,8 +72,22 @@ export function createEnemyRendering(
       }
       if (goblin) hp('dark', 'hood', [0.54, 0.16, 0.47], [0, 1.57, -0.02]);
       else {
-        const tail = p('brick', 'tail', [0.13, 0.13, 0.7], [0, 0.48, -0.5]);
-        tail.rotation.x = -0.25;
+        pelvisMeshes.push(p('brick', 'haunches', [0.36, 0.22, 0.36], [0, 0.5, -0.09], root));
+        let z = -0.26;
+        for (const segment of withTail(humanoid(profiles.kobold)).tail!) {
+          const node = new TransformNode(`${actor.id}:${segment.name}`, scene);
+          node.parent = root;
+          node.position.set(0, 0.43, z);
+          p(
+            'brick',
+            `${segment.name} scales`,
+            [segment.width, segment.height, segment.length],
+            [0, 0, -segment.length / 2],
+            node,
+          );
+          tail!.push(node);
+          z -= segment.length;
+        }
         p('cloth', 'pack sash', [0.13, 0.55, 0.39], [0.1, 0.84, 0]);
       }
     }
@@ -139,10 +156,10 @@ export function createEnemyRendering(
         p('dark', 'shield hand strap', [0.18, 0.09, 0.16], [-0.08, -0.12, -0.28], shield),
       );
       stowedEquipment.push(
-        p('iron', 'stowed shield', [0.62, 0.72, 0.14], [-0.24, -0.08, -0.04], stowed),
+        p('iron', 'stowed shield', [0.62, 0.72, 0.14], [-0.24, -0.02, -0.04], stowed),
       );
       stowedEquipment.push(
-        p('gold', 'stowed shield boss', [0.16, 0.16, 0.08], [-0.24, -0.08, -0.14], stowed),
+        p('gold', 'stowed shield boss', [0.16, 0.16, 0.08], [-0.24, -0.02, -0.14], stowed),
       );
     }
     if (goblin) {
@@ -193,6 +210,7 @@ export function createEnemyRendering(
       legs,
       knees,
       feet,
+      tail,
       footPlants: [{ anchor: null }, { anchor: null }],
       equipment,
       stowedEquipment,
@@ -206,7 +224,7 @@ export function createEnemyRendering(
       socialBlend: 0,
       socialPose: null,
     });
-    bindHumanoid(actor.entity, profiles[actor.kind], headMeshes);
+    bindHumanoid(actor.entity, profiles[actor.kind], headMeshes, pelvisMeshes);
     bindActorCollision(actor, scene, combat.world);
     const pick = MeshBuilder.CreateBox(
       `${actor.id}:selection`,

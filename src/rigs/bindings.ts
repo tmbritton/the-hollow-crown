@@ -19,12 +19,16 @@ import { GroundedLocomotion } from './grounding.ts';
 import { ActionRig, SHIELD_GRIP, SPEAR_GRIPS } from './actions.ts';
 import type { ActionFrame } from './actions.ts';
 import { FrameAttachment } from './attachments.ts';
+import { TailRig, withTail } from './tail.ts';
+import { TailClearance } from './tailClearance.ts';
 
 export interface RigBinding {
   readonly pose: PoseBuffer;
   readonly legacy: LegacyRig;
   readonly grounding: GroundedLocomotion;
   readonly actions: ActionRig;
+  readonly tail?: TailRig;
+  readonly tailClearance?: TailClearance;
   attach(node: TransformNode, frame: ActionFrame, offset?: XYZ): void;
   readonly attachments: readonly {
     name: string;
@@ -52,6 +56,7 @@ export function bindHumanoid(
   entity: Entity,
   profile: RigProfile,
   headMeshes: readonly TransformNode[] = [],
+  pelvisMeshes: readonly TransformNode[] = [],
 ): RigBinding {
   const rig = entity.require('rig');
   if (bindings.has(rig)) throw new Error('Humanoid rig already bound');
@@ -94,7 +99,10 @@ export function bindHumanoid(
   };
   for (const [node, data] of nodes)
     data.parent = node.parent ? (nodes.get(node.parent) ?? null) : null;
-  const actions = new ActionRig(humanoid(profile));
+  const definition = rig.tail ? withTail(humanoid(profile)) : humanoid(profile);
+  const actions = new ActionRig(definition);
+  const tail = definition.tail ? new TailRig(definition) : undefined;
+  const tailClearance = tail ? new TailClearance() : undefined;
   // Existing debug/tests read the old rig contract; these alias the action layer's owned state.
   const alias = <K extends 'attackBlend' | 'attackPose' | 'socialBlend' | 'socialPose'>(key: K) =>
     Object.defineProperty(rig, key, {
@@ -114,7 +122,7 @@ export function bindHumanoid(
       },
     });
   }
-  const pose = createPose(humanoid(profile));
+  const pose = createPose(definition);
   const grounding = new GroundedLocomotion(pose.definition, rig.footPlants);
   sampleLegacy(legacy, pose);
   evaluatePose(pose);
@@ -148,14 +156,14 @@ export function bindHumanoid(
     out[13] += pivot.y - out[1] * pivot.x - out[5] * pivot.y - out[9] * pivot.z;
     out[14] += pivot.z - out[2] * pivot.x - out[6] * pivot.y - out[10] * pivot.z;
   };
-  const add = (node: TransformNode, name: JointName) => {
+  const add = (node: TransformNode, name: JointName | number) => {
     if (byNode.has(node)) throw new Error('Duplicate joint binding');
     const parent = node.parent ? byNode.get(node.parent) : null;
     if (node.parent && !parent) throw new Error(`Unbound parent for ${node.name}`);
     const pivot = node.getPivotPoint();
     const entry: Entry = {
       node,
-      joint: pose.definition.index[name],
+      joint: typeof name === 'number' ? name : pose.definition.index[name],
       offset: new Float64Array(16),
       world: new Float64Array(16),
       inverse: new Float64Array(16),
@@ -182,6 +190,11 @@ export function bindHumanoid(
     add(rig.feet[i], `${side}Foot`);
   }
   for (const mesh of headMeshes) add(mesh, 'head');
+  for (const mesh of pelvisMeshes) add(mesh, 'pelvis');
+  if (rig.tail && definition.tail) {
+    if (rig.tail.length !== definition.tail.length) throw new Error('Incomplete tail binding');
+    rig.tail.forEach((node, i) => add(node, definition.tail![i].index));
+  }
   const extras = [rig.cape].filter((node): node is TransformNode => !!node);
   const visibility = channels.filter(({ node }) => node !== rig.root && node !== rig.body);
   const writeMatrix = (entry: Entry) => {
@@ -242,6 +255,8 @@ export function bindHumanoid(
     legacy,
     grounding,
     actions,
+    tail,
+    tailClearance,
     attach(node, frame, offset) {
       if (node.parent !== rig.root)
         throw new Error('Attachment must be parented to its actor root');
@@ -283,6 +298,7 @@ export function bindHumanoid(
       if (grounding.active) binding.captureLegacy();
       grounding.reset();
       actions.reset();
+      tail?.reset();
       resetPending = true;
     },
     captureLegacy() {
@@ -294,6 +310,8 @@ export function bindHumanoid(
     },
     commit(reset = false) {
       sampleLegacy(legacy, pose);
+      evaluatePose(pose);
+      tail?.apply(pose);
       binding.apply();
       if (reset) resetHistory(pose);
     },

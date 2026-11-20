@@ -23,6 +23,7 @@ type Nodes =
   | 'legs'
   | 'knees'
   | 'feet'
+  | 'tail'
   | 'cape'
   | 'shield'
   | 'spear'

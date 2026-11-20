@@ -55,8 +55,10 @@ speed, water slowdown, occupancy, route clearance, attack clocks and jump state 
 
 The ceiling is **66 floor-height queries and 74 corpse-surface queries per actor/sample**. Distant
 corpse boxes are culled once to the anatomy/scale/stride envelope. The full-body ceiling remains
-**four passes / 16 limb solves / 249 joint evaluations**; planning FK, when needed for running
-flight, is separate and bounded by the 20-joint definition.
+**four passes / 16 limb solves**; A5 raises the shared FK ceiling to **273 joint evaluations** for
+the 24-joint tailed extension (249 for the unchanged core). Planning FK, when needed for running
+flight, is separate and bounded by the definition size. Tail-only clearance runs after this solve;
+see [its independent budget](rig-tails.md).
 
 ### Once-per-frame presentation
 

@@ -93,6 +93,7 @@ export interface Components {
     legs: TransformNode[];
     knees: TransformNode[];
     feet: TransformNode[];
+    tail?: TransformNode[];
     footPlants: { anchor: Spawn | null }[];
     cape?: TransformNode;
     shield?: TransformNode;

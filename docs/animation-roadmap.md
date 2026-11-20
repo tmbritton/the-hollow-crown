@@ -1,9 +1,10 @@
 # Animation roadmap — procedural full-body rigs and death physics
 
 **Updated 2026-11-20. A0–A4 are implemented, verified and independently reviewed READY.
-A5–A7, P8 and P9 remain planned.** See the [A0 baseline](animation-baseline.md),
+A5 is implemented and locally verified, with independent review pending.
+A6–A7, P8 and P9 remain planned.** See the [A0 baseline](animation-baseline.md),
 [A1 rig foundation](rig-foundation.md), [A2 solver](rig-solver.md), [A3 grounding](rig-grounding.md),
-and [A4 actions](rig-actions.md).
+[A4 actions](rig-actions.md), and [A5 tails](rig-tails.md).
 
 This develops the character-animation work in the [dungeon demo plan](dungeon-demo-plan.md#character)
 and the animation deliveries in the [implementation path](implementation-path.md). It is the
@@ -38,7 +39,8 @@ P8/P9; retain their IDs and requested death behavior. The user subsequently requ
 profiling/segmentation before animation**. Once that prerequisite is complete, **the first animation
 slice after compaction was A0**, now delivered along with A1–A3. A4 action/equipment/work/social
 migration is now verified and independently reviewed READY. Living locomotion and required
-equipment grips use the coordinated solver. A5 articulated tails is the next feature;
+equipment grips use the coordinated solver. A5 articulated tails is now implemented and verified;
+A6 shield motion is the next feature after its review/delivery gate;
 the physics backend remains later work.
 
 ### Goals
@@ -124,7 +126,7 @@ copy of its arms, feet or solver.
 
 Implemented A1 modules are `src/rigs/{types,humanoid,pose,legacy,bindings}.ts`; A2 adds
 `{targets,ikMath,solver}.ts`; A3 adds `grounding.ts` and final-contact refinement. A4 adds
-`{actions,attachments}.ts`. Tail modules remain proposed. Keep pure pose/constraint
+`{actions,attachments}.ts`. A5 adds `{tail,tailClearance}.ts`. Keep pure pose/constraint
 math independently executable under Node; Babylon mesh mutation belongs in bindings. Current
 transform-node meshes are a valid rendering backend; selecting Babylon `Skeleton`/skinning is
 not a prerequisite. Do not add an unused physics dependency during A1–A6.
@@ -197,6 +199,9 @@ dependency. Off-hand targets follow that frame. Release the throwing grip at the
 release, and retain current projectile launch origins/directions and body-safe spear lanes.
 
 ## 4. Humanoid-with-tail rig for kobolds
+
+**Implemented in A5:** see [anatomy, clearance and verification](rig-tails.md). The requirements
+below remain the acceptance contract. Independent review is pending.
 
 Use the same humanoid core with a pelvis-rooted chain of **four tapered tail segments** initially.
 Make the tail readable from the overhead camera and side view using a strong curved silhouette,
@@ -295,7 +300,7 @@ model coverage; it cannot enable or disable blocking independently of the defens
 
 Each slice uses the repository's test-first → implementation → affected verification → independent
 review → commit workflow. A0–A4 are implemented and independently reviewed READY. Later entries
-are planned acceptance gates.
+are planned acceptance gates, except A5's implemented/verified tail slice awaiting review.
 
 | ID | Deliverable / primary touchpoints | Test-first and review gate |
 | --- | --- | --- |
@@ -304,7 +309,7 @@ are planned acceptance gates.
 | **A2 — complete, review READY** | Full-body target solver: generalized limb IK, bounded pelvis/spine/shoulder adjustments, feet/hand orientation, priorities and residuals. See [solver contract](rig-solver.md). | 14 new pure tests; 968 temporal FK samples and 300 scaled actual-binding comparisons; 1,210 browser samples across all profiles/roles. Four-pass/16-limb/249-joint/zero-query ceiling; every body correction revalidates all end effectors. Review cleared scale, reporting, limit and singular-continuity blockers. |
 | **A3 — complete, review READY** | Live semantic locomotion/grounding for all actor kinds: lurch, crouch, backsteps, jump/landing, slope-aware soles and final corpse/terrain checks. See [grounding contract](rig-grounding.md). | 330 tests; 428 samples across all 30 clips match A0 authority exactly. Final actual sole/plant errors below thresholds; animation, movement16, jump8, production5 pass. Eight selected clips reviewed; repeated-sample and reset/death-channel blockers cleared independently. |
 | **A4 — complete, final independent review READY** | Shared action/work/social layers, coordinated hand targets, explicit equipment/cargo frames, solved socket adapters and semantic temporary collapse. See [action contract](rig-actions.md). | 336 tests; 428 samples/all 30 clips with exact A0 authority parity. Actual shaft/torso, scaled cargo and 2,714 death-age checks; affected browsers and production pass. Independent review clears three geometry blockers, complete throw/death envelope and provisional cost thresholds. |
-| **A5** | Humanoid-with-tail extension and articulated procedural tails on all kobolds. | Family/profile contract tests and bounded chain math; actual idle/turn/run/backstep/jump/crouch/attack/recoil/carry/death sequences. Inspect overhead and side silhouettes, floor/wall clearance and formation/spear-lane interference; validate bounds/shadows/reset/resource counts. |
+| **A5 — implemented/verified; review pending** | Shared 24-joint tailed extension, four tapered segments on all twelve kobolds, bounded follow-through/clearance and age-sampled collapse. See [tail contract](rig-tails.md). | 342 tests; 34 role/action sequences / 4,488 every-frame samples; floor/equipment/bounds/repeat/wall/door/cargo/reset checks, 13 two-camera motion replays, affected browsers and production pass. Stable resources; 2.905/3.70ms integrated mean/p95. |
 | **A6** | Shared shield anticipation, raise/lower settling and confirmed directional block reaction. | Event red tests for once-only reaction and false-hit rejection; unchanged instant block/arc and phalanx vulnerability boundaries. Browser F press/hold/release/repeat, mid-transition reversal, front/side/rear melee/projectiles, multiple blocks, moving guard and interrupted opening. Inspect full body and tail response at normal speed and slow motion. |
 | **A7** | Complete rig cutover, remove compatibility/direct-pose writers, and establish the animation-to-physics snapshot contract. | Every catalog row uses the rigs. Reset/retirement and repeated regeneration leave no old contacts/events/poses. Validate pose/velocity transfer from moving, turning, airborne, guarded, opening and interrupted actions; retain support/gameplay semantics. Run the final cross-system acceptance matrix and production subpath smoke. |
 
@@ -441,8 +446,9 @@ the existing Pages workflow, with a hosted smoke for meaningful release changes.
    smoke are recorded in verification/progress; do not redo publishing setup.
 4. T2 and **A0–A4** are implemented and independently reviewed READY. Read `docs/animation-baseline.md`,
    `docs/rig-foundation.md`, `docs/rig-solver.md`, `docs/rig-grounding.md` and
-   [rig-actions.md](rig-actions.md), then begin **A5 articulated kobold tails**.
-   A5–A7/P8/P9 are not implemented. Keep every catalog row in the
+    [rig-actions.md](rig-actions.md) and [rig-tails.md](rig-tails.md). A5 is implemented/verified,
+    with independent review pending. **A6 shield motion** is the next implementation slice.
+    A6–A7/P8/P9 are not implemented. Keep every catalog row in the
    migration checklist; a walking hero alone
    is not completion of the rig conversion.
 5. Continue in order through A7 before P8, then P9. Do not start death physics ahead of the shared

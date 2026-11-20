@@ -40,6 +40,9 @@ export function createAnimationReview(
       ]),
     ];
     if (rig.head) nodes.push(['head', rig.head]);
+    const tailDefinition = actor.entity.require('rigPose').pose.definition.tail;
+    if (tailDefinition && rig.tail)
+      rig.tail.forEach((node, i) => nodes.push([tailDefinition[i].name, node]));
     for (const [name, node] of [
       ['shield', rig.shield],
       ['spear', rig.spear],

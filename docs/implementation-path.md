@@ -26,7 +26,7 @@ each slice test-first, independently reviewed and committed:
 | A2 | Coordinated full-body IK — complete, independent review READY | Four-pass bounded solver, simultaneous contacts/grips, orientation/limits, explicit priorities and residuals. 323 everyday tests; 1,210 actual-mesh browser samples, resource plateau and bounded costs. See [solver contract](rig-solver.md). |
 | A3 | Locomotion and grounding migration — complete, independent review READY | All living actor kinds compose semantic poses and coordinated sole targets. 330 tests; 428 A0-identical authority samples, final sole/plant checks, animation/movement/jump/production passes and bounded cost/resource checks. See [grounding contract](rig-grounding.md). |
 | A4 | Action, equipment, work and social migration — complete, final independent review READY | Shared action layers, coordinated grips, solved sockets and semantic collapse. 336 tests, 428 A0-identical authority samples, actual shaft/cargo/death regressions, affected browsers and production smoke. All three review blockers cleared; see [action contract](rig-actions.md). |
-| A5 | Humanoid-with-tail kobold rig | Replace the existing rigid tail stub with four articulated, tapered segments on every kobold; bounded secondary motion/clearance, visible silhouettes and formation-safe motion. |
+| A5 | Humanoid-with-tail kobold rig — implemented and locally verified; independent review pending | Four tapered segments on all twelve kobolds; bounded secondary motion/clearance and collapse/reset. 342 tests, 4,488 browser frames, affected suites/production and bounded cost/resource checks; see [tail contract](rig-tails.md). |
 | A6 | Shield anticipation and reaction | Body/arm preparation, decisive guarding and controlled lowering; confirmed once-only directional block recoil and recovery. Preserve instant F defense and the phalanx's authoritative vulnerability windows. |
 | A7 | Rig cutover and death-physics handoff | Remove legacy pose writers after every animation migrates; validate solved pose/velocity snapshots, resets, resources and production delivery before physics takes over. |
 | P8 | Directional ragdoll deaths — after A7, not implemented | Apply an exaggerated death impulse in the killing blow's direction using the shared rig's final pose/velocity. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
@@ -45,7 +45,8 @@ the actual hosted production game. **T2 test-feedback work is implemented and in
 reviewed READY. A0 motion review is also implemented and independently reviewed READY.
 A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration are also complete
 and reviewed READY. A4 action/equipment/work/social migration is also verified and independently
-reviewed READY. A5 articulated tails is next; A5–A7 remain planned before P8/P9.**
+reviewed READY. A5 articulated tails is implemented and locally verified, awaiting independent
+review. A6 shield motion is next; A6–A7 remain planned before P8/P9.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -62,7 +63,8 @@ inventory and compaction handoff. Preserve the raw notes as the source of intent
 ## Before the next procedural-feature expansion — Effect refactor
 
 The user requested this scheduling boundary on **2026-11-20**. Continue the existing
-**A5–A7 → P8 → P9** queue; A4 is implemented and independently reviewed READY. Complete the generation
+**A6–A7 → P8 → P9** implementation queue after A5's review/delivery; A4 is independently reviewed READY.
+Complete the generation
 slices below before authoring additional procedural scene recipes, keep variants, adventure
 grammars, or generated encounters/objectives. The default insertion point is after P9; if content
 work moves, its Effect prerequisite moves with it.

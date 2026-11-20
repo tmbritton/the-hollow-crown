@@ -1,5 +1,13 @@
 import { PoseVector } from './types.ts';
-import type { JointName, JointPose, PoseBuffer, RigDefinition, SocketName, XYZ } from './types.ts';
+import type {
+  JointName,
+  TailName,
+  JointPose,
+  PoseBuffer,
+  RigDefinition,
+  SocketName,
+  XYZ,
+} from './types.ts';
 
 export function createPose(definition: RigDefinition): PoseBuffer {
   const local = definition.joints.map((joint) => ({
@@ -162,20 +170,28 @@ export function transformPoint(m: Float64Array, o: number, p: XYZ): [number, num
     m[o + 2] * p[0] + m[o + 6] * p[1] + m[o + 10] * p[2] + m[o + 14],
   ];
 }
+function jointIndex(definition: RigDefinition, name: JointName | TailName): number {
+  const index =
+    name in definition.index
+      ? definition.index[name as JointName]
+      : definition.tail?.find((s) => s.name === name)?.index;
+  if (index === undefined) throw new Error(`Missing rig joint: ${name}`);
+  return index;
+}
 export function worldPoint(
   pose: PoseBuffer,
-  joint: JointName,
+  joint: JointName | TailName,
   local: XYZ = origin,
 ): [number, number, number] {
-  return transformPoint(pose.world, pose.definition.index[joint] * 16, local);
+  return transformPoint(pose.world, jointIndex(pose.definition, joint) * 16, local);
 }
 export function localPoint(
   pose: PoseBuffer,
-  joint: JointName,
+  joint: JointName | TailName,
   world: XYZ,
 ): [number, number, number] {
   const m = new Float64Array(16);
-  inverse(pose.world, pose.definition.index[joint] * 16, m);
+  inverse(pose.world, jointIndex(pose.definition, joint) * 16, m);
   return transformPoint(m, 0, world);
 }
 export function socketPoint(pose: PoseBuffer, name: SocketName): [number, number, number] {

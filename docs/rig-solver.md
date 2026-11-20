@@ -84,10 +84,12 @@ bounded policy, not a global mathematical proof that no pose could exist.
 
 ## Budgets and evidence
 
-`SOLVER_BUDGET` caps each call at **four whole-body passes / 16 limb solves / 249 joint evaluations /
+`SOLVER_BUDGET` caps each call at **four whole-body passes / 16 limb solves / 273 joint evaluations /
 zero terrain queries**. Body compensation evaluates only affected ancestors; every pass still
 revalidates the complete final pose. Pose, target-frame, best-pose and scratch buffers are retained.
-A3 must plan terrain/corpse samples at final soles within its own bounded query budget.
+A5's four tail joints add at most 24 evaluations across six complete FK traversals; the 20-joint
+core retains its 249 ceiling. A3 plans terrain/corpse samples at final soles within its own bounded
+query budget; A5's separate tail projection never reruns the full-body solve.
 
 ```sh
 node --test tests/rig-solver.test.ts tests/rig-solver-bindings.test.ts

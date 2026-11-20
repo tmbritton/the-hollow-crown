@@ -59,7 +59,8 @@ const defaultBounds: SolverBounds = {
 export const SOLVER_BUDGET = Object.freeze({
   passes: 4,
   limbSolves: 16,
-  jointEvaluations: 249,
+  // Six full FK traversals may include the four decorative tail joints (249 + 24).
+  jointEvaluations: 273,
   terrainQueries: 0,
 });
 const identity = (): Float64Array => {

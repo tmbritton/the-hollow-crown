@@ -85,10 +85,11 @@ workflow URL and hosted smoke result in `VERIFICATION.md`. P7 is complete. The p
 independently reviewed READY**, and **A1's shared rig foundation is implemented and reviewed READY**.
 **A2's coordinated solver and A3's locomotion/contact migration are also implemented and independently reviewed READY.**
 A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.
-A5 articulated tails is next, then A6–A7, P8 directional ragdolls and P9 skeleton debris.
+A5 articulated tails is implemented and locally verified; independent review is pending.
+A6 shield motion is next, then A7, P8 directional ragdolls and P9 skeleton debris.
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
-[A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md), and
-[A4 action/grip contracts](docs/rig-actions.md).
+[A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md),
+[A4 action/grip contracts](docs/rig-actions.md), and [A5 articulated tails](docs/rig-tails.md).
 
 ## Play
 
@@ -204,6 +205,11 @@ Each dungeon seeds **24 enemies** outside the entrance and altar rooms:
 
 Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
 
+Every kobold has a four-segment tapered tail, with damped turn/gait follow-through, jump tuck,
+attack counter-motion and retreat lift. Tails curl around floors, walls, nearby bodies and carried
+equipment while preserving formation spacing. They pause/reset with presentation and settle with
+the temporary death pose; they do not enlarge collision, selection or attack reach.
+
 Skeletons load the left leg through a longer forward/sideways sag, then take a shorter, quicker
 catch-up step. The ribs twist and the skull trails their recovery. This procedural lurch follows
 measured travel: blocked movement cannot keep cycling it, and stopping fades it back to neutral.
@@ -290,6 +296,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/machines/actors/defense.ts` | Opt-in held-defense lifecycle and 120° incoming-direction test |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
 | `src/rigs/` | Shared humanoid definitions/profiles, quaternion pose/FK, live locomotion/grounding and action/grip planners, bounded solver/residuals, socket attachments, temporary collapse, compatibility bridge and final mesh bindings |
+| `src/rigs/tail.ts` / `src/rigs/tailClearance.ts` | Shared tailed-humanoid extension, bounded angular follow-through, clearance projection and age-sampled tail collapse |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
 | `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original role/slot references, bounded physical rank assembly, shared attack/opening phases and unit withdrawal |
 | `src/attackKinds.ts` / `src/phalanxPoses.ts` | Shared action geometry/timing contracts and simulation-clock-sampled spear/throw presentation |
@@ -424,6 +431,11 @@ A4 connects action/equipment targets and solved socket attachments; see [the act
 both-role carry/combat handoffs, scaled cargo geometry, and action-to-death equipment clearance,
 observation bounds and pose continuity, including every throw start/release/recovery entry frame.
 
+`npm run test:rig:tails` checks all twelve tailed rigs, both roles across 34 action sequences,
+actual mesh/FK agreement, floor/equipment clearance, bounds, zero-time reads, wall/door tuck and
+release, teleports and cargo handoffs. `TAIL_CLIPS=travel,stairs-down,hackysack` selects focused
+sequences. See [the tail contract](docs/rig-tails.md).
+
 ### Entity/component architecture
 
 `game.ecs` is the runtime registry. Player, enemies, doors, interactables, props, obstacles, rooms, tiles, render batches, projectiles, and hit particles have entity IDs and attachable components. Generated world data is registered **by reference**, preserving the existing pure generation/validation pipeline and preventing duplicate door or interaction state. A batched mesh can render many logical floor/prop entities efficiently.
@@ -446,6 +458,8 @@ existing geometry. Living motion produces canonical poses, sole targets and requ
 grips; action/social/work layers and the temporary death collapse share the pose buffer. The binding
 performs final mesh and socket application. Reset/debug compatibility remains until A7. Logical hand/head
 joints and grip/sole frames add no scene nodes. Both kobold roles share anatomy.
+Their `humanoid-with-tail` extension adds four pelvis-rooted joints and `rigPose.tail` presentation
+state; the tail layer consumes the final body solve before the binding applies the shared pose.
 
 ```ts
 import { Health } from './src/machines/actors/health.ts';

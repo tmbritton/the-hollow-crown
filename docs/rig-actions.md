@@ -1,7 +1,7 @@
 # A4 — action layers and solved equipment attachments
 
 **2026-11-20. Implemented and verified; final independent review READY.**
-This follows [A3 grounding](rig-grounding.md). A5 articulated tails is the next feature.
+This follows [A3 grounding](rig-grounding.md). [A5 articulated tails](rig-tails.md) is now implemented.
 A6 shield anticipation/reaction and A7 compatibility removal remain planned.
 
 ## Ownership
@@ -104,4 +104,5 @@ longer owns action attachment transforms or the death layer.
 These are Chromium/SwiftShader CPU fixtures, not hardware FPS. Detailed red/fix evidence and
 qualifications are in [VERIFICATION.md](../VERIFICATION.md). Remaining visible discontinuities are
 the discrete equipment swaps and instant guard placement; A6 adds guard preparation/settling.
-The rigid kobold tail is the next feature-sized art/animation change in A5.
+The A4 numbers above are its historical checkpoint. A5 replaces the rigid stub and records its
+updated joint-evaluation ceiling, resources and cost in [the tail contract](rig-tails.md).

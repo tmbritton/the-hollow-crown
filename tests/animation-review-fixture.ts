@@ -139,7 +139,9 @@ export function createReviewStage(g: Game) {
       const social = clip === 'cards' || clip === 'smoke' || clip === 'hackysack';
       const actor = g.combat.actors.find((a) =>
         social
-          ? a.kind === 'kobold' && a.brain?.social?.activity === clip
+          ? a.kind === 'kobold' &&
+            a.brain?.social?.activity === clip &&
+            (profile !== 'spearman' || a.entity.get('squadMember')?.role === 'spearman')
           : profile === 'shieldbearer'
             ? a.entity.get('squadMember')?.role === profile &&
               a.entity.get('squadMember')?.slot === 1

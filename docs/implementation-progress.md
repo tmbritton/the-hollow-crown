@@ -31,12 +31,12 @@ Execution record for [implementation path](implementation-path.md). Started **20
    simultaneous feet/grips, body correction, orientation, limits and explicit infeasibility.
    A3 now supplies live semantic poses, slope-aware sole targets and bounded final-contact checks.
     **A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.**
-    A5 articulated tails is the next feature. Articulated tails,
-   shield reaction and death physics remain planned. See [animation roadmap](animation-roadmap.md)
+    **A5 articulated tails is implemented and locally verified; independent review pending.**
+   A6 shield motion is next. Shield reaction and death physics remain planned. See [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **Effect adoption is planned before the next procedural-feature expansion.** Continue A5–A7
+- **Effect adoption is planned before the next procedural-feature expansion.** Deliver A5, then continue A6–A7
   and P8/P9 first. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
   The source evaluation/scratch prototype does not constitute production implementation.
@@ -153,14 +153,41 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | A1 | Complete; independent review READY | Missing rig/binding module reds; actual entering/leaving-lava regression failed before authoritative-position fix | 309 core tests; format/lint/build; 428 A0-matched samples, identity/selection/history/resource checks; animation, movement16, jump8, production5 pass; independent matrix/socket/invalid-input probes pass | `d23ced6` |
 | A2 | Complete; independent review READY | Missing solver module, then persisted scale/reporting/limit/pole/fold review reds | 323 core tests; typecheck/lint/format/build; 968 FK, 300 scaled-binding and 1,210 browser samples; animation pass, captures reviewed, resource plateau; independent continuity probes clear blockers | `279bec5` |
 | A3 | Complete; independent review READY | Missing grounding module; high stacked corpse/swing lift; preserved release-frame and hip reset/death regressions failed before fixes | 330 tests; format/lint/build; 428 A0-identical authority samples, bounded final contacts; animation/movement16/jump8/production5; 1.863/2.50ms integrated CPU; independent lifecycle/geometry review READY | `279bec5` |
-| A4 | Complete; final independent review READY | Missing module, scale/envelope/reset regressions; persisted review reds for torso intersection, slung cargo shear and spear death bounds/clearance | 336 tests/check/build; 428 A0-identical authority samples; 252 actual shaft/torso, 144 cargo-handoff and 2,714 corpse-age samples; affected browsers/production5. Independent follow-up clears all blockers | Containing delivery |
-| A5–A7 | Planned after A4 | Tailed kobolds, shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
+| A4 | Complete; final independent review READY | Missing module, scale/envelope/reset regressions; persisted review reds for torso intersection, slung cargo shear and spear death bounds/clearance | 336 tests/check/build; 428 A0-identical authority samples; 252 actual shaft/torso, 144 cargo-handoff and 2,714 corpse-age samples; affected browsers/production5. Independent follow-up clears all blockers | `c353fef` |
+| A5 | Implemented and locally verified; independent review pending | Missing tail-module red; browser clearance failures at social/root/stair boundaries; CPU trace exposed distant door chart reads | 342 tests/check/build; 4,488 tail frames and 428 A0-identical authority samples; affected browsers, production and 13 two-camera motion replays; 2.905/3.70ms CPU, stable resources | Containing delivery |
+| A6–A7 | Planned after A5 | Shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
 | P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 | EF0–EF4 | Planned after the animation/death-physics queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log
+
+### A5 — articulated kobold tails — 2026-11-20
+
+- Shared immutable humanoid-with-tail extension adds four pelvis-rooted tapered links to all
+  twelve kobolds. Semantic pose/history, final bindings, shadows, observation and corpse surfaces
+  include the chain. A pelvis-bound haunch joins it to the body; stowed shields sit 0.06 higher.
+- Bounded angular follow-through samples actual pelvis motion and gait, jump, action and retreat.
+  Whole-chain clearance projects a tucked pose against floors/treads, walls/props, doors, nearby
+  bodies and equipment/cargo. Zero-time sampling, reset and age-sampled death retain single ownership.
+- Six pure tests and a dedicated browser suite pass. Initial red: missing tail module. Browser
+  reds corrected coarse navigation cells being mistaken for walls, conservative stair/body boxes,
+  a stowed-shield root clash, coarse tuck transitions and yaw-dependent death counter-rotation.
+- Final **342 tests / 31.05s**, typecheck/lint/format (183 files) and build pass. Tail browser:
+  **34 sequences / 4,488 frames**, both actual roles, no blocked samples or own-equipment overlaps,
+  minimum drawn floor clearance **0.002190**, mesh/FK error below 1e−5. Additional rear-wall/door,
+  door-open release, teleport/history and both-role carry/combat/resume checks pass.
+- Rig browser: **428 A0-identical authority samples**, existing contact/grip tolerances and stable
+  **2,382 meshes / 495 nodes / 28 materials / 4 textures / 5,719 entities** through three regenerations.
+  Animation, defense9, phalanx8, rig-actions, discoveries17 and root production5 pass.
+- **13 clips / 26 camera replays / 380 samples**, normal/quarter-speed playback exercise and five
+  inspected temporal sheets. Gameplay/side tail, social, formation and collapse captures inspected.
+- Cost initially **3.682/4.50ms**. A bounded trace identified repeated distant door chart reads;
+  proximity-first reads and tile reuse produce **2.905/3.70ms**, within the A5 investigation thresholds.
+  See [VERIFICATION.md](../VERIFICATION.md) for measurement qualifications and [contract](rig-tails.md).
+- Implementation/verification complete. This containing commit records the user-requested A5
+  delivery. **Independent review remains pending.** A6 shield anticipation/reaction is next.
 
 ### A4 — action, equipment, work/social and temporary death migration — 2026-11-20
 

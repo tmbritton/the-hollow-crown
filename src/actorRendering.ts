@@ -14,6 +14,7 @@ import { skeletonLurch } from './skeletonGait.ts';
 import { rigBinding } from './rigs/bindings.ts';
 import { profiles } from './rigs/humanoid.ts';
 import { copyLocal } from './rigs/ikMath.ts';
+import { evaluatePose } from './rigs/pose.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -52,6 +53,7 @@ export function resetActorRig(renderRig: Components['rig'], position?: Spawn): v
     rig = binding.legacy;
   binding.grounding.reset();
   binding.actions.reset();
+  binding.tail?.reset();
   binding.begin(0);
   if (position) rig.root.position.set(position.x, position.h, position.z);
   rig.root.rotation.x = rig.root.rotation.z = 0;
@@ -116,7 +118,16 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       for (const mesh of rig.equipment ?? []) mesh.setEnabled(true);
       for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(false);
       binding.grounding.reset();
+      binding.tail?.captureDeath(binding.pose);
       binding.actions.collapse(binding.pose, actor, corpse.age);
+      if (binding.tail && binding.tailClearance) {
+        binding.tailClearance.prepare(binding.pose, actor, ecs, binding.actions, world);
+        binding.tail.sample(
+          binding.pose,
+          { dt, speed: 0, stride: 0, forward: 0, airborne: false, attack: 0, age: corpse.age },
+          binding.tailClearance.clear,
+        );
+      }
       if (rig.cape) rig.cape.rotation.x = -0.16;
       binding.apply();
     }
@@ -214,6 +225,23 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     const solved = grounding.sample(actor, pose, rig.root.rotation.y, world, corpses, actions);
     rig.root.scaling.copyFrom(solved.pose.local[0].scale);
     copyLocal(solved.pose.local, binding.pose.local);
+    if (binding.tail && binding.tailClearance) {
+      evaluatePose(binding.pose);
+      actions.finish(binding.pose);
+      binding.tailClearance.prepare(binding.pose, actor, ecs, actions, world);
+      binding.tail.sample(
+        binding.pose,
+        {
+          dt,
+          speed: actor.motion.actualSpeed,
+          stride: dynamics.stride,
+          forward: actor.motion.velocity.x * sin + actor.motion.velocity.z * cos,
+          airborne: actor.jump.airborne,
+          attack: rig.attackBlend,
+        },
+        binding.tailClearance.clear,
+      );
+    }
     binding.apply();
   }
 }

@@ -4,6 +4,80 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### A5 — articulated kobold tails — 2026-11-20 (locally verified; independent review pending)
+
+All twelve kobolds now share the 24-joint `humanoid-with-tail` extension. Four tapered links replace
+each rigid stub; pelvis-bound haunches join them visibly to the body. Numerical tail springs and
+clearance projection run after the full-body solve, with final mesh application through the shared
+binding. Death is age-sampled after capturing the current chain. See [docs/rig-tails.md](docs/rig-tails.md).
+
+**Observed failures and corrections:**
+
+- The first pure regression failed on the missing tail module. Browser iteration exposed proximal
+  body/stowed-shield conflicts, conservative stair-box rejections and coarse tuck changes. Actual
+  oriented-box separation/corner floors, bounded bisection and a 0.06 higher stowed shield resolve
+  these fixtures. Base yaw retains bounded inertia through rapid turns.
+- Selecting the actual spearman for social checks exposed an always-blocked stable tail. Its floor
+  tile was marked by the generator's *inflated navigation clearance*, not a wall. Checking physical
+  prop footprints instead fixes the false rejection; real rear-wall/door checks still pass.
+- A heading-dependent collapse angle left a dead tail raised. Extracting intrinsic pitch and
+  counter-rotating against the actual falling root gives heading-independent settling. Pure direct
+  and progressive death-age samples agree, with no live spring velocity after handoff.
+
+**Final checks actually run:**
+
+- `npm run check`: **342 pass / 31.05s native runner**, typecheck, lint and formatting **183 files**.
+  Six new pure tests cover immutable extension/limits, measured motion, stopping, repeated reads,
+  wall tuck, explicit infeasibility, death entry/age independence and nearby-door/coarse-cell behavior.
+  Existing machine coverage remains **22 machines / 105 states / 226 branches**; no new machine.
+- `npm run build`: **701 modules**, main bundle **1,682.42kB / 432.88kB gzip**, existing chunk-size
+  warning. Root `test:production` passes five checks, with no browser/network errors, external
+  requests, Inspector or development global. Production shield capture inspected. No A5 publication
+  or hosted/Pages-subpath verification is claimed.
+- `npm run test:rig:tails`: **34 role/action sequences × 132 frames = 4,488 samples**, each followed
+  by a zero-time replay. All twelve rigs have four registered shadow/observation segments and no
+  old stub. Actual mesh/FK errors stay below **1e−5**; minimum drawn floor clearance **0.002189776**;
+  zero unresolved clearances and zero actual own-equipment intersections. Maximum normalized tail
+  radius **1.260568183**, safely within A4's **4.8** observation envelope.
+- Additional tail-browser fixtures pass actual rear-wall and closed-door geometry (minimum drawn
+  margin **1.94764e−5**), dynamic door-open release, teleport/zero-velocity/history reset and both-role
+  carry → slung combat → resumed carrying. Pure tests exercise the impossible-contact fallback.
+- `A0_POSE_REPORT=test-results/animation-review-catalog.json npm run test:rig`: **428 samples / all
+  30 clips**, exact historical A0 authority parity. Actual required grip maximum **2.57411e−6**,
+  sole penetration **2.55304e−7**, plant drift **4.31563e−6**, joint mismatch **5.64407e−6**. Selection,
+  material/registration identity, observation bounds and three-regeneration resource plateau pass.
+- Affected Chromium suites: **animation / defense9 / phalanx8 / rig-actions / discoveries17** pass.
+  The A4 actual shaft/torso, cargo and 2,714 death-age regression remains green. Rendering-heavy
+  suites ran sequentially. Animation was refreshed after the final haunch geometry addition.
+- Controls plus **13 clips / 26 camera replays / 380 sampled poses** pass exact replay equality,
+  including tail joints. All 13 side sequences were played at normal then quarter speed in the
+  generated viewer. Five temporal sheets (**52 selected frames**) and gameplay/side, social,
+  formation and settled-tail captures were inspected. These are 60 Hz simulations captured at
+  10 Hz; playback exercise and temporal capture review do not claim every-frame perceptual review.
+
+**Cost and bounds:** initial integrated 25-actor/four-corpse/four-action workload was **3.6817ms
+mean / 4.50ms p95**, exceeding the A5 **3.2/4.5ms investigation thresholds**. A bounded instrumented
+CPU trace (**4.0671/6.50ms**, not a comparable benchmark) identified clearance's repeated distant
+door chart reads. Proximity-first reads and reused floor tiles reduce those operations; the final
+same-fixture measurement is **2.9050ms mean / 3.70ms p95**, 60 warmup +240 measured updates, maximum
+**939** and mean **586.21** tile lookups/update. Statistical allocated-byte estimate **261,285,996**
+at 32KiB sampling includes setup/warmup/yields/instrumentation and collected objects, not retained
+heap or exact allocations. Chromium/SwiftShader, 800×600 CPU fixture; not hardware FPS.
+
+Tail work is capped at **19 candidate/refinement chains / 80 tail-joint evaluations / 76 clearance
+calls**, each with at most eight floor-corner probes. The full-body four-pass/16-limb ceiling is
+unchanged; its shared FK maximum is now **273** (four extra joints across up to six traversals,
+versus the unchanged core's 249). Final resources plateau at **2,382 meshes / 495 nodes / 28 materials /
+4 textures / 5,719 entities**, +48 meshes/+48 nodes over A4, with the same 25 actors.
+
+**Visual review:** tapered curls read from side and overhead views and stay below the weapon lane;
+haunches remove a visible attachment gap. The sharpest remaining tail motion is a rapid 180° travel
+reversal reaching the bounded base-yaw range; it settles without persistent oscillation. Instant
+guard placement and discrete equipment swaps remain the stronger whole-character discontinuities,
+with guard anticipation/reaction assigned to A6. **Independent review remains pending.** This
+containing commit records the locally verified A5 delivery requested by the user.
+Raw reports, profiles, playback and captures remain ignored under `test-results/`.
+
 ### A4 — action layers, grips and attachments — 2026-11-20 (verified; final independent review READY)
 
 `rigPose.actions` now owns shared attack/work/social layers, required hand targets and explicit

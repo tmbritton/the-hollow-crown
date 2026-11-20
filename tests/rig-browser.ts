@@ -400,7 +400,10 @@ try {
     window.rigIdentityCheck!();
     delete window.rigIdentityCheck;
   });
-  assert.ok(cost.maxTileQueries <= 25 * 66, 'bounded A3 planning/final-contact queries');
+  assert.ok(
+    cost.maxTileQueries <= 25 * 66 + 12 * 76 * 8 * 2,
+    'bounded grounding and tail clearance queries',
+  );
   const resets = [];
   for (let i = 0; i < 3; i++) {
     await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
