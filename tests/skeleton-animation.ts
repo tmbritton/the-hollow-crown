@@ -31,6 +31,7 @@ export async function captureSkeletonGait(page: Page) {
       )) as typeof import('../src/actorRendering.ts');
       const { heightAt } = (await import(worldPath)) as typeof import('../src/world.ts');
       const g = window.__dungeon.game;
+      window.__dungeon.animation.pause();
       // The suite stops the loop immediately after regeneration, before this renderer's
       // first update. Place its coffers at their real sites instead of leaving them at (0,0).
       g.tributeRendering.update();

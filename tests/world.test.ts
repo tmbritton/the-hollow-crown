@@ -14,34 +14,52 @@ import {
 } from '../src/world.ts';
 import { hasApproach } from '../src/worldTypes.ts';
 
-const samples = Array.from({ length: 100 }, (_, i) => generateDungeon(`trial-${i}`));
+// Do not generate an extended corpus while Node is merely discovering filtered tests.
+let corpus: ReturnType<typeof generateDungeon>[] | undefined;
+const samples = () =>
+  (corpus ??= Array.from({ length: 100 }, (_, i) => generateDungeon(`trial-${i}`)));
 
-test('100 seeds remain completable with generated prop colliders and locked gates', () => {
-  for (const world of samples) {
-    assert.deepEqual(validateDungeon(world), [], world.seed);
-    assert.equal(world.rooms.length, ROOM_DEFINITIONS.length);
-    assert.equal(world.entities.filter((e) => e.type === 'chest').length, 3);
-    assert.equal(world.connections.filter((c) => c.a === 'throne' || c.b === 'throne').length, 1);
-    for (const tile of world.tiles.values())
-      if (world.reserved.has(key(tile.x, tile.z)))
-        assert.ok(!tile.blocked, `${world.seed}: blocked route`);
-    for (const object of [
-      ...world.props,
-      ...world.entities.filter(
-        (e) => e.type === 'altar' || e.type === 'throne' || e.type === 'chest',
-      ),
-    ]) {
-      const b = footprint(object);
-      assert.ok(
-        tileAt(world, b.x, b.z)?.blocked,
-        `${world.seed}: collider missing from navigation`,
-      );
+function assertCompletable(world: ReturnType<typeof generateDungeon>) {
+  assert.deepEqual(validateDungeon(world), [], world.seed);
+  assert.equal(world.rooms.length, ROOM_DEFINITIONS.length);
+  assert.equal(world.entities.filter((e) => e.type === 'chest').length, 3);
+  assert.equal(world.connections.filter((c) => c.a === 'throne' || c.b === 'throne').length, 1);
+  for (const tile of world.tiles.values())
+    if (world.reserved.has(key(tile.x, tile.z)))
+      assert.ok(!tile.blocked, `${world.seed}: blocked route`);
+  for (const object of [
+    ...world.props,
+    ...world.entities.filter(
+      (e) => e.type === 'altar' || e.type === 'throne' || e.type === 'chest',
+    ),
+  ]) {
+    const b = footprint(object);
+    assert.ok(tileAt(world, b.x, b.z)?.blocked, `${world.seed}: collider missing from navigation`);
+  }
+}
+
+test('representative seeds remain completable with colliders, reserved approaches and altar gating', () => {
+  for (const seed of ['MOURNING-731', 'CINDER-42', 'trial-27']) {
+    const world = generateDungeon(seed);
+    assertCompletable(world);
+    const before = reachableTiles(world, false),
+      after = reachableTiles(world, true);
+    for (const entity of world.entities.filter(hasApproach)) {
+      const approach = key(entity.approach.x, entity.approach.z);
+      assert.ok(after.has(approach), `${seed}: ${entity.id} unreachable after altar`);
+      if (entity.room !== 'throne') assert.ok(before.has(approach), `${seed}: ${entity.id}`);
     }
+    const throne = world.roomById.throne;
+    assert.equal(before.has(key(throne.x, throne.z)), false);
   }
 });
-test('directional furnishings face the room center with reachable space in front', () => {
+
+test('[extended] 100 seeds remain completable with generated prop colliders and locked gates', () => {
+  for (const world of samples()) assertCompletable(world);
+});
+test('[extended] directional furnishings face the room center with reachable space in front', () => {
   const rotations = new Set();
-  for (const world of samples) {
+  for (const world of samples()) {
     const reachable = reachableTiles(world, true);
     for (const object of [...world.props, ...world.entities].filter((o) =>
       INWARD_FACING_TYPES.has(o.type),
@@ -83,13 +101,13 @@ test('validation rejects outward-facing thrones and ovens', () => {
     );
   }
 });
-test('seeds materially change placement, topology, shapes, and reliquaries', () => {
+test('[extended] seeds materially change placement, topology, shapes, and reliquaries', () => {
   const positions = new Set(),
     connections = new Set(),
     chests = new Set(),
     chestRooms = new Set(),
     shapes = new Set();
-  for (const world of samples) {
+  for (const world of samples()) {
     positions.add(JSON.stringify(world.rooms.map((r) => [r.id, r.x, r.z]).sort()));
     connections.add(
       JSON.stringify(world.connections.map((c) => [c.a, c.b].sort().join(':')).sort()),
@@ -133,8 +151,8 @@ test('same seed reproduces architecture, routes, props, and interactions exactly
     assert.deepEqual(a[property], b[property]);
   assert.deepEqual([...a.tiles], [...b.tiles]);
 });
-test('every generated stair connector has continuous support heights in both directions', () => {
-  for (const world of samples.slice(0, 20))
+test('[extended] every generated stair connector has continuous support heights in both directions', () => {
+  for (const world of samples().slice(0, 20))
     for (const c of world.connections.filter((c) => c.ramp)) {
       assert.ok(c.ramp);
       const point = (s: number) =>
@@ -157,8 +175,8 @@ test('every generated stair connector has continuous support heights in both dir
       assert.ok(Math.abs(height - c.ramp.b) < 0.001);
     }
 });
-test('all landmarks and chest approaches are reachable before the throne gate opens', () => {
-  for (const world of samples) {
+test('[extended] all landmarks and chest approaches are reachable before the throne gate opens', () => {
+  for (const world of samples()) {
     const reachable = reachableTiles(world, false);
     for (const id of world.rooms.map((r) => r.id).filter((id) => id !== 'throne')) {
       const r = world.roomById[id];
@@ -168,8 +186,8 @@ test('all landmarks and chest approaches are reachable before the throne gate op
       assert.ok(reachable.has(key(entity.approach.x, entity.approach.z)));
   }
 });
-test('every seed contains furnished butchery, smithy, bakery, and two lizard stalls', () => {
-  for (const world of samples) {
+test('[extended] every seed contains furnished butchery, smithy, bakery, and two lizard stalls', () => {
+  for (const world of samples()) {
     for (const [id, type] of [
       ['butchery', 'meat-rack'],
       ['smithy', 'furnace'],
@@ -181,8 +199,8 @@ test('every seed contains furnished butchery, smithy, bakery, and two lizard sta
     assert.equal(world.props.filter((p) => p.type === 'lizard-stall').length, 2);
   }
 });
-test('royal portraits have varied seeded traits and accessible wall-mounted approaches', () => {
-  for (const world of samples) {
+test('[extended] royal portraits have varied seeded traits and accessible wall-mounted approaches', () => {
+  for (const world of samples()) {
     const portraits = world.entities.filter((e) => e.type === 'portrait');
     assert.ok(portraits.length >= 4);
     assert.ok(new Set(portraits.map((e) => e.royal.artSeed)).size >= 4);

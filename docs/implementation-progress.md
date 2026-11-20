@@ -25,7 +25,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
    **P7 is complete and published at `3934e17`, following independent prepublish review READY.**
    The public repository and HTTPS Pages demo are live. GitHub run **44745698117** succeeded;
    the parent's actual hosted smoke passed **five checks with zero errors**, with reviewed captures.
-   **P8 directional ragdolls are next, not implemented; P9 skeleton debris follows P8.**
+   **T2 faster test feedback and A0 motion review are implemented and verified, independent review READY.**
+   **A1 shared rig definitions/bindings is next.** Full-body IK, articulated tails, animation migration,
+   shield reaction and death physics remain planned. See [animation roadmap](animation-roadmap.md)
+   and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
@@ -136,10 +139,62 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P6a | Complete; final independent review READY, no blockers | Missing squad module and 21≠24 population reds; detour/swapped-home reds; reviewer reproduced obsolete no-enemy-defense assertion | 291 full after all corrections; typecheck/format/lint; defense 9; prior build/social 15/tribute 9/gameplay 18+5 reused; final review clears role-aware assertion | `c3641c2` |
 | P6b | Complete; final independent review READY, both blockers cleared | Review regressions fail 0/3 before fixes: circular/seeded rank stalls and ECS-order javelin interception | 315 tests/full checks; models 22/105/226; phalanx 8/combat 15; final review: fresh 24 arrangements, 600 geometry-oracle comparisons, lifecycle/hold/progression probes and 13 captures | `806a27b` |
 | P7 | Complete; public repository and hosted demo verified; independent prepublish review READY | Real project-path browser rejected root-built `/assets/index-…js` before Pages build fix | Local 315 tests/full checks/build and independent probes pass. GitHub run 44745698117 succeeds (build 8m 47s, deploy 15s), including CI root/project smokes. Parent's actual hosted smoke: five checks, zero errors; hosted lowered/defending captures reviewed | `3934e17` |
-| P8 | Next, not implemented | Directional ragdoll deaths, wall collisions and stair falls | New user note; implementation pending | — |
+| T2 | Implemented and verified; independent review READY | Profile: 315 tests / 303.11s; broad seed/timing sweeps, repeated route searches and exhaustive model prefixes dominate | At T2 checkpoint: core 301 / 26.79s, full 319 / 301.57s; all original contracts retained, models 22/105/226 plus 8,206 extended work paths | Containing delivery |
+| A0 | Complete; independent review READY | Browser red at missing `animation.pause`; review exposed reset freeze, abbreviated opening and capped diagnostic surface | 302 core tests, format/lint/build; controls and 25-actor baseline, 30 clips/60 views/856 samples, existing animation and root production smoke; review corrections independently cleared | Containing delivery |
+| A1–A7 | Planned after A0 | Shared humanoid/full-body IK, all-animation migration, tailed kobolds, shield anticipation/reaction and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
+| P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 
 ## Work log
+
+### T2 — faster test feedback before animation — 2026-11-20 (verified, review READY)
+
+- User asked to investigate and shorten/segment slow tests before A0. Measured the unmodified
+  315-test suite on Node 26: **303.11s** test-runner elapsed. The largest case was the 100-seed
+  tribute corpus (**247.18s under concurrent load**); other generation sweeps and exhaustive
+  clock/model tests also dominated. Individual overlapping times are not additive wall time.
+- Added complementary native Node core/extended/full groups with four file workers. The commit
+  gate stays `npm run check` but now uses core; Pages CI requires `npm run check:full`.
+- Preserved broad corpora, all 1,200 durations and long tribute scenarios as extended tests;
+  made eager 100-world setup lazy and removed 16 repeated crate/exit searches per tribute seed.
+  Added representative world/site fixtures, retaining the `ember-70` clue regression every day.
+- Core work-model partitions cover the same five states/seven branches; the original **8,206**
+  every-tick paths still run in extended coverage. Exact 3.7/6.9-second regressions remain core.
+- Final everyday gate: **301 passed / 26.79s** (28.82s including typing/npm overhead).
+  Full profiling run: **319 passed / 301.57s**, all 315 original named contracts plus four added
+  checks; no deleted coverage. Full wall time is approximately unchanged, not claimed faster.
+- Format (**150 files**), lint, typecheck and build passed. Thirty failure/filter/reporter probes
+  using the actual npm scripts passed on Node **22.18.0, 24.22.3 and 26.0.0**. Full model coverage
+  remains **22 machines / 105 states / 226 branches**; reports distinguish core/exhaustive paths.
+- Another **47 model/work checks** passed on Node 24.22.3; filtered world discovery took **0.28s**.
+  Actionlint, diff checks and hook preparation pass. Independent review returned **READY**, checking
+  all original names, exact exhaustive model equivalence over 410 vertices/6,529 edges, nine
+  report-lifecycle probes and seven timing regressions. Its full filtered discovery took 3.24s;
+  it reused broad verification rather than rerunning it.
+- A0–A7/P8/P9 remain unimplemented. Existing staged publication records and animation-planning
+  edits were preserved; raw user notes remain untouched. At this historical T2 checkpoint its
+  edits were uncommitted and A0 was next after compaction; the current tracker records A0 delivery.
+  Full details are in VERIFICATION.md.
+
+### Animation roadmap and compaction handoff — 2026-11-20 (planning only)
+
+- User requested a written full-body IK implementation plan before compaction, a reusable
+  humanoid-with-tail rig for kobolds, conversion of existing animations, and shield anticipation
+  and reaction. Added [animation-roadmap.md](animation-roadmap.md) as the detailed continuation of
+  the demo's animation plan and this delivery queue.
+- A0–A7 precede P8/P9: motion-review baseline, rig contracts/bindings, coordinated IK, locomotion
+  migration, action/social/work migration, articulated tails, shield response and complete cutover/
+  physics handoff. Immediate next implementation is **A0**, after the user resumes.
+- Source audit confirmed current analytical leg IK, procedural upper-body/action poses, the
+  existing rigid kobold tail box, instant held-F defense, and time-sampled death collapse. The plan
+  replaces the tail stub with an articulated chain rather than duplicating it. It preserves
+  movement/combat clocks and distinguishes the later physical ragdoll takeover from living IK.
+- Preserved the already staged P7 publication records and the user's untracked raw notes. This
+  request changes documentation only; no new rig, physics, tail or animation code is claimed.
+  The earlier P7 entry below records its historical next step before this new ordering decision.
+- Documentation checks: source contracts, referenced paths, existing npm commands and roadmap
+  ordering were cross-checked; tracked/staged and new-file diff-whitespace checks passed. No
+  gameplay, browser or build suite was run for this documentation-only change.
 
 ### P7 — public repository and hosted delivery — 2026-11-20 (complete)
 

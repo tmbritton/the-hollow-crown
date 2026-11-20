@@ -4,6 +4,165 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### A0 — animation motion-review baseline — 2026-11-20 (verified, independent review READY)
+
+Implemented the development-only `window.__dungeon.animation` controller, pose/contact observer,
+optional overlay, fixed-angle gameplay/side cameras, authored motion catalog, selectable browser
+runner and HTML playback. Full inventory, reproduction commands, current defects and initial
+cost budgets are in [docs/animation-baseline.md](docs/animation-baseline.md).
+
+**Test-first:** the first browser check failed at missing `animation.pause()`. Subsequent controls
+pass paused fixed steps, repeated-render/sample idempotence, bounded arguments, real W/F input,
+menu pause, measured quarter-speed stepping and ordinary debug regeneration continuing at 1×.
+
+**Checks actually run:**
+
+- `npm test` passed, including typechecking: **302 tests / 27.84s native test-runner elapsed**
+  (the native duration excludes the preceding typecheck). Models retain
+  **22 machines / 105 states / 226 branches**. The new pure regression distinguishes actual
+  1.1-unit drawn remains from the unchanged 0.46-unit contact cap.
+- Format (**156 files**), lint and production build pass. Existing bundle-size warning remains.
+- Controls + baseline browser pass in **30.46s**. Original **25 rigs**, four settled corpses,
+  all four action kinds; 60 warmup + 240 measured animation-only updates. Mean **1.06 ms**, p95
+  **1.70 ms**, maximum **42 tile lookups/update**. CDP allocation estimate **166,704,188 bytes**
+  includes setup/warmup/yields/instrumentation and collected objects; not exact allocation count
+  or retained heap. Chromium 159.0.8154.6, SwiftShader, 800×600: CPU fixture, not GPU benchmark.
+- **2,291 meshes / 397 transform nodes / 28 materials / 4 textures** remain constant through
+  the workload and three same-seed regenerations. Overlay/old camera references are cleared.
+- Full catalog passes in **162.83s**: **30 clips × two camera replays, 856 samples**, matching
+  world-pose snapshots between camera replays, finite transforms and asserted named behaviors.
+  It includes all four profiles/both kobold roles, stairs both directions, moving/interrupted
+  strikes, formation/hold/opening/retreat, social, work/carry, and settled collapse. These are
+  authored motor/clock fixtures, not replacement AI/objective-outcome checks.
+- `npm run test:animation` passes its existing gait, weapon/jump/death, corpse-crossing and
+  skeleton/reset regressions. Relevant new captures and corrected stairs/card views were read.
+  The HTML viewer's normal/quarter-speed playback was exercised; captures sample 60 Hz simulation
+  at 10 Hz and do not establish every-frame smoothness.
+- `npm run test:production`: **five root-path checks, zero browser/network errors**, no debug
+  global/Inspector requests/external assets. Build has no review chunk. This is local production
+  verification; no new hosted deployment or Pages-subpath run is claimed for A0.
+
+**Review corrections:** independent review initially rejected regeneration forcing playback to
+zero, an abbreviated opening fixture with no guarded recovery, close-up framing labelled gameplay,
+and capped contact measurements presented as drawn clearance. These are fixed. Independent
+recheck confirms preserved 1×/¼×/paused rates; rear attack starts at frame 36, finishes at 86
+(51 fixed steps / 0.85s), with guarded recovery at 87; actual gameplay radius27/beta0.64; separate
+uncapped geometry measurements; 60 replay-equivalent sequences and named-behavior assertions.
+Final verdict **READY**, no source blockers. It reused broad checks and added bounded controller,
+NullEngine, report and geometry probes.
+
+Capture iteration also exposed excessive automatic rendering (deadline stopped the first run)
+and a negative first-RAF elapsed time in the generated viewer. Explicit captures and first-frame
+clock initialization fix these; the runner now opens its generated gallery and checks playback.
+Visual review then found paused side cameras behind full-height stair walls. Review cameras now
+apply/restorably save the ordinary cutaway scales. A final focused **controls + stairs-up/down +
+cards** run passes six camera sequences, and its corrected sheet was inspected. The full catalog
+and CPU evidence above are reused; the correction affects camera presentation only.
+
+**Worst existing visual error:** floating root-mounted equipment (thrust/throw proximity roughly
+0.85/1.22 units), plus the crate behind forward-reaching arms. Actual foot-corner sampling also
+reveals existing stair/corpse-edge penetration, documented in the baseline. These are migration
+targets, not claims that the future A2/A4 quality gates already pass. A1 is next.
+
+### T2 — measured test cadence before animation — 2026-11-20 (verified, review READY; pre-A0 checkpoint)
+
+The user requested faster feedback before starting A0. This changes test organization/fixtures,
+model partitions, reporting, npm commands and the CI gate; there are **no application-source edits**.
+The existing staged P7 publication records and animation roadmap remain preserved.
+
+#### Measurements and retained coverage
+
+Measurements used the same local **Node 26.0.0** installation. Native test durations were captured
+with a custom reporter; `/usr/bin/time -p` supplied command wall/user/system times. The baseline
+used the original runner's default concurrency; new suite commands cap file workers at **four**.
+These are local observations, not general hardware guarantees or additive per-test wall times.
+
+| Run | Result | Native runner elapsed | Command wall time |
+| --- | --- | --- | --- |
+| Original `tests/*.test.ts`, before edits | **315 passed** | **303.11s** | **303.24s**, excluding typing |
+| First split, before compact everyday work model/long-simulation grouping | **303 passed** | **65.24s** | **65.38s**, excluding typing |
+| Final `npm test` everyday gate | **301 passed** | **26.79s** | **28.82s**, including typing/npm overhead |
+| Full profiling run (`npm run test:timings`) | **319 passed** | **301.57s** | **303.41s**, including typing/npm overhead |
+
+The routine gate is about **91% shorter in native runner elapsed time**. It intentionally selects
+a smaller everyday scope; full wall time is approximately unchanged. Aggregate user CPU in the
+recorded full commands changed from **1,115.28s to 845.34s**, but concurrency/setup changed too, so
+this is not an isolated optimization benchmark.
+
+The baseline's dominant cases were tribute's 100-seed routes (**247.18s**), Last Ember's 100-seed
+sites (**176.95s**), the generation-report corpus (**101.52s**), and other broad scene/inhabitant
+corpora. The 1,200-duration sweep took **69.61s**, and exhaustive work-model coverage **42.05s**
+under that concurrent load. The first split exposed those model/long-traversal costs in core too.
+
+Changes:
+
+- Prefix **18 top-level tests** with `[extended] ` for explicit native Node selection. This group
+  retains broad generation/presentation/social corpora, all 1,200 authored durations, the original
+  every-tick work-model graph and two long tribute simulations. No test is marked skip or TODO.
+- Keep all original **315 named contracts** in the full suite (normalizing only the group prefix),
+  plus three representative world/objective seed tests and the separately named exhaustive model.
+  Everyday tests retain actual interruption-to-delivery AI, adverse phalanx/navigation regressions,
+  and exact 3.7/6.9-second completion/race boundaries. The clue-overlap seed `ember-70` runs daily.
+- Generate the shared 100-world fixture lazily inside selected tests; importing/discovering a
+  filtered test file no longer constructs the whole corpus.
+- Check each crate-to-exit route once instead of inside every intervention-face iteration:
+  **20 → 4 searches per tribute seed**, preserving all four route assertions and face checks.
+- Everyday work coverage partitions empty/partial/last-tick/full elapsed time and retains all
+  **five states/seven branches** with **319 generated paths / 480 cyclic steps**. Extended coverage
+  retains the original **410 vertices / 6,529 graph edges / 8,206 paths / 480 cyclic steps**.
+  The complete everyday report remains **22 machines / 105 states / 226 branches**.
+- Write core and exhaustive model reports separately. Extended-only runs preserve the core report;
+  a started but failed core/model run writes incomplete status rather than retaining a stale pass.
+
+Reports under ignored `test-results/`: `test-timing-before.json`, the intermediate
+`test-timing-core-after.json`, `test-timing-full-after.json`, `machine-model-report.json`, and
+`machine-model-extended-report.json`. The intermediate core report is **not** the final 301-test
+timing; the final measurement above is the actual `npm test` console result. The reusable
+`tests/timingReporter.ts` is available through `npm run test:timings`, with `TEST_TIMING_FILE`
+for separate captures. It reports failures; Node still controls exit status and test selection.
+
+#### Checks actually run
+
+- Full profiled suite: **319 pass**, including all extended cases and the original every-tick
+  work graph. A subsequent report-only failure-status guard was covered by the final everyday run;
+  it did not change a model, fixture assertion or test-selection rule.
+- Final required commands: `npm run format:check` (**150 files**), `npm run lint`, **`npm test`
+  (301 pass, typecheck included)** and `npm run build` pass. Existing bundle-size warning remains.
+- **47 focused core model/work tests** pass. Core reports still enforce every exported machine,
+  every declared state and branch, and retain the tests rejecting unreachable/uncovered models.
+- **30 isolated script probes** pass on **Node 22.18.0, 24.22.3 and 26.0.0**. Each runtime executes
+  ten combinations of actual npm scripts with core/extended sentinel failures, proving default,
+  models, extended, full and timing commands select the intended cases and propagate failure.
+  The fixture stubs typechecking to isolate script dispatch; full source typechecking is the
+  separately recorded command above. Reporter JSON records the failing sentinel correctly.
+- The probe also compares old/new full inventories and asserts **301 core + 18 extended = 319**,
+  complete **22/105/226** coverage, and **8,206** exhaustive work paths.
+- **47 focused model/work checks also passed on Node 24.22.3**, the CI runtime. An empty-name
+  discovery run of `world.test.ts` finished in **0.28s**, confirming the corpus is not eagerly
+  generated. Actionlint, diff-whitespace and `npm run prepare` pass; the installed hook still
+  calls `npm run check` without bypassing checks.
+
+**Independent review: READY, no blockers.** Attributed reviewer evidence:
+
+- Compared old/new full inventories and original assertion/corpus loops; all 315 original named
+  contracts remain. Compared the old exhaustive work model against `workModel(true)` over all
+  **410 vertices / 6,529 edges**, including candidate events, resulting contexts and invariant body;
+  they match. Fresh compact coverage retains all five states/seven branches.
+- **Nine isolated report-lifecycle probes** pass for failure, partial selection, extended-only
+  core-report preservation and separate complete reports. **Seven targeted timing regressions**
+  pass, including exact decimal, prior-tick, tie and fractional-carry cases.
+- Filtered discovery across all **35 test files** took **3.24s**, without large eager corpus work.
+  Saved reports and diff hygiene were checked. The reviewer reused full-suite, build and
+  cross-version evidence instead of repeating broad tests or browsers.
+
+`npm run check` remains the pre-commit command and now uses the everyday gate. The Pages workflow
+is configured to require **`npm run check:full`** before build/deploy; its new configuration has not
+yet been run on GitHub. Full checks remain required locally for relevant generation, timing,
+cargo/model/test-selection changes and releases. Ordinary animation edits use the faster gate
+plus affected browser verification. No gameplay browser suite was repeated for this tooling-only
+change. At this T2 checkpoint the reviewed changes were uncommitted and animation had not begun;
+the A0 entry above records the subsequent delivery.
+
 ### P7 — public repository and hosted delivery — 2026-11-20 (complete)
 
 **P7 is published and verified at `3934e17eb90884dbecf2b4e31ca44459e9b58d12`.** The parent pushed

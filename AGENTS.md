@@ -26,18 +26,32 @@ npm run dev             # http://localhost:5173 by default
 npm run typecheck       # source, tests, and Vite config
 npm run format:check
 npm run lint            # Oxlint correctness checks; warnings fail
-npm test               # typecheck, then all tests/*.test.ts, including model tests
-npm run test:models    # focused model-coverage run; also typechecks
+npm test               # typecheck + everyday regressions and all machine state/branch coverage
+npm run test:extended  # broad seed corpora, exhaustive timing/model paths and long simulations
+npm run test:full      # typecheck + core and extended tests in one run (CI/release gate)
+npm run test:models    # everyday model coverage; also typechecks
+npm run test:timings   # full suite with ranked timings and an ignored JSON report
 npm run build          # typecheck, then production bundle in dist/
 npm run preview        # http://localhost:4173 by default
 ```
 
 - `npm install` / `npm ci` install the pre-commit hook using `simple-git-hooks` via `prepare`.
-  The hook runs `npm run check`: tests (including type checking), linting, then Oxfmt checks
+  The hook runs `npm run check`: everyday tests (including type checking), linting, then Oxfmt checks
   across the working tree, stopping on failure. Run `npm run prepare` after editing the hook
   configuration in `package.json`. Format corrections with `npm run format` and stage them.
 - Run a focused pure test with `node --test tests/navigation.test.ts` (substitute the relevant
-  file). Direct Node test commands do not typecheck.
+  file). Direct Node test commands do not typecheck and include any extended cases in that file.
+- Top-level test names starting with `[extended] ` are the explicit slow group. `npm test`
+  excludes them; `test:extended` selects only them; `test:full` and `test:timings` include both
+  groups. Corpus fixtures must be lazy so discovery/name filtering does not generate them.
+  Suite commands cap file concurrency at four. `test:core` is the everyday runner without typing.
+- CI/Pages runs `npm run check:full` (full tests, lint, format) before building/deploying. Run it
+  locally for generation/corpus, objective timing, long cargo traversal or model-partition changes,
+  test-selection changes, cross-cutting concerns, and before releases; use focused tests during
+  iteration. Ordinary animation/input changes use the everyday gate plus affected browser checks.
+- Everyday models still require every exported machine and all declared states/branches. The
+  exhaustive work-clock graph is additional extended coverage. Reports are separate:
+  `machine-model-report.json` and `machine-model-extended-report.json` under `test-results/`.
 - `npm run format` uses Oxfmt for all source/test TypeScript, `vite.config.ts`, `tsconfig.json`,
   and the Oxfmt/Oxlint JSON configs. For a small change, format only edited files to keep the
   diff focused. The format scripts do not cover Markdown, HTML, or CSS.
@@ -169,8 +183,9 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
 ## Verification and repository hygiene
 
 - For code changes, run `npm run format:check`, `npm run lint`, `npm test`, and `npm run build`,
-  plus the targeted browser suite for affected behavior. Pure/model tests already run under
-  `npm test`; use the focused model command during statechart iteration.
+  plus the targeted browser suite for affected behavior. Everyday pure/model tests already run
+  under `npm test`; use the focused model command during statechart iteration. Run the extended/full
+  gate when the changes meet the criteria above; CI always requires the full gate before release.
 - Add meaningful regression coverage for changed gameplay or generation invariants. For
   rendering/input changes, exercise the real browser path and inspect relevant captures.
 - For documentation-only changes, check commands, paths, and claims against current files.

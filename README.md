@@ -56,7 +56,7 @@ captures; and rejects escaped-base/external requests, browser errors and develop
 Reports/captures use `test-results/production-{root,the-hollow-crown}*` for these two paths.
 
 `.github/workflows/pages.yml` runs on `main` pushes and manual dispatches on `main`. Node **24**
-installs the existing lockfile with `npm ci`, runs `npm run check`, and builds/smokes both paths
+installs the existing lockfile with `npm ci`, runs `npm run check:full`, and builds/smokes both paths
 sequentially. Only the final Pages **`dist/`** is uploaded. The build job has `contents: read`;
 the deployment job alone has `pages: write` and `id-token: write`. Official SHA-pinned Pages
 actions deploy through the `github-pages` environment and expose its URL. Deployments are serialized
@@ -80,8 +80,10 @@ DEMO_URL=https://tmbritton.github.io/the-hollow-crown/ npm run test:production
 ```
 
 Use the actual run ID from the listing. After future deployments, record the deployed commit,
-workflow URL and hosted smoke result in `VERIFICATION.md`. P7 is complete; P8 directional ragdolls
-are next and not implemented, followed by P9 skeleton debris.
+workflow URL and hosted smoke result in `VERIFICATION.md`. P7 is complete. The planned
+[animation foundation](docs/animation-roadmap.md) has begun: **A0 motion review is implemented and
+independently reviewed READY**. A1 shared rigs is next, then A2–A7, P8 directional ragdolls and P9
+skeleton debris. The [A0 baseline](docs/animation-baseline.md) records current motion and defects.
 
 ## Play
 
@@ -339,13 +341,61 @@ Both `npm test` and `npm run build` run the type checker. Vite handles browser t
 
 Every commit runs `npm run check`, which executes these checks in order across the working tree:
 
-1. `npm test` — strict type checking and all pure/model tests.
+1. `npm test` — strict type checking, everyday regressions and all machine state/branch coverage.
 2. `npm run lint` — Oxlint, with warnings treated as failures.
 3. `npm run format:check` — Oxfmt formatting validation.
 
 A failed check stops the hook and blocks the commit. To fix formatting, run `npm run format`
 and stage the corrected files. Run `npm run check` manually for the same checks, or
 `npm run prepare` to reinstall the hook after changing its configuration.
+
+### Everyday and extended test groups
+
+| Command | Coverage / when to use |
+| --- | --- |
+| `npm test` | Typecheck plus everyday gameplay, geometry, timing-boundary and model regressions. Default local/commit gate. |
+| `npm run test:core` | The same tests without typechecking, useful during focused iteration. |
+| `npm run test:models` | Everyday model partitions for every exported machine, every declared state and transition branch. |
+| `npm run test:extended` | Typecheck plus broad seeded corpora, the 1,200-duration clock sweep, every-tick work-model replay and long tribute simulations. |
+| `npm run test:full` | Typecheck plus both groups in one run. |
+| `npm run check:full` | Full tests followed by lint/format. Required by the Pages CI before deployment. |
+| `npm run test:timings` | Full tests with a ranked duration summary and `test-results/test-timings.json`. `TEST_TIMING_FILE` selects a different output path. |
+
+The slow group is explicitly marked by the **`[extended] ` prefix on top-level test names**.
+Nothing is deleted or marked TODO: the native Node runner selects complementary groups and
+propagates failures normally. Direct `node --test tests/example.test.ts` runs every case in that
+file, including extended ones. All regular suite commands use at most four test-file processes.
+Keep expensive setup inside selected tests; the shared 100-world corpus is generated lazily.
+
+Run the extended/full gate locally when changing generation/corpus placement, objective timing,
+long cargo traversal, model abstractions, or test selection, and for cross-cutting/release checks.
+For everyday animation work use `npm test` and the affected browser suite; CI always runs full
+coverage before publishing. Avoid rerunning broad corpora in each focused edit/review cycle.
+
+Core coverage retains exact **3.7/6.9-second** timing regressions, the original adverse navigation/
+phalanx fixtures, actual AI return/delivery after interruption, representative world/objective
+seeds, and all **22 machines / 105 states / 226 branches** at this checkpoint. The work model uses
+elapsed-time boundary partitions in core; its original **8,206 every-tick paths** remain extended.
+Core and exhaustive model reports use separate files, so an extended-only run does not replace
+the everyday coverage report. Reports describe the selected scope, not combined browser coverage.
+
+Measured on Node 26 during the test-cadence pass: **303.11s before → 26.79s core** (28.82s for
+`npm test` including typing/npm overhead). Full coverage still takes about **302s**, with reduced
+parallelism and redundant route searches removed; it now runs in CI/on demand instead of every
+local commit. See [VERIFICATION.md](VERIFICATION.md) for qualifications and counts.
+
+### Animation review (development)
+
+`npm run test:animation:review` uses a running dev server. Select
+`ANIMATION_SCENARIOS=controls,catalog,baseline` (or one group), and optionally
+`ANIMATION_CLIPS=player/jump,spearman/thrust`, for focused checks. The existing
+`npm run test:animation` remains the dense gait/contact regression suite.
+
+In a `?debug` development page, `window.__dungeon.animation` exposes `pause()`, `play(0.25)`,
+`step(1)`, `sample('player')`, `camera('side', 'player')`, and `overlay(true)`. Release the review
+camera with `camera(null)` and resume normally with `play()`. Generated HTML playback and JSON
+pose/contact reports live under ignored `test-results/`. See the [complete baseline and migration
+inventory](docs/animation-baseline.md) for commands, measurements and qualifications.
 
 ### Entity/component architecture
 
@@ -803,7 +853,11 @@ npm run typecheck
 npm run format:check
 npm run lint
 npm test
+npm run test:extended
+npm run test:full
+npm run check:full
 npm run test:models
+npm run test:timings
 npx playwright install chromium firefox
 npm run test:browser
 BROWSER=firefox npm run test:browser
@@ -984,6 +1038,7 @@ encounter. The visual identifier adds at most five small meshes using existing m
 Design roadmaps live in [`docs/`](docs/README.md):
 
 - [Procedural content improvement plan](docs/procedural-content-improvement-plan.md) — shared keep identities, scene recipes, memorable inhabitants, discoveries, adventure structure, and generator review tools.
+- [Animation roadmap](docs/animation-roadmap.md) — A0 motion review is complete; A1 shared rig definitions/bindings is next, followed by full-body IK, actor-animation migration, tailed rigs, shield motion, ragdolls and skeleton breakup. See the [recorded A0 baseline](docs/animation-baseline.md).
 - [Dungeon demo plan](docs/dungeon-demo-plan.md) — demo goals, art direction, architecture, and milestones.
 - [4e incorporation plan](docs/4e-incorporation-plan.md) — tactical abilities, encounters, exploration systems, and rewards.
 - [Monster roster plan](docs/monster-roster-plan.md) — creature catalog, faction/squad behavior, and implementation waves.

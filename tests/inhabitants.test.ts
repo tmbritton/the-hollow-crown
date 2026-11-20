@@ -7,7 +7,7 @@ import { ECS } from '../src/ecs.ts';
 import { createGenerationReport } from '../src/generation/report.ts';
 import { seedInhabitant, seedEmberWorker } from '../src/generation/inhabitants.ts';
 
-test('every profile names one existing inhabitant with a truthful home, group and keep fact', () => {
+test('[extended] every profile names one existing inhabitant with a truthful home, group and keep fact', () => {
   const profiles = new Set<string>();
   for (let i = 0; i < 60; i++) {
     const world = generateDungeon(`inhabitant-${i}`);

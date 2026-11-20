@@ -26,7 +26,7 @@ test('presentation fact links disclose only what the caption actually communicat
   }
 });
 
-test('portraits depict linked monarchs with consistent houses, dates and core appearance', () => {
+test('[extended] portraits depict linked monarchs with consistent houses, dates and core appearance', () => {
   for (let i = 0; i < 30; i++) {
     const world = generateDungeon(`presentation-${i}`);
     const portraits = world.entities.filter((e) => e.type === 'portrait');

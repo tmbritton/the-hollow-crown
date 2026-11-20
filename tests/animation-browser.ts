@@ -33,6 +33,7 @@ try {
 
   await page.goto(`${process.env.DEMO_URL || 'http://localhost:5173'}/?debug&seed=MOURNING-731`);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
+  await page.evaluate(() => window.__dungeon.animation.pause());
   await page.evaluate(async () => {
     window.__dungeon.engine.stopRenderLoop();
     await window.__dungeon.regenerate('MOURNING-731');

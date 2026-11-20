@@ -113,7 +113,7 @@ test('reports detach nested data and reject mismatched generation provenance', (
   );
 });
 
-test('fixed 100-seed corpus stays valid and selects twelve stable, explained gallery fixtures', () => {
+test('[extended] fixed 100-seed corpus stays valid and selects twelve stable, explained gallery fixtures', () => {
   assert.equal(GENERATION_CORPUS_SEEDS.length, 100);
   assert.equal(new Set(GENERATION_CORPUS_SEEDS).size, 100);
   const reports = GENERATION_CORPUS_SEEDS.map((seed) => {

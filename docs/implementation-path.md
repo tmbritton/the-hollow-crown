@@ -20,7 +20,16 @@ each slice test-first, independently reviewed and committed:
 | P6a | Introduce declarative kobold squad coordination — `c3641c2`, complete, independent review READY | Three existing packs now have three shield bearers and one spearman each (24 enemies). ECS group charts own shared targeting, bounded assembly, engagement, return/yield and defeat; individual charts remain. Final review cleared the role-aware defense-test blocker, with no production defects or other issues. See progress/verification records. |
 | P6b | Deliver the phalanx encounter — `806a27b`, complete, final independent review READY | Slow coordinated ranks, vulnerable shield opening, rear thrust/javelin and shielded withdrawal. Both review blockers cleared: bounded local-detour recovery and earliest swept javelin interception. 315 tests/full checks; phalanx 8/combat 15 browser checks; final independent geometry, lifecycle, bounded-hold, progression and capture review pass. See VERIFICATION.md for attributed evidence and limits. |
 | P7 | Publish the repository and GitHub Pages demo — `3934e17`, complete | Independent prepublish review READY, no blockers. Public repository and HTTPS Pages demo deployed successfully by run 44745698117; required checks and root/project browser smokes pass in CI. Parent's actual hosted smoke passes five checks, zero errors, with reviewed shield/input captures. See VERIFICATION.md for commit, run URL, timings and attributed evidence. |
-| P8 | Directional ragdoll deaths — next, not implemented | Apply an exaggerated death impulse in the killing blow's direction. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
+| T2 | Faster test feedback — implemented, verified, review READY | At its checkpoint: core 301 / 26.79s versus the old 303.11s full run. Full 319-case coverage remains about 302s and is required in CI. Core retains all 22 machines / 105 states / 226 branches; original 8,206 work paths remain extended. |
+| A0 | Animation motion-review baseline — implemented, verified, independent review READY | 30 clips / 60 camera sequences / 856 world-pose samples; real input and fixed/slow playback, contact/grip-proxy metrics, 25-actor CPU/allocation/resource baseline and complete migration inventory. 302 everyday tests, affected animation and production smoke pass. See [baseline](animation-baseline.md). |
+| A1 | Shared humanoid rig definitions and bindings | Typed anatomy, profiles, joint limits, sockets and pose buffers; player/enemy mesh bindings with neutral-pose parity and one final writer. |
+| A2 | Coordinated full-body IK | Bounded pelvis/spine/shoulder adjustment plus limb IK; simultaneous foot contacts and hand grips, explicit priorities, infeasible-target fallbacks and final world-space validation. |
+| A3 | Locomotion and grounding migration | Convert idle/start/walk/run/stop, turns, skeleton lurch, crouch, backsteps, jumps and corpse/stair contacts for all actor kinds; preserve authoritative movement. |
+| A4 | Action, equipment, work and social migration | Convert melee/crossbow/spear/javelin, guard/opening, weapon sockets, cards/smoke/hacky-sack, work/carry and the temporary death collapse to rig layers and targets. |
+| A5 | Humanoid-with-tail kobold rig | Replace the existing rigid tail stub with four articulated, tapered segments on every kobold; bounded secondary motion/clearance, visible silhouettes and formation-safe motion. |
+| A6 | Shield anticipation and reaction | Body/arm preparation, decisive guarding and controlled lowering; confirmed once-only directional block recoil and recovery. Preserve instant F defense and the phalanx's authoritative vulnerability windows. |
+| A7 | Rig cutover and death-physics handoff | Remove legacy pose writers after every animation migrates; validate solved pose/velocity snapshots, resets, resources and production delivery before physics takes over. |
+| P8 | Directional ragdoll deaths — after A7, not implemented | Apply an exaggerated death impulse in the killing blow's direction using the shared rig's final pose/velocity. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
 | P9 | Skeleton breakup and settled bone decoration — queued after P8 | Skeleton deaths launch separated procedural body parts instead of retaining an intact corpse. Parts collide and settle as non-interactive set decoration. Reuse the death-motion foundation; preserve death/discovery semantics, bounded resources, pause and regeneration cleanup, with real-browser visual checks. |
 
 P1's resource-fix slice is committed as **`6378d61`**. **P2 corpse traversal is committed at
@@ -32,7 +41,9 @@ P6a is complete at `c3641c2`, independently reviewed READY with no remaining blo
 P6b is complete at `806a27b`; final independent review returned READY and cleared both blockers.**
 **P7 is complete and published at `3934e17`.** Independent prepublish review returned READY with
 no blockers; the parent made the repository public, deployed through GitHub Actions and verified
-the actual hosted production game. **P8 is next, not implemented; P9 follows P8.**
+the actual hosted production game. **T2 test-feedback work is implemented and independently
+reviewed READY. A0 motion review is also implemented and independently reviewed READY.
+A1 shared rig definitions/bindings is next; A1–A7 remain planned before P8/P9.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -41,7 +52,10 @@ reviewable slices. P7 follows the gameplay/stability pass. Historical broader ar
 milestones remain recorded, but do not supersede this user-directed queue.
 
 The two later additions to `docs/notes.md` are P8 and P9. The original list through P7 is now
-complete, satisfying the user's requested ordering. Preserve the raw notes as the source of intent.
+complete, satisfying the user's requested ordering. The subsequent animation discussion adds the
+shared full-body rig, tailed kobolds, complete animation migration and shield motion as prerequisites.
+The [animation roadmap](animation-roadmap.md) contains their architecture, per-slice gates, migration
+inventory and compaction handoff. Preserve the raw notes as the source of intent.
 
 ## Chosen starting point (historical)
 
@@ -89,6 +103,11 @@ inventory, campaign persistence and alternative victory modes retain their roadm
 2. Write meaningful failing tests for the behavior; run them and record the observed failure.
 3. Implement the smallest coherent change, then refactor while tests pass.
 4. Run `npm run format:check`, `npm run lint`, `npm test`, and `npm run build`.
+   `npm test` is the everyday regression/model gate. Run `npm run check:full` locally for changes
+   to generation/corpora, objective timing, long cargo traversal, model partitions or test selection,
+   and for cross-cutting/release verification. CI always runs it before publishing. The explicit
+   `test:extended` group retains broad sweeps and long simulations; it is not repeated per ordinary
+   animation edit or by reviewers without a relevant concern.
    Run affected browser suites for runtime/input/rendering behavior and inspect their captures.
    During iteration, use focused failing regressions. Run one appropriate browser verification
    pass per feature; reserve full gameplay/cross-browser expansion for cross-cutting changes or

@@ -87,13 +87,13 @@ function fixture(seed = 'MOURNING-731', independent = false) {
   };
 }
 
-test('Last Ember sites are deterministic, reserved and routable before the altar across 100 seeds', (t) => {
+function assertEmberSeeds(seeds: readonly string[]) {
   let longestRoute = 0,
     largestAttempt = 0;
-  for (let i = 0; i < 100; i++) {
-    const f = fixture(`ember-${i}`),
+  for (const seed of seeds) {
+    const f = fixture(seed),
       plan = emberBlueprint(f.world);
-    assert.deepEqual(plan, emberBlueprint(generateDungeon(`ember-${i}`)));
+    assert.deepEqual(plan, emberBlueprint(generateDungeon(seed)));
     assert.deepEqual(validateDungeon(f.world), []);
     assert.equal(f.enemies.length, 24);
     assert.equal(f.enemies.filter((a) => a.kind === 'goblin').length, 4);
@@ -107,7 +107,7 @@ test('Last Ember sites are deterministic, reserved and routable before the altar
       );
       assert.ok(
         navigation.goTo(f.player.position, site.approach, { openDoors: true }),
-        `${i}: ${site.id}`,
+        `${seed}: ${site.id}`,
       );
       navigation.cancel();
     }
@@ -117,7 +117,7 @@ test('Last Ember sites are deterministic, reserved and routable before the altar
           assert.ok(
             Math.hypot(entity.approach.x - site.approach.x, entity.approach.z - site.approach.z) >=
               1.1,
-            `${i}: ${site.id} must not steal E from ${entity.id}`,
+            `${seed}: ${site.id} must not steal E from ${entity.id}`,
           );
     assert.ok(navigation.goTo(f.worker.position, plan.focus.approach, { openDoors: true }));
     const steps = reachableTileDistances(f.world, false, plan.shrine.approach).get(
@@ -130,6 +130,17 @@ test('Last Ember sites are deterministic, reserved and routable before the altar
       'travel plus ordinary restoration leaves at least one rival cycle of response margin',
     );
   }
+  return { longestRoute, largestAttempt };
+}
+
+test('Last Ember representative and clue-regression seeds retain reserved, reachable work sites', () => {
+  assertEmberSeeds(['MOURNING-731', 'ember-70']);
+});
+
+test('[extended] Last Ember sites are deterministic, reserved and routable before the altar across 100 seeds', (t) => {
+  const { longestRoute, largestAttempt } = assertEmberSeeds(
+    Array.from({ length: 100 }, (_, i) => `ember-${i}`),
+  );
   t.diagnostic(
     `100 seeds: longest shrine/focus route ${longestRoute} tile steps; largest accepted attempt ${largestAttempt}`,
   );

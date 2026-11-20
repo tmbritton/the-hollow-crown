@@ -167,12 +167,15 @@ test('three-second work completes on tick 180, never 179 or 181', () => {
 
 test('longer work durations complete at their exact 60 Hz boundary', () => {
   const late: { duration: number; elapsed: number }[] = [];
-  for (const duration of [4, 5, 6, 8, 25, 30, 60, 120]) {
+  // Keep the two previously failing decimal boundaries in the everyday suite even when
+  // the 1,200-duration sweep and every-tick model replay are selected separately.
+  for (const duration of [3.7, 6.9, 4, 5, 6, 8, 25, 30, 60, 120]) {
     const chart = new Statechart(workMachine);
     chart.send({ type: 'START', id: 'long-work', duration });
-    for (let tick = 1; tick <= duration * 60; tick++) {
+    const ticks = Math.round(duration * 60);
+    for (let tick = 1; tick <= ticks; tick++) {
       chart.send({ type: 'TICK', dt: DT });
-      if (tick < duration * 60) assert.equal(chart.snapshot.value, 'working');
+      if (tick < ticks) assert.equal(chart.snapshot.value, 'working');
     }
     if (!chart.snapshot.matches('ready'))
       late.push({ duration, elapsed: chart.snapshot.context.units / 60 });
@@ -251,7 +254,7 @@ test('decimal equal-time race ties 6.9 seconds at three credits with three 2.3-s
   assert.equal(f.record.snapshot().contributions.filter((c) => c.step === 415).length, 2);
 });
 
-test('1,200 authored decimal durations finish at the exact 60 Hz boundary, including 3.7 and 6.9', () => {
+test('[extended] 1,200 authored decimal durations finish at the exact 60 Hz boundary, including 3.7 and 6.9', () => {
   const failures: { duration: number; status: string; elapsed: number }[] = [];
   for (let tenths = 1; tenths <= 1200; tenths++) {
     const duration = tenths / 10,

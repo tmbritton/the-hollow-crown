@@ -8,7 +8,7 @@ import type { NavigationWorld } from '../src/navigation.ts';
 import type { Tile } from '../src/worldTypes.ts';
 import type { SocialGroup } from '../src/social.ts';
 
-test('seeded social groups preserve safe spawns and give packs stable gathering activities', () => {
+test('[extended] seeded social groups preserve safe spawns and give packs stable gathering activities', () => {
   const observed = new Set<string>();
   for (let i = 0; i < 30; i++) {
     const world = generateDungeon(`SOCIAL-${i}`);

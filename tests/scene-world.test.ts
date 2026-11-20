@@ -5,7 +5,7 @@ import { createGenerationReport } from '../src/generation/report.ts';
 import { SCENE_RECIPES } from '../src/generation/scenes.ts';
 import { Navigator } from '../src/navigation.ts';
 
-test('final worlds preserve recipe identity, reserved work paths and real navigation across 100 seeds', () => {
+test('[extended] final worlds preserve recipe identity, reserved work paths and real navigation across 100 seeds', () => {
   const orientations = new Set<number>();
   let omissions = 0;
   for (let i = 0; i < 100; i++) {

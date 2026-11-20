@@ -54,16 +54,22 @@ The intended result is roughly one use in a short fight, with repeat uses availa
 ## Existing foundation
 
 - Thirteen seeded rooms, branching routes, doors, water, lava, cover, an altar checkpoint, three reliquaries, and a throne objective.
-- A shared ECS for player/enemies, movement, attack wind-up/impact/recovery, health, projectiles, and corpses. Living actors block one another regardless of allegiance; routes account for occupancy, and passable corpses slow movement like water.
+- A shared ECS for player/enemies, movement, attack wind-up/impact/recovery, health, projectiles, and corpses. Living actors block one another regardless of allegiance; routes account for occupancy. Corpses are passable at full speed with procedural stepping; grounded water alone slows movement.
 - Skeleton pursuit, goblin cover/retreat/ranged attacks, and coordinated kobold positioning.
 - Inspection UI, royal portrait identities, an explored-room map, and procedural character/effect rendering.
+
+The user-directed [animation roadmap](animation-roadmap.md) now precedes death physics and further
+ability/roster expansion: shared full-body humanoid IK, a tailed kobold variant, migration of all
+current animations, and shield anticipation/reaction. New ability animations should consume its
+pose/target/socket contracts and authoritative action clocks. Current F defense remains instant;
+visual anticipation/recoil does not introduce a cooldown, guard delay, stagger or Shield Drive.
 
 Important implementation facts:
 
 | Existing code | Consequence for the plan |
 | --- | --- |
 | `src/combat.ts`: attacks resolve from range/cover or projectile contact; damage and cooldowns depend on actor kind | Introduce explicit ability definitions and a shared effect resolver as the active ability set grows. Contact-based resolution already suits real-time play. |
-| `src/ecs.ts`: a swing stores one target and a melee/ranged flag | Area attacks, self-targeted powers, conditions, and separate power recharges need additional contracts. |
+| `src/machines/actors/attack.ts` / `src/attackKinds.ts`: swings use explicit melee, crossbow, long-thrust and javelin kinds with shared impact/release timing | Rig migration must preserve those clocks; area attacks, self-targeted powers, conditions and separate power recharges still need additional contracts. |
 | `src/combat.ts`: `hostile()` treats different actor kinds as enemies | Cooperative flanking, support enemies, and companions need explicit relationships. A mixed-species encounter currently produces infighting. |
 | `src/navigation.ts`: safe paths reject lava; routing is unweighted breadth-first search | Forced movement needs its own traversal policy; tactical avoidance of temporary hazards needs movement costs and updated route selection. |
 | `src/main.ts`: lava damage is applied only to the player | Environmental damage must become an actor-wide system before shoves into lava work consistently. |
@@ -89,7 +95,7 @@ Important implementation facts:
 
 - Give the player a recovery ability that restores 25% of maximum HP on a 60-second cooldown.
 - Require a short, readable committed action, creating a decision about when it is safe to heal.
-- Display its remaining cooldown and bind it to an unused key such as `F`.
+- Display its remaining cooldown and choose an unused binding; `F` is now reserved for held shield defense.
 - Recharge through normal gameplay time, using the cooldown rules above.
 
 **Implementation:** recovery/cooldown state, input handling in `src/main.ts`, shared healing logic, and a HUD indicator. The book's Second Wind also gives a temporary defense bonus and consumes a daily healing surge. The proposed adaptation uses timed recharge; a defense bonus can follow the shared effects system.

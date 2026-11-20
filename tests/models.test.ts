@@ -5,10 +5,15 @@ import { setup } from 'xstate';
 import { modelCases } from './models/cases.ts';
 import { modelCase } from './models/coverage.ts';
 import type { CoverageReport } from './models/coverage.ts';
+import { workModel } from './models/work.ts';
 
 const reports: CoverageReport[] = [];
+const extendedReports: CoverageReport[] = [];
+let coreStarted = false;
+let extendedStarted = false;
 for (const specification of modelCases) {
   test(`model coverage and invariants: ${specification.id}`, (t) => {
+    coreStarted = true;
     const report = specification.run();
     reports.push(report);
     t.diagnostic(
@@ -16,6 +21,13 @@ for (const specification of modelCases) {
     );
   });
 }
+
+test('[extended] objectiveWork replays every 60 Hz integer and decimal boundary path', (t) => {
+  extendedStarted = true;
+  const report = workModel(true).run();
+  extendedReports.push(report);
+  t.diagnostic(`${report.generatedPaths} every-tick paths; ${report.cyclicSteps} cyclic steps`);
+});
 
 test('every exported production machine has a model-based specification', async () => {
   const discovered = new Set<string>();
@@ -82,8 +94,23 @@ test('model coverage rejects an unexercised guard branch even when every state i
 
 after(async () => {
   await mkdir(new URL('../test-results/', import.meta.url), { recursive: true });
-  await writeFile(
-    new URL('../test-results/machine-model-report.json', import.meta.url),
-    JSON.stringify({ complete: reports.length === modelCases.length, machines: reports }, null, 2),
-  );
+  // An extended-only invocation must not overwrite the complete everyday machine report.
+  if (coreStarted)
+    await writeFile(
+      new URL('../test-results/machine-model-report.json', import.meta.url),
+      JSON.stringify(
+        { complete: reports.length === modelCases.length, machines: reports },
+        null,
+        2,
+      ),
+    );
+  if (extendedStarted)
+    await writeFile(
+      new URL('../test-results/machine-model-extended-report.json', import.meta.url),
+      JSON.stringify(
+        { complete: extendedReports.length === 1, machines: extendedReports },
+        null,
+        2,
+      ),
+    );
 });

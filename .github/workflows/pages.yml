@@ -30,7 +30,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Verify source
-        run: npm run check
+        run: npm run check:full
       - name: Install smoke-test browser
         run: npx playwright install --with-deps chromium
       - name: Build and smoke-test root deployment

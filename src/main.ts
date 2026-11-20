@@ -79,6 +79,7 @@ const editingText = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || !!target.closest('input,textarea,select'));
 let engine: DungeonEngine, game: Game;
+let animationReview: import('./animationReview.ts').AnimationReview | undefined;
 let initialGenerationReport: GenerationReport | null = null;
 let last = performance.now(),
   accumulator = 0,
@@ -218,6 +219,7 @@ function observeDeath(victim: Actor, source?: Actor): void {
 }
 
 function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
+  if (import.meta.env.DEV) animationReview?.reset();
   initialGenerationReport = null;
   ui.transition({ type: 'LOAD' });
   resetMovement();
@@ -1023,15 +1025,17 @@ try {
           document.elementFromPoint(heldPointer.x, heldPointer.y) === canvas
         )
           navigatePointer(heldPointer.x, heldPointer.y);
-        accumulator += dt;
+        accumulator += dt * (import.meta.env.DEV ? (animationReview?.speed ?? 1) : 1);
         while (accumulator >= 1 / 60) {
           tick(1 / 60);
           accumulator -= 1 / 60;
         }
       }
-      renderUpdate(dt);
+      renderUpdate(dt * (import.meta.env.DEV ? (animationReview?.speed ?? 1) : 1));
     } else accumulator = 0;
+    if (import.meta.env.DEV) animationReview?.prepare();
     game.scene.render();
+    if (import.meta.env.DEV) animationReview?.draw();
     ui.updateFeedback(now);
     uiClock += dt;
     if (uiClock > 0.12) {
@@ -1048,7 +1052,19 @@ try {
 
 // Opt-in diagnostics for reproducible browser checks, never enabled in normal play.
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
+  const { createAnimationReview } = await import('./animationReview.ts');
+  animationReview = createAnimationReview(
+    () => game,
+    () => {
+      tick(1 / 60);
+      renderUpdate(1 / 60);
+    },
+    () => {
+      accumulator = 0;
+    },
+  );
   window.__dungeon = {
+    animation: animationReview,
     get game() {
       return game;
     },

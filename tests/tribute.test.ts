@@ -105,12 +105,12 @@ function fixture(seed = 'MOURNING-731') {
   };
 }
 
-test('tribute: 100 deterministic reserved pre-altar cargo/exit routes preserve population and response budget', (t) => {
+function assertTributeSeeds(seeds: readonly string[]) {
   let longest = 0;
-  for (let i = 0; i < 100; i++) {
-    const f = fixture(`tribute-${i}`),
+  for (const seed of seeds) {
+    const f = fixture(seed),
       sites = f.scenario.sites;
-    assert.deepEqual(sites, tributeBlueprint(generateDungeon(`tribute-${i}`)));
+    assert.deepEqual(sites, tributeBlueprint(generateDungeon(seed)));
     assert.deepEqual(validateDungeon(f.world), []);
     assert.equal(f.enemies.length, 24);
     assert.equal(f.enemies.filter((a) => a.kind === 'skeleton').length, 8);
@@ -140,10 +140,12 @@ test('tribute: 100 deterministic reserved pre-altar cargo/exit routes preserve p
         'initial population keeps intervention faces clear',
       );
       assert.ok(nav.goTo(f.world.spawn, p, { openDoors: true }));
-      for (const c of sites.cargo) assert.ok(nav.goTo(c, sites.exit, { openDoors: true }));
       for (const e of f.world.entities)
         if (e.approach) assert.ok(Math.hypot(e.approach.x - p.x, e.approach.z - p.z) >= 1.2);
     }
+    // Each crate-to-exit route is independent of the intervention face above. Checking all
+    // four routes inside that five-face loop used to repeat the same twenty searches per seed.
+    for (const c of sites.cargo) assert.ok(nav.goTo(c, sites.exit, { openDoors: true }));
     for (const id of sites.workers) {
       const actor = f.combat.actor(id)!;
       assert.equal(actor.kind, 'kobold');
@@ -155,6 +157,15 @@ test('tribute: 100 deterministic reserved pre-altar cargo/exit routes preserve p
     longest = Math.max(longest, distance);
     assert.ok(distance / 4.8 + 36 < 4 * (TRIBUTE.pickupSeconds + TRIBUTE.deliverySeconds));
   }
+  return longest;
+}
+
+test('tribute: representative keeps preserve four-role packs and all reserved cargo routes', () => {
+  assertTributeSeeds(['MOURNING-731', 'tribute-12']);
+});
+
+test('[extended] tribute: 100 deterministic reserved pre-altar cargo/exit routes preserve population and response budget', (t) => {
+  const longest = assertTributeSeeds(Array.from({ length: 100 }, (_, i) => `tribute-${i}`));
   t.diagnostic(`100 tribute seeds; longest shrine/cache route ${longest} tiles`);
 });
 
@@ -269,7 +280,7 @@ test('tribute and Last Ember resolve independently, including same-boundary comp
   assert.equal(f.scenario.recover(), false);
 });
 
-test('tribute: actual offscreen AI navigates with ordinary doors/corpses and delivers all four unique crates', () => {
+test('[extended] tribute: actual offscreen AI navigates with ordinary doors/corpses and delivers all four unique crates', () => {
   const f = fixture();
   for (const a of f.enemies) if (!f.scenario.sites.workers.includes(a.id)) f.combat.damage(a, 1000);
   f.activate();
@@ -388,7 +399,7 @@ test('tribute: completing four deliveries alone leaves both Last Ember race cloc
   assert.equal(f.record.get(EMBER.profane).status, 'unresolved');
 });
 
-test('tribute: survivor takes over by navigating to the drop across three seeded keeps', () => {
+test('[extended] tribute: survivor takes over by navigating to the drop across three seeded keeps', () => {
   for (const seed of ['CINDER-42', 'VIOLET-7', 'tribute-12']) {
     const f = fixture(seed);
     for (const a of f.enemies)

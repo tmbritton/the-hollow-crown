@@ -21,6 +21,7 @@ import type { Statechart } from './machines/statechart.ts';
 import type { progressionMachine } from './machines/world/interactions.ts';
 import type { GenerationReport } from './generation/report.ts';
 import type { CameraObservation } from './observation.ts';
+import type { AnimationReview } from './animationReview.ts';
 
 export interface Game {
   scene: Scene;
@@ -77,6 +78,7 @@ export interface Snapshot {
   errors: string[];
 }
 export interface DungeonDebug {
+  readonly animation: AnimationReview;
   readonly game: Game;
   readonly ready: boolean;
   readonly engine: Engine;

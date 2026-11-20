@@ -26,7 +26,7 @@ import { pointerMachine } from '../../src/machines/ui/pointer.ts';
 import { inspectorMachine } from '../../src/machines/ui/inspector.ts';
 import { feedbackMachine } from '../../src/machines/ui/feedback.ts';
 import { objectiveMachine } from '../../src/machines/world/objective.ts';
-import { workMachine } from '../../src/machines/actors/work.ts';
+import { workModel } from './work.ts';
 import { focusMachine } from '../../src/machines/world/focus.ts';
 import { cargoMachine } from '../../src/machines/world/cargo.ts';
 
@@ -221,58 +221,7 @@ export const modelCases = [
       if (before?.matches('disabled')) assert.ok(state.matches('disabled'));
     },
   }),
-  modelCase(workMachine, {
-    inputs: [undefined],
-    // Integer and authored decimal boundaries, with every fixed tick represented.
-    // Abstract numerical residue, not elapsed ticks; pure tests cover the larger sweep.
-    abstractContext: ({ context }) => [
-      context.duration,
-      Math.round(context.units),
-      context.cycleId !== null,
-    ],
-    events: ({ context }): EventFromLogic<typeof workMachine>[] => [
-      ...[0, -1, NaN, Infinity, Number.MAX_VALUE, 2, 3, 3.7].map((duration) => ({
-        type: 'START' as const,
-        id: 'cycle',
-        duration,
-      })),
-      ...[
-        0,
-        -1,
-        NaN,
-        Infinity,
-        Number.MAX_VALUE,
-        ...(context.duration > 2 ? [1 / 60, 4] : [1, 2, 3]),
-      ].map((dt) => ({
-        type: 'TICK' as const,
-        dt,
-      })),
-      { type: 'INTERRUPT', reason: 'Hit' },
-      { type: 'BLOCK', reason: 'No access' },
-      { type: 'CANCEL' },
-      { type: 'SETTLE' },
-    ],
-    invariant: (state, before, event) => {
-      const c = state.context;
-      assert.ok(Number.isFinite(c.units) && c.units >= 0 && c.units <= c.duration * 60);
-      assert.equal(c.cycleId !== null, state.matches('working') || state.matches('ready'));
-      if (state.matches('ready')) assert.equal(c.units, c.duration * 60);
-      if (state.matches('working')) assert.ok(c.units < c.duration * 60);
-      if (!state.matches('working')) assert.equal(c.compensation, 0);
-      if (event?.type === 'TICK' && before && !before.matches('working'))
-        assert.deepEqual(state.context, before.context);
-      if (
-        event?.type === 'TICK' &&
-        event.dt === 1 / 60 &&
-        before?.matches('working') &&
-        before.context.duration > 2
-      )
-        assert.equal(
-          state.matches('ready'),
-          Math.round(before.context.units) + 1 >= Math.round(before.context.duration * 60),
-        );
-    },
-  }),
+  workModel(),
   modelCase(objectiveMachine, {
     inputs: [{ capacity: 2 }],
     // Finite progress partition: empty / partial / full. IDs and step numbers do not

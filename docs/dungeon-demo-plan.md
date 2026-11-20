@@ -6,7 +6,7 @@
 
 The demo now uses a typed, indexed entity/component registry for characters, generated world objects, render batches, projectiles, and hit particles. Player and enemies share movement, pathfinding, door capabilities, attack timing, damage/death, collision adapters, and rig animation; input and AI provide intents. Generated data is registered by reference so navigation and interaction state remain consistent.
 
-Seed 8 wandering skeletons, 4 cover-seeking ranged goblins, and 3 packs of 3 flanking kobolds. Skeletons attack living species; goblins evade the player and other species; kobolds share alerts and approach distinct target slots. Preserve corpses and use bounded procedural blood/bone-dust effects. Enemy click/hold locks pursuit and repeats melee strikes until death; floor/WASD/X and modal transitions cancel the command. Clicking an unlocked door approaches and opens it; capable actors can also open doors during pursuit. Locks remain progression-controlled.
+The delivered population is 8 wandering skeletons, 4 cover-seeking ranged goblins, and 3 four-member kobold phalanxes (three shield bearers and one spearman each). Skeletons attack living species; goblins evade the player and other species; kobold group charts coordinate ranks, openings, thrusts/javelins and withdrawal. Corpses are passable at full speed, with procedural stepping and bounded blood/bone-dust effects. Enemy click/hold locks pursuit and repeats melee strikes until death; floor/WASD/X and modal transitions cancel the command. Clicking an unlocked door approaches and opens it; capable actors can also open doors during pursuit. Locks remain progression-controlled. The shared-rig and death-physics continuation below is planned, not part of this delivered baseline.
 
 ## 1. Demo goal
 
@@ -152,6 +152,28 @@ Decoration placement respects reserved routes, stair landings, door swing space,
 - Use ramp colliders beneath visual stair steps and downward support probes to maintain stable contact. Verify wall sliding, stair descent, and movement at different frame rates early.
 - Keep collision independent of visual voxel detail so chipped blocks do not snag movement.
 - Start with Babylon's built-in collisions. Havok and `PhysicsCharacterController` are a later option if dynamic bodies or richer physical interactions become part of the demo.
+
+#### Animation roadmap continuation — planned A0–A7, then P8/P9
+
+The [animation roadmap](animation-roadmap.md) expands this character-animation milestone into
+feature-sized implementation gates. It incorporates the already delivered travel-driven gait,
+leg IK, skeleton lurch, corpse stepping, defense and phalanx animation rather than replacing their
+gameplay rules.
+
+- Define a shared humanoid anatomy/pose/socket contract and a humanoid-with-tail extension for
+  kobolds, replacing their current rigid tail stub with an articulated procedural chain.
+- Coordinate pelvis, spine, shoulders, feet and hand grips with bounded full-body IK and joint
+  limits; keep the actor's movement/collision root authoritative.
+- Convert all existing actor animations: locomotion, jumps, attacks, guard/opening, social/work,
+  equipment/cargo, secondary motion and the temporary procedural death collapse.
+- Add shield preparation, controlled raise/lower settling, and confirmed-impact recoil/recovery,
+  preserving instant held-F protection and the group chart's vulnerability windows.
+- Validate full motion sequences and bounded resource cost, then hand final solved poses and
+  velocities to P8 ragdolls. P9 replaces intact skeleton corpses with scattered settled bone parts.
+
+The shared rig does not require replacing the living-character controller. Choose a death-physics
+backend during P8 after the rig/migration gates. The current next step is **A0 motion-review
+baseline**, following the user's compaction; none of A0–A7/P8/P9 is implemented by this plan.
 
 ### Controls
 
