@@ -90,7 +90,7 @@ test('attack impact is exactly once even when a tick crosses wind-up and recover
     elapsed: 0,
     duration: 0.62,
     impact: 0.25,
-    ranged: false,
+    kind: 'MELEE' as const,
     resolved: false,
   };
   attack.target = 'enemy';

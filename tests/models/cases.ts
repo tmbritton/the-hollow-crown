@@ -9,6 +9,7 @@ import { koboldSquadMachine } from '../../src/machines/monsters/koboldSquad.ts';
 import { Entity } from '../../src/ecs.ts';
 import type { MonsterEvent, MonsterPerception } from '../../src/machines/monsters/types.ts';
 import { attackMachine } from '../../src/machines/actors/attack.ts';
+import { ATTACKS } from '../../src/attackKinds.ts';
 import { defenseMachine } from '../../src/machines/actors/defense.ts';
 import { commandMachine } from '../../src/machines/actors/command.ts';
 import { healthMachine } from '../../src/machines/actors/health.ts';
@@ -89,7 +90,7 @@ const swing = {
   duration: 0.62,
   impact: 0.25,
   resolved: false,
-  ranged: false,
+  kind: 'MELEE' as const,
 };
 
 const squadTargets = [new Entity('threat-a'), new Entity('threat-b')];
@@ -97,18 +98,21 @@ const squadTargets = [new Entity('threat-a'), new Entity('threat-b')];
 export const modelCases = [
   modelCase(koboldSquadMachine, {
     inputs: [undefined],
-    // Threat identity, no/partial/full memory, pre/post assembly threshold and casualties.
-    // Exact timeout boundaries are also exercised by the real simulation regressions.
-    abstractContext: ({ context }) => [
+    // Memory, formation timeout, opening/advance/recovery boundaries, action identity and
+    // casualty partitions. Physical geometry and intermediate clock boundaries are pure tests.
+    abstractContext: ({ context, value }) => [
       context.target?.id,
-      context.memory === 0 ? 0 : context.memory === 5 ? 2 : 1,
-      context.elapsed === 0 ? 0 : context.elapsed < 0.35 ? 1 : context.elapsed < 1.2 ? 2 : 3,
-      context.survivors,
+      context.memory === 5 ? 2 : context.memory > 0 ? 1 : 0,
+      value === 'assembling'
+        ? Math.floor(context.elapsed / 3)
+        : context.elapsed >= (value === 'opening' ? 0.6 : value === 'holding' ? 1 : 1.25),
+      value === 'engaging' ? context.survivors : undefined,
+      value === 'opening' || value === 'attacking' ? context.attack : undefined,
     ],
     events: (): EventFromLogic<typeof koboldSquadMachine>[] => [
       { type: 'ALERT', target: squadTargets[0] },
       { type: 'ALERT', target: squadTargets[1] },
-      ...[0, 0.2, 0.35, 1.2, 5].flatMap((dt) =>
+      ...[0, 0.6, 1.25, 3, 5].flatMap((dt) =>
         [false, true].map((cohesive) => ({
           type: 'TICK' as const,
           dt,
@@ -118,6 +122,32 @@ export const modelCases = [
           home: true,
         })),
       ),
+      ...[
+        { losing: true },
+        { blocked: true },
+        { canReform: true },
+        { canReform: true, cohesive: false }, // A routed detour can resume an unfinished rank.
+        { attackDone: true },
+        { attack: 'LONG_THRUST' as const },
+        { attack: 'THROW_JAVELIN' as const },
+      ].map((facts) => ({
+        type: 'TICK' as const,
+        dt: 1.25,
+        survivors: 4,
+        valid: true,
+        cohesive: true,
+        home: false,
+        ...facts,
+      })),
+      ...(['LONG_THRUST', 'THROW_JAVELIN'] as const).map((attack) => ({
+        type: 'TICK' as const,
+        dt: 0.1,
+        survivors: 4,
+        valid: true,
+        cohesive: true,
+        home: false,
+        attack,
+      })),
       ...[0, 1, 3, 4].flatMap((survivors) =>
         [false, true].map((valid) => ({
           type: 'TICK' as const,
@@ -132,10 +162,11 @@ export const modelCases = [
     invariant: (state, before, event) => {
       assert.equal(
         !!state.context.target,
-        state.matches('assembling') || state.matches('engaging'),
+        !state.matches('idle') && !state.matches('returning') && !state.matches('defeated'),
       );
       assert.ok(state.context.memory >= 0 && state.context.memory <= 5);
-      assert.ok(state.context.elapsed >= 0 && state.context.elapsed <= 1.2);
+      assert.ok(state.context.elapsed >= 0 && state.context.elapsed <= 6);
+      if (state.matches('opening') || state.matches('attacking')) assert.ok(state.context.attack);
       if (before?.matches('defeated')) assert.ok(state.matches('defeated'));
       if (event?.type === 'TICK' && event.survivors === 0) assert.ok(state.matches('defeated'));
       if (event?.type === 'ALERT' && !before?.matches('defeated'))
@@ -300,10 +331,13 @@ export const modelCases = [
   ),
   modelCase(attackMachine, {
     inputs: [undefined],
-    abstractContext: ({ context }) => [context.cooldown > 0, context.swing?.ranged],
+    abstractContext: ({ context }) => [context.cooldown > 0, context.swing?.kind],
     events: (): EventFromLogic<typeof attackMachine>[] => [
-      { type: 'START', swing, cooldown: 1 },
-      { type: 'START', swing: { ...swing, ranged: true }, cooldown: 1 },
+      ...(['MELEE', 'CROSSBOW', 'LONG_THRUST', 'THROW_JAVELIN'] as const).map((kind) => ({
+        type: 'START' as const,
+        swing: { ...swing, kind, duration: ATTACKS[kind].duration, impact: ATTACKS[kind].impact },
+        cooldown: 1,
+      })),
       { type: 'TICK', dt: 0.25 },
       { type: 'TICK', dt: 1 },
       { type: 'TICK', dt: -1 },
@@ -327,6 +361,11 @@ export const modelCases = [
           assert.ok(current.elapsed >= current.impact && current.elapsed < current.duration);
       }
       if (before) {
+        if (current && before.context.swing) {
+          assert.equal(current.kind, before.context.swing.kind);
+          assert.equal(current.impact, before.context.swing.impact);
+          assert.equal(current.duration, before.context.swing.duration);
+        }
         const delta = impacts - before.context.impacts;
         assert.ok(
           delta === 0 || delta === 1,

@@ -16,6 +16,7 @@ const checks: string[] = [],
   screenshots: string[] = [],
   errors: string[] = [];
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+page.setDefaultNavigationTimeout(90000);
 page.on('pageerror', (e) => errors.push(e.message));
 const pass = (s: string) => {
   checks.push(s);

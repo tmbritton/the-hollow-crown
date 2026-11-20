@@ -116,9 +116,11 @@ export function createEnemyRendering(
     const stowedEquipment = [];
     const role = actor.entity.get('squadMember')?.role;
     let shield: TransformNode | undefined;
+    let spear: TransformNode | undefined;
+    let javelin: TransformNode | undefined;
     if (role === 'shieldbearer') {
       shield = new TransformNode(`${actor.id}:shield mount`, scene);
-      shield.parent = forearms[0];
+      shield.parent = root;
       equipment.push(p('iron', 'squad shield', [0.14, 0.72, 0.62], [-0.17, -0.02, 0.07], shield));
       equipment.push(p('gold', 'shield boss', [0.08, 0.16, 0.16], [-0.27, -0.02, 0.07], shield));
       stowedEquipment.push(p('iron', 'stowed shield', [0.62, 0.72, 0.14], [-0.24, 0.87, -0.29]));
@@ -132,8 +134,14 @@ export function createEnemyRendering(
       // The raised forearm points local -Y forward; keep the muzzle on that firing line.
       for (const mesh of equipment) mesh.rotation.x = Math.PI / 2;
     } else if (role === 'spearman') {
-      equipment.push(p('wood', 'long spear haft', [0.09, 2.1, 0.09], [0, 0.35, 0.12], forearms[1]));
-      equipment.push(p('iron', 'long spear tip', [0.18, 0.38, 0.08], [0, 1.57, 0.12], forearms[1]));
+      spear = new TransformNode(`${actor.id}:long spear mount`, scene);
+      spear.parent = root;
+      equipment.push(p('wood', 'long spear haft', [0.07, 0.07, 3.2], [0, 0, 0.85], spear));
+      equipment.push(p('iron', 'long spear tip', [0.16, 0.08, 0.35], [0, 0, 2.6], spear));
+      javelin = new TransformNode(`${actor.id}:javelin mount`, scene);
+      javelin.parent = root;
+      equipment.push(p('wood', 'javelin haft', [0.065, 0.065, 1.15], [0, 0, 0], javelin));
+      equipment.push(p('iron', 'javelin tip', [0.13, 0.07, 0.22], [0, 0, 0.68], javelin));
       stowedEquipment.push(p('wood', 'stowed long spear', [0.09, 2.1, 0.09], [0.3, 1.2, -0.25]));
       stowedEquipment.push(p('iron', 'stowed spear tip', [0.18, 0.38, 0.08], [0.3, 2.42, -0.25]));
     } else {
@@ -162,6 +170,8 @@ export function createEnemyRendering(
       equipment,
       stowedEquipment,
       shield,
+      spear,
+      javelin,
       attackBlend: 0,
       attackPose: null,
       socialBlend: 0,
@@ -210,6 +220,7 @@ export function createEnemyRendering(
     dust: makePool('bone dust', 192, materials.bone),
     block: makePool('shield sparks', 192, materials.gold),
     projectile: makePool('crossbow bolts', 32, materials.bone),
+    javelin: makePool('thrown javelins', 32, materials.wood),
   };
   const social = createSocialRendering(scene, combat, materials, shadow);
   return {
@@ -241,14 +252,15 @@ export function createEnemyRendering(
         pool.matrices.fill(0);
         for (let i = 0; i < pool.capacity; i++) pool.matrices[i * 16 + 15] = 1;
       }
-      const counts = { blood: 0, dust: 0, block: 0, projectile: 0 };
+      const counts = { blood: 0, dust: 0, block: 0, projectile: 0, javelin: 0 };
       for (const entity of [
         ...combat.ecs.query('particle', 'transform'),
         ...combat.ecs.query('projectile', 'transform'),
       ]) {
         const particle = entity.get('particle'),
           p = entity.require('transform');
-        const kind = particle?.kind ?? 'projectile',
+        const shot = entity.get('projectile');
+        const kind = particle?.kind ?? (shot?.kind === 'THROW_JAVELIN' ? 'javelin' : 'projectile'),
           pool = pools[kind],
           index = counts[kind]++;
         if (index >= pool.capacity) continue;
@@ -259,11 +271,27 @@ export function createEnemyRendering(
         pool.matrices[o] = size;
         pool.matrices[o + 5] = size;
         pool.matrices[o + 10] = particle ? size : 0.3;
+        if (shot?.kind === 'THROW_JAVELIN') {
+          const length = Math.max(1e-6, Math.hypot(shot.vx, shot.vy, shot.vz)),
+            horizontal = Math.max(1e-6, Math.hypot(shot.vx, shot.vz));
+          const x = shot.vx / length,
+            y = shot.vy / length,
+            z = shot.vz / length;
+          // Orthonormal right/up/forward columns; the short shaft follows actual flight.
+          pool.matrices[o] = (z / (horizontal / length)) * 0.065;
+          pool.matrices[o + 2] = (-x / (horizontal / length)) * 0.065;
+          pool.matrices[o + 4] = ((-y * x) / (horizontal / length)) * 0.065;
+          pool.matrices[o + 5] = (horizontal / length) * 0.065;
+          pool.matrices[o + 6] = ((-y * z) / (horizontal / length)) * 0.065;
+          pool.matrices[o + 8] = x * 1.35;
+          pool.matrices[o + 9] = y * 1.35;
+          pool.matrices[o + 10] = z * 1.35;
+        }
         pool.matrices[o + 12] = p.x;
         pool.matrices[o + 13] = p.h;
         pool.matrices[o + 14] = p.z;
       }
-      for (const kind of ['blood', 'dust', 'block', 'projectile'] as const) {
+      for (const kind of ['blood', 'dust', 'block', 'projectile', 'javelin'] as const) {
         const pool = pools[kind];
         updateInstanceMatrices(pool.mesh, pool.matrices, counts[kind] > 0);
       }

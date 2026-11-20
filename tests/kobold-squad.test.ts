@@ -49,7 +49,7 @@ test('squad owns stable original member references, roles and shared defense cap
   });
 });
 
-test('shared perception drives assembling, engagement, four distinct approaches and return without overlap', () => {
+test('shared perception drives physical ranks, four distinct approaches and return without overlap', () => {
   const f = fixture();
   f.step();
   f.player.position.x = 6;
@@ -60,7 +60,7 @@ test('shared perception drives assembling, engagement, four distinct approaches 
   assert.ok(f.pack.every((a) => a.attack.target === f.player.id));
   assert.equal(new Set(f.squad.members.map((m) => JSON.stringify(f.squad.approach(m)))).size, 4);
   let nearest = Infinity;
-  for (let i = 0; i < 240; i++) {
+  for (let i = 0; i < 360; i++) {
     f.step();
     for (const a of f.pack)
       for (const b of [f.player, ...f.pack])
@@ -70,12 +70,16 @@ test('shared perception drives assembling, engagement, four distinct approaches 
             Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z),
           );
   }
-  assert.equal(f.squad.state, 'engaging');
-  assert.ok(nearest >= 0.9 - 1e-6, String(nearest));
   assert.ok(
-    f.pack.some((a) => a.attack.cooldown > 0),
-    'ordinary melee remains active',
+    ['engaging', 'opening', 'attacking', 'recovering'].includes(f.squad.state),
+    JSON.stringify({
+      state: f.squad.state,
+      p: f.pack.map((a) => a.position),
+      goals: f.squad.members.map((m) => f.squad.approach(m)),
+    }),
   );
+  assert.ok(nearest >= 0.9 - 1e-6, String(nearest));
+  assert.ok(f.squad.cohesive, 'physical ranks assemble before coordinated attacks');
   f.player.position.x = -25;
   f.step(10);
   assert.equal(f.squad.state, 'returning');
@@ -152,8 +156,8 @@ test('assembly times out across an obstructed approach without moving bodies thr
     f.pack.slice(0, 3).some((a) => a.defending),
     'assembly opts into the shared guard',
   );
-  f.step(90);
-  assert.equal(f.squad.state, 'engaging', 'an isolated member cannot stall the whole pack');
+  f.step(400);
+  assert.equal(f.squad.state, 'holding', 'an isolated rank enters bounded defensive hold');
   assert.ok(f.pack.slice(0, 2).every((a) => a.position.x < -5.9));
   assert.ok(f.pack.slice(2).every((a) => a.position.x > -4.1));
 });
@@ -243,4 +247,72 @@ test('returning squad physically yields when two original members occupy each ot
       (a) => Math.hypot(a.position.x - a.brain!.home.x, a.position.z - a.brain!.home.z) < 0.2,
     ),
   );
+});
+
+test('seeded roomy gatherings attack from original social positions; the cramped stairs approach holds safely', () => {
+  for (const id of ['pack:stable', 'pack:stairs', 'pack:treasury']) {
+    const world = generateDungeon('MOURNING-731'),
+      ecs = new ECS();
+    const player = createActor(ecs, world, 'player', 'player', { x: 1000, z: 1000, h: 0 });
+    const enemies = seedEnemies(ecs, world),
+      combat = new CombatSystem(ecs, world, [player, ...enemies]);
+    const squad = ecs.get(id)!.require('koboldSquad'),
+      pack = enemies.filter((a) => a.brain?.pack === id);
+    for (const a of enemies) if (!pack.includes(a)) a.health.current = 0;
+    const approach = [...world.tiles.values()]
+      .filter((t) => {
+        const d = Math.hypot(t.x - squad.center.x, t.z - squad.center.z);
+        return (
+          d > 3 &&
+          d < 6 &&
+          player.navigator.canOccupy(t) &&
+          pack.some((a) => a.navigator.segmentClear(a.position, t))
+        );
+      })
+      .sort(
+        (a, b) =>
+          Math.hypot(a.x - squad.center.x, a.z - squad.center.z) -
+          Math.hypot(b.x - squad.center.x, b.z - squad.center.z),
+      )[0]!;
+    Object.assign(player.position, approach);
+    player.health.invulnerable = 100;
+    let plans = 0;
+    for (const a of pack) {
+      const go = a.navigator.goTo.bind(a.navigator);
+      a.navigator.goTo = (...args) => {
+        plans++;
+        return go(...args);
+      };
+    }
+    let attacked = false;
+    for (let i = 0; i < 900; i++) {
+      combat.update(1 / 60);
+      if (squad.spear?.attack.swing) attacked = true;
+    }
+    if (id === 'pack:stairs') {
+      assert.equal(squad.state, 'holding');
+      const held = pack.map((a) => ({ ...a.position })),
+        heldPlans = plans;
+      for (let i = 0; i < 900; i++) combat.update(1 / 60);
+      assert.equal(squad.state, 'holding');
+      assert.equal(plans, heldPlans, 'cramped hold cannot keep submitting recovery routes');
+      pack.forEach((a, i) => assert.deepEqual(a.position, held[i]));
+      assert.ok(pack.slice(0, 3).every((a) => a.defending));
+      for (const a of pack)
+        for (const b of pack)
+          if (a !== b)
+            assert.ok(
+              Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z) >= 0.9 - 1e-6,
+            );
+    } else
+      assert.ok(
+        attacked,
+        JSON.stringify({
+          id,
+          state: squad.state,
+          positions: pack.map((a) => a.position),
+          goals: squad.members.map((m) => squad.approach(m)),
+        }),
+      );
+  }
 });

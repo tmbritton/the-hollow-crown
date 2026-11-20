@@ -108,7 +108,7 @@ export async function captureSkeletonGait(page: Page) {
                   duration: 0.62,
                   impact: 0.25,
                   resolved: false,
-                  ranged: false,
+                  kind: 'MELEE',
                 },
                 1,
               );

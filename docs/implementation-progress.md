@@ -20,10 +20,28 @@ Execution record for [implementation path](implementation-path.md). Started **20
   **P3 is complete at `9f8e1d7`; final independent review returned READY, clearing both route-quality blockers.**
   **P4 skeleton gait is complete at `be29b8c`, independent review READY with no blockers.
   P5 held-F defense is complete at `975c533`, independent review READY with no blockers.
-  P6a four-member squad foundation is complete, final independent review READY**;
-  physical phalanx **P6b is next, not started**. Publishing P7 remains planned.
+   P6a four-member squad foundation is complete at `c3641c2`, final independent review READY**;
+   physical phalanx **P6b is complete, final independent review READY with both blockers cleared**.
+   Publishing P7 remains next; the user's new ragdoll and skeleton-breakup requests follow as P8–P9.
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
+- P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
+  seeded assembly, plus javelin **90 versus 100 HP** by ECS order. Local-detour/progress recovery
+  and earliest swept body contact fix both. **315 tests in 304.51s**, format (**148 files**), lint
+  and build pass; one fresh phalanx **8** / combat **15** browser pass. All 24 circular arrangements
+  hit by **12.92s**; the original adverse stable approach hits by **13.13s** in pure simulation.
+  Models remain **22/105/226**; group paths now **1,950**. Prior social/defense/tribute browser
+  evidence is reused. **Final independent review returned READY**, passing fresh geometry/lifecycle/
+  hold/progression probes and clearing both blockers. The user approved the normal-hook feature
+  commit; this containing commit records P6b.
+- P6b pre-review recovery baseline: **51 focused tests + 6 squad/model/social/tribute checks**, then extended attack-kind
+  model coverage pass. Final format (**147 files**), lint, **305 tests in 298.37s** and build each
+  passed once. Complete models: **22 machines / 105 states / 226 branches**. Reused saved current
+  phalanx **6**, social **15**, combat **15** browser passes; fresh sequential defense **9** and
+  tribute **9** pass. Reviewed eleven phalanx views in three contact sheets. No initial P6b red
+  log survived; none is claimed. No production fix was needed during recovery. Details and bounded
+  choke/hold behavior are recorded in VERIFICATION.md. Independent approval was pending at that
+  recovery checkpoint; the final READY review above supersedes it.
 - P6a review correction: **291 full tests**, typecheck/format/lint and **9 defense-browser checks**
   pass. The reviewer found no production defect; its blocker was an obsolete no-enemy-defense test,
   now corrected to the nine shield roles. **Final independent review is READY**, clearing that blocker.
@@ -112,11 +130,121 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P3 | Complete; final independent review READY | Initial audit 10 pass/3 fail; review regressions 13 pass/3 fail: actual-travel old-root detour, far-side equal endpoint and distant-motion replans | 60 focused / 263 full tests, format/lint/build, 16 Chromium movement checks; final review cleared both blockers with 17 partial tests, 24 route/tie and 72 body-cache/gate cases plus stable-hold/performance/capture checks | `9f8e1d7` |
 | P4 | Complete; independent review READY, no blockers | 9 pass / 2 fail before production edits: mirrored legs and prematurely released left plant | 23 focused / 268 full tests, format/lint/build; Chromium animation 32 crossings/732 contacts, 46 shared + 44 skeleton captures; independent phase/contact/baseline/reset and visual review passed | `be29b8c` |
 | P5 | Complete; independent review READY, no blockers | 1 pass / 4 fail on actual frontal health loss before production edits, then lifecycle/model contracts failed on missing defense module | 52 focused / 281 full tests, format/lint/build; Chromium defense 9, combat 15; 21 machines / 95 states / 179 branches; independent targeted geometry/latch/work/input/pool/regeneration review passed | `975c533` |
-| P6a | Complete; final independent review READY, no blockers | Missing squad module and 21≠24 population reds; detour/swapped-home reds; reviewer reproduced obsolete no-enemy-defense assertion | 291 full after all corrections; typecheck/format/lint; defense 9; prior build/social 15/tribute 9/gameplay 18+5 reused; final review clears role-aware assertion | This commit |
-| P6b | Next, not started | Physical phalanx; see implementation-path.md | User gameplay notes | — |
-| P7 | Planned after P6b | Public repository and Pages demo; see implementation-path.md | User release request | — |
+| P6a | Complete; final independent review READY, no blockers | Missing squad module and 21≠24 population reds; detour/swapped-home reds; reviewer reproduced obsolete no-enemy-defense assertion | 291 full after all corrections; typecheck/format/lint; defense 9; prior build/social 15/tribute 9/gameplay 18+5 reused; final review clears role-aware assertion | `c3641c2` |
+| P6b | Complete; final independent review READY, both blockers cleared | Review regressions fail 0/3 before fixes: circular/seeded rank stalls and ECS-order javelin interception | 315 tests/full checks; models 22/105/226; phalanx 8/combat 15; final review: fresh 24 arrangements, 600 geometry-oracle comparisons, lifecycle/hold/progression probes and 13 captures | This commit |
+| P7 | Next | Public repository and Pages demo; see implementation-path.md | User release request | — |
+| P8 | Queued after the original list | Directional ragdoll deaths, wall collisions and stair falls | New user note; not implemented | — |
+| P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 
 ## Work log
+
+### P6b — final independent review and delivery — 2026-11-19
+
+- Final independent review returned **READY**, clearing both the reachable-formation stall and
+  ECS-order javelin-interception blockers. **P6b is complete**, and the user approved its feature
+  commit with normal hooks. The containing commit records delivery against P6a **`c3641c2`**.
+- Attributed fresh reviewer results: **24 circular arrangements** hit by **12.9167s**, maximum
+  **2 plans**, minimum separation **0.90282044**, maximum step **0.02**; adverse original seed hits
+  at **13.1333s**. Both javelin orders contact the ally at **.8471111515**, retaining player **100** /
+  ally **44 HP**, with original crossbow rules. **600 geometry-oracle comparisons** and contact
+  boundaries pass. The small exact-tangency roundoff observation is non-blocking (VERIFICATION.md).
+- Reviewer lifecycle probes pass: obstruction removal, target loss/return/reacquisition, spearman
+  death and same-ID target replacement. Its separate blocked fixture settles by **30s, not 20s**,
+  stays held through **120s**, and hits **4.23s** after the blocking body dies. Group model
+  **10/47/1,950**, attack **4/13/210**, pure navigation/altar-gate progression, diff, **13 captures**
+  and phalanx **8** / combat **15** reports pass. The reviewer reused **315 tests/full checks/build**.
+- These are attributed independent checks, not repeated implementation runs. Approval requires no
+  production edits or additional browser suite. The normal commit hook runs tests/typecheck, lint
+  and format. Raw notes remain untouched and excluded; parent planning edits are included.
+  **P7 is next; P8/P9 stay queued after publication; P1 stays closed.** No agents or P7 implementation.
+
+### P6b — independent-review corrections — 2026-11-19
+
+- Reviewer returned **BLOCKED** on two production issues. Locally reproduced both before runtime
+  edits: **0 pass / 3 fail**. Exact circular setup stayed holding for **60s**, original MOURNING-731
+  stable approach for **20s**, both **0 impacts / 100 HP**. Edge javelin hit the hero for **10** only
+  when the hero preceded its nearer friendly interceptor in the ECS query. A preliminary test's
+  per-step bound was corrected for the existing sub-0.025 arrival connector before rerunning reds.
+- Holds now preserve useful local routes. After one second, a bounded half-second-cadence recovery
+  probe accepts a routed detour or yield, then the existing chart owns reassembly. Further retries
+  require changed target/external geometry or **0.25** progress in best remaining route/slot distance.
+  A focused **55 pass / 1 fail** checkpoint exposed the cramped stairs entering repeated recovery;
+  a probe found a whole-keep detour. The final **12-unit formation-route limit** and progress gate
+  preserve the strict narrow-hold test. Extended tests show zero new plans/movement from 15–30s in
+  the cramped case, and zero new plans in the immobile adapter's second 15 seconds.
+- Javelins use earliest swept horizontal-cylinder/vertical-slab contact, with deterministic ID ties.
+  Terrain/doors are checked to that contact, preserving before/after cover ordering. Friendlies stop
+  the shot without damage; crossbow behavior is unchanged. No new chart lifecycle or render nodes.
+- All **24 circular role arrangements** now hit within **12.9167s**, max **2 plans**, min separation
+  **0.90282044**, max step **0.02**. Repositioned threat takes damage too. Original stable case hits
+  at **13.1333s**. **108 projectile cases** cover six insertion orders, rotations/reverse/zero/vertical
+  travel, grazing, airborne/sloped height, cover/doors and crossbow controls. Original edge contact
+  is **z=.8471111514857935**, hero **100 HP** in both orders.
+- Focused phalanx/projectile **23**, correction-focused **7**, final strengthened hold/return **3**
+  and affected models pass. Model group **10/47/1,950/480**, attack **4/13/210/480**; complete catalog
+  **22 machines / 105 states / 226 branches**. The reform partition now includes noncohesive ranks.
+- Sequential Chromium/SwiftShader passes, once each: **phalanx 8 / 24.24s**, **combat 15 / 66.50s**,
+  with owned server lifecycle included. Real seeded/circular recovery hits at **13.1667s / 12.9667s**,
+  two plans each, minimum separations **0.90031539 / 0.90688869**. Both browser edge orders consume
+  the shot at the same earlier friendly contact. Reviewed two new recovery views and eleven refreshed
+  action/rank views in contact sheets. Prior social **15**, defense **9**, tribute **9** evidence reused.
+- Final **315 tests / 304.51s**, lint, format (**148 files**) and build (**689 modules**, Vite **0.580s**)
+  pass. Lint/full tests/build each ran once; the first prefix stopped at a regression-file format
+  issue, corrected before those commands ran. Existing bundle warning only. No broader browser repeat.
+- Reviewer-attributed passes retained: **96 lane/corpse cases**, four action clocks, eight pre-impact
+  death/interrupt/boolean-compatibility probes, five competing guards and group/attack models. These
+  are separate from local evidence and do not constitute approval of the corrections.
+- Independent re-review was pending at this checkpoint; the final **READY** verdict above clears
+  both blockers. Owned browser/Vite processes closed; raw notes and existing services untouched.
+  No agents, staging or commit were used for the correction. P7 remains next, P8/P9 follow
+  publication; P1 closed.
+
+### P6b — recovered implementation and completed verification — 2026-11-19
+
+- Preserved saved runtime/rendering/fixture work against **`c3641c2`** and the parent's queue edits.
+  No production correction was needed. Added the two phalanx action kinds to the existing attack
+  model, using actual duration/impact contracts and invariant action identity/timing. Original
+  test-first P6b failures were not retained; the first resumed focused batch passed **51/51**.
+- Physical **3-front/1-rear** ranks advance at **1.1 units/s**; turn cap **0.65 rad/s**, lateral
+  spacing **1.15**, rear separation **1.2**, lane **0.575**. Shared chart owns a **0.6s** vulnerable
+  opening; individual `Attack` owns **3.8-range/12-damage thrust** or **9-range/10-damage javelin**.
+  Recovery and minimum engagement are **1.25s** each. Friendly living bodies stop javelins without
+  damage; the shared projectile cap is **32** with one reusable shaft pool.
+- Half casualties, **35% surviving health**, or lost spearman trigger **0.85 units/s** backward
+  withdrawal with threat-facing shields. Survivor offsets, **0.13** cohesion gating, ordinary
+  terrain/body/gate clearance and slowest-member water pacing prevent overlap or teleport.
+  Six-second assembly, 17 candidate footprints and bounded route/yield rounds lead to a defensive
+  hold when cramped; there is no single-file choke traversal. Seeded roomy gatherings attack;
+  the cramped stairs fixture holds safely. Four original porter roles, including lone spearman
+  takeover, continue to use ordinary work/tribute behavior after threat loss.
+- Recovery checks: **51 focused** in **20.99s**, **6 focused model/social/tribute** in **34.63s**,
+  extended attack model in **0.41s**. Final required format/lint/npm-test/build commands each ran
+  **once**, all passing: **147 formatted files**, **305 tests / 298.37s**, **689 build modules**
+  (Vite **0.602s**, existing chunk warning). Complete models **22/105/226**; squad **10 states /
+  47 branches / 1,885 paths / 480 cyclic steps**, attack **4/13/210/480**.
+- Inspected saved reports and runtime timestamps before reusing current Chromium/SwiftShader
+  phalanx **6**, social **15** and combat **15** passes. Defense/tribute reports predated P6b;
+  fresh sequential runs pass **9 each** in **19.40s / 117.16s** including server lifecycle, with
+  zero errors. Three tribute regeneration samples stabilize at **2,291 meshes / 28 materials /
+  4 textures / 49 effects / 34 shader sources**. Software timing is not hardware FPS.
+- Composed and actually inspected **three contact sheets / eleven views**: front, side, opening,
+  thrust preparation/contact/front, throw preparation/flight and retreat front/side. Shields,
+  rear lane, exposed chest, reaching shaft and threat-facing survivors are readable; side thrust
+  supplies contact obscured by the hero in the front view. Also reviewed seeded engagement and
+  tribute carrier views. Artifacts and exact commands are in VERIFICATION.md.
+- Owned browser/Vite scopes used **5187** and a **240s per-suite deadline**, then closed. Final
+  check found no 5173/5187 listeners or owned test-browser processes. Existing services and raw
+  notes were untouched. No agents, staging or commits. **Independent review is the next gate;
+  P7 remains the next feature, with P8/P9 queued afterward.** P1 remains closed.
+
+### Interrupted phalanx work and new user notes
+
+- Resumed from committed P6a `c3641c2`. P6b runtime, model and browser-test changes survived
+  the interruption; unrecorded checks are not assumed to have passed.
+- Added P8 directional ragdoll deaths and P9 skeleton breakup to the queue after the original
+  list through publishing P7, as requested. The user's raw `docs/notes.md` remains untouched.
+- The user reported another machine freeze and requested continuation. P1's application
+  investigation remains closed; system configuration and driver diagnosis remain outside scope.
 
 ### P6a — final independent review and delivery — 2026-11-19
 

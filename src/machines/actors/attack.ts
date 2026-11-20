@@ -1,6 +1,7 @@
 import { assign, setup } from 'xstate';
 import { Statechart } from '../statechart.ts';
 import { commandMachine } from './command.ts';
+import type { AttackKind } from '../../attackKinds.ts';
 
 export interface Swing {
   target: string;
@@ -8,7 +9,7 @@ export interface Swing {
   duration: number;
   impact: number;
   resolved: boolean;
-  ranged: boolean;
+  kind: AttackKind;
 }
 interface AttackContext {
   swing: Swing | null;

@@ -17,23 +17,28 @@ each slice test-first, independently reviewed and committed:
 | P3 | Move toward blocked floor clicks — `9f8e1d7`, complete, final review READY | Unreachable floor requests approach the closest safely reachable point. Route clearance, void/door/locked-gate rules, precise arrival and settled holds are preserved. Cached routes reroot after travel; equally close approaches prefer shorter travel. Final independent review cleared both route-quality blockers. Verified results are in the progress tracker and VERIFICATION.md. |
 | P4 | Give skeletons a lurching gait — `be29b8c`, complete, independent review READY | Distance-sampled 64/36 load/catch-up timing, rib lean/twist and trailing skull. Shared foot grounding and attack priority retained. 268 tests/full checks, affected animation pass and reviewed motion sequences. Independent review found no blockers; attributed probes are in progress/verification records. |
 | P5 | Hold F to defend — `975c533`, complete, independent review READY | Shared opt-in ECS `actorDefense` chart; inclusive 120° frontal melee/projectile block, travel-vector bolt direction, forward shield/lowered weapon, full-speed grounded movement, attack/work interruption and release latch across jump/cancellation/resets. Independent review found no blockers; implementation checks and attributed review probes are recorded in the progress tracker and VERIFICATION.md. |
-| P6a | Introduce declarative kobold squad coordination — complete, independent review READY | Three existing packs now have three shield bearers and one spearman each (24 enemies). ECS group charts own shared targeting, bounded assembly, engagement, return/yield and defeat; individual charts remain. Final review cleared the role-aware defense-test blocker, with no production defects or other issues. See progress/verification records. |
-| P6b | Deliver the phalanx encounter — next, not started | Slow coordinated advance, shielded front rank, rear spear thrusts or javelins, a telegraphed shield-opening window, and coordinated backward withdrawal when losing. Test formation spacing, interruptions, casualties, narrow approaches and retreat without overlap or gate bypass. |
+| P6a | Introduce declarative kobold squad coordination — `c3641c2`, complete, independent review READY | Three existing packs now have three shield bearers and one spearman each (24 enemies). ECS group charts own shared targeting, bounded assembly, engagement, return/yield and defeat; individual charts remain. Final review cleared the role-aware defense-test blocker, with no production defects or other issues. See progress/verification records. |
+| P6b | Deliver the phalanx encounter — complete, final independent review READY | Slow coordinated ranks, vulnerable shield opening, rear thrust/javelin and shielded withdrawal. Both review blockers cleared: bounded local-detour recovery and earliest swept javelin interception. 315 tests/full checks; phalanx 8/combat 15 browser checks; final independent geometry, lifecycle, bounded-hold, progression and capture review pass. See VERIFICATION.md for attributed evidence and limits. |
 | P7 | Publish the repository and GitHub Pages demo | Inspect repository/remotes and publishing configuration, make the intended repository public, build/deploy through GitHub Actions, and verify the deployed production game at its Pages base path. Keep development hooks and generated test artifacts out of the deployed app. |
+| P8 | Directional ragdoll deaths — queued after the original list | Apply an exaggerated death impulse in the killing blow's direction. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
+| P9 | Skeleton breakup and settled bone decoration — queued after P8 | Skeleton deaths launch separated procedural body parts instead of retaining an intact corpse. Parts collide and settle as non-interactive set decoration. Reuse the death-motion foundation; preserve death/discovery semantics, bounded resources, pause and regeneration cleanup, with real-browser visual checks. |
 
 P1's resource-fix slice is committed as **`6378d61`**. **P2 corpse traversal is committed at
 `726af8a`, accepted by the user and independently reviewed READY.** **P3 blocked-floor
 click fallback is complete at `9f8e1d7`; final independent review returned READY.**
 **P4 skeleton gait is complete at `be29b8c`, independently reviewed READY with no blockers.
 P5 held-F defense is complete at `975c533`, independently reviewed READY with no blockers.
-P6a is complete against that baseline, independently reviewed READY with no remaining blockers.
-P6b is next, not started.**
+P6a is complete at `c3641c2`, independently reviewed READY with no remaining blockers.
+P6b is complete; final independent review returned READY and cleared both blockers.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
 P5 establishes the defensive behavior needed by P6. P6a and P6b split the formation request into
 reviewable slices. P7 follows the gameplay/stability pass. Historical broader art/performance
 milestones remain recorded, but do not supersede this user-directed queue.
+
+The two later additions to `docs/notes.md` are P8 and P9. At the user's request, finish the
+original list through P7 before beginning them. Preserve the raw notes as the source of intent.
 
 ## Chosen starting point (historical)
 

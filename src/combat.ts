@@ -19,6 +19,8 @@ import { tributeBlueprint } from './generation/tribute.ts';
 import { inGuardArc } from './machines/actors/defense.ts';
 import { installKoboldSquads } from './koboldSquads.ts';
 import type { KoboldSquad } from './koboldSquads.ts';
+import { ATTACKS } from './attackKinds.ts';
+import type { AttackKind } from './attackKinds.ts';
 
 /** Attack geometry is independent of source identity (a bolt's owner may have moved or died). */
 export interface DamageImpact {
@@ -27,9 +29,45 @@ export interface DamageImpact {
 }
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
-export const MELEE_RANGE = 1.5;
-export const ATTACK_DURATION = 0.62;
-export const ATTACK_IMPACT = 0.25;
+
+/** First entry into the existing projectile hit cylinder, including the elevation slab.
+ * Intersect intervals rather than sampling endpoints: grazing bodies can both enter and
+ * exit between samples. Stationary/vertical travel and a start inside are handled too. */
+function projectileContact(from: Spawn, to: Spawn, actor: Actor): number | null {
+  const dx = to.x - from.x,
+    dz = to.z - from.z,
+    dh = to.h - from.h;
+  const x = from.x - actor.position.x,
+    z = from.z - actor.position.z;
+  const length2 = dx * dx + dz * dz,
+    separation = x * x + z * z - 0.48 * 0.48;
+  let enter = 0,
+    exit = 1;
+  if (length2 === 0) {
+    if (separation >= 0) return null;
+  } else {
+    const dot = x * dx + z * dz,
+      discriminant = dot * dot - length2 * separation;
+    if (discriminant <= 0) return null;
+    enter = Math.max(enter, (-dot - Math.sqrt(discriminant)) / length2);
+    exit = Math.min(exit, (-dot + Math.sqrt(discriminant)) / length2);
+  }
+  const low = actor.elevation + 0.85 - 0.75,
+    high = actor.elevation + 0.85 + 0.75;
+  if (dh === 0) {
+    if (from.h <= low || from.h >= high) return null;
+  } else {
+    const a = (low - from.h) / dh,
+      b = (high - from.h) / dh;
+    enter = Math.max(enter, Math.min(a, b));
+    exit = Math.min(exit, Math.max(a, b));
+  }
+  return enter < exit ? enter : null;
+}
+
+export const MELEE_RANGE = ATTACKS.MELEE.range;
+export const ATTACK_DURATION = ATTACKS.MELEE.duration;
+export const ATTACK_IMPACT = ATTACKS.MELEE.impact;
 export const GOBLIN_FLEE_SPEED = 5.2;
 
 /** Conservative cover/weapon visibility: void, cliffs, furniture and solid doors occlude. */
@@ -178,7 +216,7 @@ export class CombatSystem {
     if (!actor.alive || !hostile(actor, target)) return false;
     const squad = actor.entity.get('squadMember')?.group.get('koboldSquad');
     if (squad) {
-      squad.chart.send({ type: 'ALERT', target: target.entity });
+      squad.alert(target.entity);
       this.syncSquad(squad);
       return true;
     }
@@ -228,7 +266,66 @@ export class CombatSystem {
     );
   }
 
-  startAttack(actor: Actor, target: Actor, ranged = false): boolean {
+  /** Body-safe right-hand weapon origin, shared by reach checks, projectiles and authored rigs. */
+  weaponOrigin(actor: Actor): Spawn {
+    const h = actor.position.heading;
+    return {
+      x: actor.position.x + Math.cos(h) * 0.4 + Math.sin(h) * 0.1,
+      z: actor.position.z - Math.sin(h) * 0.4 + Math.cos(h) * 0.1,
+      h: actor.elevation,
+    };
+  }
+
+  private spearClear(actor: Actor, target: Actor, preparing = false): boolean {
+    const from = this.weaponOrigin(actor),
+      to = target.position;
+    if (Math.abs(actor.elevation - target.elevation) >= 0.9 || !clearSight(this.world, from, to))
+      return false;
+    const dx = to.x - from.x,
+      dz = to.z - from.z,
+      length2 = dx * dx + dz * dz;
+    if (
+      (dx * Math.sin(actor.position.heading) + dz * Math.cos(actor.position.heading)) /
+        Math.sqrt(length2 || 1) <
+      0.995
+    )
+      return false;
+    return this.actors.every((a) => {
+      if (
+        a.entity === actor.entity ||
+        a.entity === target.entity ||
+        !a.alive ||
+        Math.abs(a.elevation - actor.elevation) > 0.9
+      )
+        return true;
+      const t = ((a.position.x - from.x) * dx + (a.position.z - from.z) * dz) / (length2 || 1);
+      if (t <= 0 || t >= 1) return true;
+      const gap = distance(a.position, { x: from.x + dx * t, z: from.z + dz * t });
+      if (gap < 0.48) return false;
+      const member = a.entity.get('squadMember');
+      return !(
+        gap < 0.75 &&
+        member &&
+        member.group === actor.entity.get('squadMember')?.group &&
+        member.group.require('koboldSquad').isGate(member) &&
+        !preparing &&
+        !member.group.require('koboldSquad').isOpening(member)
+      );
+    });
+  }
+
+  private canAttack(actor: Actor, target: Actor, kind: AttackKind, preparing = false): boolean {
+    if (kind === 'MELEE') return this.inMelee(actor, target);
+    if (kind === 'CROSSBOW') return clearSight(this.world, actor.position, target.position);
+    return (
+      distance(this.weaponOrigin(actor), target.position) <= ATTACKS[kind].range &&
+      this.spearClear(actor, target, preparing)
+    );
+  }
+
+  startAttack(actor: Actor, target: Actor, action: AttackKind | boolean = 'MELEE'): boolean {
+    const kind = typeof action === 'boolean' ? (action ? 'CROSSBOW' : 'MELEE') : action;
+    const spec = ATTACKS[kind];
     if (
       !actor.alive ||
       actor.defending ||
@@ -238,21 +335,16 @@ export class CombatSystem {
       actor.attack.cooldown > 0
     )
       return false;
-    if (
-      ranged
-        ? !clearSight(this.world, actor.position, target.position)
-        : !this.inMelee(actor, target)
-    )
-      return false;
-    if (ranged || actor.kind !== 'player') actor.navigator.cancel();
+    if (!this.canAttack(actor, target, kind)) return false;
+    if (spec.projectile || actor.kind !== 'player') actor.navigator.cancel();
     const started = actor.attack.start(
       {
         target: target.id,
         elapsed: 0,
-        duration: ranged ? 0.85 : ATTACK_DURATION,
-        impact: ranged ? 0.45 : ATTACK_IMPACT,
+        duration: spec.duration,
+        impact: spec.impact,
         resolved: false,
-        ranged,
+        kind,
       },
       actor.kind === 'player'
         ? 0.64
@@ -261,10 +353,11 @@ export class CombatSystem {
           : 1.15 + (actor.brain?.slot ?? 0) * 0.18,
     );
     if (started) actor.entity.get('work')?.interrupt('Attack started');
-    actor.position.heading = Math.atan2(
-      target.position.x - actor.position.x,
-      target.position.z - actor.position.z,
-    );
+    if (kind === 'MELEE' || kind === 'CROSSBOW')
+      actor.position.heading = Math.atan2(
+        target.position.x - actor.position.x,
+        target.position.z - actor.position.z,
+      );
     return started;
   }
 
@@ -277,11 +370,18 @@ export class CombatSystem {
         actor.attack.target = null;
         actor.navigator.cancel();
       }
-      return !!actor.attack.swing && (actor.kind !== 'player' || actor.attack.swing.ranged);
+      return (
+        !!actor.attack.swing &&
+        (actor.kind !== 'player' || ATTACKS[actor.attack.swing.kind].projectile)
+      );
     }
     if (actor.defending) return false;
     if (actor.jump.active) return false;
-    if (actor.attack.swing && (actor.kind !== 'player' || actor.attack.swing.ranged)) return true;
+    if (
+      actor.attack.swing &&
+      (actor.kind !== 'player' || ATTACKS[actor.attack.swing.kind].projectile)
+    )
+      return true;
     if (this.inMelee(actor, target)) {
       this.startAttack(actor, target);
       // Only proximity to a stationary target stops the player's chase, never the swing clock.
@@ -520,6 +620,9 @@ export class CombatSystem {
     target: Actor | undefined,
     effects: readonly { type: string }[],
   ): void {
+    // Individual charts still receive perception/engagement/death. The active group supplies
+    // their shared movement/attack intents instead of releasing four competing flank effects.
+    if (actor.entity.get('squadMember')?.group.get('koboldSquad')?.active) return;
     const brain = actor.brain!;
     for (const effect of effects) {
       switch (effect.type) {
@@ -668,7 +771,7 @@ export class CombatSystem {
     } else if (target.brain && source) {
       const squad = target.entity.get('squadMember')?.group.get('koboldSquad');
       if (squad && source.alive && this.ecs.get(source.id) === source.entity) {
-        squad.chart.send({ type: 'ALERT', target: source.entity });
+        squad.alert(source.entity);
         this.syncSquad(squad);
       }
       target.attack.target = squad ? (squad.target?.id ?? null) : source.id;
@@ -690,14 +793,18 @@ export class CombatSystem {
         actor.brain.think = 0;
       }
       if (id) actor.entity.get('work')?.interrupt('Squad threatened');
+      const guard = !!id && member.role === 'shieldbearer' && !squad.isOpening(member);
+      if (guard && !actor.defending) {
+        actor.entity.get('defense')?.release();
+        requestDefense(actor);
+      } else if (!guard) actor.entity.get('defense')?.release();
     }
   }
 
   private updateSquads(dt: number): void {
     this.squadElapsed += dt;
-    if (dt > 0 && this.squadElapsed < 0.15) return;
-    const elapsed = dt === 0 ? 0 : this.squadElapsed;
-    if (dt > 0) this.squadElapsed = 0;
+    const perceive = this.squadElapsed >= 0.15 || dt === 0;
+    if (perceive) this.squadElapsed = 0;
     const actors = this.actors;
     for (const entity of this.ecs.query('koboldSquad')) {
       const squad = entity.require('koboldSquad');
@@ -718,8 +825,9 @@ export class CombatSystem {
             distance(a.position, other.position) < 10 &&
             clearSight(this.world, a.position, other.position),
         );
-      const seen =
-        valid && visible(new Actor(current))
+      const seen = !perceive
+        ? undefined
+        : valid && visible(new Actor(current))
           ? new Actor(current)
           : !valid
             ? actors
@@ -730,19 +838,40 @@ export class CombatSystem {
                     a.id.localeCompare(b.id),
                 )[0]
             : undefined;
-      if (seen) squad.chart.send({ type: 'ALERT', target: seen.entity });
+      if (seen) squad.alert(seen.entity);
       const before = squad.state;
+      const spear = squad.spear,
+        target = squad.target ? new Actor(squad.target) : undefined;
+      const kind: AttackKind | null =
+        spear && target && spear.attack.cooldown <= 0
+          ? this.canAttack(spear, target, 'LONG_THRUST', true)
+            ? 'LONG_THRUST'
+            : this.canAttack(spear, target, 'THROW_JAVELIN', true)
+              ? 'THROW_JAVELIN'
+              : null
+          : null;
       squad.chart.send({
         type: 'TICK',
-        dt: elapsed,
+        dt,
         survivors: members.length,
         valid: !!seen || valid,
-        cohesive: members.every((a) => distance(a.position, squad.center) < 4),
+        cohesive: squad.cohesive,
+        losing: squad.losing,
+        blocked: squad.active && squad.blocked,
+        canReform: squad.state === 'holding' && squad.prepareReform(this.world, dt),
+        attack: kind,
+        attackDone: !spear?.attack.swing,
         home: members.every(
           (a) => !a.brain || a.entity.has('work') || distance(a.position, a.brain.home) < 0.2,
         ),
       });
       this.syncSquad(squad);
+      if (before !== squad.state) {
+        if (squad.state === 'retreating') squad.beginRetreat();
+        if (squad.state === 'attacking' && spear && target && squad.chart.snapshot.context.attack)
+          this.startAttack(spear, target, squad.chart.snapshot.context.attack);
+        else if (squad.state !== 'opening') spear?.attack.interrupt();
+      }
       if (before !== squad.state)
         for (const actor of members) if (actor.brain) actor.brain.think = 0;
     }
@@ -800,28 +929,35 @@ export class CombatSystem {
     }
   }
 
-  private launch(actor: Actor, target: Actor): void {
+  private launch(actor: Actor, target: Actor, kind: 'CROSSBOW' | 'THROW_JAVELIN'): void {
     if (this.ecs.query('projectile').length >= 32) return;
-    const dx = target.position.x - actor.position.x,
-      dz = target.position.z - actor.position.z;
+    const origin = kind === 'THROW_JAVELIN' ? this.weaponOrigin(actor) : actor.position;
+    const dx = target.position.x - origin.x,
+      dz = target.position.z - origin.z;
     const dy = target.elevation - actor.elevation,
       length = Math.max(0.1, Math.hypot(dx, dy, dz));
     this.ecs
       .create()
-      .add('transform', { ...actor.position, h: actor.elevation + 0.85 })
+      .add('transform', { ...origin, heading: actor.position.heading, h: actor.elevation + 0.85 })
       .add('projectile', {
         owner: actor.id,
+        kind,
         vx: (dx / length) * 10,
         vy: (dy / length) * 10,
         vz: (dz / length) * 10,
         life: 1.6,
-        damage: 7,
+        damage: ATTACKS[kind].damage,
       });
   }
 
   update(dt: number): void {
     this.time += dt;
     this.updateSquads(dt);
+    const formation = new Map(
+      this.ecs
+        .query('koboldSquad')
+        .flatMap((e) => [...e.require('koboldSquad').movement(dt, this.world)]),
+    );
     for (const actor of this.actors) {
       if (!actor.defending) actor.entity.get('defense')?.cancel();
       actor.health.advance(dt);
@@ -838,19 +974,6 @@ export class CombatSystem {
       }
       const brain = actor.brain;
       if (brain) {
-        const squad = actor.entity.get('squadMember')?.group.get('koboldSquad');
-        const threat = squad?.target ? new Actor(squad.target) : undefined;
-        if (
-          squad?.state === 'assembling' &&
-          threat &&
-          !actor.attack.swing &&
-          !this.inMelee(actor, threat)
-        ) {
-          if (!actor.defending) {
-            actor.entity.get('defense')?.release();
-            requestDefense(actor);
-          }
-        } else actor.entity.get('defense')?.release();
         brain.think -= dt;
         brain.memory -= dt;
         if (brain.think <= 0) {
@@ -870,7 +993,7 @@ export class CombatSystem {
         moveActor(
           actor,
           this.world,
-          {
+          formation.get(actor.entity) ?? {
             locked: !!actor.attack.swing,
             speed:
               actor.kind === 'goblin' && brain.state === 'flee' ? GOBLIN_FLEE_SPEED : undefined,
@@ -882,12 +1005,16 @@ export class CombatSystem {
       if (!swing) continue;
       const target = this.actor(swing.target);
       if (target?.alive) {
-        if (swing.ranged) {
-          if (clearSight(this.world, actor.position, target.position)) this.launch(actor, target);
-        } else if (this.inMelee(actor, target))
+        if (swing.kind === 'CROSSBOW' || swing.kind === 'THROW_JAVELIN') {
+          if (this.canAttack(actor, target, swing.kind)) this.launch(actor, target, swing.kind);
+        } else if (this.canAttack(actor, target, swing.kind))
           this.damage(
             target,
-            actor.kind === 'player' ? 24 : actor.kind === 'skeleton' ? 9 : 6,
+            actor.kind === 'player'
+              ? 24
+              : actor.kind === 'skeleton'
+                ? 9
+                : ATTACKS[swing.kind].damage,
             actor,
             {
               kind: 'melee',
@@ -923,10 +1050,11 @@ export class CombatSystem {
   }
 
   private updateProjectiles(dt: number): void {
+    const actors = this.actors;
     for (const entity of this.ecs.query('projectile', 'transform')) {
       const shot = entity.require('projectile'),
         p = entity.require('transform');
-      const owner = this.actor(shot.owner);
+      const owner = actors.find((a) => a.id === shot.owner);
       shot.life -= dt;
       if (!owner || shot.life <= 0) {
         this.ecs.remove(entity.id);
@@ -939,6 +1067,29 @@ export class CombatSystem {
           z: p.z + (shot.vz * dt) / steps,
           h: p.h + (shot.vy * dt) / steps,
         };
+        let target: Actor | undefined;
+        if (shot.kind === 'THROW_JAVELIN') {
+          let first = Infinity;
+          for (const a of actors) {
+            if (!a.alive || a.id === owner.id) continue;
+            const contact = projectileContact(p, next, a);
+            if (
+              contact !== null &&
+              (contact < first ||
+                (contact === first && (!target || a.id.localeCompare(target.id) < 0)))
+            ) {
+              first = contact;
+              target = a;
+            }
+          }
+          if (target) {
+            next.x = p.x + (next.x - p.x) * first;
+            next.z = p.z + (next.z - p.z) * first;
+            next.h = p.h + (next.h - p.h) * first;
+          }
+        }
+        // Test cover only up to the earliest body contact. A wall before that contact wins;
+        // a wall later in the same substep must not erase the earlier physical impact.
         if (
           !clearSight(this.world, { ...p, h: p.h - 0.85 }, { ...next, h: next.h - 0.85 }) ||
           !tileAt(this.world, next.x, next.z) ||
@@ -950,12 +1101,13 @@ export class CombatSystem {
           break;
         }
         Object.assign(p, next);
-        const target = this.actors.find(
-          (a) =>
-            hostile(owner, a) &&
-            distance(a.position, p) < 0.48 &&
-            Math.abs(a.elevation + 0.85 - p.h) < 0.75,
-        );
+        if (shot.kind !== 'THROW_JAVELIN')
+          target = actors.find(
+            (a) =>
+              hostile(owner, a) &&
+              distance(a.position, p) < 0.48 &&
+              Math.abs(a.elevation + 0.85 - p.h) < 0.75,
+          );
         if (target) {
           this.damage(target, shot.damage, owner, {
             kind: 'projectile',

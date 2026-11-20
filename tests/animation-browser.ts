@@ -334,7 +334,7 @@ try {
               duration: ranged ? 0.85 : 0.62,
               impact: ranged ? 0.45 : 0.25,
               resolved: false,
-              ranged,
+              kind: ranged ? 'CROSSBOW' : 'MELEE',
             },
             1,
           );

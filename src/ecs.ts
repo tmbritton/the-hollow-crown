@@ -94,6 +94,8 @@ export interface Components {
     footPlants: { anchor: Spawn | null }[];
     cape?: TransformNode;
     shield?: TransformNode;
+    spear?: TransformNode;
+    javelin?: TransformNode;
     attackBlend: number;
     attackPose: LocomotionPose | null;
     socialBlend: number;
@@ -112,7 +114,15 @@ export interface Components {
   portrait: Portrait;
   interaction: Interaction;
   door: DoorEntity;
-  projectile: { owner: string; vx: number; vy: number; vz: number; life: number; damage: number };
+  projectile: {
+    owner: string;
+    kind?: 'CROSSBOW' | 'THROW_JAVELIN';
+    vx: number;
+    vy: number;
+    vz: number;
+    life: number;
+    damage: number;
+  };
   particle: {
     kind: 'blood' | 'dust' | 'block';
     vx: number;

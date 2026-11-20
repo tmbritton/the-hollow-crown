@@ -4,7 +4,259 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
-### P6a — four-member squad foundation — 2026-11-19 (complete, independent review READY)
+### P6b — final independent review and delivery — 2026-11-19 (complete, READY)
+
+The final independent reviewer returned **READY**, clearing both production blockers. **P6b is
+complete**, and the user approved its normal-hook feature commit. The containing commit records
+the phalanx feature against P6a **`c3641c2`**. **P7 publishing is next; P8/P9 remain queued after P7.**
+
+The following are **attributed final-review results**, not additional implementation runs:
+
+- Fresh **24 circular arrangements** all hit within **12.9167s**, at most **2 route submissions**,
+  minimum separation **0.90282044**, maximum step **0.02**. The adverse original seeded approach
+  hits at **13.1333s**.
+- Both javelin entity orders hit the earlier ally at **z=.8471111515**, preserving **100 player HP /
+  44 ally HP**; crossbow controls retain the original rules. **600 independent geometry-oracle
+  comparisons** and contact-boundary checks pass.
+- Recovery lifecycle probes pass: live obstruction removal, target loss/return/reacquisition,
+  spearman death and same-ID target replacement. The reviewer's bounded-obstruction fixture
+  settles by **30s, not 20s**, remains held through **120s**, then hits **4.23s** after the blocking
+  body dies. This is a separate probe from the local cramped/immobile fixtures below.
+- Group model **10 states / 47 branches / 1,950 paths** and attack model **4 / 13 / 210** pass.
+  Pure navigation/progression checks preserve the altar gate. Diff, **13 captures**, phalanx
+  **8-check** report and combat **15-check** report were reviewed. The reviewer reused the existing
+  **315-test / full-check / build** evidence.
+- A non-blocking numerical observation is confined to roughly **3.3e-9** around exact tangency;
+  offsets of **±1e-7** classify correctly. No production change was requested for this roundoff.
+
+No new browser or broad implementation test run was needed for this approval. The normal commit
+hook runs the repository's required tests/typecheck, lint and format checks. Raw `docs/notes.md`
+remains user-owned and excluded; the parent's P7–P9 planning edits are preserved. P1 remains closed.
+
+### P6b — independent-review corrections — 2026-11-19 (verified before final READY review)
+
+Independent review returned **BLOCKED** on two production defects: reachable ranks could remain
+holding forever, and javelin body selection depended on ECS iteration order. Both now have local
+failing-before-fix regressions and passing corrections. Re-review was pending at this checkpoint;
+the final **READY** verdict above clears both blockers.
+The earlier **305-test** implementation result below is retained as a **pre-review baseline**.
+
+#### Red → green
+
+Before production edits, `node --test --test-name-pattern='review:' tests/phalanx.test.ts`
+failed **0 pass / 3 fail** in **4.32s**:
+
+| Reproduction | Before | After |
+| --- | --- | --- |
+| Flat circular gathering: shields `(1.5,0)`, `(0,-1.5)`, `(-1.5,0)`; spear `(0,1.5)`; hero `(.575,7)` | **60s**, `holding`, **0 impacts / 100 HP**, forward clearance free | First hit **12.9167s**, **90 HP**, one impact |
+| Original MOURNING-731 stable gathering; hero `(-2,-61)` | **20s**, `holding`, **0 impacts / 100 HP** | First hit **13.1333s**, **88 HP**, one impact |
+| In-flight javelin `(0,.8,h=.85)`, velocity `+z 10`; ally `(-.455,1)`, hero `(.455,1.02)` | Player-first **90 HP**, ally-first **100 HP** | Both **100 HP**, no friendly damage; first contact **z=.8471111514857935** |
+
+The preliminary red attempt also used an overly tight per-frame movement assertion: the existing
+shared motor can finish a sub-0.025 connector with a **0.02** step. That test-only bound was corrected
+and all three actual failures were rerun **before** changing production code.
+
+- **Formation fix — `src/koboldSquads.ts`:** retain pending local detours while holding. After the
+  chart's one-second hold, poll at most twice per second and prepare at most one slot route plus
+  one bounded yield per living member. The chart's existing `canReform` event fact now admits routed
+  recovery without requiring every direct connector to be clear. Search/progress caches record the
+  target, anchor/heading, nearby external bodies, blockers and door state. Repeated attempts require
+  changed external geometry or **0.25** improvement in the best total remaining route/slot distance.
+  No additional phase flag/chart or independent attack clock was introduced.
+- **Bound correction discovered during focused verification:** the first recovery version passed
+  the reported cases but failed the existing cramped-stairs hold assertion (**55 pass / 1 fail** in
+  the wider focused batch). A bounded probe exposed a whole-keep route and repeated yielding.
+  The final fix limits assembly routes to **12 units**, including routes internally replanned by
+  the navigator, and requires the progress above. The strict existing hold assertion is retained
+  and strengthened: **15–30s** in the unchanged cramped fixture adds **zero routes or movement**.
+  The immobile-adapter fixture likewise adds zero routes in its second 15 seconds. Ordinary return
+  routes are unaffected by this formation-only limit.
+- **Javelin fix — `src/combat.ts`:** analytically intersect horizontal cylinder and vertical slab
+  intervals for every living non-owner body in each existing flight substep; choose the earliest
+  entry, with entity-ID ties. This handles grazing entry/exit between samples, stationary/vertical
+  flight, reverse travel and current jump elevation. Check terrain/doors only up to the earliest
+  contact, preserving earlier cover while allowing a body hit before later cover in that substep.
+  Friendly interception consumes the projectile without damage. Crossbow selection/allegiance is
+  unchanged. Actor views are sampled once per projectile-system update; pool caps are unchanged.
+
+**Final regression metrics:** all **24 circular role permutations** land a hit within **12.9167s**,
+with at most **2 route submissions**, minimum separation **0.90282044**, maximum step **0.02**.
+Repositioning the same threat to `(2,3)` also produces damage (**80 HP** at the end of that fixture).
+`tests/projectile-contact.test.ts` exercises **108 cases** across six insertion orders: 24 rotated/
+reverse edge cases, 12 grazing/nearer-hostile cases, 24 stationary/inside/away/vertical cases,
+24 airborne/sloped-flight cases, 18 before/after-cover/closed-door cases, and six crossbow controls.
+
+#### Checks actually run for this correction
+
+- Phalanx/projectile focused batch: **23 passed**, **8.61s** at the initial green checkpoint.
+  Subsequent bounds correction: **7 focused regressions passed**, including both reports, the
+  24 permutations, narrow-hold behavior and immobile adapter. Final strengthened seeded-hold
+  and both existing physical-return regressions: **3 passed**, **14.83s**.
+- Focused models pass: group **10/10 states / 47/47 branches / 1,950 generated paths / 480 cyclic
+  steps**, attack **4/4 / 13/13 / 210 / 480**. Added the noncohesive-but-routable reform event
+  partition; no machine states or transition branches changed. The final full model report is
+  complete at **22 machines / 105 atomic states / 226 branches**.
+- One fresh **Chromium/SwiftShader phalanx pass: 8 checks**, zero errors, **24.24s** including owned
+  server lifecycle. Added actual original-seed and circular-rank recovery using Babylon collision
+  adapters, plus the real in-flight edge interception in both ECS orders. Seeded recovery hits at
+  **13.1667s / 88 HP**, minimum separation **0.90031539**; circular recovery hits at **12.9667s /
+  90 HP**, minimum separation **0.90688869**. Both use **2 route submissions**. The report's attack
+  counter is cumulative across fixtures; health loss proves a new impact in each recovery case.
+- One fresh **Chromium/SwiftShader combat pass: 15 checks**, successful report, **66.50s** including
+  server lifecycle. Pursuit, shared movement/body collision, corpse/water behavior, crossbows,
+  doors/locked gates, resets and regeneration pass.
+- Reviewed both new recovery captures and all eleven refreshed phalanx views in the three contact
+  sheets. They show completed front/rear ranks, the exposed opening, spear contact/release and
+  threat-facing retreat. The seeded recovery view retains the original stable furniture/collision.
+- Reused the earlier **social 15 / defense 9 / tribute 9** browser evidence for unchanged activity,
+  held-input, work/cargo and lifecycle paths. Current formation behavior is covered by the new
+  phalanx suite; current pure/model/full tests include social return and tribute takeover. No full
+  gameplay, Firefox or unrelated browser rerun.
+
+| Final required check | Result |
+| --- | --- |
+| `npm run format:check` | Pass, **148 files** |
+| `npm run lint` | Pass |
+| `npm test` including strict typing | **315 passed**, **304.51s** |
+| `npm run build` including strict typing | Pass, **689 modules**, Vite **0.580s**; existing chunk warning |
+
+Lint, full tests and build each ran **once after targeted verification**. The first final-check
+prefix stopped at formatting in `tests/phalanx.test.ts`, before lint/tests/build; formatting that
+file and rerunning the batch passed. No failed/incomplete test run is counted as a pass.
+
+Artifacts remain `test-results/chromium-phalanx-report.json`, `chromium-combat-report.json`,
+`chromium-phalanx-recovery-{seeded,circle}.png`, refreshed `chromium-phalanx-sheet-{1,2,3}.png`
+and the complete `machine-model-report.json`. Browser runs were sequential, with **240s per-suite
+deadlines**, owned **5187** servers and cleanup; no 5173/5187 listener or owned test browser remains.
+
+**Attributed independent-review passes**, not rerun or newly claimed local probes: 96 rotated
+lane/corpse cases, all four action-clock boundaries, eight pre-impact death/interrupt and boolean
+compatibility checks, five competing phase-guard checks, and complete group/attack models. Those
+passes did not override the two reported blockers; the fixes awaited independent re-review at this
+checkpoint. The final **READY** verdict above clears them. No agents, staging or commits were used
+for the correction. Raw notes and existing services untouched. **P7 remains
+next, P8/P9 follow publication, and P1 remains closed.**
+
+### P6b — physical phalanx encounter — 2026-11-19 (pre-review implementation baseline)
+
+Recovered the saved implementation against **`c3641c2`** after the reported interruption.
+Runtime, rendering, fixtures and documentation were preserved. No production correction was
+needed during this recovery. The attack model now also exercises `LONG_THRUST` and
+`THROW_JAVELIN` with their actual authored durations/impacts and checks that an in-flight action
+retains its kind/timing. **P6b is ready for independent review, not yet independently approved.**
+
+#### Design and bounded behavior
+
+- Each original four-member group physically assembles **three shield bearers ahead of one
+  spearman**. Lateral spacing **1.15**, rear separation **1.2**, right-hand lane **0.575** units.
+  Advance **1.1 units/s**, turning **0.65 radians/s**, ordinary terrain/door/living-body collision.
+- The synchronous group chart owns assembly, engagement, opening, attack selection, recovery,
+  hold, withdrawal, return and defeat. Individual `Attack` still owns impact/release/cooldown.
+  A **0.6s** center-shield opening is genuinely vulnerable, remains open through the attack,
+  then closes for **1.25s recovery**; coordinated actions also require **1.25s engagement**.
+- Long thrust: **3.8 range / 12 damage / 0.35s impact / 0.85s duration**. Javelin:
+  **9 launch range / 10 damage / 0.4s release / 0.9s duration**, travelling **10 units/s**.
+  Impact/release rechecks the actual lane, forward aim, range, elevation, terrain and living
+  interceptors. Javelins stop on friendly bodies without friendly damage; crossbow allegiance
+  remains unchanged. Projectiles share the **32-live-entity cap**; one fixed 32-instance shaft
+  pool is added. Blood/dust/block fragments retain the shared **192** cap.
+- At **two casualties**, **≤35% combined surviving health**, or **spearman loss**, survivors
+  withdraw at **0.85 units/s**, retaining threat-facing shields. Actual survivor offsets,
+  **0.13-unit** cohesion gating and the slowest grounded pace keep withdrawal together.
+  Water retains its **52%** speed factor; blocked withdrawal holds without snapping or healing.
+- Assembly uses at most **17 footprint candidates**, a **six-second deadline**, twelve route
+  rounds (at most one slot route and one yield route per member/round), and up to **16 local
+  yield candidates**. Holding submits no routes until clearance permits reform. This deliberately
+  does not implement single-file choke traversal: narrow/entangled approaches may remain in a
+  defensive hold until clearance or the threat changes. The seeded stairs case verifies this;
+  roomy stable/treasury cases attack from their original social positions.
+
+#### Recovered evidence and new checks
+
+No saved initial P6b failing-test log was found; **no interrupted-agent red result or final-check
+pass is inferred**. The first resumed focused run was green. Saved browser reports were inspected
+before reuse: phalanx **21:42:42**, social **21:43:12**, combat **21:44:25** local time, all after
+the last runtime edit at **21:42:23** on November 19. Later phalanx-fixture editing only increases
+navigation timeout. Defense/tribute reports predated P6b and were replaced by fresh runs below.
+Older P6a/P5 entries retain their historical qualifications.
+
+| Check actually run during recovery | Result |
+| --- | --- |
+| Focused phalanx, squad, combat and defense pure tests | **51 passed**, 20.99s |
+| Focused squad model, social, independent objectives, off-screen tribute and survivor takeover | **6 passed**, 34.63s |
+| Extended attack-kind model | **1 passed**, 0.41s command duration |
+| `npm run format:check` | Pass, **147 files** |
+| `npm run lint` | Pass |
+| `npm test` (includes strict typing) | **305 passed**, **298.37s** |
+| `npm run build` (includes strict typing) | Pass, **689 modules**, Vite build **0.602s**; existing large-chunk warning |
+
+The four required final commands each ran **once**, after targeted checks. Complete model report:
+**22 machines / 105 atomic states / 226 transition branches**. Squad: **10/10 states, 47/47
+branches, 1,885 generated paths, 480 cyclic steps**. Attack: **4/4 states, 13/13 branches,
+210 generated paths, 480 cyclic steps**, including all four action kinds. The full run also
+includes the 100-seed tribute population/routes and three-seed sole-spearman takeover regressions.
+
+Focused commands:
+
+```sh
+node --test --test-concurrency=1 tests/phalanx.test.ts tests/kobold-squad.test.ts tests/combat.test.ts tests/defense.test.ts
+node --test --test-concurrency=1 --test-name-pattern='koboldSquad|actual offscreen|survivor takes|remote shared|resolve independently|a social pack' tests/models.test.ts tests/tribute.test.ts tests/social.test.ts
+node --test --test-name-pattern='model coverage and invariants: attack' tests/models.test.ts
+```
+
+#### Browser and visual review
+
+All relevant suites use headless **Chromium/SwiftShader**. Saved, complete, unchanged-runtime
+reports reused rather than repeating their passes:
+
+- **Phalanx: 6 checks**, zero errors, eleven captures. Real collision-adapter advance, front/rear
+  ranks, vulnerable opening, actual thrust/throw damage, travel/release pose, backward withdrawal,
+  modal pause, fresh groups and one javelin pool after regeneration.
+- **Social: 15 checks**, zero errors. Four-member cards/hacky-sack/smoke, threat interruption,
+  physical ranks or safe hold, return and drawn/stowed corpse equipment.
+- **Combat: 15 checks**, successful report. Existing species fixtures, pursuit/moving strikes,
+  living collision, full-speed corpses/water, shared doors/locked gate, cancellation, respawn
+  and regeneration. These isolated species fixtures do not replace the intact phalanx checks.
+
+Fresh suites ran sequentially through owned **localhost:5187** Vite scopes with a **240s per-suite
+deadline**. Each closed its browser in `finally`; the server helper closed only its owned session:
+
+- **Defense: 9 checks**, zero errors, **19.40s** including server startup/cleanup. Real F input,
+  melee/bolts, guarded movement/stairs/corpse contact, jump/X, focus/menu/inspection/hidden tab,
+  teleport/death and role-aware regeneration latch checks.
+- **Tribute: 9 checks**, zero errors, **117.16s** including server startup/cleanup. Physical
+  off-screen deliveries, real pointer interception/E recovery, surviving-role takeover, independent
+  shrine outcome, modal/work pauses, HUD and regeneration. Three repeated same-seed samples remain
+  **2,291 meshes / 28 materials / 4 textures / 49 effects / 34 shader sources**. These software
+  checks establish bounded resources, not a hardware FPS benchmark.
+
+Equivalent reusable suite invocation (the temporary recovery runner additionally enforced the
+deadline and printed elapsed time):
+
+```sh
+DEMO_URL=http://localhost:5187 node --input-type=module -e 'import { withViteServer } from "./tests/testServer.ts"; await withViteServer(process.env.DEMO_URL, "dev", () => import("./tests/defense-browser.ts"));'
+# Repeat separately with tests/tribute-browser.ts.
+```
+
+**Actual visual review:** composed and inspected three contact sheets from all eleven retained
+phalanx captures. Front/side show three broad shields and the distinct rear rank. Opening clears
+the center chest/lane; side load/impact views show the shaft extending to the hero. Throw windup
+and flight show the shorter weapon leaving the hand. Retreat front/side show the surviving guard
+still toward the hero, separated from the fallen members. The front thrust view partially hides
+the shaft behind the hero; the side impact view supplies the readable contact. Also inspected the
+seeded hacky-sack engagement and refreshed tribute-carrier capture.
+
+Artifacts under ignored `test-results/`: `chromium-phalanx-report.json`,
+`chromium-phalanx-sheet-{1,2,3}.png`, the eleven `chromium-phalanx-*.png` source views,
+`chromium-social-report.json`, `chromium-combat-report.json`, `chromium-defense-report.json`,
+`chromium-tribute.json` and the complete `machine-model-report.json`.
+
+Final checks found no **5173/5187** listener or owned Vite/Playwright browser process. Existing
+**4096/tailnet 8443** services and raw `docs/notes.md` were untouched. No subagents, staging or
+commits. **P7 is next; P8 directional ragdolls and P9 skeleton debris remain queued after P7.**
+P1's application investigation stays closed; no cause or fix for the machine freeze is claimed.
+
+### P6a — four-member squad foundation — 2026-11-19 (complete, independent review READY; historical baseline)
 
 Baseline **`975c533`**. Three existing packs each start with **three shield bearers and one
 spearman**: **12 kobolds / 24 enemies**, with no new rooms. ECS `koboldSquad` owns the synchronous

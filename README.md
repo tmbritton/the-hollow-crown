@@ -127,7 +127,7 @@ Each dungeon seeds **24 enemies** outside the entrance and altar rooms:
 
 - **8 skeletons:** slow, lurching wanderers at **1.65 units/second**. They pursue nearby living characters, including goblins and kobolds, but ignore other skeletons. They cannot operate doors.
 - **4 goblins:** take smoke breaks when unaware of threats. In combat, these ranged skirmishers retreat, break line of sight using cover, crouch while hiding, and peek out to fire crossbow bolts. They flee at **5.2 units/second**, slightly faster than your walk; hold **Shift** to close the gap at 7.4. Bolts travel through the world and can be dodged or stopped by walls, furniture, and doors.
-- **12 kobolds in three four-member squads:** each starts with **three shield bearers and one long-spearman**, in the existing stable, stairs and treasury rooms. They gather for seeded cards, hacky sack or smoke breaks, with shields/spears visibly stowed. A shared squad chart acquires one threat, briefly assembles, then releases ordinary melee and four distinct target approaches. Shield bearers use the shared frontal defense while assembling; close threats still allow ordinary melee. Survivors return after losing the threat; a lone survivor smokes. Attack cooldowns remain staggered. This is the **P6a foundation**: the slow physical phalanx, shield-opening cue, rear spear thrust/javelin and coordinated backward withdrawal are **planned P6b** work.
+- **12 kobolds in three four-member phalanxes:** each starts with **three shield bearers and one long-spearman**, in the existing stable, stairs and treasury rooms. They gather for seeded cards, hacky sack or smoke breaks, with equipment stowed. A shared squad chart assembles a physical three-shield front rank and offset rear spear lane, advancing at **1.1 units/second**. The center bearer visibly moves its shield aside for **0.6 seconds of warning**, then remains vulnerable through the spear action. The rear fighter uses a **3.8-unit long thrust** or throws a **9-unit-range javelin** with real travel and interception. Attack the opening, flank the slow-turning line, dodge the projectile, or use F. Cramped approaches produce a bounded defensive hold rather than overlapping bodies. At **two casualties**, **35% surviving health**, or **loss of the spearman**, survivors withdraw together at **0.85 units/second**, facing the threat with shields raised. Blocked retreats hold; threat loss returns survivors to work/social activity. A lone survivor smokes.
 
 Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
 
@@ -179,7 +179,8 @@ immediately**, including preload. F pressed during a jump cannot raise it on lan
 and press again. **X**, blur, menu, inspection, hidden tabs, death and teleport cancel defense;
 release and press F again to resume. Regeneration creates a lowered shield, and key repeats from
 a previous hold cannot raise it. Starting shrine work or a door-approach command also lowers it
-through the shared stop path. Kobold shield bearers use this same capability during squad assembly.
+through the shared stop path. Kobold shield bearers use this same capability during formation combat
+and withdrawal; their telegraphed opening genuinely lowers defense.
 
 Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths buckle before falling, compress on contact and rebound briefly into their final corpse pose. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These render-only curves keep controls, collision and damage timing authoritative.
 
@@ -216,7 +217,8 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/machines/actors/defense.ts` | Opt-in held-defense lifecycle and 120° incoming-direction test |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
-| `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original four-member role/slot references, shared target and synchronous squad lifecycle |
+| `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original role/slot references, bounded physical rank assembly, shared attack/opening phases and unit withdrawal |
+| `src/attackKinds.ts` / `src/phalanxPoses.ts` | Shared action geometry/timing contracts and simulation-clock-sampled spear/throw presentation |
 | `src/machines/` | Typed XState charts organized into `monsters/`, `actors/`, `navigation/`, `world/`, and `ui/` |
 | `src/social.ts` / `src/socialRendering.ts` | Seeded social gatherings, activity coordination, and procedural cards, hacky sacks, pipes and smoke |
 | `src/enemyRendering.ts` | Procedural enemy rigs, selection, health bars and pooled effect rendering |
@@ -315,7 +317,7 @@ game.ecs.remove(entity.id);
 
 `createActor` composes the standard character components. Player input and AI supply intents to the same movement/pathfinding/door and combat systems. Babylon collision and visual rigs are separate adapters. A door-opening capability distinguishes clever actors from skeletons; locked gates block everyone. New component types belong in the `Components` interface, with systems querying the combinations they require.
 
-The fixed-step order is door state → objective prework → player intent/pursuit and movement → enemy decisions/movement and shared attacks → projectiles/particles → terrain damage → objective commit validation → player respawn → shared rig animation. Menus, inspection and hidden tabs suspend simulation. Blood/dust/shield sparks share a cap of 192 live particle entities and bolts are capped at 32; fixed thin-instance pools render them without allocating new meshes per hit. Corpse entities retain their original meshes.
+The fixed-step order is door state → objective prework → player intent/pursuit and movement → enemy decisions/movement and shared attacks → projectiles/particles → terrain damage → objective commit validation → player respawn → shared rig animation. Menus, inspection and hidden tabs suspend simulation. Blood/dust/shield sparks share a cap of 192 live particle entities; bolts and javelins share a cap of 32. Fixed thin-instance pools render them without allocating meshes per attack. Corpse entities retain their original meshes.
 
 ### Shared defense capability (P5; complete, independent review READY)
 
@@ -344,11 +346,12 @@ shield. Invalid/zero travel cannot grant immunity. Blocks return `false` (no acc
 without touching health/protection, blood or death callbacks. Each block emits at most six gold
 fragments lasting 0.18–0.28 seconds, within the shared particle budget.
 
-### Kobold squad foundation (P6a; complete, independent review READY)
+### Kobold phalanxes (P6a `c3641c2`; P6b complete, final independent review READY)
 
 Each `pack:stable`, `pack:stairs` and `pack:treasury` ECS entity owns a `koboldSquad` component.
-Its synchronous chart owns **idle → assembling → engaging → returning**, plus terminal
-**defeated**. Each actor retains its species chart and a `squadMember` reference containing the
+Its synchronous chart owns **idle → assembling → engaging → opening → attacking → recovering**,
+plus **holding, retreating, returning** and terminal **defeated**. Each actor retains its species
+chart and a `squadMember` reference containing the
 original entity, group entity, immutable role and original slot. Casualties never renumber slots;
 a replacement entity with the same ID cannot inherit membership or cargo. Regeneration installs
 fresh groups/charts. Health and death remain on the actual actor components.
@@ -358,22 +361,67 @@ intent. Squad perception samples before individual decisions at 0.15-second inte
 deterministic nearest visible hostile, and retains it while valid. Only sightings or actual hits
 refresh its five-second memory; members cannot circulate alerts forever. Damage shares the alert
 and interrupts unfinished work immediately, including at the work-commit boundary. Death samples
-the group immediately. A casualty during engagement re-enters assembly; the last death defeats it.
+the group immediately. A casualty during engagement re-enters assembly unless withdrawal is needed;
+the last death defeats it. Perception retains its 0.15-second cadence, while phase clocks advance
+every fixed step. Death/lost-target/withdrawal guards precede attack transitions.
 
-Assembly holds nearby members or routes separated members toward their actual center, with normal
-floor, furniture, door and living-body checks. Cohesive squads engage after 0.35 seconds; a
-1.2-second upper bound prevents inaccessible members from stalling everyone. Shared threat takes
+Assembly chooses at most **17 nearby footprints** and a stable initial left/center/right shield
+permutation from actual lateral order. Original identities and that permutation survive casualties.
+Slots have **1.15-unit lateral spacing**, a **1.2-unit rear rank**, and a **0.575-unit right-hand
+spear lane**. Bodies move at most 1.1 units/second through ordinary terrain, door and live occupancy
+checks. Unroutable start connectors may use one of 16 clear side-step candidates. Each **six-second
+assembly window** permits at most twelve route rounds (one slot route plus one yield route per member
+per round). A hold freezes useful detours instead of discarding them. After a **one-second** hold,
+recovery checks at **0.5-second** intervals can prepare a bounded route/yield round; a straight line
+to every slot is not required. Further attempts require changed target/external geometry or at least
+**0.25 units of improvement** in the best combined remaining route-to-slot distance. A **12-unit
+assembly-route limit** prevents whole-keep detours; stagnant/cramped holds stop searching. There is
+no automatic single-file choke traversal. The 24 circular-placement regression and original adverse
+stable approach verify actual attacks after recovery, not merely reaching an engagement phase.
+
+Engagement advances for at least **1.25 seconds** between coordinated actions. Turns are capped
+at **0.65 radians/second**, so flanks/rear remain real counterplay. Within 0.13 units of every living
+slot, the group may open the center shield for 0.6 seconds, then start the spearman's ordinary
+`Attack` chart with `LONG_THRUST` (12 damage, 0.35-second impact, 0.85-second action) or
+`THROW_JAVELIN` (10 damage, 0.4-second release, 0.9-second action). The shield remains lowered
+through the action and returns for **1.25 seconds of recovery**. The opening is a chart fact,
+not an animation-derived damage timer. The authored shield face covers the lane before opening.
+
+`Swing.kind` selects the shared `ATTACKS` contract. Long attacks recheck reach, elevation, sight,
+near-forward aim, the actual right-hand lane and living body interception at impact. A closed
+center shield denies its own spear lane; missing roles leave real gaps. Javelins launch at the
+same weapon origin, travel at **10 units/second**, and use the existing terrain/door/substep hit
+path; unlike the unchanged crossbow allegiance rule, **all living bodies intercept javelins**.
+Each javelin substep chooses the **earliest swept body-cylinder/elevation-slab contact**, independent
+of ECS iteration order (exact ties use entity ID). Terrain/door cover is checked up to that contact,
+so earlier cover blocks it and later cover cannot erase it. Friendly interception consumes the shot
+without friendly damage. The reusable 32-instance shaft
+pool orients to actual velocity. Procedural long-shaft extension and short-javelin release sample
+the authoritative attack clock. No attack is timed by a pose or adds invulnerability.
+
+Withdrawal latches for that threat when **at most two original members survive**, **combined living
+health is at most 35% of their combined maximum**, or **the spearman is lost**. It samples current
+survivor offsets and translates the unit backward, preferring home when home lies behind the line,
+otherwise escaping away from the threat. `MoveIntent.facing` separates guard heading from travel;
+the rig uses measured backsteps. Every member retains normal collision and water handling; the
+unit waits at 0.13-unit rank error and matches the slowest grounded pace (water remains 52%).
+Any blocked escape holds the whole unit with shields up. No healing, snapping, replacement member
+or collision exception is installed.
+
+Shared threat takes
 priority over porter jobs; without a threat, the assigned porter travels/works before social return.
 All four original stairs members can take over, including the spearman as sole survivor.
 Returning squads refresh routes on the existing AI cadence as temporary body obstructions clear.
 If members occupy each other's home approaches, the first displaced original slot can yield to one
 of at most twelve nearby clear route candidates; no bodies are snapped or allowed to overlap.
 
-**P6b handoff:** `members` / `living`, chart `state` / `target`, derived `center` / `heading`, and
-`approach(member)` are already consumed by assembly and four-way melee positioning. Replace that
-radial approach with role-specific rank slots for the physical formation; no future attack timers
-or unused formation state are installed. Role rigs have drawn and stowed equipment; death enables
-only the drawn set. P6a keeps ordinary melee reach, impact timing, speed and cooldowns.
+**State handoff:** the group chart owns target/phase/action selection and phase elapsed time;
+`Attack` owns each actual impact/release/cooldown. The ECS squad component owns only continuous
+anchor/facing/retreat-offset geometry, bounded route cadence and recovery search/progress caches
+alongside original membership.
+`movement(dt, world)` produces fresh shared motor intents. `CombatSystem` synchronizes guard
+capability, starts the chosen action on phase entry, and interrupts it on phase/target loss.
+Role rigs retain drawn/stowed equipment; death enables the long spear rather than a second javelin.
 
 ### Floor-navigation contracts (P3; complete, independently reviewed READY)
 
@@ -422,7 +470,7 @@ npm run test:models
 
 The latest XState includes model-testing tools in **`xstate/graph`**. `tests/models/` generates paths to every modeled state and extends each path with every candidate event, including ignored/invalid attempts and self-loops. Inspector microstep data measures every declared transition branch, including guards and eventless transitions. Invariants are checked after each stable step, and the pure simulation adapter is compared against a live XState actor.
 
-The suite currently covers **22 machines, 100 declared atomic states, and 196 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. Squad partitions cover competing targets, assembly/timeouts, memory loss, return, casualties and final death. Regeneration installs a fresh chart. The report is written to `test-results/machine-model-report.json`.
+The suite covers every exported machine; the P6b catalog has **22 machines, 105 declared atomic states, and 226 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. Squad partitions include competing targets, assembly/timeouts, hold/reform, opening/action cancellation, recovery, withdrawal, memory loss, return, casualties and final death. The individual attack model covers all four action kinds with their authored timing and checks that kind/impact/duration remain stable during an action. Regeneration installs a fresh chart. The report is written to `test-results/machine-model-report.json`.
 
 ### Rendering choices
 

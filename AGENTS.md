@@ -55,7 +55,8 @@ Install browser binaries with `npx playwright install chromium firefox` when nee
 - Targeted suites require an already-running development server:
   `npm run test:movement`, `npm run test:combat`, `npm run test:defense`, `npm run test:social`,
   `npm run test:animation`, `npm run test:jump`, `npm run test:inspection`, and
-  `npm run test:portraits`.
+   `npm run test:portraits`. `npm run test:phalanx` checks adverse rank recovery, coordinated ranks,
+   opening/thrust/throw, swept flight-edge interception, withdrawal, pause and regeneration in Chromium.
 - Movement, combat, and social suites also support `BROWSER=firefox`. Animation, jump and defense
   use Chromium; inspection and portraits use Firefox.
 - Development-browser scripts accept `DEMO_URL` (default `http://localhost:5173`). When
@@ -82,6 +83,8 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
   registration, and shared door updates.
 - `src/actors.ts`, `src/combat.ts`, `src/social.ts`: shared actor behavior, encounters,
   attacks/effects, and seeded social activities.
+- `src/koboldSquads.ts`, `src/attackKinds.ts`, `src/phalanxPoses.ts`: bounded physical rank
+  geometry/unit movement, shared attack contracts, and clock-sampled spear/throw presentation.
 - `src/navigation.ts`, `src/occupancy.ts`: floor picking, routing, clearance and live actor
   collision. `src/corpseTerrain.ts`, `src/corpseRendering.ts`: render-only fallen-body sampling.
 - `src/locomotion.ts`, `src/jump.ts`, `src/footPlacement.ts`, `src/animationCurves.ts`,
@@ -124,6 +127,11 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
   rather than introducing independent copies of mutable state.
 - Player input and AI provide intents to the same movement, navigation, door, and combat
   systems. Keep Babylon rendering and collision adapters separate from domain logic.
+- `MoveIntent.facing` can keep guard heading independent of travel. Phalanx phase/target/action
+  selection belongs to the group chart; individual `Attack` owns impact/release. Keep opening
+  vulnerability authoritative, body-safe spear lanes, bounded holds and survivor retreat offsets.
+  Javelins share the projectile cap and stop on friendly living bodies without friendly damage;
+  crossbow allegiance rules remain unchanged.
 - Gameplay advances at fixed `1 / 60` steps. Preserve the order in `main.ts`: doors, player
   pursuit/movement, combat updates, then shared rig/effect rendering. Animation follows
   authoritative movement and impact clocks; visual poses must not decide damage or collision.

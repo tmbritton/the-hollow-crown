@@ -12,6 +12,7 @@ const browser = await chromium.launch({
 const checks: string[] = [],
   errors: string[] = [];
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+page.setDefaultNavigationTimeout(90000);
 const pass = (name: string) => {
   checks.push(name);
   console.log(`PASS ${name}`);

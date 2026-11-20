@@ -176,6 +176,8 @@ export interface MoveIntent {
   direction?: Point;
   speed?: number;
   locked?: boolean;
+  /** Explicit combat facing is independent of travel (e.g. a shielded backstep). */
+  facing?: number;
 }
 
 /** The same motor handles keyboard steering, AI, pursuit, difficult ground, doors and arrival. */
@@ -191,7 +193,8 @@ export function moveActor(
     motion.acceleration = { x: (x - motion.velocity.x) / dt, z: (z - motion.velocity.z) / dt };
     motion.velocity = { x, z };
     motion.actualSpeed = Math.hypot(x, z);
-    if (motion.actualSpeed > 0.08) p.heading = Math.atan2(x, z);
+    if (intent.facing !== undefined) p.heading = intent.facing;
+    else if (motion.actualSpeed > 0.08) p.heading = Math.atan2(x, z);
   };
   if (!actor.alive || intent.locked) {
     motion.speed = motion.actualSpeed = 0;

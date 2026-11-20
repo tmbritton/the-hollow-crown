@@ -96,7 +96,7 @@ test('gait sampling preserves actual 1.65 movement, navigation, support, jump an
         duration: 0.62,
         impact: 0.25,
         resolved: false,
-        ranged: false,
+        kind: 'MELEE',
       },
       1,
     );

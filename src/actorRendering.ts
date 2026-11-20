@@ -22,6 +22,8 @@ import type { Spawn } from './worldTypes.ts';
 import { placeFeet } from './footPlacement.ts';
 import { readCorpseTerrain } from './corpseRendering.ts';
 import { skeletonLurch } from './skeletonGait.ts';
+import { ATTACKS } from './attackKinds.ts';
+import { spearPose } from './phalanxPoses.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -62,6 +64,11 @@ export function resetActorRig(rig: Components['rig']): void {
   rig.body.position.setAll(0);
   rig.head?.rotation.setAll(0);
   rig.shield?.position.setAll(0);
+  if (rig.spear) {
+    rig.spear.position.set(0.4, 0.85, 0.1);
+    rig.spear.rotation.set(-Math.PI / 2, 0, 0);
+  }
+  rig.javelin?.setEnabled(false);
   for (const limb of [...rig.arms, ...rig.forearms, ...rig.legs, ...rig.knees, ...rig.feet])
     limb.rotation.setAll(0);
   for (const leg of rig.legs) leg.position.y = 0.55;
@@ -117,12 +124,23 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       Math.cos(p.heading - rig.root.rotation.y),
     );
     // A raised shield must face the authoritative guard now, even during a sharp turn.
-    if (actor.defending) rig.root.rotation.y = p.heading;
+    if (actor.defending || entity.get('squadMember')?.group.get('koboldSquad')?.active)
+      rig.root.rotation.y = p.heading;
     else rig.root.rotation.y += turn * (1 - Math.exp(-18 * dt));
     rig.shield?.position.setAll(0);
+    if (rig.shield?.parent === rig.root) {
+      rig.shield.position.set(-0.4, 0.85, 0.1);
+      rig.shield.rotation.setAll(0);
+    }
     for (const arm of [...rig.arms, ...rig.forearms]) arm.rotation.y = 0;
     const corpse = entity.get('corpse');
     if (corpse) {
+      rig.javelin?.setEnabled(false);
+      if (rig.spear) {
+        rig.spear.setEnabled(true);
+        rig.spear.position.set(0.4, 0.85, 0.1);
+        rig.spear.rotation.set(-Math.PI / 2, 0, 0);
+      }
       // Death leaves ordinary equipment visible even when work/social activity had stowed it.
       for (const mesh of rig.equipment ?? []) mesh.setEnabled(true);
       for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(false);
@@ -175,13 +193,22 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       actor.kind === 'skeleton' ? 'skeleton' : 'ordinary',
     );
     const swing = actor.attack.swing;
+    const member = entity.get('squadMember'),
+      squad = member?.group.get('koboldSquad');
+    const opening = !!member && !!squad?.isOpening(member);
     if (defending) {
       rig.attackBlend = rig.socialBlend = 0;
       rig.attackPose = rig.socialPose = null;
     }
     rig.attackBlend += ((swing ? 1 : 0) - rig.attackBlend) * (1 - Math.exp(-25 * dt));
-    if (swing)
-      rig.attackPose = attackPose(swing.elapsed, swing.duration, swing.impact, swing.ranged);
+    if (swing && (swing.kind === 'MELEE' || swing.kind === 'CROSSBOW'))
+      rig.attackPose = attackPose(
+        swing.elapsed,
+        swing.duration,
+        swing.impact,
+        ATTACKS[swing.kind].projectile,
+      );
+    else if (swing) rig.attackPose = null;
     // Retain the sampled pose on interruption, including the ranged recoil, while it fades.
     rig.socialBlend += ((relaxing || working ? 1 : 0) - rig.socialBlend) * (1 - Math.exp(-18 * dt));
     if (working) rig.socialPose = workPose(work.elapsed);
@@ -240,7 +267,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       16,
       0.62,
     );
-    if (defending) {
+    if (defending || opening) {
       // Turn the left arm inward: the shield's outward -X face becomes forward +Z.
       // Preserve gait, plants and head; the right hand keeps its weapon lowered.
       pose.leftArm = -0.65;
@@ -251,6 +278,61 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       pose.lean = 0;
       rig.arms[0].rotation.y = Math.PI / 2;
       if (rig.shield) rig.shield.position.x = -0.18;
+      if (opening) {
+        const amount =
+          squad!.state === 'attacking'
+            ? 1
+            : Math.min(1, squad!.chart.snapshot.context.elapsed / 0.25);
+        rig.arms[0].rotation.y = (Math.PI / 2) * (1 - amount);
+        pose.armSpread = 0.35 * amount;
+        if (rig.shield) rig.shield.position.x = -0.18 - 0.25 * amount;
+      }
+      if (rig.shield?.parent === rig.root) {
+        const amount = opening
+          ? squad!.state === 'attacking'
+            ? 1
+            : Math.min(1, squad!.chart.snapshot.context.elapsed / 0.25)
+          : 0;
+        // The centre guard carries the broad face across the actual right-hand lane.
+        // Opening sweeps it left, away from both the shaft and the exposed chest.
+        const across = member && squad?.isGate(member) ? 0.29 : -0.22;
+        rig.shield.position.set(across + (-0.58 - across) * amount, 0.97, 0.25);
+        rig.shield.rotation.y = (Math.PI / 2) * (1 - amount);
+      }
+    }
+    if (rig.spear && rig.javelin) {
+      const weapon = spearPose(swing);
+      rig.spear.setEnabled(!relaxing && !working && !weapon.throwing);
+      rig.javelin.setEnabled(!relaxing && !working && weapon.throwing && !weapon.released);
+      rig.spear.position.set(0.4, 0.85, 0.1 + weapon.extension);
+      rig.spear.rotation.set(weapon.pitch, 0, 0);
+      rig.javelin.position.set(
+        0.4,
+        0.85 + (1 - weapon.extension) * 0.5,
+        0.1 - (1 - weapon.extension) * 0.65,
+      );
+      rig.javelin.rotation.set(weapon.pitch, 0, 0);
+      if (!relaxing && !working) {
+        pose.rightArm = weapon.arm;
+        pose.rightElbow = weapon.elbow;
+        pose.leftArm = -0.8;
+        pose.leftElbow = 0.9;
+        pose.twist = pose.roll = 0;
+        pose.lean = weapon.throwing ? 0.1 * weapon.extension : 0;
+      }
+    }
+    // Backsteps keep a short, travel-driven gait facing the threat; no reversed root or
+    // free-running leg clock when a retreat is blocked.
+    if (
+      actor.motion.velocity.x * Math.sin(actor.position.heading) +
+        actor.motion.velocity.z * Math.cos(actor.position.heading) <
+      -0.05
+    ) {
+      pose.leftLeg *= -0.65;
+      pose.rightLeg *= -0.65;
+      pose.leftKnee *= 0.65;
+      pose.rightKnee *= 0.65;
+      pose.lean *= -0.5;
     }
     const scale = volumeScale(pose.stretch, pose.reach);
     rig.root.scaling.set(scale.x, scale.y, scale.z);
