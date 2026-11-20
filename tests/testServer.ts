@@ -80,6 +80,7 @@ export function withViteServer<T>(base: string, mode: 'dev' | 'preview', run: ()
         '--port',
         url.port || (mode === 'dev' ? '5173' : '4173'),
         '--strictPort',
+        ...(mode === 'preview' ? ['--base', url.pathname] : []),
       ],
     },
     run,

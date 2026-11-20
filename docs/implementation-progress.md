@@ -21,8 +21,11 @@ Execution record for [implementation path](implementation-path.md). Started **20
   **P4 skeleton gait is complete at `be29b8c`, independent review READY with no blockers.
   P5 held-F defense is complete at `975c533`, independent review READY with no blockers.
    P6a four-member squad foundation is complete at `c3641c2`, final independent review READY**;
-   physical phalanx **P6b is complete, final independent review READY with both blockers cleared**.
-   Publishing P7 remains next; the user's new ragdoll and skeleton-breakup requests follow as P8–P9.
+   physical phalanx **P6b is complete at `806a27b`, final independent review READY with both blockers cleared**.
+   **P7 local release configuration passed independent prepublish review READY, no blockers.**
+   Its normal-hook commit is authorized. The repository remains private with no Pages site;
+   parent visibility, setup, push/deploy and hosted smoke remain pending after the commit hash.
+   P8 ragdolls and P9 skeleton debris follow publication.
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
@@ -131,12 +134,58 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P4 | Complete; independent review READY, no blockers | 9 pass / 2 fail before production edits: mirrored legs and prematurely released left plant | 23 focused / 268 full tests, format/lint/build; Chromium animation 32 crossings/732 contacts, 46 shared + 44 skeleton captures; independent phase/contact/baseline/reset and visual review passed | `be29b8c` |
 | P5 | Complete; independent review READY, no blockers | 1 pass / 4 fail on actual frontal health loss before production edits, then lifecycle/model contracts failed on missing defense module | 52 focused / 281 full tests, format/lint/build; Chromium defense 9, combat 15; 21 machines / 95 states / 179 branches; independent targeted geometry/latch/work/input/pool/regeneration review passed | `975c533` |
 | P6a | Complete; final independent review READY, no blockers | Missing squad module and 21≠24 population reds; detour/swapped-home reds; reviewer reproduced obsolete no-enemy-defense assertion | 291 full after all corrections; typecheck/format/lint; defense 9; prior build/social 15/tribute 9/gameplay 18+5 reused; final review clears role-aware assertion | `c3641c2` |
-| P6b | Complete; final independent review READY, both blockers cleared | Review regressions fail 0/3 before fixes: circular/seeded rank stalls and ECS-order javelin interception | 315 tests/full checks; models 22/105/226; phalanx 8/combat 15; final review: fresh 24 arrangements, 600 geometry-oracle comparisons, lifecycle/hold/progression probes and 13 captures | This commit |
-| P7 | Next | Public repository and Pages demo; see implementation-path.md | User release request | — |
+| P6b | Complete; final independent review READY, both blockers cleared | Review regressions fail 0/3 before fixes: circular/seeded rank stalls and ECS-order javelin interception | 315 tests/full checks; models 22/105/226; phalanx 8/combat 15; final review: fresh 24 arrangements, 600 geometry-oracle comparisons, lifecycle/hold/progression probes and 13 captures | `806a27b` |
+| P7 | Local configuration independently reviewed READY, no blockers; publication pending | Real project-path browser rejected root-built `/assets/index-…js` before Pages build fix | Node 24 npm ci, 315 tests/typecheck, format/lint/build; root/project smokes 5 checks each, zero errors; four captures. Independent actionlint/diff, 4 helper tests and URL/base/port/query/lifecycle/remote probes pass; official pins confirmed. Hosted publication remains parent-owned | This commit (local configuration) |
 | P8 | Queued after the original list | Directional ragdoll deaths, wall collisions and stair falls | New user note; not implemented | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 
 ## Work log
+
+### P7 — independent prepublish review and local delivery — 2026-11-20
+
+- Independent prepublish review returned **READY, no blockers**. The user authorized the intended
+  P7 local configuration commit with normal hooks. This containing commit records local delivery;
+  **public visibility, Pages setup/deployment and hosted verification remain pending**.
+- **Attributed reviewer results:** actionlint and diff checks; **four server-helper tests** under
+  **Node 24.22.3**; URL/base, custom-port, query, owned cleanup, reused-server and remote-server
+  probes all pass. Official action pins and metadata were independently confirmed.
+- The reviewer checked the root and project-path production reports (**five checks each, zero
+  errors**) and all **four defense captures**, and reused the recorded **315-test/full-check/build**
+  evidence. These are attributed review results, not a new local browser/full verification batch.
+- Reviewer GitHub inspection confirms administration access, enabled Actions, private visibility
+  and absent Pages (**404**). Parent publication begins after receiving the commit hash. No hosted
+  success is claimed. Raw notes remain excluded; P8/P9 remain queued after P7 publication.
+
+### P7 — local release configuration — 2026-11-19 (historical pre-review checkpoint)
+
+- Baseline **`806a27b`**, P6b complete. Read the guide, README and planning index/path/progress.
+  Read-only GitHub checks confirm origin `git@github.com:tmbritton/the-hollow-crown.git`, private
+  visibility, default `main`, `has_pages: false` and Pages API **404**. No settings were changed.
+- **Red first:** enhanced real production browser test plus path-aware preview rejected the
+  baseline root bundle's request to `http://localhost:4187/assets/index-jOJsluc9.js` outside
+  `/the-hollow-crown/`. Added explicit `build:pages` / `preview:pages` scripts passing Vite's base;
+  root development retains its defaults. The same subpath check then passed.
+- Official Actions workflow pins GitHub-release/tag-verified commits for checkout **7.0.1**,
+  setup-node **7.1.0**, configure-pages **6.0.0**, upload-pages-artifact **5.0.0** and deploy-pages
+  **5.0.1**. Node 24 / `npm ci` / `npm run check`, sequential root/project production smokes,
+  **dist-only** upload, main-only push/dispatch, concurrency and environment URL are configured.
+  Build gets contents-read; only deploy gets pages-write/id-token-write. No external runtime host.
+- `DEMO_URL` now supports hosted Pages and local project mounts. Local preview forwards its base
+  through the existing strict-port ownership/cleanup helper; remote sites start no local server.
+  Smoke covers seed navigation, both menu regeneration paths, quality persistence, map/movement,
+  held-F/release captures, actual asset paths and absence of debug/Inspector requests/errors.
+  A fixture-only failed root attempt exposed the retained `#loading.done` across regeneration;
+  readiness now also waits for the new welcome toast. No game/UI change was required.
+- One successful **root** and one successful **project-path** Chromium/SwiftShader smoke, sequentially,
+  each with five reported checks, zero errors and a 120s browser deadline. Reviewed all four
+  lowered/raised-shield captures. Final `npm ci`, format (**148 files**), lint, **315 tests / 310.11s**
+  and build passed under **Node 24.22.3**. Models remain **22/105/226**; build **689 modules**, existing
+  chunk warning. Required full checks ran once after targeted green. Actionlint **1.7.12** passes.
+- README contains publication targets and exact local/hosted commands, marked **pending**. Parent
+  owns independent review, normal-hook commit, public visibility, Pages Actions-source setup,
+  push/deploy and hosted smoke. **P7 is not published or independently approved.** No agents,
+  staging, commit or push; raw notes remain untracked. Owned 4173/4187 previews and browsers closed;
+  existing services/system settings untouched. P8/P9 stay queued after P7; P1 remains closed.
 
 ### P6b — final independent review and delivery — 2026-11-19
 

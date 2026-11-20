@@ -2,6 +2,12 @@
 
 A playable, entirely code-generated dark-fantasy voxel dungeon built with **Babylon.js, XState 5.33.4, strict TypeScript, and HTML canvas**. The art direction draws on Hades' elevated compositions, Darkest Dungeon's atmosphere, and Mike Mignola's angular silhouettes and graphic shadows.
 
+**Public release pending:** P7's local release configuration passed independent prepublish review
+with **READY, no blockers**.
+The intended public repository is [tmbritton/the-hollow-crown](https://github.com/tmbritton/the-hollow-crown)
+and the demo URL is **https://tmbritton.github.io/the-hollow-crown/**. The repository is still
+private and Pages has not been enabled or deployed; these links are publication targets.
+
 ## Run
 
 Requires **Node.js 22.18+** (Node 24 LTS or newer recommended) and a desktop browser with WebGL2. Test scripts use Node's native TypeScript type stripping.
@@ -19,6 +25,70 @@ npm run preview
 ```
 
 The production build is in `dist/`; preview normally runs at **http://localhost:4173**. It can be deployed as a static website. Babylon.js is bundled locally; the game makes no CDN requests.
+
+### GitHub Pages build and verification
+
+The project site uses `/the-hollow-crown/`. Build and preview with the same base:
+
+```sh
+npm run build:pages
+npm run preview:pages
+```
+
+Open **http://localhost:4173/the-hollow-crown/**. These scripts pass Vite's `--base` option;
+ordinary `dev`, `build` and `preview` retain their root-path defaults. Each build replaces `dist/`,
+so rebuild for the intended target before previewing. No GitHub hostname is embedded in runtime code.
+
+For bounded Chromium production checks (install its binary with `npx playwright install chromium`):
+
+```sh
+npm run build && npm run test:production
+npm run build:pages
+DEMO_URL=http://localhost:4187/the-hollow-crown/ npm run test:production
+```
+
+`test:production` defaults to `http://localhost:4173/`. For localhost it starts or reuses a
+strict-port preview with the URL's path as its base, and cleans up only its owned processes.
+Remote `DEMO_URL` sites must already be deployed. The check exercises seed links, menu seed entry,
+random regeneration, quality, movement/map input and held F; records asset URLs and defense
+captures; and rejects escaped-base/external requests, browser errors and development hooks.
+Reports/captures use `test-results/production-{root,the-hollow-crown}*` for these two paths.
+
+`.github/workflows/pages.yml` runs on `main` pushes and manual dispatches on `main`. Node **24**
+installs the existing lockfile with `npm ci`, runs `npm run check`, and builds/smokes both paths
+sequentially. Only the final Pages **`dist/`** is uploaded. The build job has `contents: read`;
+the deployment job alone has `pages: write` and `id-token: write`. Official SHA-pinned Pages
+actions deploy through the `github-pages` environment and expose its URL. Deployments are serialized
+without cancelling an in-progress run. The built-in token/OIDC needs no deployment secret.
+`package.json` remains `private: true` to prevent npm publication; GitHub visibility is a separate setting.
+
+#### First publication handoff (pending)
+
+Independent prepublish review is **READY**. After the normal-hook P7 commit, excluding the user's
+untracked `docs/notes.md`, the publisher needs repository administration for visibility and
+permission to manage Pages/Actions. With the currently absent Pages site, perform the one-time setup:
+
+```sh
+gh repo edit tmbritton/the-hollow-crown --visibility public --accept-visibility-change-consequences
+gh api --method POST repos/tmbritton/the-hollow-crown/pages -f build_type=workflow
+git push origin main
+```
+
+`build_type=workflow` selects **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+Allow the workflow's official actions and its scoped deployment permissions; the `github-pages`
+environment must permit `main`. The push starts deployment. If a manual run is needed after setup:
+
+```sh
+gh workflow run pages.yml --repo tmbritton/the-hollow-crown --ref main
+gh run list --repo tmbritton/the-hollow-crown --workflow pages.yml --limit 5
+gh run watch RUN_ID --repo tmbritton/the-hollow-crown --exit-status
+gh api repos/tmbritton/the-hollow-crown/pages --jq '{html_url, build_type, status}'
+DEMO_URL=https://tmbritton.github.io/the-hollow-crown/ npm run test:production
+```
+
+Use the actual run ID from the listing. After the hosted check passes, record the deployed commit,
+workflow URL and smoke result in `VERIFICATION.md` and update the pending release status here and
+in the progress tracker. P8 ragdolls and P9 skeleton debris follow completion of P7 publication.
 
 ## Play
 
@@ -346,7 +416,7 @@ shield. Invalid/zero travel cannot grant immunity. Blocks return `false` (no acc
 without touching health/protection, blood or death callbacks. Each block emits at most six gold
 fragments lasting 0.18–0.28 seconds, within the shared particle budget.
 
-### Kobold phalanxes (P6a `c3641c2`; P6b complete, final independent review READY)
+### Kobold phalanxes (P6a `c3641c2`; P6b `806a27b`, complete, final independent review READY)
 
 Each `pack:stable`, `pack:stairs` and `pack:treasury` ECS entity owns a `koboldSquad` component.
 Its synchronous chart owns **idle → assembling → engaging → opening → attacking → recovering**,

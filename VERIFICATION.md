@@ -4,7 +4,122 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
-### P6b — final independent review and delivery — 2026-11-19 (complete, READY)
+### P7 — independent prepublish review — 2026-11-20 (local READY; publication pending)
+
+The independent prepublish reviewer returned **READY, no blockers**. The user authorized the
+normal-hook commit of the intended P7 local configuration. **The repository is still private;
+Pages setup/deployment and hosted verification remain pending**, owned by the parent after the
+commit hash is returned. P8/P9 remain queued after publication.
+
+The following are **attributed reviewer results**, not additional local implementation runs:
+
+- Actionlint and diff checks pass, along with **four server-helper tests on Node 24.22.3**.
+- URL/base, custom-port, query, owned cleanup, reused-server and remote-server probes pass.
+- All official action pins and metadata were independently confirmed.
+- Root and project-path production reports each show **five checks / zero errors**; all **four
+  lowered/raised-shield captures** were reviewed. The reviewer reused the recorded **315 tests,
+  full checks and build** below.
+- GitHub inspection confirms administration access, Actions enabled, private repository visibility
+  and no Pages site (**404**). This establishes setup readiness, not a deployed result.
+
+No production corrections or repeated browser suites were required. The normal commit hook runs
+`npm run check` (tests/typecheck, lint, format). Raw `docs/notes.md` remains excluded from the commit.
+
+### P7 — local release configuration — 2026-11-19 (historical pre-review checkpoint)
+
+Implemented against **P6b `806a27b`**. This is local build/release verification, **not a hosted
+deployment or independent-review approval**. Read-only repository/API inspection confirms private
+visibility, default `main`, `has_pages: false`, and Pages **404**. Parent review, commit, visibility,
+Pages setup, push/deploy and hosted verification remain pending; P8/P9 follow publication.
+
+#### Red → green
+
+With the baseline root bundle and the new real-browser/path-aware preview fixture:
+
+```sh
+vite build
+DEMO_URL=http://localhost:4187/the-hollow-crown/ npm run test:production
+```
+
+The browser failed **before the Pages build fix** with:
+`Runtime request escaped deployment base /the-hollow-crown/: http://localhost:4187/assets/index-jOJsluc9.js`.
+This tests emitted URLs and actual browser requests rather than matching source configuration.
+`build:pages` now passes `--base=/the-hollow-crown/` to the existing checked build; `preview:pages`
+passes the same option to preview. The helper forwards a local smoke URL's pathname as preview's
+base and retains existing strict-port ownership/failure cleanup. Remote URLs start no local process.
+
+One root fixture attempt stopped at a hidden regeneration button: `#loading.done` remains set
+between runs. Waiting for the new scene's welcome toast fixed the fixture; no runtime change.
+The successful final browser batch was:
+
+```sh
+npm run test:production  # existing root build
+npm run build:pages
+DEMO_URL=http://localhost:4187/the-hollow-crown/ npm run test:production
+```
+
+Both **Chromium/SwiftShader** smokes pass with **five reported checks / zero errors**, sequentially,
+at 960×640 with a **120s browser deadline**. They verify:
+
+- Explicit MOURNING-731 navigation bootstraps, renders, and loads JS/CSS and dynamic shader chunks
+  from the same origin under the chosen base. Project capture contains **31 requests** including
+  the document; all requests remain beneath `/the-hollow-crown/`.
+- Real M toggles the map; D updates its rendered player marker; X cancels. Ordinary R/wheel input
+  frames the hero, and held F/release produces captures for visual review.
+- Menu seed entry selects BUILT-WORLD; random regeneration clears its seed query; both retain
+  the deployment pathname. Low quality persists, and button/Escape menu/resume works.
+- `?debug` exposes no `window.__dungeon`; F2 issues no Inspector request. No external asset,
+  failed request, HTTP error, page error or console error is observed.
+
+Reviewed `test-results/production-{root,the-hollow-crown}-{lowered,defending}.png`: all four show
+the rendered dungeon, lowered side shield versus raised frontal shield and lowered weapon.
+Defense damage/latch invariants retain the P5/P6 evidence; this smoke exercises production input
+and presentation. Reports: `test-results/production-root.json` and `production-the-hollow-crown.json`.
+Generated Pages HTML was inspected: entry, preload and CSS URLs all use the project prefix.
+The generated JS search found no `__dungeon`, `ShowInspector`, `@babylonjs/inspector`, `localhost:`
+or `github.io`. All captures/reports/build output remain ignored.
+
+#### Required checks and workflow validation
+
+Commands ran under **Node 24.22.3** through `npm exec --yes --package=node@24 -c '…'`.
+After targeted green, one complete batch ran `npm ci && npm run format:check && npm run lint &&
+npm test && npm run build`:
+
+| Check | Actual result |
+| --- | --- |
+| `npm ci` using existing lockfile | Pass, 177 packages installed, audit reports zero vulnerabilities |
+| `npm run format:check` | Pass, **148 files** |
+| `npm run lint` | Pass |
+| `npm test` including strict typing | **315 passed / 310.11s**; models **22 machines / 105 states / 226 branches** |
+| `npm run build` including strict typing | Pass, **689 modules**, Vite **0.592s**, existing large-chunk warning |
+| `npm run build:pages` during targeted batch | Pass, **689 modules**, Vite **0.624s**, same warning |
+| `actionlint .github/workflows/pages.yml` | Pass, official **1.7.12** binary; download digest matched GitHub release metadata |
+
+The final full build leaves `dist/` in **root mode**; rebuild with `npm run build:pages` before
+manual project preview. Source/runtime assets were unchanged between both smoke passes and final build.
+No broad gameplay browser suite or unrelated visual suite was repeated. Owned previews on **4173/4187**
+and browsers closed after both failure and success; listener checks showed both ports free.
+
+GitHub `releases/latest` and `git/ref/tags/<version>` were queried directly for each official action;
+all refs below resolve to **commit** objects, and full SHAs are pinned in the workflow:
+
+| Action | Actual release | Verified commit |
+| --- | --- | --- |
+| `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `actions/setup-node` | `v7.1.0` | `949feb2413d6458794dcd2491c4babbbce0c15c1` |
+| `actions/configure-pages` | `v6.0.0` | `45bfe0192ca1faeb007ade9deae92b16b8254a0d` |
+| `actions/upload-pages-artifact` | `v5.0.0` | `fc324d3547104276b827a68afc52ff2a11cc49c9` |
+| `actions/deploy-pages` | `v5.0.1` | `368f82528645a54fb793d4d04e342629a3f51346` |
+
+The Pages actions' tagged `action.yml` contracts were read. The workflow uses only `contents: read`
+while installing/checking/building/testing, uploads only final Pages `dist/`, then grants only the
+deploy job `pages: write` / `id-token: write`, with `github-pages` environment/output URL. It runs
+on main pushes or manual main dispatch, with serialized non-cancelling concurrency. Configure Pages
+does not auto-enable the site; the publisher must first select **GitHub Actions** as the Pages source.
+README records exact publication and remote-smoke commands. Workflow execution on GitHub remains
+unverified until the parent publishes. No agents, staging, commit, push or GitHub settings changes.
+
+### P6b — final independent review and delivery — 2026-11-19 (complete, READY; historical checkpoint)
 
 The final independent reviewer returned **READY**, clearing both production blockers. **P6b is
 complete**, and the user approved its normal-hook feature commit. The containing commit records
