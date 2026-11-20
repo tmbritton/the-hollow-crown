@@ -5,6 +5,7 @@ import { createLocomotion, easeSpeed, WALK_SPEED } from './locomotion.ts';
 import { heightAt, tileAt } from './world.ts';
 import type { Point, Spawn } from './worldTypes.ts';
 import { Attack } from './machines/actors/attack.ts';
+import { Defense } from './machines/actors/defense.ts';
 import { createMonsterBehavior } from './machines/monsters/index.ts';
 import { Health } from './machines/actors/health.ts';
 import { Occupancy } from './occupancy.ts';
@@ -49,6 +50,14 @@ export class Actor {
   get alive() {
     return this.health.current > 0 && !this.entity.has('corpse');
   }
+  get defending(): boolean {
+    return (
+      this.alive &&
+      !this.jump.active &&
+      !this.attack.swing &&
+      this.entity.get('defense')?.raised === true
+    );
+  }
   enableAI(pack = '', slot = 0): void {
     if (this.kind === 'player') throw new Error('The player uses input, not a monster behavior');
     this.entity.add('brain', makeBrain(this.kind, this.position, pack, slot));
@@ -73,7 +82,7 @@ export function createActor(
       )
       .map((entity) => ({ ...entity.require('transform'), ...entity.require('body') })),
   );
-  return new Actor(
+  const actor = new Actor(
     ecs
       .create(id)
       .add('actor', {
@@ -97,6 +106,21 @@ export function createActor(
       .add('navigation', new Navigator(world, occupancy))
       .add('attack', new Attack()),
   );
+  if (kind === 'player') actor.entity.add('defense', new Defense());
+  return actor;
+}
+
+/** Shared input/AI boundary: defense interrupts actions, but keeps floor travel and selection. */
+export function requestDefense(actor: Actor, repeat = false, allowed = true): boolean {
+  if (!actor.entity.get('defense')?.press(allowed && actor.alive && !actor.jump.active, repeat))
+    return false;
+  cancelWork(actor);
+  actor.attack.interrupt();
+  if (actor.attack.target) {
+    actor.navigator.cancel();
+    actor.attack.repath = 0;
+  }
+  return true;
 }
 
 export function cancelAttack(actor: Actor): void {
@@ -111,6 +135,7 @@ export function cancelWork(actor: Actor): void {
 
 export function requestJump(actor: Actor): boolean {
   if (!actor.alive || !actor.jump.request()) return false;
+  actor.entity.get('defense')?.cancel();
   actor.entity.get('work')?.interrupt('Jump started');
   // Preserve pursuit and floor commands, but do not resolve an interrupted sword strike.
   actor.attack.interrupt();
@@ -118,6 +143,7 @@ export function requestJump(actor: Actor): boolean {
 }
 
 export function stopActor(actor: Actor, cancelCombat = true): void {
+  actor.entity.get('defense')?.cancel();
   cancelWork(actor);
   actor.navigator.cancel();
   actor.motion.speed = 0;

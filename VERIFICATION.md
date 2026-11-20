@@ -4,6 +4,133 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### P5 — held-F frontal shield — 2026-11-19 (complete, independent review READY)
+
+Baseline **`be29b8c`** (committed P4, independent review READY). Shared optional ECS defense uses
+the synchronous XState `actorDefense` chart. Only the player opts in; the same component/request
+boundary is available for future kobold shield bearers. A **120° inclusive front arc** uses
+authoritative movement heading and incoming attack travel. It blocks all accepted frontal melee/
+bolt damage before health mutation; side/rear attacks and untyped hazards still damage. Source
+identity remains separate from direction, so a moved/dead shooter cannot reverse a bolt's front.
+
+#### Independent review — READY, no P5 blockers
+
+The independent reviewer reported the following passing checks. These are **attributed review
+results**, not newly run implementation checks:
+
+- **12 defense tests**; defense model **3/3 states, 4/4 branches, 21 generated paths and
+  480 cyclic steps**.
+- **11,316 angular cases**; **7,776 latch traces / 38,880 transitions**;
+  **180 bolt width/support/arc cases**; **5 work-boundary cases** and **9 held-input/reset cases**.
+- Focused real-browser windup interruption/F, modal/text input, jump, gold effect pool,
+  regeneration and head checks, with **no errors**.
+- Gold/blood particle counts **12/14 → 0/14 → 0/0**, shared cap **192**, stable mesh counts,
+  and old-pool disposal on regeneration.
+- Built-output development-debug identifiers: **zero matches**.
+
+The reviewer corrected **two fixture issues**; those earlier failed attempts are not counted as
+passes. No P5 production correction was required. Review reused the implementation's **281-test /
+full-check / build** evidence and Chromium **defense 9 / combat 15** results below.
+**P5 is complete and the user authorized its normal-hook feature commit**, recorded by this
+entry's containing commit. **P6a squad coordination is next, not started.** P4 is **`be29b8c`**.
+
+#### Test-first evidence and focused checks
+
+```sh
+node --test tests/defense.test.ts
+node --test tests/defense.test.ts tests/models.test.ts
+node --test tests/defense.test.ts tests/combat.test.ts tests/objective-work.test.ts
+```
+
+- **Before production changes:** initial defense run **1 pass / 4 fail**. Frontal melee left
+  **94 rather than 100 HP**; frontal bolts left **93 rather than 100 HP**. Moved/dead shooter and
+  block-then-rear scenarios also failed on real health loss. Existing range/cover/door/elevation
+  guards passed. After lifecycle/model contracts were added, both files failed on the absent
+  `src/machines/actors/defense.ts` module.
+- **Green focused defense/model run:** 34 tests at that checkpoint. The final focused defense/
+  combat/work batch passes **52 tests**, including all **12 defense tests**. No checks were weakened.
+- Arc coverage uses three headings and eight relative angles for each hit type: straight front,
+  both exact 60° boundaries, both 60.001° misses, both sides and rear (**48 combinations**).
+  Bolts also test shooter relocation/death, missing owner, friendly-shield passage, cover and height.
+- Blocks preserve the exact health-chart snapshot, grant no invulnerability and emit no blood.
+  An immediate rear hit and terrain hazard still hurt. Invalid/nonpositive damage produces no
+  feedback; invalid/zero direction cannot grant immunity. Particle count stays at most 192 and
+  block fragments expire. Corpse, jump and concurrent raw-attack states cannot defend.
+- Tests cover the last unresolved swing boundary and already-committed impact, target retention,
+  autoswing suspension/release, ready-but-uncommitted work cancellation, opt-in kobold capability,
+  jump/stop/teleport release latch, duplicate/repeated input, exact walk/run traces and 52% water.
+- Defense model: **3/3 states, 4/4 branches, 21 generated paths and 480 cyclic steps**. Events
+  partition eligible/ineligible and fresh/repeated presses, plus release/cancel in every state.
+  Full totals: **21 machines / 95 declared atomic states / 179 branches**.
+
+#### Affected browser and visual checks
+
+Each full targeted suite ran once, sequentially, with owned temporary Vite on **5187**:
+
+```sh
+DEMO_URL=http://localhost:5187 node --input-type=module -e 'import { withViteServer } from "./tests/testServer.ts"; await withViteServer(process.env.DEMO_URL, "dev", () => import("./tests/defense-browser.ts"));'
+DEMO_URL=http://localhost:5187 node --input-type=module -e 'import { withViteServer } from "./tests/testServer.ts"; await withViteServer(process.env.DEMO_URL, "dev", () => import("./tests/combat-browser.ts"));'
+```
+
+- **Chromium defense: 9 checks**, zero page/console errors. Real F down/up raises/lowers guard;
+  melee and bolts block from the front and damage from behind. Moving the shooter after launch
+  does not change the result. F at the last windup frame cancels damage, holds the selected enemy
+  and suppresses autoswing; release permits the ordinary timed attack.
+- Guarded walk/run retain **4.8 / 7.4 units/s** and matching flat/corpse position/speed traces.
+  Guard remains raised through the actual seeded ramp route, with correct arrival/support height.
+  Jump/X require a new press. Blur/menu/inspection/hidden/death/teleport clear the shield pose;
+  physically held F repeats cannot resume it, but release/new press works. Modified F, an unowned
+  repeat after release, repeated valid downs, and held-F regeneration all pass. Enemies have no
+  defense component after regeneration.
+- **Chromium combat: 15 checks**, zero page/console errors. Existing pursuit, moving attacks,
+  living-body blocking, full-speed corpse/water traversal, door/gate commands, particles, reset,
+  death/respawn and regeneration pass.
+- **Capture review:** initial front/block screenshots put the skeleton in front of the shield;
+  the first also retained the fading loading overlay. The ramp close-up looked into a wall.
+  A **capture-only refresh** hid UI (and the attacker for the isolated raised views), settled
+  presentation/cutaways without combat steps, and used a higher ramp angle. No production pose
+  correction or second gameplay pass was needed. Four refreshed views were reviewed: front face
+  clearly across the chest, shield thickness and placement ahead of the body from the side,
+  sword down, block fragments at the shield, and supported ramp pose. The measured shield normal
+  has **forward dot 1.0**, center **0.35000002 units ahead**, height **1.02966 above support**.
+
+```sh
+DEMO_URL=http://localhost:5187 DEFENSE_CAPTURES_ONLY=1 node --input-type=module -e 'import { withViteServer } from "./tests/testServer.ts"; await withViteServer(process.env.DEMO_URL, "dev", () => import("./tests/defense-browser.ts"));'
+```
+
+Artifacts (ignored):
+
+- `test-results/chromium-defense-report.json` — the complete nine-check gameplay pass.
+- `test-results/chromium-defense-visual-report.json` — four-view refresh, geometry and errors.
+- `test-results/chromium-defense-{raised-front,raised-side,frontal-block,ramp}.png` — reviewed views.
+- `test-results/chromium-defense-{walk,run}-{floor,corpse}.png` — initial moving samples;
+  their HUD health/flash can retain earlier fixture damage and are not health assertions.
+- `test-results/chromium-combat-report.json` and `chromium-combat-*.png` — affected combat pass.
+- `test-results/machine-model-report.json` — complete current model coverage.
+
+#### Final required checks
+
+| Command | Result |
+| --- | --- |
+| `npm run format:check` | Pass, 140 files |
+| `npm run lint` | Pass |
+| `npm test` | **281 passed**, including strict typing, models and multi-seed generation; 277.55s |
+| `npm run build` | Pass; existing large-chunk warning |
+
+Format/lint each ran once after targeted checks. The first `npm test` attempt stopped during
+typechecking on the capture helper's `Node.remove()`; it was corrected to `parentNode.removeChild`.
+The next command was terminated at its **240s tool deadline** while generation was still running,
+with no assertion failures. A **600s-budget rerun completed all 281 tests**, then built production.
+The cleanup line received a scoped formatting/lint recheck. This records the failed/incomplete
+attempts rather than treating them as passes. No full-browser, Firefox, production-smoke or
+hardware-performance rerun is claimed; those older results below remain historical baselines.
+
+Browser and owned Vite scopes closed in `finally`; existing OpenCode **4096** / tailnet **8443**
+services were untouched. Raw `docs/notes.md` is unmodified. The implementation checkpoint used no
+subagents, staging or commits and awaited independent review. The subsequent **READY** verdict
+above clears that gate. P1 remains closed, P2 accepted, P3/P4 committed; **P6a is next**, with
+P6b–P7 planned.
+
 ### P4 — skeleton lurch — 2026-11-19 (complete, independent review READY)
 
 Baseline **`9f8e1d7`**. The implementation is render-only: a small stateless gait layer gives
@@ -26,9 +153,9 @@ checks**, not a new implementation verification run:
 - Diff check and visual review of skeleton captures **1–4**, ordinary control and reset views.
 
 The reviewer reused the **268-test/full-check/build** evidence and the affected animation results
-with **732 contacts** below. No code corrections were required. **P4 is complete and authorized
-for its normal-hook feature commit**, recorded by this entry's containing commit. **P5 held-F
-defense is next, not started.** P3 is complete at **`9f8e1d7`**.
+with **732 contacts** below. No code corrections were required. **P4 is complete at `be29b8c`,
+committed with normal hooks.** At that delivery checkpoint **P5 held-F defense was next, not
+started.** P3 is complete at **`9f8e1d7`**.
 
 #### Test-first and focused checks
 

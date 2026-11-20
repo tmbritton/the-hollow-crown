@@ -8,6 +8,13 @@ import type { Point, Random, Spawn, World } from './worldTypes.ts';
 import { seedSocialGroups } from './social.ts';
 import { seedInhabitant, seedEmberWorker } from './generation/inhabitants.ts';
 import { tributeBlueprint } from './generation/tribute.ts';
+import { inGuardArc } from './machines/actors/defense.ts';
+
+/** Attack geometry is independent of source identity (a bolt's owner may have moved or died). */
+export interface DamageImpact {
+  kind: 'melee' | 'projectile';
+  travel: Point;
+}
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 export const MELEE_RANGE = 1.5;
@@ -206,6 +213,7 @@ export class CombatSystem {
   startAttack(actor: Actor, target: Actor, ranged = false): boolean {
     if (
       !actor.alive ||
+      actor.defending ||
       !target.alive ||
       actor.jump.active ||
       actor.attack.swing ||
@@ -253,6 +261,7 @@ export class CombatSystem {
       }
       return !!actor.attack.swing && (actor.kind !== 'player' || actor.attack.swing.ranged);
     }
+    if (actor.defending) return false;
     if (actor.jump.active) return false;
     if (actor.attack.swing && (actor.kind !== 'player' || actor.attack.swing.ranged)) return true;
     if (this.inMelee(actor, target)) {
@@ -557,11 +566,22 @@ export class CombatSystem {
     }
   }
 
-  damage(target: Actor, amount: number, source?: Actor): boolean {
-    if (!target.alive || (source && !hostile(source, target)) || !target.health.damage(amount))
+  damage(target: Actor, amount: number, source?: Actor, impact?: DamageImpact): boolean {
+    if (
+      !target.alive ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      (source && !hostile(source, target)) ||
+      target.health.invulnerable > 0
+    )
       return false;
+    if (impact && target.defending && inGuardArc(target.position.heading, impact.travel)) {
+      this.blockParticles(target);
+      return false;
+    }
+    if (!target.health.damage(amount)) return false;
     target.entity.get('work')?.interrupt('Executor hurt');
-    this.hitParticles(target, source);
+    this.hitParticles(target, source, impact?.travel);
     if (target.health.current === 0) {
       stopActor(target);
       target.attack.die();
@@ -581,10 +601,39 @@ export class CombatSystem {
     return true;
   }
 
-  private hitParticles(target: Actor, source?: Actor): void {
+  private blockParticles(target: Actor): void {
+    const x = Math.sin(target.position.heading),
+      z = Math.cos(target.position.heading);
+    const count = Math.min(6, 192 - this.ecs.query('particle').length);
+    for (let i = 0; i < count; i++) {
+      const duration = 0.18 + this.random() * 0.1;
+      this.ecs
+        .create()
+        .add('transform', {
+          ...target.position,
+          x: target.position.x + x * 0.45,
+          z: target.position.z + z * 0.45,
+          h: target.elevation + 1.15,
+        })
+        .add('particle', {
+          kind: 'block',
+          vx: x + (this.random() - 0.5) * 3,
+          vz: z + (this.random() - 0.5) * 3,
+          vy: 0.8 + this.random() * 2,
+          life: duration,
+          duration,
+          size: 0.07,
+        });
+    }
+  }
+
+  private hitParticles(target: Actor, source?: Actor, travel?: Point): void {
     const kind = target.kind === 'skeleton' ? 'dust' : 'blood';
-    const dx = target.position.x - (source?.position.x ?? target.position.x),
-      dz = target.position.z - (source?.position.z ?? target.position.z);
+    const validTravel = travel && Number.isFinite(travel.x) && Number.isFinite(travel.z);
+    const dx = validTravel
+        ? travel.x
+        : target.position.x - (source?.position.x ?? target.position.x),
+      dz = validTravel ? travel.z : target.position.z - (source?.position.z ?? target.position.z);
     const length = Math.max(0.1, Math.hypot(dx, dz));
     const count = Math.min(14, 192 - this.ecs.query('particle').length);
     for (let i = 0; i < count; i++) {
@@ -626,6 +675,7 @@ export class CombatSystem {
   update(dt: number): void {
     this.time += dt;
     for (const actor of this.actors) {
+      if (!actor.defending) actor.entity.get('defense')?.cancel();
       actor.health.advance(dt);
       actor.attack.cool(dt);
       const corpse = actor.entity.get('corpse');
@@ -678,6 +728,13 @@ export class CombatSystem {
             target,
             actor.kind === 'player' ? 24 : actor.kind === 'skeleton' ? 9 : 6,
             actor,
+            {
+              kind: 'melee',
+              travel: {
+                x: target.position.x - actor.position.x,
+                z: target.position.z - actor.position.z,
+              },
+            },
           );
       }
     }
@@ -739,7 +796,10 @@ export class CombatSystem {
             Math.abs(a.elevation + 0.85 - p.h) < 0.75,
         );
         if (target) {
-          this.damage(target, shot.damage, owner);
+          this.damage(target, shot.damage, owner, {
+            kind: 'projectile',
+            travel: { x: shot.vx, z: shot.vz },
+          });
           this.ecs.remove(entity.id);
           break;
         }

@@ -3,6 +3,7 @@ import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Navigator } from './navigation.ts';
 import type { Locomotion, LocomotionPose } from './locomotion.ts';
 import type { Attack } from './machines/actors/attack.ts';
+import type { Defense } from './machines/actors/defense.ts';
 import type { Health } from './machines/actors/health.ts';
 import type { MonsterBehavior, BrainState } from './machines/monsters/index.ts';
 import type { SocialGroup } from './social.ts';
@@ -59,6 +60,7 @@ export interface Components {
   jump: Jump;
   navigation: Navigator;
   attack: Attack;
+  defense: Defense;
   brain: {
     readonly state: BrainState;
     behavior: MonsterBehavior;
@@ -88,6 +90,7 @@ export interface Components {
     feet: TransformNode[];
     footPlants: { anchor: Spawn | null }[];
     cape?: TransformNode;
+    shield?: TransformNode;
     attackBlend: number;
     attackPose: LocomotionPose | null;
     socialBlend: number;
@@ -107,7 +110,7 @@ export interface Components {
   door: DoorEntity;
   projectile: { owner: string; vx: number; vy: number; vz: number; life: number; damage: number };
   particle: {
-    kind: 'blood' | 'dust';
+    kind: 'blood' | 'dust' | 'block';
     vx: number;
     vy: number;
     vz: number;

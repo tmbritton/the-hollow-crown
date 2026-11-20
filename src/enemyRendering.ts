@@ -188,6 +188,7 @@ export function createEnemyRendering(
   const pools = {
     blood: makePool('blood hit fragments', 192, blood),
     dust: makePool('bone dust', 192, materials.bone),
+    block: makePool('shield sparks', 192, materials.gold),
     projectile: makePool('crossbow bolts', 32, materials.bone),
   };
   const social = createSocialRendering(scene, combat, materials, shadow);
@@ -220,7 +221,7 @@ export function createEnemyRendering(
         pool.matrices.fill(0);
         for (let i = 0; i < pool.capacity; i++) pool.matrices[i * 16 + 15] = 1;
       }
-      const counts = { blood: 0, dust: 0, projectile: 0 };
+      const counts = { blood: 0, dust: 0, block: 0, projectile: 0 };
       for (const entity of [
         ...combat.ecs.query('particle', 'transform'),
         ...combat.ecs.query('projectile', 'transform'),
@@ -242,7 +243,7 @@ export function createEnemyRendering(
         pool.matrices[o + 13] = p.h;
         pool.matrices[o + 14] = p.z;
       }
-      for (const kind of ['blood', 'dust', 'projectile'] as const) {
+      for (const kind of ['blood', 'dust', 'block', 'projectile'] as const) {
         const pool = pools[kind];
         updateInstanceMatrices(pool.mesh, pool.matrices, counts[kind] > 0);
       }

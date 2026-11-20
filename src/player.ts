@@ -81,8 +81,10 @@ export function createPlayer(
     knees.push(knee);
     feet.push(foot);
   }
-  const shield = p('iron', 'shield', [0.14, 0.7, 0.55], [-0.17, -0.02, 0.07], forearms[0]);
-  p('gold', 'shield boss', [0.08, 0.17, 0.17], [-0.27, -0.02, 0.07], forearms[0]);
+  const shieldMount = new TransformNode('shield mount', scene);
+  shieldMount.parent = forearms[0];
+  const shield = p('iron', 'shield', [0.14, 0.7, 0.55], [-0.17, -0.02, 0.07], shieldMount);
+  p('gold', 'shield boss', [0.08, 0.17, 0.17], [-0.27, -0.02, 0.07], shieldMount);
   p('iron', 'sword blade', [0.12, 0.83, 0.055], [0, -0.5, 0.14], forearms[1]);
   p('gold', 'sword guard', [0.33, 0.08, 0.12], [0, -0.11, 0.14], forearms[1]);
   const cape = p('cloth', 'cape', [0.71, 0.91, 0.12], [0, 0.91, -0.31]);
@@ -163,6 +165,7 @@ export function createPlayer(
     footPlants: [{ anchor: null }, { anchor: null }],
     cape,
     attackBlend: 0,
+    shield: shieldMount,
     attackPose: null,
     socialBlend: 0,
     socialPose: null,

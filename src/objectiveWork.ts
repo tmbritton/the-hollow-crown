@@ -258,7 +258,7 @@ export class ObjectiveWorkSystem {
         (!cargo || sample.amount !== 1 || !cargo.accepts(actor.entity, task.cargo.operation)))
     )
       return deny('blocked', 'No assigned cargo');
-    if (actor.attack.target || actor.attack.swing || actor.attack.interaction)
+    if (actor.defending || actor.attack.target || actor.attack.swing || actor.attack.interaction)
       return deny('interrupted', 'Executor is engaged');
     if (
       actor.jump.active ||

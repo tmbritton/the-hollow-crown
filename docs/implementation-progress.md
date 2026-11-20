@@ -18,10 +18,16 @@ Execution record for [implementation path](implementation-path.md). Started **20
   skeleton gait, held-F defense, declarative kobold phalanxes, then public repository/Pages release.
   **P2 is committed at `726af8a`; final independent review returned READY and the user accepted traversal.**
   **P3 is complete at `9f8e1d7`; final independent review returned READY, clearing both route-quality blockers.**
-  **P4 skeleton gait is complete, independent review READY with no blockers. P5 held-F defense
-  is next, not started**; P6–P7 remain planned.
+  **P4 skeleton gait is complete at `be29b8c`, independent review READY with no blockers.
+  P5 held-F defense is complete, independent review READY with no blockers.
+  P6a squad coordination is next, not started**; P6b–P7 remain planned.
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
+- P5: **52 focused / 281 full tests**, strict typing, format/lint/build pass. One Chromium defense
+  pass (**9 checks**) and combat pass (**15 checks**); four corrected front/side/block/ramp views
+  reviewed through a capture-only refresh. **21 machines / 95 states / 179 branches**. Independent
+  review returned **READY**, reusing those checks and passing the attributed angular, latch,
+  projectile, work, input, pool and regeneration probes recorded below. Normal-hook commit approved.
 - P4: **23 focused / 268 full tests**, strict typing, format/lint/build pass. Affected Chromium
   animation passes **32 corpse crossings / 732 contacts**, **46 shared pose captures** and
   **44 new skeleton sequence/reset captures**. Reviewed flat/control, stairs, corpse, attack and
@@ -96,11 +102,80 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P1 | Complete; application investigation closed by user | Seal budget failed at 110 reads/update; isolated startup-failure probe left Vite live; helper contracts failed before implementation | 236 tests, format/lint/build, bounded Chromium resources/dev smoke and production smoke pass; independent review READY: 8 targeted tests, 3 adversarial cleanup probes, diff check. System diagnosis outside scope | `6378d61` |
 | P2 | Complete; user accepted, final independent review READY | Original edge red: 0.348118 penetration. Follow-up math tests 0 pass/3 fail; translated ramp reproduced 0.068665 penetration before analytic inverse fix | 246 tests, format/lint/build; animation 28 crossings/575 contacts and reviewed captures; final review cleared all blockers with targeted geometry/contact/lifecycle probes | `726af8a` |
 | P3 | Complete; final independent review READY | Initial audit 10 pass/3 fail; review regressions 13 pass/3 fail: actual-travel old-root detour, far-side equal endpoint and distant-motion replans | 60 focused / 263 full tests, format/lint/build, 16 Chromium movement checks; final review cleared both blockers with 17 partial tests, 24 route/tie and 72 body-cache/gate cases plus stable-hold/performance/capture checks | `9f8e1d7` |
-| P4 | Complete; independent review READY, no blockers | 9 pass / 2 fail before production edits: mirrored legs and prematurely released left plant | 23 focused / 268 full tests, format/lint/build; Chromium animation 32 crossings/732 contacts, 46 shared + 44 skeleton captures; independent phase/contact/baseline/reset and visual review passed | This commit |
-| P5 | Next, not started | Held-F defense; see implementation-path.md | User gameplay notes | — |
-| P6–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
+| P4 | Complete; independent review READY, no blockers | 9 pass / 2 fail before production edits: mirrored legs and prematurely released left plant | 23 focused / 268 full tests, format/lint/build; Chromium animation 32 crossings/732 contacts, 46 shared + 44 skeleton captures; independent phase/contact/baseline/reset and visual review passed | `be29b8c` |
+| P5 | Complete; independent review READY, no blockers | 1 pass / 4 fail on actual frontal health loss before production edits, then lifecycle/model contracts failed on missing defense module | 52 focused / 281 full tests, format/lint/build; Chromium defense 9, combat 15; 21 machines / 95 states / 179 branches; independent targeted geometry/latch/work/input/pool/regeneration review passed | This commit |
+| P6a | Next, not started | Declarative kobold squad coordination; see implementation-path.md | User gameplay notes | — |
+| P6b–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
 
 ## Work log
+
+### P5 — independent review and delivery — 2026-11-19
+
+- Independent reviewer returned **READY, no P5 blockers**. These are attributed reviewer results,
+  not another implementation verification batch: **12 defense tests**; model **3/3 states,
+  4/4 branches, 21 generated paths and 480 cyclic steps**; **11,316 angular cases**;
+  **7,776 latch traces / 38,880 transitions**; **180 bolt width/support/arc cases**;
+  **5 work-boundary cases** and **9 held-input/reset cases**.
+- Focused real-browser windup/F, modal/text input, jump, gold effect pool, regeneration and head
+  checks passed with **no errors**. Gold/blood counts progressed **12/14 → 0/14 → 0/0**;
+  the shared cap stayed **192**, mesh counts were stable, and regeneration disposed the old pool.
+  Built-output development-debug identifiers had **zero matches**.
+- The reviewer corrected **two fixture issues**. Those preceding failed attempts are not counted
+  as passing runs. No P5 production correction was required.
+- Review reused the implementation's **281-test/full-check/build**, **9 defense-browser checks**
+  and **15 combat-browser checks**. The existing implementation qualifications below are retained.
+- **P5 is complete and the user approved its normal-hook feature commit.** This entry's containing
+  commit records P5. **P6a squad coordination is next, not started.** P4 remains **`be29b8c`**;
+  raw `docs/notes.md` is untouched and excluded. No new agents were used for delivery.
+
+### P5 — held-F frontal shield — 2026-11-19 (pre-review checkpoint)
+
+- Baseline **`be29b8c`**, the committed and independently reviewed P4. Read the guide, README,
+  docs index/path/progress and raw notes. P1 remains closed, P2 accepted and P3/P4 committed.
+  Raw `docs/notes.md` remains untouched. No subagents, staging or commits were used.
+- **Red first:** the initial five combat regressions ran before production edits: **1 pass /
+  4 fail**. A front melee hit left **94 HP**, a front bolt **93 HP**, and moved/dead-shooter and
+  immediate-rear-hit scenarios also reproduced absent blocking. Existing impact-time range,
+  cover, door and elevation guards passed. Added lifecycle, work, attack-boundary and model
+  contracts next; both test files then failed on the missing defense-machine module.
+- **Design:** optional ECS `defense` owns the synchronous XState **`actorDefense`** chart with
+  lowered/raised/release-latched states. Only the player opts in now; a kobold can use the same
+  component and shared request boundary. Inclusive **120°** arc follows authoritative movement
+  heading. Melee supplies live impact direction; bolts supply travel velocity, separately from
+  source identity/hostility/death attribution. Existing species/populations remain ordinary.
+- Blocks cause no health/protection transition, blood, chip damage or resource cost. Side/rear
+  attacks and hazards remain effective. Six short gold fragments at most share the existing
+  192-particle cap and use a fixed thin-instance pool/material. Collision/cover/elevation and
+  attack clocks retain their existing authority.
+- Raising interrupts own attack/work and suspends pursuit/autoswing, retaining selection;
+  release resumes ordinary pursuit/cooldown. Floor navigation and walk/run stay active at full
+  speed. Jump preload lowers guard, and jump/X/modal/focus/death/teleport cancellation requires
+  release and a fresh press. Regeneration and modified/repeated keydown cannot revive a hold.
+  The rig turns the broad shield face forward, keeps the weapon lowered and clears offsets/yaw
+  on reset without a parallel animation lifecycle.
+- **Green:** **52 focused defense/combat/work tests**. The new defense file has 12 tests,
+  including 48 heading/arc/hit-type combinations; friendly/self/missing/dead projectile sources,
+  invalid directions/amounts, corpse/jump/raw-attack states, health snapshot identity, bounded
+  feedback, exact attack interruption, ready work cancellation and normal movement/water rules.
+  The focused model run passed; defense adds **3 states / 4 branches / 21 generated paths /
+  480 cyclic steps**, partitioning fresh/repeated and eligible/ineligible presses.
+- **Browser:** one successful affected pass each: Chromium defense **9**, combat **15**, no
+  console/page errors. Real F down/up/repeat and modal handlers, melee/bolts, rear damage,
+  release/resume, normal-speed corpse crossings and actual seeded ramp navigation pass. Screenshot
+  review found an obscured front view/loading overlay and a wall-obscured ramp view; a separate
+  capture-only pass refreshed four views, with gameplay results retained. The shield normal has
+  forward dot **1.0**, center **0.35000002 units** ahead and about **1.03 units** above support.
+  Reviewed the solid front shield, side thickness, lowered sword and brief block fragments.
+- **Final checks:** format (140 files), lint, **281 tests** including strict types, and build pass;
+  **21 machines / 95 states / 179 branches**. The first final test command stopped at a screenshot
+  helper's `Node.remove()` typing error; it now uses `parentNode.removeChild`. The next run exceeded
+  the tool's 240s budget during generation, with no assertion failures; the complete rerun passed
+  in **277.55s** under a 600s budget. Build retains the existing large-chunk warning. No full
+  browser, cross-browser or production-smoke repeat was needed. Artifact paths and exact commands
+  are in `VERIFICATION.md`.
+- Browser and owned **5187 Vite** scopes cleaned up. Existing OpenCode 4096/tailnet 8443 services
+  were untouched. At this implementation checkpoint **P5 awaited independent review**; the
+  subsequent READY verdict above clears that gate. P6–P7 remained planned.
 
 ### P4 — independent review and delivery — 2026-11-19
 
@@ -112,8 +187,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
   results, not another implementation verification batch.
 - Review reused the implementation's **268-test/full-check/build** evidence and browser results
   with **732 contacts**. No code corrections were required.
-- **P4 is complete and its feature commit is authorized with normal hooks.** This entry's
-  containing commit records P4. **P5 held-F defense is next, not started.** P3 remains complete
+- **P4 is complete at `be29b8c`, committed with normal hooks.** At that delivery checkpoint,
+  **P5 held-F defense was next, not started.** P3 remains complete
   at **`9f8e1d7`**. Raw `docs/notes.md` remains untouched and excluded from the feature commit.
 
 ### P4 — skeleton lurch implementation — 2026-11-19 (pre-review checkpoint)

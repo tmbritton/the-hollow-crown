@@ -26,7 +26,7 @@ import { pickGround } from './navigation.ts';
 import { MOVEMENT_KEYS } from './locomotion.ts';
 import { ECS } from './ecs.ts';
 import { CombatSystem, clearSight, seedEnemies } from './combat.ts';
-import { cancelAttack, cancelWork, requestJump } from './actors.ts';
+import { cancelAttack, cancelWork, requestDefense, requestJump } from './actors.ts';
 import type { Actor } from './actors.ts';
 import { DiscoveryRecord } from './discoveries.ts';
 import { prepareLastEmber, emberClue, EMBER } from './lastEmber.ts';
@@ -62,6 +62,7 @@ const gameKeys = new Set([
   'KeyS',
   'KeyD',
   'KeyE',
+  'KeyF',
   'KeyQ',
   'KeyR',
   'KeyM',
@@ -441,7 +442,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     ui.room(world.roomById.entrance, game.playTime);
     canvas.focus();
     ui.toast(
-      'Click an enemy to pursue and attack. Space jumps. X cancels travel and attacks.',
+      'Click an enemy to pursue and attack. Hold F to defend. Space jumps. X cancels commands.',
       6500,
     );
   });
@@ -839,6 +840,18 @@ window.addEventListener('keydown', (event) => {
     }
     return;
   }
+  if (event.code === 'KeyF') {
+    const gameplay =
+      !editingText(event.target) && !event.metaKey && !event.ctrlKey && !event.altKey;
+    if (gameplay) event.preventDefault();
+    if (game)
+      requestDefense(
+        game.player.actor,
+        event.repeat,
+        gameplay && ui.ready && !paused() && !game.inspection.active,
+      );
+    return;
+  }
   if (game?.inspection.active) {
     if (gameKeys.has(event.code) || event.code === 'Escape') event.preventDefault();
     if (!event.repeat && ['Escape', 'KeyE'].includes(event.code)) game.inspection.close();
@@ -863,6 +876,7 @@ window.addEventListener('keydown', (event) => {
     }
   }
   if (event.code === 'KeyX') {
+    game?.player.actor.entity.get('defense')?.cancel();
     if (game) cancelWork(game.player.actor);
     keys.clear();
     pointer.send({ type: 'CANCEL' });
@@ -880,7 +894,10 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyR') game.desiredAlpha += Math.PI / 2;
   if (event.code === 'KeyM') ui.transition({ type: 'TOGGLE_MAP' });
 });
-window.addEventListener('keyup', (event) => keys.delete(event.code));
+window.addEventListener('keyup', (event) => {
+  keys.delete(event.code);
+  if (event.code === 'KeyF') game?.player.actor.entity.get('defense')?.release();
+});
 window.addEventListener('blur', resetMovement);
 window.addEventListener('pagehide', (event) => {
   resetMovement();

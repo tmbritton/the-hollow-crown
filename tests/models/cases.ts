@@ -7,6 +7,7 @@ import { goblinMachine } from '../../src/machines/monsters/goblin.ts';
 import { koboldMachine } from '../../src/machines/monsters/kobold.ts';
 import type { MonsterEvent, MonsterPerception } from '../../src/machines/monsters/types.ts';
 import { attackMachine } from '../../src/machines/actors/attack.ts';
+import { defenseMachine } from '../../src/machines/actors/defense.ts';
 import { commandMachine } from '../../src/machines/actors/command.ts';
 import { healthMachine } from '../../src/machines/actors/health.ts';
 import { locomotionMachine } from '../../src/machines/actors/locomotion.ts';
@@ -90,6 +91,24 @@ const swing = {
 };
 
 export const modelCases = [
+  modelCase(defenseMachine, {
+    inputs: [undefined],
+    events: (): EventFromLogic<typeof defenseMachine>[] => [
+      ...[false, true].flatMap((eligible) =>
+        [false, true].map((repeat) => ({ type: 'PRESS' as const, eligible, repeat })),
+      ),
+      { type: 'RELEASE' },
+      { type: 'CANCEL' },
+    ],
+    invariant: (state, before, event) => {
+      if (event?.type === 'RELEASE') assert.ok(state.matches('lowered'));
+      if (event?.type === 'CANCEL') assert.ok(!state.matches('raised'));
+      if (before?.matches('latched') && event?.type !== 'RELEASE')
+        assert.ok(state.matches('latched'));
+      if (event?.type === 'PRESS' && before?.matches('lowered'))
+        assert.equal(state.matches('raised'), event.eligible && !event.repeat);
+    },
+  }),
   modelCase(cargoMachine, {
     inputs: [undefined],
     abstractContext: ({ context }) => [context.owner],

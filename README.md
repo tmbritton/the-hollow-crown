@@ -31,7 +31,8 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 | WASD / arrow keys | Move relative to the camera |
 | Shift | Run |
 | Space | Jump (one jump per press) |
-| X | Cancel travel, pursuit, and attacks |
+| Hold F | Raise the shield and block frontal melee / bolts |
+| X | Cancel travel, pursuit, attacks, and defense |
 | E | Interact: doors, chests, altar, portraits, throne; begin shrine work, disable its hostile focus, or recover nearby loose tribute |
 | E / Escape while inspecting | Return to the overhead view |
 | Q / R | Rotate the overhead camera by 90° |
@@ -53,7 +54,7 @@ It defends itself against ordinary hostile species and the player, abandoning un
 while fighting or moving. It returns after losing a threat and keeps working off-screen.
 
 At the shrine, **E** starts repeated six-second restoration cycles; **X**, movement, targeting,
-jumping or damage interrupts unfinished work. Completed seals remain. Reading the inscription
+defending, jumping or damage interrupts unfinished work. Completed seals remain. Reading the inscription
 in the **entrance portrait** teaches the old rite: two seals per cycle instead of one. You can
 also lure or kill the unique worker, or approach the anvil and press **E** to disable its focus.
 The clock announces the plan, but reveals the worker's name only after its visible target caption.
@@ -162,6 +163,24 @@ Clicking an enemy locks onto it: the player follows its changing position and sw
 
 Damage occurs at the strike's impact, with range and cover checked again. Living characters emit red blood fragments; skeletons emit pale bone dust. Dead enemies collapse into persistent, non-blocking corpses until regeneration. Death returns the player to the checkpoint with 2.5 seconds of protection. Chests and the altar still restore health.
 
+**Hold F to defend.** The raised shield blocks **100% of melee and bolt damage within a 120°
+frontal arc**, including its ±60° boundaries. The arc follows the hero's authoritative movement
+heading; standing still retains the last heading. Turn by moving, rather than by rotating the
+camera. Side/rear hits and terrain hazards still damage you. Range, cover, doors, collision and
+elevation must permit a hit before it can be blocked. Bolts use their incoming travel direction,
+even if the shooter moves or dies. A block emits a short gold spark burst without blood or a
+new invulnerability window.
+
+Raising the shield interrupts your current sword action and unfinished work, and suspends
+automatic pursuit/attacks while retaining the selected enemy. Release F to resume ordinary
+pursuit and attack cooldowns. Floor routes and keyboard walk/run remain available at normal
+speed; the shield faces travel, so moving away exposes your back. **Jumping lowers the shield
+immediately**, including preload. F pressed during a jump cannot raise it on landing: release
+and press again. **X**, blur, menu, inspection, hidden tabs, death and teleport cancel defense;
+release and press F again to resume. Regeneration creates a lowered shield, and key repeats from
+a previous hold cannot raise it. Starting shrine work or a door-approach command also lowers it
+through the shared stop path. Existing enemies do not defend yet.
+
 Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths buckle before falling, compress on contact and rebound briefly into their final corpse pose. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These render-only curves keep controls, collision and damage timing authoritative.
 
 ## What is procedural?
@@ -194,6 +213,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/ecs.ts` | Typed component registry, entity lifecycle and indexed component queries |
 | `src/worldEntities.ts` | Generated world registration and shared door animation/collision system |
 | `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
+| `src/machines/actors/defense.ts` | Opt-in held-defense lifecycle and 120° incoming-direction test |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
 | `src/machines/` | Typed XState charts organized into `monsters/`, `actors/`, `navigation/`, `world/`, and `ui/` |
@@ -294,7 +314,34 @@ game.ecs.remove(entity.id);
 
 `createActor` composes the standard character components. Player input and AI supply intents to the same movement/pathfinding/door and combat systems. Babylon collision and visual rigs are separate adapters. A door-opening capability distinguishes clever actors from skeletons; locked gates block everyone. New component types belong in the `Components` interface, with systems querying the combinations they require.
 
-The fixed-step order is door state → objective prework → player intent/pursuit and movement → enemy decisions/movement and shared attacks → projectiles/particles → terrain damage → objective commit validation → player respawn → shared rig animation. Menus, inspection and hidden tabs suspend simulation. Blood/dust are capped at 192 live particle entities and bolts at 32; fixed thin-instance pools render them without allocating new meshes per hit. Corpse entities retain their original meshes.
+The fixed-step order is door state → objective prework → player intent/pursuit and movement → enemy decisions/movement and shared attacks → projectiles/particles → terrain damage → objective commit validation → player respawn → shared rig animation. Menus, inspection and hidden tabs suspend simulation. Blood/dust/shield sparks share a cap of 192 live particle entities and bolts are capped at 32; fixed thin-instance pools render them without allocating new meshes per hit. Corpse entities retain their original meshes.
+
+### Shared defense capability (P5; complete, independent review READY)
+
+The optional ECS `defense: Defense` component owns the synchronous **`actorDefense`** chart:
+`lowered`, `raised`, and `latched` (cancelled/invalid press awaiting release). `createActor`
+installs it for the player only. A future kobold shield bearer can opt in with the same component
+and `requestDefense(actor)` boundary; population and species decisions remain unchanged here.
+`PRESS` carries current eligibility and key-repeat facts, `RELEASE` lowers/rearms, and `CANCEL`
+latches a raised hold. `Actor.defending` also checks current life/corpse, jump and attack facts;
+combat clears invalid raised states. No independent held-F flag or render clock owns defense.
+
+`requestDefense` cancels work and interrupts the swing without refunding cooldown or undoing an
+already-resolved impact. It preserves floor routes and selection, cancelling only a pursuit route.
+`startAttack`, pursuit and objective-work eligibility respect defense. The input adapter sends
+releases even while modal or editing; modified/text-field presses and repeats cannot raise a guard.
+Shared stop/jump paths clear it. The rig samples the current state directly, aligns its facing to
+the authoritative heading, turns the shield's broad face forward and lowers the weapon. Release
+and reset remove the shield offset/arm yaw; gait, procedural foot contact and head behavior keep
+their existing ownership.
+
+`CombatSystem.damage(target, amount, source?, impact?)` accepts `DamageImpact` metadata containing
+`kind: 'melee' | 'projectile'` and horizontal `travel` **into** the target. Melee supplies the live
+attacker-to-target vector at impact; a projectile supplies its own velocity. Source identity still
+decides hostility/death attribution. Damage without attack metadata (such as lava) bypasses the
+shield. Invalid/zero travel cannot grant immunity. Blocks return `false` (no accepted damage),
+without touching health/protection, blood or death callbacks. Each block emits at most six gold
+fragments lasting 0.18–0.28 seconds, within the shared particle budget.
 
 ### Floor-navigation contracts (P3; complete, independently reviewed READY)
 
@@ -326,7 +373,7 @@ travel state; successful arrival uses its existing `ARRIVE` event.
 All state-machine definitions live under `src/machines/`:
 
 - `monsters/skeleton.ts`, `monsters/goblin.ts`, `monsters/kobold.ts`: independent species machines. Shared perception contracts and the factory live alongside them. Species charts select named effects; combat systems carry out pathfinding, pursuit, fleeing and attacks.
-- `actors/`: attack wind-up/impact/recovery/death, mutually exclusive pursuit/door commands, health/protection/death, locomotion phases, and interruptible objective work cycles.
+- `actors/`: attack wind-up/impact/recovery/death, held-defense/release latch, mutually exclusive pursuit/door commands, health/protection/death, locomotion phases, and interruptible objective work cycles.
 - `navigation/`: route following, waiting for an opening door, arrival and blocked/stuck cancellation.
 - `world/`: door locks/opening/closing, one-way chest claiming, altar-to-crown progression, and objective terminal lifecycles.
 - `ui/`: loading/play/menu/inspection/victory, independent tab visibility and map visibility, inspection-camera transitions, held-pointer modes, transient feedback, and asynchronous Inspector requests.
@@ -343,7 +390,7 @@ npm run test:models
 
 The latest XState includes model-testing tools in **`xstate/graph`**. `tests/models/` generates paths to every modeled state and extends each path with every candidate event, including ignored/invalid attempts and self-loops. Inspector microstep data measures every declared transition branch, including guards and eventless transitions. Invariants are checked after each stable step, and the pure simulation adapter is compared against a live XState actor.
 
-The suite currently covers **20 machines, 92 declared atomic states, and 175 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. The report is written to `test-results/machine-model-report.json`.
+The suite currently covers **21 machines, 95 declared atomic states, and 179 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. Defense partitions eligible/ineligible and fresh/repeated presses, release and cancellation, including ignored events in each state. The report is written to `test-results/machine-model-report.json`.
 
 ### Rendering choices
 
@@ -635,6 +682,7 @@ npm run test:jump
 BROWSER=firefox npm run test:movement
 npm run test:combat
 BROWSER=firefox npm run test:combat
+npm run test:defense
 npm run test:social
 ```
 
@@ -660,6 +708,14 @@ The animation suite also expects a dev server. It checks **28 actual moving-rig 
 The combat suite also expects a dev server. It uses real clicks/holds to verify pursuit, retargeting, attack poses, repeated damage, corpses, hit particles, cancellations, door clicks, respawn and regeneration. Its walk/run crossing comparison checks identical clear-floor/corpse travel, raised rendered feet, water's 52% speed, and unchanged support/combat elevation. Pure ECS/AI tests cover skeleton hostility, goblin cover/flight/projectiles, kobold flanking, shared movement/doors, and bounded effect lifetimes. The movement suite first checks a fresh-world floor click and arrival with all living actor bodies present, then hides/freezes enemies and removes their body components to isolate the remaining floor-selection checks. The full-route autopilot keeps AI and living-body collision active, temporarily grants the test player immunity, and clears nearby blockers through ordinary pursuit and attacks before replanning physical travel. Damage and death are checked separately.
 
 The social suite also expects a dev server. It checks each activity's stable gathering, visible props and relaxed equipment, interruption by a visible threat, and return after the threat is lost. It captures `test-results/<browser>-social-{cards,hackysack,smoke}.png`. Pure social tests validate seeded placements and ensure relayed pack alerts expire instead of keeping every member permanently agitated.
+
+The Chromium defense suite expects a dev server and uses real F keydown/keyup events. It checks
+melee/bolt front and rear hits, shooter relocation, last-windup interruption/release, full-speed
+walk/run/corpse/ramp travel, jump/X release latching, focus/modal/death/teleport/regeneration
+resets and repeated/modified keys. It measures the drawn shield's world-space normal and captures
+front/side/block views. `DEFENSE_CAPTURES_ONLY=1 npm run test:defense` refreshes only the four
+visual views, with a separate `chromium-defense-visual-report.json`; the complete result remains
+in `test-results/chromium-defense-report.json`.
 
 The objective-work suite expects a dev server and supports Chromium and Firefox. It installs
 development-only bindings on existing actors/sites, then exercises the real fixed-step loop,

@@ -35,6 +35,7 @@
     "test:animation": "node tests/animation-browser.ts",
     "test:jump": "node tests/jump-browser.ts",
     "test:combat": "node tests/combat-browser.ts",
+    "test:defense": "node tests/defense-browser.ts",
     "test:social": "node tests/social-browser.ts",
     "profile": "node tests/profile.ts"
   },

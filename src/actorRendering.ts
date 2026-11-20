@@ -61,6 +61,7 @@ export function resetActorRig(rig: Components['rig']): void {
   rig.body.rotation.setAll(0);
   rig.body.position.setAll(0);
   rig.head?.rotation.setAll(0);
+  rig.shield?.position.setAll(0);
   for (const limb of [...rig.arms, ...rig.forearms, ...rig.legs, ...rig.knees, ...rig.feet])
     limb.rotation.setAll(0);
   for (const leg of rig.legs) leg.position.y = 0.55;
@@ -115,7 +116,11 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       Math.sin(p.heading - rig.root.rotation.y),
       Math.cos(p.heading - rig.root.rotation.y),
     );
-    rig.root.rotation.y += turn * (1 - Math.exp(-18 * dt));
+    // A raised shield must face the authoritative guard now, even during a sharp turn.
+    if (actor.defending) rig.root.rotation.y = p.heading;
+    else rig.root.rotation.y += turn * (1 - Math.exp(-18 * dt));
+    rig.shield?.position.setAll(0);
+    for (const arm of [...rig.arms, ...rig.forearms]) arm.rotation.y = 0;
     const corpse = entity.get('corpse');
     if (corpse) {
       // Death leaves ordinary equipment visible even when work/social activity had stowed it.
@@ -152,6 +157,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     if (entity.has('corpse')) continue;
     const actor = new Actor(entity),
       rig = entity.require('rig');
+    const defending = actor.defending;
     const relaxing = isSocializing(actor);
     const work = entity.get('work')?.snapshot();
     const working = work?.status === 'working' || work?.status === 'ready';
@@ -167,6 +173,10 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       actor.kind === 'skeleton' ? 'skeleton' : 'ordinary',
     );
     const swing = actor.attack.swing;
+    if (defending) {
+      rig.attackBlend = rig.socialBlend = 0;
+      rig.attackPose = rig.socialPose = null;
+    }
     rig.attackBlend += ((swing ? 1 : 0) - rig.attackBlend) * (1 - Math.exp(-25 * dt));
     if (swing)
       rig.attackPose = attackPose(swing.elapsed, swing.duration, swing.impact, swing.ranged);
@@ -228,6 +238,18 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       16,
       0.62,
     );
+    if (defending) {
+      // Turn the left arm inward: the shield's outward -X face becomes forward +Z.
+      // Preserve gait, plants and head; the right hand keeps its weapon lowered.
+      pose.leftArm = -0.65;
+      pose.leftElbow = 1;
+      pose.rightArm = 0.1;
+      pose.rightElbow = 0.1;
+      pose.armSpread = pose.twist = pose.roll = 0;
+      pose.lean = 0;
+      rig.arms[0].rotation.y = Math.PI / 2;
+      if (rig.shield) rig.shield.position.x = -0.18;
+    }
     const scale = volumeScale(pose.stretch, pose.reach);
     rig.root.scaling.set(scale.x, scale.y, scale.z);
     rig.root.position.y += pose.lift;

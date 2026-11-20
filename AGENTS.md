@@ -53,10 +53,10 @@ Install browser binaries with `npx playwright install chromium firefox` when nee
 - `npm run test:browser` runs the full gameplay/rendering suite and starts a development
   server on port 5173 if needed. `BROWSER=firefox npm run test:browser` selects Firefox.
 - Targeted suites require an already-running development server:
-  `npm run test:movement`, `npm run test:combat`, `npm run test:social`,
+  `npm run test:movement`, `npm run test:combat`, `npm run test:defense`, `npm run test:social`,
   `npm run test:animation`, `npm run test:jump`, `npm run test:inspection`, and
   `npm run test:portraits`.
-- Movement, combat, and social suites also support `BROWSER=firefox`. Animation and jump
+- Movement, combat, and social suites also support `BROWSER=firefox`. Animation, jump and defense
   use Chromium; inspection and portraits use Firefox.
 - Development-browser scripts accept `DEMO_URL` (default `http://localhost:5173`). When
   using a custom URL, start that server yourself.
