@@ -24,7 +24,7 @@ The production build is in `dist/`; preview normally runs at **http://localhost:
 
 | Input | Action |
 | --- | --- |
-| Left-click the floor | Follow a safe path to the gold destination ring |
+| Left-click the floor | Follow a safe path; approach the closest reachable point if blocked |
 | Hold left mouse on the floor | Continuously steer toward the cursor |
 | Click / hold an enemy | Pathfind into reach and repeatedly attack until it dies |
 | Click a closed door | Approach and open it if unlocked |
@@ -103,7 +103,7 @@ entries. Discoveries survive death and checkpoint respawn; every regeneration st
 record, even when you enter the same seed. The new entrance caption is immediately learned again.
 This record is held in memory for the current run.
 
-Click movement routes around furniture, walls, and lava, and respects closed/locked doors. **Click a closed door** to approach and open it, or use **E** in reach. Enemy pursuit can open intervening unlocked doors automatically. A new floor click replaces the command; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
+Click movement routes around furniture, walls, and lava, and respects closed/locked doors. Reachable floor clicks retain their precise destination. For blocked or disconnected floor, the hero approaches the closest safely reachable point toward the request; the **gold ring marks that effective destination**. Holding the mouse keeps steering, but a settled or immobile hero stays still until the request or obstruction changes. Floor commands never open doors or bypass the altar gate. **Click a closed door** to approach and open it, or use **E** in reach. Enemy pursuit can open intervening unlocked doors automatically. A new floor click replaces the command; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
 
 The adventurer briefly loads against travel before pushing off, then braces, recoils and settles on stopping. Running blends into a **longer stride**, forward lean, bent-elbow arm pumps and opposing torso twist, with a short flight phase and compressed landings. Both gaits advance from measured travel and share a continuous phase. Local-axis squash/stretch preserves apparent volume; the cape follows through behind the action. Living actors block each other regardless of allegiance: enemies can be cornered, allies cannot stack, and click/AI routes go around occupied space when possible. **Corpses are passable at full speed** for the player and enemies. Feet lift and bend into procedural stair-like steps over settled bodies while walking or running, including moving attacks. Water still slows grounded travel to **52% speed**, including over corpses; overlapping bodies add no penalty. Pause, inspection, focus loss, and regeneration clear pending travel, momentum and deformed poses.
 
@@ -202,7 +202,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/tribute.ts` / `src/cargo.ts` / `src/tributeRendering.ts` | Independent four-delivery plan, bounded porter selection, ECS cargo lifecycle/recovery and procedural cargo/hatch (O4) |
 | `src/observation.ts` | Bounded camera-to-rendered-surface visibility checks for target captions, deaths, killers and remains |
 | `src/materials.ts` | Typed material palette and GLSL liquid/fire/magic effects |
-| `src/navigation.ts` | Height-aware floor picking, tile routing, corner-clearance smoothing, and dynamic door checks |
+| `src/navigation.ts` | Height-aware floor picking, exact/partial tile routing, swept-clearance smoothing, and dynamic door/body checks |
 | `src/occupancy.ts` | Swept living-body collision, sliding and live route occupancy |
 | `src/corpseTerrain.ts` / `src/corpseRendering.ts` | Pure oriented-box surface/stride sampling and the shared render-only fallen-body adapter |
 | `src/locomotion.ts` | Movement speeds, acceleration/deceleration, and procedural start/travel/stop animation |
@@ -285,6 +285,31 @@ game.ecs.remove(entity.id);
 `createActor` composes the standard character components. Player input and AI supply intents to the same movement/pathfinding/door and combat systems. Babylon collision and visual rigs are separate adapters. A door-opening capability distinguishes clever actors from skeletons; locked gates block everyone. New component types belong in the `Components` interface, with systems querying the combinations they require.
 
 The fixed-step order is door state → objective prework → player intent/pursuit and movement → enemy decisions/movement and shared attacks → projectiles/particles → terrain damage → objective commit validation → player respawn → shared rig animation. Menus, inspection and hidden tabs suspend simulation. Blood/dust are capped at 192 live particle entities and bolts at 32; fixed thin-instance pools render them without allocating new meshes per hit. Corpse entities retain their original meshes.
+
+### Floor-navigation contracts (P3; complete, independently reviewed READY)
+
+`Navigator.goTo(from, requested)` keeps the existing exact-goal contract for AI, pursuit and
+objective work. Only floor input opts into `{ partial: true }`; `destination` and `path` then
+describe the effective endpoint, which also drives the ordinary arrival brake and gold ring.
+An unreachable request searches the finite reachable tile component, then refines its nearest
+safe frontier within 1.5 units of reached anchors. Every graph edge, refined connection and
+smoothed segment checks terrain/support, furniture, doors and living occupancy. A fallback must
+improve target distance by at least 0.025 units; genuinely immobile cases install no travel.
+Endpoints within 0.001 units of the best target distance prefer the shorter graph-travel estimate
+from the current position. Local refinement then aligns the chosen approach precisely.
+
+`followFloor(from, requested, now)` reuses unchanged held commands, including arrival and failure.
+Small cursor drift and changed-obstruction retries are limited to one per 500 ms; immediate
+steering probes still prevent entry into newly blocked space. Checked graph connections are reusable
+while door locks/open/collider state and live occupied cells/swept directed edges agree. After travel,
+route parents and costs are rebuilt from current starting connections, without returning through an
+old search origin. Distant sub-cell body movement can preserve those graph decisions; exact geometry
+near the route or any potentially better frontier still invalidates held commands. Start connections,
+refinement, smoothing and physical movement always check current body geometry. Changes to graph
+occupancy anywhere remain conservative invalidations; cold searches are still synchronous.
+Physical stuck cancellation remembers the actual stop; explicit cancellation clears input/search
+caches. Static terrain caches belong to one generated world. The existing navigation chart owns
+travel state; successful arrival uses its existing `ARRIVE` event.
 
 ### Declarative state machines
 

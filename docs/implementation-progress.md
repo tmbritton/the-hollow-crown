@@ -16,9 +16,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
   The user's `docs/notes.md`
   takes priority over further roadmap expansion: stability, corpse traversal, blocked-click fallback,
   skeleton gait, held-F defense, declarative kobold phalanxes, then public repository/Pages release.
-  **P2 is delivered; final independent review returned READY, clearing all blockers.**
-  The user authorized its feature commit. **P3 blocked-floor click fallback is next, not started**;
-  P4–P7 remain planned. Dependency order and acceptance gates are in `implementation-path.md`.
+  **P2 is committed at `726af8a`; final independent review returned READY and the user accepted traversal.**
+  **P3 is complete; final independent review returned READY, clearing both route-quality blockers.**
+  Its feature commit is authorized. **P4 skeleton gait is next, not started**; P5–P7 remain planned.
+  Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
 - P2 ramp correction: **246 tests**, strict typing, format/lint/build pass after resumption.
   The affected Chromium animation suite passes **28 moving-contact crossings / 46 captures**,
@@ -27,6 +28,18 @@ Execution record for [implementation path](implementation-path.md). Started **20
   Water alone slows grounded travel; corpse stepping is render-only for every actor.
   Final review passed 10 targeted tests, 4,005 rendered-chain round trips, 12 reach-boundary probes,
   original flat/ramp cases and lifecycle/reset checks; it reused the full verification and captures.
+- Initial P3 resumed the restored partial edits against **`726af8a`**. **56 focused tests**, then **259
+  full tests**, strict typing, format/lint/build and **15 Chromium movement checks** pass. Actual
+  red regressions cover active-cache invalidation, closing-door progress and repeated stuck commands.
+  Reviewed effective-ring captures; **20 machines / 92 states / 175 branches**, no chart changes.
+- P3 review correction: actual-travel cached detour **24.634 → 7.219 units**; opposing-side
+  equivalent endpoints **13.877 → 2.674 units**. Distant 0.016-unit body motion over 1.92s now
+  retains one held plan, with current-geometry frontier/edge invalidation coverage. **60 focused /
+  263 full tests**, format/lint/build, and **one 16-check Chromium movement pass** all pass.
+  Final independent review is **READY**. Attributed checks: **17 partial tests**, **24 route/tie
+  cases**, **72 body-cache/gate cases**, 100 stable holds with zero new plans, and report/capture/diff
+  checks. Review reused the 263-test/full-check/build and 16-check movement results. Its cold search
+  sample was **139 ms**, a documented bounded, non-blocking limitation.
 - O4: **228 pure/model tests**, strict typing, format/lint/build; **20 machines / 92 states /
   175 branches**. Tribute browsers: **9 checks each** in Chromium and Firefox. Chromium O3 **14**,
   O2 **17**, movement **13**, combat **14**, social **9**, full gameplay **23**, and production smoke
@@ -73,11 +86,100 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | O3 | Complete | Missing scenario API and focus model failed first; `ember-70` reproduced shrine stealing the clue's E approach before correction | 214 tests/check/build, 100 O3 seeds, Last Ember 14 each browser plus regression suites; independent review READY | `9be81bb` |
 | O4 | Complete | Missing tribute/cargo APIs; actual return-route stall, blocked-status and retired-scenario regressions failed before corrections | 228 tests/check/build, 100 tribute seeds, both tribute browsers, affected regressions/full Chromium/production pass; independent review READY | `123b9a9` |
 | P1 | Complete; application investigation closed by user | Seal budget failed at 110 reads/update; isolated startup-failure probe left Vite live; helper contracts failed before implementation | 236 tests, format/lint/build, bounded Chromium resources/dev smoke and production smoke pass; independent review READY: 8 targeted tests, 3 adversarial cleanup probes, diff check. System diagnosis outside scope | `6378d61` |
-| P2 | Delivered; final independent review READY | Original edge red: 0.348118 penetration. Follow-up math tests 0 pass/3 fail; translated ramp reproduced 0.068665 penetration before analytic inverse fix | 246 tests, format/lint/build; animation 28 crossings/575 contacts and reviewed captures; final review cleared all blockers with targeted geometry/contact/lifecycle probes | This commit |
-| P3 | Next, not started | Closest safely reachable point for blocked floor clicks; see implementation-path.md | Preserve route clearance, void/door/gate rules and precise arrival | — |
-| P4–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
+| P2 | Complete; user accepted, final independent review READY | Original edge red: 0.348118 penetration. Follow-up math tests 0 pass/3 fail; translated ramp reproduced 0.068665 penetration before analytic inverse fix | 246 tests, format/lint/build; animation 28 crossings/575 contacts and reviewed captures; final review cleared all blockers with targeted geometry/contact/lifecycle probes | `726af8a` |
+| P3 | Complete; final independent review READY | Initial audit 10 pass/3 fail; review regressions 13 pass/3 fail: actual-travel old-root detour, far-side equal endpoint and distant-motion replans | 60 focused / 263 full tests, format/lint/build, 16 Chromium movement checks; final review cleared both blockers with 17 partial tests, 24 route/tie and 72 body-cache/gate cases plus stable-hold/performance/capture checks | This commit |
+| P4 | Next, not started | Species-specific skeleton lurching gait; see implementation-path.md | Animation follows authoritative movement and collision | — |
+| P5–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
 
 ## Work log
+
+### P3 — final independent review and delivery — 2026-11-19
+
+- Final independent reviewer returned **READY**, clearing both the old-root route detour and
+  far-side endpoint tie blockers. Attributed results: **17 partial-navigation tests**, **24
+  route/tie cases** (four rotations plus 20 cases), and **72 body-cache/gate cases** passed.
+- **100 stable held updates** produced zero new plans. The remote-body probe retained one initial
+  plan, with **16 held updates totalling 1.31 ms**. The cold search sample was **139 ms**: bounded,
+  documented and non-blocking. Diff, report and capture checks passed. These are reviewer-reported
+  results, not another local verification batch or a hardware-performance claim.
+- Review reused the implementation's **263-test/full-check/build** results and **16-check movement
+  pass**. Earlier pre-fix results below retain their historical qualifications.
+- **P3 is complete and its feature commit is authorized with normal hooks.** This delivery entry's
+  containing commit records P3. **P4 skeleton gait is next, not started.** P2 remains accepted at
+  `726af8a`; P1 remains closed. Raw `docs/notes.md` is untouched and excluded from the feature commit.
+
+### P3 — route-quality review correction — 2026-11-19
+
+- Independent review reported **BLOCKED** on two route-quality defects: cached paths returned
+  through the previous search origin, and equal target distances selected a far face by world
+  coordinates. Its **20 navigation/partial tests** and **12 additional rotated/enclosing,
+  cage-release, collider/relock and arrival/settle probes** passed. Those are attributed reviewer
+  results; the earlier **259-test / 15-browser-check** batch remains the pre-fix baseline.
+- **Red first:** three new contracts produced **13 pass / 3 fail**. Actual `moveActor` travel
+  between `(0,0)`, `(4,3)`, `(4,-3)` reproduced **24.634 units** versus fresh **7.219**; positive
+  X/Z approaches chose the far endpoint and travelled **13.877**, while negative-side controls
+  travelled **2.674**. The distant-body fixture made **four plans** over 16 held updates/1.92s.
+- **Fix:** cache checked directed graph connections, then rebuild parents/costs from current
+  supported connectors after movement. Within a **0.001-unit** target-distance tie, prefer the
+  shorter graph-travel estimate. Local refinement remains strictly target-distance driven;
+  the existing off-centre precision test caught an intermediate tie-band alignment regression.
+  Both rotated cached routes now travel **7.219**, via `(6,0)` / `(0,6)`; all four opposing-side
+  cases travel **2.674**, ending at the near **±1.3203125** face.
+- **Bounded reuse:** dynamic signatures track actual occupied cells and swept directed edges in
+  each body's small footprint. Exact geometry remains relevant along the route and throughout
+  the potentially better-frontier region. Remote sub-cell movement that preserves connectivity
+  no longer reruns a held search. Start connectors, smoothing/refinement and motor clearance use
+  live geometry. Tests cover route entry/death, same-cell frontier movement and an edge becoming
+  blocked while both endpoint cells stay free. No machine/guard changes.
+- Focused **60 tests** and strict typing pass. One affected Chromium movement pass passed
+  **16 checks** after all corrections, including real opposite-side clicks after actual travel.
+  Reviewed the opposing furniture rings and refreshed lava/gate captures. Port 5173 was absent;
+  the owned **5187** server and test browser were cleaned up. Pre-existing services were untouched.
+- Required format/lint/test/build commands each ran **once** after focused/browser checks:
+  **263 tests**, strict types and **20 machines / 92 states / 175 branches** pass; existing bundle
+  warning remains. No broader browser repeat, staging, commit or subagents; notes untouched.
+- **Performance/limits:** distant-motion red held cost **67.6 ms / four plans** becomes **0.85 ms /
+  one initial plan** across all 16 hold updates. The fixture first warms terrain during remote-site
+  selection; its green initial body-aware plan costs **38.2 ms**. A separate cold 4,213-tile probe
+  uses **3,369 clearance calls**, **175.8 ms** in the focused batch; cached cursor drift adds 118
+  calls. Timings are descriptive, not FPS guarantees. Topology-changing remote movement still
+  invalidates conservatively, and searches remain synchronous. Full details are in VERIFICATION.md.
+- At this correction checkpoint follow-up independent review was pending. Both reported blocker
+  reproductions were green; the final **READY** verdict above subsequently cleared the review gate.
+
+### P3 — initial blocked-floor click/hold fallback (pre-review baseline) — 2026-11-19
+
+- Resumed the prior implementer's restored edits against **`726af8a`**. The user accepted P2;
+  the reported corpse slowdown was an old-page/live-reload expectation, not another traversal defect.
+  No interrupted-agent red result is claimed: the first resumed focused run passed **53/53**.
+- Added three regressions before fixing them: **10 pass / 3 fail** in partial navigation.
+  Opening a gate left the active endpoint at **-0.495361** instead of **3.1**; a closing gate
+  stopped the actor at **-0.921071**, short of its **-0.495** frontier; an immobile physical
+  adapter restarted the held route **12 times in five seconds**. All now pass, including body
+  departure, cancellation and fresh input. Missing IDs in the inherited test blockers were
+  corrected after the initial strict-type check; final typing passes.
+- Floor-only opt-in preserves exact reachable targets and ordinary AI/pursuit/work calls.
+  Finite reachable-component search plus bounded sub-cell refinement selects safe progress;
+  swept terrain/door/body checks apply to graph edges and smoothing. The gold ring is the effective
+  endpoint. Held-command/component caches invalidate for door/collider or live geometry changes,
+  throttle small-drift retries, and remember settled/failed physical stops. Existing `ARRIVE`,
+  `CANCEL`, `PROBE` and stuck-timeout semantics remain chart-owned; no new guards/transitions.
+- **56 focused tests** passed. Final Chromium movement verification passes **15 checks**:
+  actual pointer clicks and holds at furniture, unreachable lava floor and a locked gate, precise
+  reachable routes, stairs, dynamic closure, real E opening, modal retry, focus/inspection and
+  regeneration. The gate fixture needed a side view (its old ray selected the door), then enough
+  closing distance for the existing anti-crush chart to settle before arrival. These were fixture
+  corrections, not changes to door behavior. Three incomplete assertion runs preceded the final
+  pass; another attempt could not connect to the external 5173 server.
+- Final pass used `DEMO_URL=http://localhost:5187` through `withViteServer`, which closed its
+  owned server; all test browsers closed in `finally`. No pre-existing service was stopped or
+  reconfigured. Reviewed furniture/lava/gate effective-ring and ordinary route captures.
+- Required format/lint/test/build commands each ran **once after focused verification**, all
+  passing: **259 tests**, strict typing, unchanged **20 machines / 92 states / 175 branches**;
+  existing bundle-size warning. Full evidence, artifact paths and limits are in VERIFICATION.md.
+- At this initial checkpoint independent review was pending; its subsequent findings and corrections
+  are recorded above. No commit, staging or subagents. User-owned `docs/notes.md` remained untouched;
+  P4–P7 remain planned.
 
 ### User scope clarification — 2026-11-19
 
@@ -99,9 +201,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
   probes pass, as does the diff check. These are reviewer-reported checks, not additional local runs.
 - Review reused the implementation's **246-test/check/build** results, **28-crossing / 575-contact**
   browser report and reviewed captures. No broad repeat was requested or performed for review.
-- The user's explicit **“proceed”** authorizes the normal-hook feature commit. P2 is delivered;
-  its commit is this tracker entry's containing commit. **P3 is next, not started.** P1 remains
-  closed by user direction. Raw `docs/notes.md` is untouched and excluded from staging.
+- The user's explicit **“proceed”** authorized the normal-hook feature commit, subsequently
+  recorded as **`726af8a`**. At this P2 checkpoint P3 was next and not yet started. P1 remains
+  closed by user direction. Raw `docs/notes.md` was untouched and excluded from staging.
 
 #### Ramp rotation-math correction — resumed and verified
 

@@ -4,11 +4,185 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
-### P2 — full-speed corpse traversal — 2026-11-19 (final independent review READY)
+### P3 — blocked-floor click/hold fallback — 2026-11-19 (complete, final independent review READY)
+
+Resumed restored partial P3 work against accepted P2 **`726af8a`**. The user's corpse-traversal
+clarification required no P2 fix. **Final independent review returned READY, clearing both
+route-quality blockers. P3 is complete and its feature commit is authorized with normal hooks.**
+P4 skeleton gait is next, not started. Raw `docs/notes.md` is untouched and excluded from the commit.
+
+#### Final independent review — READY
+
+The final reviewer reported the following checks passing; these are **attributed review results**,
+not another local verification batch:
+
+- **17 partial-navigation tests**.
+- **24 route/tie cases**: four rotations plus 20 cases; both reported route-quality blockers cleared.
+- **72 body-cache/gate cases**.
+- **100 stable held updates**, with zero new plans.
+- Remote-body probe: **one initial plan**, then **16 held updates totalling 1.31 ms**.
+- Diff check, browser report and capture review passed.
+
+The reviewer reused the implementation's **263-test/full-check/build** results and the **16-check
+Chromium movement pass** below. Its **139 ms cold-search** sample remains a documented, bounded,
+non-blocking limitation; no hardware-FPS claim or general elimination of search hitches is made.
+The user's feature-commit authorization applies. P3 is recorded by this delivery entry's containing
+commit, with P2 retained as **`726af8a`**. Historical pre-fix qualifications below remain intact.
+
+#### Independent review correction — verified before final review
+
+The first independent review reported **BLOCKED** on two route-quality issues. Its **20
+navigation/partial tests** and **12 additional rotated/enclosing, cage-release, door-collider,
+relock, precise-arrival and settled-hold probes** passed. These are reviewer-attributed results,
+not newly claimed local probes. The earlier **259-test/check/build / 15-movement-check** results
+below remain the pre-fix baseline.
+
+**Red first:** `node --test tests/partial-navigation.test.ts` produced **13 pass / 3 fail** before
+production corrections. The new tests measure actual motor travel between commands:
+
+| Reproduction | Before | After |
+| --- | --- | --- |
+| `[-9,9]²`, 6×6 central blocker plus 2×1 blocker at (4,0); start (-5,0), complete (0,0), (4,3), (4,-3) | Third command **24.634 units**, back around old west side; fresh **7.219** | **7.219 units**, via (6,0); rotated case also **7.219**, via (0,6) |
+| 2×8 blocker, start (4,0), click (0,0) | Far endpoint **(-1.3203125,0)**, **13.877 units** | Near endpoint **(1.3203125,0)**, **2.674 units** |
+| Opposing X/Z approaches | Positive X and Z took the far face; negative controls were short | All four approaches take their near face, **2.674 units** each |
+| MOURNING-731 distant body, total x displacement **0.016**, 16 held updates at 120 ms | **4 plans**, **67.6 ms** total held-update time | **1 initial plan**, **0.85 ms** total for all subsequent hold updates |
+
+- **Route cache:** reuse lazily checked directed graph connections instead of reconstructing a
+  path through an old origin. After movement, current safe starting connections seed new parents
+  and graph travel costs. An unchanged origin can reuse its exhausted tree only with unchanged
+  body geometry. Cached and fresh route quality now agree in the reported physical traversal.
+- **Endpoint ties:** candidates within **0.001 units** of the minimum target distance prefer the
+  shorter graph-travel estimate, with deterministic coordinate ties only afterward. Refinement of
+  the chosen approach still strictly improves target distance. An intermediate version applied
+  the tie band during local alignment; the existing off-centre test rejected z=**0.337773** for
+  requested **0.37**. Restricting that preference to candidate selection restored precision.
+- **Distant motion:** compute occupied grid cells and swept directed-edge decisions only in each
+  live body's small footprint. Reuse requires those decisions and door lock/open/collider state
+  to agree. Body coordinates are not rounded. Exact body geometry remains relevant around the
+  route and throughout the region of potentially better frontier anchors. Start connections,
+  sub-cell candidates, smoothed segments and physical movement always use current geometry.
+  Edges incident to an occupied cell are excluded from the signature: that cell already prevents
+  traversal, and inside-body escape direction must not create irrelevant invalidations.
+- **Safety coverage:** route entry and death still trigger replans. A **0.06-unit** same-cell
+  frontier shift remains visible to held input. Another fixture moves a small body onto a swept
+  edge while **all grid-cell occupancy results stay identical**; the cache invalidates and the
+  actual motor arrives via a clear detour. Existing locked/closing gate, body release, exact AI/
+  work, no-progress and precise-arrival cases pass. No machine definitions/guards changed.
+
+**Costs and limits:** the remote-site fixture performs an initial selection search, so its timed
+body-aware plan starts with warm static terrain: red plans cost **29.0 / 24.8 / 21.3 / 21.1 ms**;
+the corrected single plan costs **38.2 ms**. The gain is avoiding irrelevant repeated plans, not a
+claim that all searches became faster. The separate cold **4,213-tile** probe now uses **3,369
+clearance calls**, taking **175.8 ms** in the final focused batch; 120 cursor-drift samples add
+**118 calls / one additional plan**. Full-suite concurrent samples were **378.1 ms cold**, **84.7
+ms** for the warm-terrain body-aware plan and **1.99 ms** for the 16 held updates. These timings
+include host/JIT/load variation and are not hardware-FPS claims. Graph-occupancy changes anywhere
+still invalidate conservatively; fast-moving distant actors can therefore still cause fresh
+searches. Cold searches remain synchronous. Routing is the existing tile graph plus bounded
+frontier refinement and smoothing, not a globally optimal continuous-space solver.
+
+| Correction check actually run | Result |
+| --- | --- |
+| Focused partial/navigation/occupancy/locomotion/combat | **60 passed**, including **17 partial-navigation contracts** |
+| Strict typing | Pass before browser; also included in full tests/build |
+| `npm run format:check`, `npm run lint`, `npm test`, `npm run build` | Each run **once** after focused/browser checks; **263 tests** pass; existing bundle warning |
+| Models | **20 machines / 92 states / 175 branches**, unchanged |
+| Affected Chromium movement | **One pass, 16 checks**, no page/console errors |
+| `git diff --check` | Pass |
+
+The movement suite now actually travels to the opposing side of the same furniture before
+clicking its blocked floor again, retaining the navigator/cache and asserting the short near-side
+approach. Reviewed the first/opposite effective-ring captures plus refreshed lava and gate views.
+The new capture is `test-results/chromium-movement-partial-opposite.png`; the report remains
+`test-results/chromium-movement-report.json`. There was no browser retry or broader browser run
+for this correction. The existing **5173** server was absent at the availability check; the test
+used an owned **5187** server through `withViteServer`. Server and browser cleanup completed;
+no pre-existing services were stopped or reconfigured. At that correction checkpoint follow-up review
+was pending; the final **READY** verdict above subsequently cleared both blockers.
+
+#### Initial implementation — observed red → green (pre-review baseline)
+
+- The first resumed run of partial navigation, navigation, occupancy, locomotion and combat was
+  **53 pass / 0 fail**. There is no retained evidence here for the interrupted implementer's
+  initial red, and none is claimed.
+- Three new audit regressions failed before correction: partial suite **10 pass / 3 fail**.
+  Active held input retained endpoint **(-0.495361, 0.07)** after the gate opened instead of the
+  exact **(3.1, 0.07)** request. A newly closed gate stopped travel at **x=-0.921071**, about
+  **0.426** short of its safely reachable frontier. A rejecting physical adapter caused **12
+  held-command restarts in five seconds** instead of one settled command.
+- Corrections revalidate active held-command geometry, replan obstructed floor routes toward
+  the original request, and retain the actual stopped position after the existing stuck timeout.
+  **56 focused tests pass**, including gate/body release, exact-goal pursuit and existing corpse/
+  water invariants. The partial suite has **13 contracts**. The inherited blocker fixtures lacked
+  required IDs; the preliminary strict-type failure was corrected before final checks.
+
+#### Initial semantics and bounds (pre-review baseline)
+
+- `{ partial: true }` is explicit floor-input opt-in. Default AI, pursuit, door-capable and work
+  routes keep their existing exact-goal behavior. Reachable floor coordinates are retained;
+  fallback searches only the current reachable component, never a world-nearest point across a
+  barrier. A picked floor is required; empty-space clicks cancel.
+- Graph edges and final smoothed routes use swept furniture/door clearance, tile-boundary support
+  checks, height limits and live cylindrical occupancy. Walls, void, lava and locked/closed gates
+  remain barriers. The marker and ordinary arrival brake follow the **effective** destination.
+- The finite tile graph visits each cell at most once per search. Only exhausted components are
+  reused, connected back to the current position by a checked bridge. Door lock/open/physical
+  collider state and live body position/support/size invalidate dynamic reachability; corpse
+  geometry is absent. Static cells/edges are local to one immutable generated world.
+- Frontier refinement is bounded to **1.5 units** from reached anchors, **12 bisections** and
+  **10 eight-way refinement passes**. It requires at least **0.025** improvement and displacement.
+  This remains the game's tile-graph router with local continuous refinement, not an exhaustive
+  continuous-space planner or proof of a globally optimal path through sub-cell-only passages.
+- Unchanged settled/failed holds do no new searches. Small cursor drift or changed-obstruction
+  retries run at most every **500 ms**; explicit clicks and substantial cursor changes are
+  immediate, and movement still probes live clearance every tick. Cancellation clears input/
+  component caches; successful arrival uses the existing `ARRIVE` event. No machine definition
+  changed, so existing navigation/door and other model partitions remain applicable.
+- Large-component probe: **4,213 tiles / 3,332 cold clearance calls**, then **2 total plans / 90
+  additional calls** across 120 drifting held samples in two seconds. The isolated focused cold
+  search took **149 ms** here (full-suite concurrent sample **243 ms**); these are descriptive
+  CPU observations, not a hardware-FPS claim. Broad live-body invalidation is conservative and
+  can incur a fresh component search when an actor moves.
+
+#### Initial checks actually run (pre-review baseline)
+
+| Check | Result |
+| --- | --- |
+| Focused navigation/occupancy/locomotion/combat | **56 passed** |
+| `npm run format:check`, `npm run lint` | Pass; each final required command run once |
+| `npm test` | **259 passed**, including strict types, generation, work/pursuit and models |
+| Machine coverage | **20 machines / 92 atomic states / 175 branches**, unchanged |
+| `npm run build` | Pass; existing large-chunk warning |
+| Final Chromium movement | **15 checks**, no page/console errors |
+| `git diff --check` | Pass |
+
+The final movement pass exercises real clicks/holds at blocked furniture, unreachable lava floor
+and floor beyond the locked altar gate, effective-ring placement and settled immobility, precise
+accessible detours/work faces, stairs, dynamic closure, real E opening, modal partial-route retry,
+keyboard/X, inspection/focus cleanup and regeneration. Its first three assertion runs exposed
+gate-fixture assumptions: the original ray hit the door rather than floor, the new partial endpoint
+occupied the anti-crush zone, and approaching too soon legitimately reopened the closing leaf.
+The corrected side-view/longer-approach fixture asserts the actual closed collider before testing E.
+Those fixture failures are not claimed as production door defects.
+
+One intervening attempt failed at `page.goto` because the external **5173** server was unavailable.
+No pre-existing service was stopped/reconfigured. The final successful run used
+`DEMO_URL=http://localhost:5187` with `withViteServer`; its owned server and browser closed in
+`finally`. No full gameplay, additional rendering suite, Firefox or production-browser rerun.
+
+Reviewed the new furniture/lava/gate captures and ordinary route capture: rings are on safe
+floor beside the obstacle, with the gate approach on the locked side. Artifacts:
+
+- `test-results/chromium-movement-report.json`
+- `test-results/chromium-movement-partial-{furniture,lava,gate}.png`
+- `test-results/chromium-movement-route.png`
+
+### P2 — full-speed corpse traversal — 2026-11-19 (`726af8a`, final independent review READY)
 
 Implemented against P1 **`6378d61`**. Final independent review cleared both the original contact
-and ramp rotation-math blockers. **P2 is delivered and its feature commit is authorized**; P3 is
-next, not started. Raw untracked `docs/notes.md` was read but not edited or staged.
+and ramp rotation-math blockers. **P2 is committed at `726af8a` and accepted by the user.** P3's
+subsequent implementation is recorded above. At this P2 checkpoint raw untracked `docs/notes.md`
+was read but not edited or staged.
 **P1's application investigation is closed at the user's direction**: no
 retained application memory leak was established. System configuration and driver diagnosis are
 outside project scope; the earlier host observations are historical, not an active follow-up.
@@ -28,9 +202,9 @@ the independent reviewer and were not rerun as another local verification batch:
 - Review reused the implementation's **246-test/full-check/build** results, **28 crossings /
   575 contacts** animation report and reviewed captures below; no broad repeat was needed.
 
-The user's explicit **“proceed”** authorizes the feature commit with normal hooks. The P2 tracker
-records this delivery as its containing commit; the generated hash is returned after committing.
-The raw user notes are excluded. P3 has not started and P1's scope closure is preserved.
+The user's explicit **“proceed”** authorized the feature commit with normal hooks, subsequently
+recorded as **`726af8a`**. The raw user notes were excluded. At that checkpoint P3 had not started;
+P1's scope closure is preserved.
 
 #### Ramp rotation-math correction — verified after interruption
 

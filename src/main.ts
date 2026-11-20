@@ -98,7 +98,7 @@ function resetMovement(): void {
   }
 }
 
-function navigatePointer(clientX: number, clientY: number, feedback = false): void {
+function navigatePointer(clientX: number, clientY: number, initialPress = false): void {
   if (!ui.ready || paused() || game.inspection.active) return;
   const rect = canvas.getBoundingClientRect();
   if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom)
@@ -110,7 +110,7 @@ function navigatePointer(clientX: number, clientY: number, feedback = false): vo
     Matrix.Identity(),
     game.camera,
   );
-  if (feedback) {
+  if (initialPress) {
     const enemy = game.enemyRendering.pick(ray);
     const doors = game.ecs
       .query('door')
@@ -136,12 +136,11 @@ function navigatePointer(clientX: number, clientY: number, feedback = false): vo
     cancelAttack(game.player.actor);
   }
   const point = pickGround(game.world, ray);
-  const accepted = point && game.player.navigator.goTo(game.player.actor.position, point);
-  if (!accepted) {
-    game.player.navigator.cancel();
-    if (feedback)
-      ui.toast('No clear route there. Open doors with E; choose a safe floor tile.', 2400);
-  }
+  if (point) {
+    if (initialPress)
+      game.player.navigator.goTo(game.player.actor.position, point, { partial: true });
+    else game.player.navigator.followFloor(game.player.actor.position, point, performance.now());
+  } else game.player.navigator.cancel();
   lastPointerRoute = performance.now();
 }
 

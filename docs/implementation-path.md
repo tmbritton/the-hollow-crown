@@ -13,17 +13,18 @@ each slice test-first, independently reviewed and committed:
 | ID | Slice | Acceptance / verification |
 | --- | --- | --- |
 | P1 | Investigate application resource growth | Resource-fix slice delivered at `6378d61`, independent review READY. Bounded measurements found excess snapshot allocation and test-server failure cleanup defects, now fixed; no retained application memory leak was established. Investigation closed at the user's direction on 2026-11-19. System configuration and driver diagnosis are outside project scope. |
-| P2 | Make corpses traversal-friendly — delivered, review READY | Corpse speed penalties removed for player and enemies; procedural stair-stepping/contact animation uses rendered body surfaces. Water slowdown, living-body blocking, stable footing and cancellation/reset are preserved. Final independent review cleared both contact and ramp-rotation blockers. |
-| P3 | Move toward blocked floor clicks | When the requested floor point is unreachable, choose the closest safely reachable point toward it from the current position. Preserve route clearance, void/door/locked-gate rules and precise arrival; handle genuinely immobile cases without repeated commands or loops. |
-| P4 | Give skeletons a lurching gait | Use a species-specific procedural gait with readable uneven weight transfer. Animation follows actual movement; navigation, impact timing and collision remain authoritative. |
+| P2 | Make corpses traversal-friendly — `726af8a`, accepted, review READY | Corpse speed penalties removed for player and enemies; procedural stair-stepping/contact animation uses rendered body surfaces. Water slowdown, living-body blocking, stable footing and cancellation/reset are preserved. Final independent review cleared both contact and ramp-rotation blockers. |
+| P3 | Move toward blocked floor clicks — complete, final review READY | Unreachable floor requests approach the closest safely reachable point. Route clearance, void/door/locked-gate rules, precise arrival and settled holds are preserved. Cached routes reroot after travel; equally close approaches prefer shorter travel. Final independent review cleared both route-quality blockers. Verified results are in the progress tracker and VERIFICATION.md. |
+| P4 | Give skeletons a lurching gait — next, not started | Use a species-specific procedural gait with readable uneven weight transfer. Animation follows actual movement; navigation, impact timing and collision remain authoritative. |
 | P5 | Hold F to defend | A held shield state blocks frontal attacks, with a defined facing arc and readable raised-shield pose. Test front/side/rear melee and projectiles, release, attack interaction and all modal/death/reset cancellations. |
 | P6a | Introduce declarative kobold squad coordination | A group statechart coordinates at least three shield bearers and one spearman; individuals retain their own charts. Seeded population/encounter placement, occupancy and objective carrier assignments remain coherent. |
 | P6b | Deliver the phalanx encounter | Slow coordinated advance, shielded front rank, rear spear thrusts or javelins, a telegraphed shield-opening window, and coordinated backward withdrawal when losing. Test formation spacing, interruptions, casualties, narrow approaches and retreat without overlap or gate bypass. |
 | P7 | Publish the repository and GitHub Pages demo | Inspect repository/remotes and publishing configuration, make the intended repository public, build/deploy through GitHub Actions, and verify the deployed production game at its Pages base path. Keep development hooks and generated test artifacts out of the deployed app. |
 
-P1's resource-fix slice is committed as **`6378d61`**. **P2 corpse traversal is delivered and
-independently reviewed READY**, with its feature commit authorized by the user. **P3 blocked-floor
-click fallback is next, not started.** P1's application investigation is closed; its bounded checks
+P1's resource-fix slice is committed as **`6378d61`**. **P2 corpse traversal is committed at
+`726af8a`, accepted by the user and independently reviewed READY.** **P3 blocked-floor
+click fallback is complete; final independent review returned READY and its feature commit is
+authorized. P4 skeleton gait is next, not started.** P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
 P5 establishes the defensive behavior needed by P6. P6a and P6b split the formation request into

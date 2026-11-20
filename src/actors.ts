@@ -217,9 +217,9 @@ export function moveActor(
   Object.assign(p, { x: next.x, z: next.z, h: heightAt(world, next.x, next.z) ?? p.h });
   collision?.sync?.(p);
   if (travel > 0.001 && moved < travel * 0.05) motion.speed = 0;
-  if (!actor.navigator.waitingForDoor) actor.navigator.recordProgress(moved, dt);
+  if (!actor.navigator.waitingForDoor) actor.navigator.recordProgress(moved, dt, p);
   if (steering?.final && Math.hypot(p.x - steering.point.x, p.z - steering.point.z) < 0.015) {
-    actor.navigator.cancel();
+    actor.navigator.arrive();
     motion.speed = 0;
   }
 }

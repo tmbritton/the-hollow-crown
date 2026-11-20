@@ -118,9 +118,31 @@ async function arrive(target: Point, frames = 600) {
   assert.equal(result.phase, 'idle');
 }
 
+async function holdSettled(target: Point) {
+  const screen = await screenPoint(target);
+  await page.mouse.move(screen.x, screen.y);
+  await page.mouse.down();
+  await step([], 90);
+  const settled = await state();
+  await page.evaluate(() => {
+    for (const loop of window.movementTestLoops ?? []) window.__dungeon.engine.runRenderLoop(loop);
+  });
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
+  const after = await state();
+  assert.equal(after.destination, null);
+  assert.equal(after.speed, 0);
+  assert.equal(after.marker, false);
+  assert.ok(Math.hypot(after.x - settled.x, after.z - settled.z) < 0.015);
+}
+
 try {
   await page.goto(`${process.env.DEMO_URL || 'http://localhost:5173'}/?debug&seed=MOURNING-731`);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
+  // A development optimizer reload deliberately randomizes the run; pin this fixture explicitly.
+  await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
+  await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
   await page.evaluate(() => {
     window.movementTestLoops = [...window.__dungeon.engine.activeRenderLoops];
     window.__dungeon.engine.stopRenderLoop();
@@ -304,6 +326,121 @@ try {
   assert.ok(detour.distance < 0.04, JSON.stringify(detour));
   pass('Click movement physically routes around furniture without cutting corners');
 
+  await reset(obstacle.from);
+  await click(obstacle.blocker);
+  const partialProp = (await state()).destination;
+  assert.ok(partialProp, 'blocked furniture floor click must install a partial route');
+  assert.ok(
+    Math.hypot(partialProp.x - obstacle.blocker.x, partialProp.z - obstacle.blocker.z) <
+      Math.hypot(obstacle.from.x - obstacle.blocker.x, obstacle.from.z - obstacle.blocker.z),
+  );
+  await step([], 1);
+  const ring = await page.evaluate(() => {
+    const p = window.__dungeon.game.player;
+    return {
+      x: p.destinationMarker.position.x,
+      z: p.destinationMarker.position.z,
+      visible: p.destinationMarker.isEnabled(),
+      safe: p.navigator.canOccupy(p.navigator.destination!),
+    };
+  });
+  assert.equal(ring.visible, true);
+  assert.equal(ring.safe, true);
+  assert.equal(ring.x, partialProp.x);
+  assert.equal(ring.z, partialProp.z);
+  await page.evaluate(() => window.__dungeon.game.scene.render());
+  await page.screenshot({ path: `test-results/${browserName}-movement-partial-furniture.png` });
+  await arrive(partialProp);
+  await holdSettled(obstacle.blocker);
+  pass(
+    'Blocked furniture floor clicks show the effective ring, arrive precisely and held input stays settled',
+  );
+
+  // Keep the same navigator and actually travel to the opposing side before clicking
+  // the blocked floor again; old-root caches and coordinate-only ties hid in reset tests.
+  await click(obstacle.to);
+  await arrive(obstacle.to);
+  await click(obstacle.blocker);
+  const opposite = await state();
+  assert.ok(opposite.destination);
+  const toward = { x: obstacle.to.x - obstacle.blocker.x, z: obstacle.to.z - obstacle.blocker.z };
+  assert.ok(
+    (opposite.destination.x - obstacle.blocker.x) * toward.x +
+      (opposite.destination.z - obstacle.blocker.z) * toward.z >
+      0,
+    'the repeated blocked click should approach the current side',
+  );
+  let routeCost = 0,
+    previous = { x: opposite.x, z: opposite.z };
+  for (const point of opposite.path) {
+    routeCost += Math.hypot(point.x - previous.x, point.z - previous.z);
+    previous = point;
+  }
+  assert.ok(routeCost < Math.hypot(toward.x, toward.z), JSON.stringify(opposite));
+  await step([], 1);
+  await page.evaluate(() => window.__dungeon.game.scene.render());
+  await page.screenshot({ path: `test-results/${browserName}-movement-partial-opposite.png` });
+  await arrive(opposite.destination);
+  pass(
+    'Repeated blocked floor clicks after actual travel choose the near side without returning to an old route root',
+  );
+
+  const lava = await page.evaluate(() => {
+    const g = window.__dungeon.game,
+      n = g.player.navigator;
+    for (const target of g.world.tiles.values()) {
+      if (target.surface !== 'lava') continue;
+      for (const from of g.world.tiles.values()) {
+        const distance = Math.hypot(from.x - target.x, from.z - target.z);
+        if (from.room !== target.room || distance < 2 || distance > 3 || !n.canOccupy(from))
+          continue;
+        if (n.goTo(from, target, { partial: true }) && n.destination) {
+          const endpoint = n.destination;
+          n.cancel();
+          return { from: { x: from.x, z: from.z }, target: { x: target.x, z: target.z }, endpoint };
+        }
+      }
+    }
+    throw new Error('No unreachable lava-floor fixture');
+  });
+  await reset(lava.from);
+  await click(lava.target);
+  const lavaEnd = (await state()).destination;
+  assert.ok(lavaEnd);
+  assert.ok(Math.hypot(lavaEnd.x - lava.target.x, lavaEnd.z - lava.target.z) > 0.8);
+  assert.ok(Math.hypot(lavaEnd.x - lava.from.x, lavaEnd.z - lava.from.z) > 0.5);
+  await step([], 1);
+  await page.evaluate(() => window.__dungeon.game.scene.render());
+  await page.screenshot({ path: `test-results/${browserName}-movement-partial-lava.png` });
+  await arrive(lavaEnd);
+  assert.equal(
+    await page.evaluate(() => {
+      const p = window.__dungeon.game.player;
+      return p.navigator.canOccupy(p.actor.position);
+    }),
+    true,
+  );
+  await holdSettled(lava.target);
+  // Cancel a partial route through the real modal path, then retry the same floor request.
+  await reset(lava.from);
+  await click(lava.target);
+  await step([], 6);
+  await page.locator('#menu-button').click();
+  const cancelledPartial = await state();
+  assert.equal(cancelledPartial.destination, null);
+  assert.equal(cancelledPartial.speed, 0);
+  await page.keyboard.press('Escape');
+  await step([], 60);
+  assert.equal((await state()).x, cancelledPartial.x);
+  assert.equal((await state()).z, cancelledPartial.z);
+  await click(lava.target);
+  const retry = (await state()).destination;
+  assert.ok(retry);
+  await arrive(retry);
+  pass(
+    'Unreachable lava-floor clicks/holds stop safely; modal reset clears the partial command and allows retry',
+  );
+
   const stairs = await page.evaluate(() => {
     const c = window.__dungeon.game.world.connections.find((c) => c.ramp);
     if (!c?.ramp) throw new Error('Missing stairs');
@@ -328,6 +465,7 @@ try {
     const sign = c.b === 'throne' ? c.sign : -c.sign;
     return {
       id: e.id,
+      axis: e.axis,
       from: {
         x: e.x - (e.axis === 'x' ? 2.2 * sign : 0),
         z: e.z - (e.axis === 'z' ? 2.2 * sign : 0),
@@ -339,10 +477,32 @@ try {
     };
   });
   await reset(gate.from);
+  await page.evaluate((axis) => {
+    const g = window.__dungeon.game;
+    // See the far floor from beside the doorway: a ray through the door correctly
+    // invokes door interaction instead of a floor command.
+    g.camera.alpha = g.desiredAlpha = axis === 'z' ? 0 : -Math.PI / 2;
+    g.camera.beta = 0.35;
+    g.scene.render();
+  }, gate.axis);
   await click(gate.to);
-  assert.equal((await state()).destination, null);
-  await step([], 60);
-  assert.ok(Math.hypot((await state()).x - gate.from.x, (await state()).z - gate.from.z) < 0.01);
+  const gateEnd = (await state()).destination;
+  assert.ok(gateEnd, 'a floor click beyond the gate approaches its reachable side');
+  assert.ok(Math.hypot(gateEnd.x - gate.to.x, gateEnd.z - gate.to.z) > 2.5);
+  assert.ok(Math.hypot(gateEnd.x - gate.from.x, gateEnd.z - gate.from.z) > 1);
+  await step([], 1);
+  assert.ok((await state()).marker);
+  await page.evaluate(() => window.__dungeon.game.scene.render());
+  await page.screenshot({ path: `test-results/${browserName}-movement-partial-gate.png` });
+  await arrive(gateEnd);
+  await holdSettled(gate.to);
+  assert.equal(
+    await page.evaluate((id) => {
+      const e = window.__dungeon.game.world.entities.find((e) => e.id === id);
+      return e?.type === 'door' && e.locked && !e.open;
+    }, gate.id),
+    true,
+  );
   await page.evaluate((id) => {
     const d = window.__dungeon,
       e = d.game.world.entities.find((e) => e.id === id);
@@ -351,6 +511,13 @@ try {
     d.interact();
     d.step([], 60);
   }, gate.id);
+  // The partial endpoint is inside the door's anti-crush occupancy zone. Start far
+  // enough away for the closing leaf to settle before the hero reaches that zone.
+  const closingFrom = {
+    x: gate.from.x + (gate.from.x - gate.to.x) / 4.4,
+    z: gate.from.z + (gate.from.z - gate.to.z) / 4.4,
+  };
+  await reset(closingFrom);
   await click(gate.to);
   assert.ok(
     (await state()).destination,
@@ -366,16 +533,29 @@ try {
     const e = window.__dungeon.game.world.entities.find((e) => e.id === id);
     if (e?.type !== 'door' || !e.collider) throw new Error('Missing gate collider');
     e.open = false;
+    if (e.open) throw new Error('Closing-door fixture is still occupied');
     e.collider.checkCollisions = true;
   }, gate.id);
   await step([], 180);
   assert.equal((await state()).destination, null);
   assert.ok(Math.hypot((await state()).x - gate.to.x, (await state()).z - gate.to.z) > 1);
+  assert.equal(
+    await page.evaluate((id) => {
+      const e = window.__dungeon.game.world.entities.find((e) => e.id === id);
+      return e?.type === 'door' && !e.open && e.collider?.checkCollisions;
+    }, gate.id),
+    true,
+  );
   await reset(gate.from);
-  await page.evaluate(() => {
-    window.__dungeon.interact();
-    window.__dungeon.step([], 60);
-  });
+  await page.keyboard.press('KeyE');
+  await step([], 60);
+  assert.equal(
+    await page.evaluate((id) => {
+      const e = window.__dungeon.game.world.entities.find((e) => e.id === id);
+      return e?.type === 'door' && e.open && !e.collider?.checkCollisions;
+    }, gate.id),
+    true,
+  );
   await click(gate.to);
   await arrive(gate.to);
   pass('Locked and closing doors block click routes; an opened door allows passage');
