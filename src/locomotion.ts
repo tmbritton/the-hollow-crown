@@ -3,6 +3,8 @@ import { locomotionMachine } from './machines/actors/locomotion.ts';
 import { sampleCurve, smoothStep, Spring } from './animationCurves.ts';
 import type { PoseCurve } from './animationCurves.ts';
 import { JUMP_GRAVITY } from './jump.ts';
+import { skeletonLurch } from './skeletonGait.ts';
+import type { GaitStyle } from './skeletonGait.ts';
 
 export const WALK_SPEED = 4.8;
 export const RUN_SPEED = 7.4;
@@ -98,6 +100,7 @@ export function animateLocomotion(
   dt: number,
   walkSpeed = WALK_SPEED,
   airborne = false,
+  style: GaitStyle = 'ordinary',
 ): LocomotionPose {
   const moving = actualSpeed > 0.08;
   state.chart.send({ type: 'SAMPLE', moving, wantsMovement, dt });
@@ -132,7 +135,7 @@ export function animateLocomotion(
     load * 0.085 +
     start * 0.055 -
     stop * 0.055;
-  return {
+  const pose = {
     leftLeg: swing + load * 0.12 - start * 0.13 - plant,
     rightLeg: -swing - load * 0.12 + start * 0.13 + plant,
     leftKnee: 0.12 + Math.max(0, -Math.cos(state.stride)) * run * 0.9,
@@ -160,4 +163,14 @@ export function animateLocomotion(
       start * 0.14 +
       stop * 0.17,
   };
+  if (style === 'skeleton' && !airborne) {
+    const lurch = skeletonLurch(state.stride);
+    pose.leftLeg += lurch.leftLeg * gait - swing;
+    pose.rightLeg += lurch.rightLeg * gait + swing;
+    pose.lean += lurch.lean * gait;
+    pose.roll += lurch.roll * gait;
+    pose.twist += lurch.twist * gait;
+    pose.bob += lurch.bob * gait;
+  }
+  return pose;
 }

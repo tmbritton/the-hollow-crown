@@ -166,6 +166,30 @@ function rigFor(scene: Scene): Components['rig'] {
   };
 }
 
+test('skeleton long load and quick catch-up use the same contact phase as the visible legs', () => {
+  const f = fixture();
+  try {
+    const actor = createActor(f.ecs, f.world, 'lurch', 'skeleton', { x: 3, z: 0, h: 0 });
+    const rig = rigFor(f.scene);
+    actor.entity.add('rig', rig);
+    actor.motion.actualSpeed = 1.65;
+    actor.motion.velocity = { x: 0, z: 1.65 };
+    actor.motion.animation.blend = 1;
+    // Late in the long left load: ordinary half-cycle timing has already lifted this foot.
+    actor.motion.animation.stride = Math.PI * 2 * 0.52;
+    const pose = animateLocomotion(actor.motion.animation, 1.65, true, 0, 1.65, false, 'skeleton');
+    rig.root.position.set(3, 0, 0);
+    placeFeet(actor, rig, pose, f.world);
+    assert.ok(rig.footPlants[0].anchor, 'left load must still be planted at 52% of the cycle');
+    assert.equal(rig.footPlants[1].anchor, null, 'right foot is still recovering');
+    rig.feet.forEach((foot) => foot.computeWorldMatrix(true));
+    const soles = rig.feet.map((foot) => foot.getAbsolutePosition().y - 0.05);
+    assert.ok(soles[0] < 0.015 && soles[0] > -0.005 && soles[1] > 0.025, String(soles));
+  } finally {
+    f.engine.dispose();
+  }
+});
+
 test('shared player/enemy feet step on drawn height without changing support/jump; reset and repeated samples stay stable', () => {
   const f = fixture();
   try {
@@ -274,6 +298,8 @@ test('moving feet clear corpse edges at their final rendered positions, includin
             true,
             1 / 60,
             walkSpeed,
+            false,
+            kind === 'skeleton' ? 'skeleton' : 'ordinary',
           );
           const scale = volumeScale(pose.stretch, pose.reach);
           rig.root.scaling.set(scale.x, scale.y, scale.z);
@@ -348,6 +374,7 @@ test('translated uphill/downhill corpse crossings preserve contact at actual fee
     for (const [kind, speed, walkSpeed] of [
       ['goblin', 3.7, 2.5],
       ['kobold', 2.9, 2.1],
+      ['skeleton', 1.65, 1.65],
       ['player', 4.8, 4.8],
       ['player', 7.4, 4.8],
     ] as const)
@@ -373,6 +400,8 @@ test('translated uphill/downhill corpse crossings preserve contact at actual fee
               true,
               1 / 60,
               walkSpeed,
+              false,
+              kind === 'skeleton' ? 'skeleton' : 'ordinary',
             );
             const scale = volumeScale(pose.stretch, pose.reach);
             rig.root.scaling.set(scale.x, scale.y, scale.z);
@@ -433,7 +462,7 @@ test('translated uphill/downhill corpse crossings preserve contact at actual fee
           f.ecs.remove(actor.id);
         }
     assert.ok(contacts > 100);
-    t.diagnostic(JSON.stringify({ crossings: 16, samples, contacts, worstPenetration }));
+    t.diagnostic(JSON.stringify({ crossings: 20, samples, contacts, worstPenetration }));
     assert.deepEqual(failures, []);
   } finally {
     f.engine.dispose();

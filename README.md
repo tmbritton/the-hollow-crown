@@ -124,11 +124,20 @@ support, camera/rings, navigation, jump state and melee/projectile elevation rem
 
 Each dungeon seeds **21 enemies** outside the entrance and altar rooms:
 
-- **8 skeletons:** slow, simple wanderers. They pursue nearby living characters, including goblins and kobolds, but ignore other skeletons. They cannot operate doors.
+- **8 skeletons:** slow, lurching wanderers at **1.65 units/second**. They pursue nearby living characters, including goblins and kobolds, but ignore other skeletons. They cannot operate doors.
 - **4 goblins:** take smoke breaks when unaware of threats. In combat, these ranged skirmishers retreat, break line of sight using cover, crouch while hiding, and peek out to fire crossbow bolts. They flee at **5.2 units/second**, slightly faster than your walk; hold **Shift** to close the gap at 7.4. Bolts travel through the world and can be dodged or stopped by walls, furniture, and doors.
 - **9 kobolds in three packs:** gather for seeded card games, hacky sack, or smoke breaks. They put away weapons, face their gathering, and use activity-specific poses and procedural props. Detected threats interrupt activities; packs share alerts, regroup, and approach distinct front/side/rear positions around their target. Survivors return to their gathering after losing the threat; a lone survivor takes a smoke break. Pack members have staggered attack cooldowns.
 
 Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
+
+Skeletons load the left leg through a longer forward/sideways sag, then take a shorter, quicker
+catch-up step. The ribs twist and the skull trails their recovery. This procedural lurch follows
+measured travel: blocked movement cannot keep cycling it, and stopping fades it back to neutral.
+Its **64/36 stance split** drives both leg timing and shared foot grounding, including ramps and
+corpse steps. Upper-body attack blends take priority over the lurch, keeping wind-up and impact
+readable while the legs continue. Speed, collision, support, jump and damage timing remain
+authoritative. Stop/teleport, rig reset, settled death and regeneration clear the added pose;
+visible-window blur retains the existing policy of clearing hero input while enemies keep acting.
 
 Each keep names a **profile-linked existing inhabitant**: an Ashen Foundry skeleton watchkeeper,
 a Drowned Court goblin lookout, or a Pilgrim Redoubt kobold card dealer. A simplified gathering
@@ -206,6 +215,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/occupancy.ts` | Swept living-body collision, sliding and live route occupancy |
 | `src/corpseTerrain.ts` / `src/corpseRendering.ts` | Pure oriented-box surface/stride sampling and the shared render-only fallen-body adapter |
 | `src/locomotion.ts` | Movement speeds, acceleration/deceleration, and procedural start/travel/stop animation |
+| `src/skeletonGait.ts` | Stateless distance-sampled skeleton lurch and shared stance/swing phase mapping |
 | `src/jump.ts` | Frame-rate-independent jump trajectory, preload, airborne elevation and landing impacts |
 | `src/footPlacement.ts` | Bounded stance anchors, floor sampling and two-bone leg solving |
 | `src/animationCurves.ts` / `src/actionPoses.ts` | Smooth/velocity-continuous curves, analytic springs, volume-preserving deformation, jump/attack/death/social poses |
@@ -411,7 +421,8 @@ are excluded. Broad-phase data is cached, but visibility outcomes are not. Alrea
 remains skip visibility work.
 
 The authored rigs use a four-unit root-local envelope (`ACTOR_OBSERVATION_RADIUS`), checked
-against all 28 captured animation poses. Ambient creatures provide their own authored envelope,
+against the shared animation pose captures and consecutive skeleton gait/attack sequences.
+Ambient creatures provide their own authored envelope,
 also checked by that suite. Envelopes only reject candidates; actual rendered triangles
 still decide occlusion. New rig geometry/poses must fit that envelope or expand it. Dynamic effect
 writers use `updateInstanceMatrices` with their uploaded CPU array to refresh active pool bounds

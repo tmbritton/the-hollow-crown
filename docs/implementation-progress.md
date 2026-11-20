@@ -17,10 +17,18 @@ Execution record for [implementation path](implementation-path.md). Started **20
   takes priority over further roadmap expansion: stability, corpse traversal, blocked-click fallback,
   skeleton gait, held-F defense, declarative kobold phalanxes, then public repository/Pages release.
   **P2 is committed at `726af8a`; final independent review returned READY and the user accepted traversal.**
-  **P3 is complete; final independent review returned READY, clearing both route-quality blockers.**
-  Its feature commit is authorized. **P4 skeleton gait is next, not started**; P5–P7 remain planned.
+  **P3 is complete at `9f8e1d7`; final independent review returned READY, clearing both route-quality blockers.**
+  **P4 skeleton gait is complete, independent review READY with no blockers. P5 held-F defense
+  is next, not started**; P6–P7 remain planned.
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
+- P4: **23 focused / 268 full tests**, strict typing, format/lint/build pass. Affected Chromium
+  animation passes **32 corpse crossings / 732 contacts**, **46 shared pose captures** and
+  **44 new skeleton sequence/reset captures**. Reviewed flat/control, stairs, corpse, attack and
+  reset views; **20 machines / 92 states / 175 branches**, no new chart. Independent review
+  returned **READY**: 23 targeted tests, 6,480 exact ordinary-pose matches, 50,000 phases/75 seams,
+  and 8,640 skeleton frames/6,162 plants with zero violations, plus skull/reset and visual checks.
+  These are attributed reviewer results; the reviewer reused the implementation's full checks.
 - P2 ramp correction: **246 tests**, strict typing, format/lint/build pass after resumption.
   The affected Chromium animation suite passes **28 moving-contact crossings / 46 captures**,
   with a separate corrected four-view ramp capture. Earlier combat **15**
@@ -87,11 +95,62 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | O4 | Complete | Missing tribute/cargo APIs; actual return-route stall, blocked-status and retired-scenario regressions failed before corrections | 228 tests/check/build, 100 tribute seeds, both tribute browsers, affected regressions/full Chromium/production pass; independent review READY | `123b9a9` |
 | P1 | Complete; application investigation closed by user | Seal budget failed at 110 reads/update; isolated startup-failure probe left Vite live; helper contracts failed before implementation | 236 tests, format/lint/build, bounded Chromium resources/dev smoke and production smoke pass; independent review READY: 8 targeted tests, 3 adversarial cleanup probes, diff check. System diagnosis outside scope | `6378d61` |
 | P2 | Complete; user accepted, final independent review READY | Original edge red: 0.348118 penetration. Follow-up math tests 0 pass/3 fail; translated ramp reproduced 0.068665 penetration before analytic inverse fix | 246 tests, format/lint/build; animation 28 crossings/575 contacts and reviewed captures; final review cleared all blockers with targeted geometry/contact/lifecycle probes | `726af8a` |
-| P3 | Complete; final independent review READY | Initial audit 10 pass/3 fail; review regressions 13 pass/3 fail: actual-travel old-root detour, far-side equal endpoint and distant-motion replans | 60 focused / 263 full tests, format/lint/build, 16 Chromium movement checks; final review cleared both blockers with 17 partial tests, 24 route/tie and 72 body-cache/gate cases plus stable-hold/performance/capture checks | This commit |
-| P4 | Next, not started | Species-specific skeleton lurching gait; see implementation-path.md | Animation follows authoritative movement and collision | — |
-| P5–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
+| P3 | Complete; final independent review READY | Initial audit 10 pass/3 fail; review regressions 13 pass/3 fail: actual-travel old-root detour, far-side equal endpoint and distant-motion replans | 60 focused / 263 full tests, format/lint/build, 16 Chromium movement checks; final review cleared both blockers with 17 partial tests, 24 route/tie and 72 body-cache/gate cases plus stable-hold/performance/capture checks | `9f8e1d7` |
+| P4 | Complete; independent review READY, no blockers | 9 pass / 2 fail before production edits: mirrored legs and prematurely released left plant | 23 focused / 268 full tests, format/lint/build; Chromium animation 32 crossings/732 contacts, 46 shared + 44 skeleton captures; independent phase/contact/baseline/reset and visual review passed | This commit |
+| P5 | Next, not started | Held-F defense; see implementation-path.md | User gameplay notes | — |
+| P6–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
 
 ## Work log
+
+### P4 — independent review and delivery — 2026-11-19
+
+- Independent reviewer returned **READY, no blockers**. Attributed passing checks: **23 targeted
+  tests**, **6,480 exact ordinary-baseline pose matches**, **50,000 phase samples / 75 seams**,
+  and **8,640 actual skeleton frames / 6,162 plants with zero violations**.
+- Skull scale, reset, teleport and death probes passed, as did the diff check and review of
+  skeleton captures **1–4**, ordinary control and reset views. These are reviewer-reported
+  results, not another implementation verification batch.
+- Review reused the implementation's **268-test/full-check/build** evidence and browser results
+  with **732 contacts**. No code corrections were required.
+- **P4 is complete and its feature commit is authorized with normal hooks.** This entry's
+  containing commit records P4. **P5 held-F defense is next, not started.** P3 remains complete
+  at **`9f8e1d7`**. Raw `docs/notes.md` remains untouched and excluded from the feature commit.
+
+### P4 — skeleton lurch implementation — 2026-11-19 (pre-review checkpoint)
+
+- Baseline **`9f8e1d7`**. Read the guide, README, docs index/path/progress and raw notes;
+  P1 remains closed and P2 accepted at `726af8a`. Raw `docs/notes.md` is untouched. No agents,
+  staging or commit at this implementation checkpoint; the subsequent READY review above clears
+  that gate.
+- **Red first:** after fixing a test-world `blockers` fixture typo, the focused gait/corpse run
+  had **9 pass / 2 fail** before production edits: skeleton legs were mirrored, and ordinary
+  timing released the left plant at 52% of the cycle. The new asymmetry/phase contracts now pass.
+- Added a small pure gait sampler with **64/36** load/catch-up phases shared by the leg poses
+  and foot solver. Ribs sag/roll/twist, and an optional skeleton-only skull pivot trails them.
+  Measured stride/blend remain the existing animation state; no new lifecycle chart or clock.
+  Attack blending follows locomotion, leaves weapon arms intact, and suppresses skull lurch.
+- **23 focused tests** pass, including bounded/continuous phases, blocked/airborne cadence,
+  unchanged actual 1.65 travel/action state, reset, 24 flat and 20 ramp corpse crossings.
+  Pure maximum contact penetration is **1.16e-7**; ordinary turning/contact coverage remains green.
+- The affected Chromium animation suite passes **32 crossings / 732 surface contacts**, maximum
+  penetration **0.000003269**, plus 46 shared poses and 44 new motion/reset captures. Five
+  eight-frame sequences use actual motor steps: same-mesh ordinary control, flat lurch, stairs,
+  corpse and moving attack. Four boundaries cover blur policy, stop, teleport and death;
+  regeneration verifies fresh neutral skeleton rigs. All captured poses fit the existing envelope.
+- Browser iteration exposed fixture issues: two aborted runs corrected the old player-run-speed
+  skeleton sample and its old footfall's low forearm contact; the fixture now uses 1.65 and centres
+  the corpse ribs/pelvis under the timed feet. A third run passed assertions but failed an
+  off-viewport sheet crop. The final full animation pass succeeds. Narrow sequence-only runs
+  supplied visual review and the final refresh; there was no combat/movement/full-game repeat.
+- Reviewed the visible long forward sag and quick recovery against the upright ordinary control,
+  side-to-side loading on stairs, raised knees/soles over corpses, and distinct sword wind-up,
+  impact and recovery. Corrected stair/weapon framing. After the full pass, a capture-only renderer
+  initialization fixed a coffer left at the origin by the paused fixture; refreshed just the 44
+  skeleton captures and their report. Full details/artifact paths are in `VERIFICATION.md`.
+- Required **format, lint, npm test and build each ran once after targeted checks**, all passing:
+  **268 tests**, strict types, unchanged **20 machines / 92 states / 175 branches**. Existing
+  bundle-size warning only. Port 5173 was absent; every browser/server scope used owned 5187 and
+  cleaned up in `finally`. Existing OpenCode/tailnet services were untouched.
 
 ### P3 — final independent review and delivery — 2026-11-19
 
@@ -104,8 +163,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
   results, not another local verification batch or a hardware-performance claim.
 - Review reused the implementation's **263-test/full-check/build** results and **16-check movement
   pass**. Earlier pre-fix results below retain their historical qualifications.
-- **P3 is complete and its feature commit is authorized with normal hooks.** This delivery entry's
-  containing commit records P3. **P4 skeleton gait is next, not started.** P2 remains accepted at
+- **P3 is complete at `9f8e1d7`, committed with normal hooks.** At that delivery checkpoint
+  **P4 skeleton gait was next, not started.** P2 remains accepted at
   `726af8a`; P1 remains closed. Raw `docs/notes.md` is untouched and excluded from the feature commit.
 
 ### P3 — route-quality review correction — 2026-11-19

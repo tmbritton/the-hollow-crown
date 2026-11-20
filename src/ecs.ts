@@ -80,6 +80,7 @@ export interface Components {
   rig: {
     root: TransformNode;
     body: TransformNode;
+    head?: TransformNode;
     arms: TransformNode[];
     forearms: TransformNode[];
     legs: TransformNode[];

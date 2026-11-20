@@ -5,6 +5,7 @@ import type { NavigationWorld } from './navigation.ts';
 import { heightAt } from './world.ts';
 import { corpseHeightAt, corpseStep, MAX_CORPSE_STEP } from './corpseTerrain.ts';
 import type { CorpseBox } from './corpseTerrain.ts';
+import { gaitFootPhase } from './skeletonGait.ts';
 
 const UPPER = 0.25,
   LOWER = 0.25;
@@ -89,8 +90,11 @@ export function placeFeet(
       return null;
     }
     const moving = motion.actualSpeed > 0.08;
-    const phase =
-      (((state.stride + Math.PI / 2 + i * Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const phase = gaitFootPhase(
+      state.stride,
+      i,
+      actor.kind === 'skeleton' ? 'skeleton' : 'ordinary',
+    );
     const stance = !moving || phase < Math.PI;
     const z = -Math.sin(angle) * (0.3 + state.run * 0.07);
     const x = hip.position.x;

@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import type { DebugWindow } from './browserTypes.ts';
 import type { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { ActorKind } from '../src/ecs.ts';
+import { captureSkeletonGait } from './skeleton-animation.ts';
 
 declare const window: DebugWindow;
 type Clip =
@@ -197,6 +198,7 @@ try {
     for (const [kind, speed] of [
       ['goblin', 3.7],
       ['kobold', 2.9],
+      ['skeleton', 1.65],
       ['player', 4.8],
       ['player', 7.4],
     ] as const)
@@ -293,14 +295,22 @@ try {
         if (overCorpse) {
           const dead = g.combat.enemies.find((a) => a.kind === 'skeleton' && a.id !== actor.id)!;
           dead.entity.add('corpse', { age: 1 });
-          Object.assign(dead.position, { x: 0, z: -0.95, h: 0, heading: 0 });
+          // Centre ribs/pelvis beneath the skeleton's newly timed feet, rather than the
+          // old mirrored gait's footfall (which now samples a low forearm edge).
+          Object.assign(dead.position, {
+            x: 0,
+            z: kind === 'skeleton' ? -0.8 : -0.95,
+            h: 0,
+            heading: 0,
+          });
           const fallen = dead.entity.require('rig');
           resetActorRig(fallen);
           fallen.root.rotation.y = 0;
           fallen.root.setEnabled(true);
         }
         if (clip === 'walk' || clip === 'run' || clip === 'stop' || clip === 'running-melee') {
-          actor.motion.actualSpeed = clip === 'walk' ? WALK_SPEED : RUN_SPEED;
+          actor.motion.actualSpeed =
+            kind === 'skeleton' ? 1.65 : clip === 'walk' ? WALK_SPEED : RUN_SPEED;
           actor.motion.velocity.x = actor.motion.actualSpeed;
           actor.motion.wantsMovement = true;
           for (let i = 0; i < 120; i++) animateActors(g.ecs, 1 / 60, 0, g.world);
@@ -485,7 +495,10 @@ try {
       true,
       kind,
     );
-    assert.ok(Math.max(...stepping.soles) > Math.max(...flat.soles) + 0.15, kind);
+    assert.ok(
+      Math.max(...stepping.soles) > Math.max(...flat.soles) + 0.15,
+      JSON.stringify({ kind, flat, stepping }),
+    );
     assert.equal(stepping.arm, flat.arm);
     assert.equal(stepping.attackElapsed, flat.attackElapsed);
     corpseResults.push(stepping);
@@ -524,6 +537,27 @@ try {
     landing.soles.every((height) => Math.abs(height) < 0.04),
     'landing feet meet the floor while the knees absorb compression',
   );
+  const skeleton = await captureSkeletonGait(page);
+  await writeFile(
+    'test-results/chromium-skeleton-report.json',
+    JSON.stringify(skeleton.report, null, 2),
+  );
+  const lurchSheet = await browser.newPage({ viewport: { width: 1600, height: 740 } });
+  const skeletonSheet = (poses: typeof skeleton.captures) =>
+    `<style>body{margin:0;background:#14191c;color:#e1d4ae;font:16px system-ui;display:grid;align-content:start;grid-template-columns:repeat(4,1fr)}figure{margin:0}img{width:100%;display:block}figcaption{padding:8px}</style>${poses.map(({ title, image }) => `<figure><img src="data:image/png;base64,${image}"><figcaption>${title}</figcaption></figure>`).join('')}`;
+  await lurchSheet.setContent(skeletonSheet(skeleton.captures));
+  await lurchSheet.screenshot({
+    path: 'test-results/chromium-skeleton-sequences.png',
+    fullPage: true,
+  });
+  // Keep individual scenario sheets readable without opening one very tall image.
+  for (let row = 0; row < 6; row++) {
+    await lurchSheet.setContent(skeletonSheet(skeleton.captures.slice(row * 8, row * 8 + 8)));
+    await lurchSheet.screenshot({
+      path: `test-results/chromium-skeleton-sequence-${row}.png`,
+      fullPage: true,
+    });
+  }
   assert.deepEqual(errors, []);
   const sheet = await browser.newPage({ viewport: { width: 1200, height: 1100 } });
   await sheet.setContent(
@@ -538,6 +572,7 @@ try {
         captures: captures.map(({ title }) => title),
         corpseResults,
         crossings,
+        skeleton: skeleton.report,
         errors,
       },
       null,

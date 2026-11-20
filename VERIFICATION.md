@@ -4,12 +4,126 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### P4 — skeleton lurch — 2026-11-19 (complete, independent review READY)
+
+Baseline **`9f8e1d7`**. The implementation is render-only: a small stateless gait layer gives
+skeletons a long left-leg load and quicker right-leg catch-up (**64/36** of measured stride),
+bounded rib lean/roll/twist and trailing skull angles. It uses the existing travel-driven stride
+and fade, and shares its stance/swing mapping with foot placement. Attack blending still follows
+locomotion; weapon arms are unchanged and the skull layer yields to wind-up/impact. No motor,
+collision, navigation, support, jump, damage-clock or machine definitions changed.
+
+#### Independent review — READY, no blockers
+
+The independent reviewer reported the following passing results. These are **attributed review
+checks**, not a new implementation verification run:
+
+- **23 targeted tests**.
+- **6,480 ordinary-baseline poses**, all exact matches.
+- **50,000 phase samples / 75 seams**.
+- **8,640 actual skeleton frames / 6,162 plants**, with zero violations.
+- Skull scale, reset, teleport and death probes.
+- Diff check and visual review of skeleton captures **1–4**, ordinary control and reset views.
+
+The reviewer reused the **268-test/full-check/build** evidence and the affected animation results
+with **732 contacts** below. No code corrections were required. **P4 is complete and authorized
+for its normal-hook feature commit**, recorded by this entry's containing commit. **P5 held-F
+defense is next, not started.** P3 is complete at **`9f8e1d7`**.
+
+#### Test-first and focused checks
+
+```sh
+node --test tests/skeleton-gait.test.ts tests/corpse-terrain.test.ts
+node --test tests/skeleton-gait.test.ts tests/corpse-terrain.test.ts tests/locomotion.test.ts tests/foot-placement.test.ts
+```
+
+- The first run also exposed a test-world `blockers` typo. With that fixture corrected and before
+  production edits, the gait/corpse run was **9 pass / 2 fail**: mirrored left/right leg motion and
+  a left foot released at 52% of the intended long loading phase.
+- Green focused run: **23 tests**. Contracts cover asymmetry versus ordinary walking, complementary
+  stance duration, periodicity/continuity, bounded torso/head offsets, stationary/blocked fade,
+  airborne cadence, stop/teleport, actual 1.65-unit movement and unchanged navigation/attack/jump
+  state. The shared contact regression asserts the rendered load-bearing sole as well as its plant.
+- Pure contact sweeps: **24 flat crossings / 4,392 foot samples / 360 contacts**, including 72
+  retained-anchor contacts; **20 ramp crossings / 3,880 samples / 294 contacts**. Maximum
+  penetration **1.1553e-7**. The existing **886 ordinary turning stance samples** remain green.
+
+#### Affected browser and visual review
+
+The affected suite was run with an owned temporary server because 5173 was absent:
+
+```sh
+DEMO_URL=http://localhost:5187 node --input-type=module -e 'import { withViteServer } from "./tests/testServer.ts"; await withViteServer(process.env.DEMO_URL, "dev", () => import("./tests/animation-browser.ts"));'
+```
+
+- **Final animation pass succeeds**, with zero page/console errors, **32 corpse crossings / 732
+  surface contacts**, maximum penetration **0.0000032682**. Skeletons are now included in both
+  directions of the real seeded stair/corpse sweep. Foot/pelvis caps remain 0.46/0.14.
+- **46 shared pose captures** retain player/other-enemy motion, attack, jump, death and grounding
+  checks. Added **40 consecutive motor-driven captures** (five sequences of eight frames),
+  plus **four reset captures**. Same-mesh ordinary control and lurch have identical position
+  traces; flat/corpse lurch traces also agree exactly. The reference temporarily selects ordinary
+  kobold gait on the skeleton mesh at the same requested 1.65 speed; it is not an old-build capture.
+- The moving-attack sequence checks the ordinary weapon-arm blend every step and samples the
+  existing **0.25-second** impact. The head lurch is negligible at impact; legs keep traversing.
+  Render sampling preserves authoritative position, measured speed, support, jump and swing state.
+  Authored mesh corners fit the unchanged **four-unit observation envelope**.
+- Stop and teleport produce neutral torso/head and clear plants on the next sample; settled death
+  clears them too. Visible-window blur preserves the existing enemy-simulation policy and clears
+  hero motion. Regeneration creates neutral skulls, zero stride and empty plants.
+- **Visual review:** the ordinary control stays upright with even alternation. Lurch frames
+  36–60 show the ribs/skull tipped forward over the long load; frame 72 shifts back through the
+  short catch-up, with the skull lagging. The front stair view makes asymmetric shoulder loading
+  and bent knees visible. Corpse frames 48–72 raise the feet over the ribs/pelvis; sword frames
+  38/43/47 distinguish wind-up, impact and follow-through. Stop/teleport return to the upright
+  silhouette and death settles to the existing fallen pose.
+
+**Iteration qualifications:** two incomplete suite attempts failed the inherited stationary
+skeleton high-contact comparison. Its artificial 7.4 speed was corrected to 1.65, then its corpse
+placement was centred beneath the new footfall: the old location sampled a low forearm edge
+(sole 0.1505 versus flat swing 0.0764), rather than the intended high ribs/pelvis. A third attempt
+passed assertions but failed off-viewport sheet cropping; the writer now renders each sheet
+directly. The final complete suite passes. A narrow sequence-only run supported early visual
+review; stair/weapon cameras were corrected. Following the successful pass, visual review found
+a tribute coffer at the origin because the fixture stopped before its renderer's first update.
+The fixture now performs that update; **only the 44 skeleton captures/assertions were refreshed**,
+through `/tmp/opencode/p4-sequences.mjs`, with a separate current skeleton report. There were no
+production fixes from these fixture issues and no combat, movement, full-game or Firefox repeat.
+
+Artifacts (ignored):
+
+- `test-results/chromium-animation-report.json` — complete affected pass, including skeleton samples.
+- `test-results/chromium-animation-poses.png` — 46 shared poses.
+- `test-results/chromium-skeleton-report.json` — final sequence-only refresh and reset results.
+- `test-results/chromium-skeleton-sequences.png` — final 44-frame sheet.
+- `test-results/chromium-skeleton-sequence-{0..5}.png` — ordinary, flat, stairs, corpse, attack,
+  then reset views, respectively.
+
+#### Required final checks
+
+After targeted verification, each command ran **once**:
+
+| Command | Result |
+| --- | --- |
+| `npm run format:check` | Pass, 137 files |
+| `npm run lint` | Pass |
+| `npm test` | **268 passed**, including strict typing and model/generation/gameplay coverage |
+| `npm run build` | Pass; existing large-chunk warning |
+
+Models remain **20 machines / 92 states / 175 branches**. Browser and owned Vite processes were
+closed in `finally`, including failed attempts. Existing OpenCode 4096/tailnet 8443 services were
+untouched. Raw `docs/notes.md` remains unmodified and excluded from the feature commit. The
+implementation checkpoint used no subagents, staging or commit; the subsequent independent
+**READY** review above clears the delivery gate. P1 remains closed, P2 accepted at `726af8a`,
+P3 complete at `9f8e1d7`; P5 is next, not started, and P6–P7 remain planned.
+
 ### P3 — blocked-floor click/hold fallback — 2026-11-19 (complete, final independent review READY)
 
 Resumed restored partial P3 work against accepted P2 **`726af8a`**. The user's corpse-traversal
 clarification required no P2 fix. **Final independent review returned READY, clearing both
-route-quality blockers. P3 is complete and its feature commit is authorized with normal hooks.**
-P4 skeleton gait is next, not started. Raw `docs/notes.md` is untouched and excluded from the commit.
+route-quality blockers. P3 is complete at `9f8e1d7`, committed with normal hooks.**
+At that P3 delivery checkpoint P4 skeleton gait was next, not started. Raw `docs/notes.md` was
+untouched and excluded from the commit.
 
 #### Final independent review — READY
 
@@ -26,8 +140,8 @@ not another local verification batch:
 The reviewer reused the implementation's **263-test/full-check/build** results and the **16-check
 Chromium movement pass** below. Its **139 ms cold-search** sample remains a documented, bounded,
 non-blocking limitation; no hardware-FPS claim or general elimination of search hitches is made.
-The user's feature-commit authorization applies. P3 is recorded by this delivery entry's containing
-commit, with P2 retained as **`726af8a`**. Historical pre-fix qualifications below remain intact.
+P3 is recorded by **`9f8e1d7`**, with P2 retained as **`726af8a`**. Historical pre-fix
+qualifications below remain intact.
 
 #### Independent review correction — verified before final review
 

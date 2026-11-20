@@ -21,6 +21,7 @@ import '@babylonjs/core/Collisions/collisionCoordinator';
 import type { Spawn } from './worldTypes.ts';
 import { placeFeet } from './footPlacement.ts';
 import { readCorpseTerrain } from './corpseRendering.ts';
+import { skeletonLurch } from './skeletonGait.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -59,6 +60,7 @@ export function resetActorRig(rig: Components['rig']): void {
   rig.root.scaling.setAll(1);
   rig.body.rotation.setAll(0);
   rig.body.position.setAll(0);
+  rig.head?.rotation.setAll(0);
   for (const limb of [...rig.arms, ...rig.forearms, ...rig.legs, ...rig.knees, ...rig.feet])
     limb.rotation.setAll(0);
   for (const leg of rig.legs) leg.position.y = 0.55;
@@ -126,6 +128,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       const settle = corpse.age >= 0.62 ? 1 : 1 - Math.exp(-25 * dt);
       rig.body.rotation.scaleInPlace(1 - settle);
       rig.body.position.scaleInPlace(1 - settle);
+      rig.head?.rotation.scaleInPlace(1 - settle);
       rig.arms.forEach((arm, i) => {
         arm.rotation.x += (fall.arm - arm.rotation.x) * settle;
         arm.rotation.z += ((i ? -0.65 : 0.65) - arm.rotation.z) * settle;
@@ -161,6 +164,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       dt,
       { player: WALK_SPEED, skeleton: 1.65, goblin: 2.5, kobold: 2.1 }[actor.kind],
       actor.jump.airborne,
+      actor.kind === 'skeleton' ? 'skeleton' : 'ordinary',
     );
     const swing = actor.attack.swing;
     rig.attackBlend += ((swing ? 1 : 0) - rig.attackBlend) * (1 - Math.exp(-25 * dt));
@@ -238,6 +242,14 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     rig.body.rotation.y = pose.twist;
     rig.body.rotation.z = pose.roll;
     rig.body.position.y = pose.bob;
+    if (rig.head) {
+      const lurch = skeletonLurch(dynamics.stride);
+      const weight =
+        actor.kind !== 'skeleton' || actor.jump.active
+          ? 0
+          : dynamics.blend * (1 - rig.attackBlend) * (1 - rig.socialBlend);
+      rig.head.rotation.set(lurch.headPitch * weight, 0, lurch.headRoll * weight);
+    }
     if (rig.cape) rig.cape.rotation.x = pose.cape;
   }
 }

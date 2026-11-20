@@ -34,15 +34,21 @@ export function createEnemyRendering(
     const skeleton = actor.kind === 'skeleton',
       goblin = actor.kind === 'goblin';
     const skin: MaterialName = skeleton ? 'bone' : goblin ? 'scales' : 'brick';
+    const head = skeleton ? new TransformNode(`${actor.id}:head pivot`, scene) : undefined;
+    if (head) {
+      head.parent = body;
+      head.setPivotPoint(new Vector3(0, 1.35, 0));
+    }
     const p = (mat: MaterialName, name: string, size: Triple, pos: Triple, parent = body) =>
       part(scene, materials[mat], `${actor.id}:${name}`, size, pos, parent, shadow);
     if (skeleton) {
       p('bone', 'spine', [0.13, 0.7, 0.15], [0, 1, 0]);
       for (const y of [0.83, 1.02, 1.21]) p('bone', 'ribs', [0.56, 0.095, 0.3], [0, y, 0]);
       p('bone', 'pelvis', [0.4, 0.2, 0.28], [0, 0.63, 0]);
-      p('bone', 'skull', [0.48, 0.44, 0.4], [0, 1.64, 0]);
-      p('bone', 'jaw', [0.32, 0.12, 0.31], [0, 1.36, 0.07]);
-      for (const x of [-0.13, 0.13]) p('dark', 'eye socket', [0.13, 0.13, 0.03], [x, 1.65, 0.215]);
+      p('bone', 'skull', [0.48, 0.44, 0.4], [0, 1.64, 0], head);
+      p('bone', 'jaw', [0.32, 0.12, 0.31], [0, 1.36, 0.07], head);
+      for (const x of [-0.13, 0.13])
+        p('dark', 'eye socket', [0.13, 0.13, 0.03], [x, 1.65, 0.215], head);
     } else {
       p(goblin ? 'moss' : 'dark', 'leather vest', [0.58, 0.55, 0.36], [0, 0.82, 0]);
       p(skin, 'head', [0.5, 0.4, 0.4], [0, 1.32, 0.06]);
@@ -128,6 +134,7 @@ export function createEnemyRendering(
     actor.entity.add('render', { root, meshes }).add('rig', {
       root,
       body,
+      head,
       arms,
       forearms,
       legs,
