@@ -84,9 +84,11 @@ workflow URL and hosted smoke result in `VERIFICATION.md`. P7 is complete. The p
 [animation foundation](docs/animation-roadmap.md) has begun: **A0 motion review is implemented and
 independently reviewed READY**, and **A1's shared rig foundation is implemented and reviewed READY**.
 **A2's coordinated solver and A3's locomotion/contact migration are also implemented and independently reviewed READY.**
-A4 action/equipment/work/social migration is next, then A5–A7, P8 directional ragdolls and P9 skeleton debris.
+A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.
+A5 articulated tails is next, then A6–A7, P8 directional ragdolls and P9 skeleton debris.
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
-[A2 solver contracts](docs/rig-solver.md), and [A3 live grounding](docs/rig-grounding.md).
+[A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md), and
+[A4 action/grip contracts](docs/rig-actions.md).
 
 ## Play
 
@@ -163,7 +165,9 @@ Restoring, corrupting or repairing the shrine does not stop tribute deliveries; 
 do not resolve the shrine contest. Menus, inspection and hidden tabs pause both. Hero command
 cleanup, teleport and checkpoint respawn preserve committed deliveries/recoveries and cargo;
 regeneration replaces the whole run. Gold floor sockets identify the cache and a barred hatch
-with violet lamps identifies the exit. Packing/unloading poses follow actual work time.
+with violet lamps identifies the exit. Packing/unloading poses follow actual work time. Porters hold
+carried crates in front with both hands; threats sling the still-owned cargo behind the torso to
+free combat hands, with ordinary carrying resuming after the threat clears.
 
 **Within-run record:** expand the record in the pause menu to reread visited room captions,
 inspected portraits and identified inhabitants. Each source is recorded once, when its caption
@@ -285,7 +289,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
 | `src/machines/actors/defense.ts` | Opt-in held-defense lifecycle and 120° incoming-direction test |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
-| `src/rigs/` | Shared humanoid definitions/profiles, quaternion pose/FK, live locomotion/grounding planner, bounded target solver/residuals, compatibility bridge and final mesh bindings |
+| `src/rigs/` | Shared humanoid definitions/profiles, quaternion pose/FK, live locomotion/grounding and action/grip planners, bounded solver/residuals, socket attachments, temporary collapse, compatibility bridge and final mesh bindings |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
 | `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original role/slot references, bounded physical rank assembly, shared attack/opening phases and unit withdrawal |
 | `src/attackKinds.ts` / `src/phalanxPoses.ts` | Shared action geometry/timing contracts and simulation-clock-sampled spear/throw presentation |
@@ -406,14 +410,19 @@ inventory](docs/animation-baseline.md) for commands, measurements and qualificat
 selection, current-position terrain lookup and regeneration costs. With a preserved historical A0
 report, `A0_POSE_REPORT=test-results/animation-review-catalog.json npm run test:rig` also compares
 all 30 clips' authoritative movement/action clocks. A3 intentionally changes their rendered poses.
-The rig suite now also checks final sole corners, sole-centred plants and contact budgets. See
+The rig suite now also checks final sole corners, sole-centred plants, actual equipment grips,
+drawn observation bounds and contact budgets. See
 [the rig foundation](docs/rig-foundation.md) and [live grounding](docs/rig-grounding.md).
 
 `npm run test:rig:solver` exercises A2's simultaneous feet/grips and turning/sloped-step fixtures
 through existing mesh bindings for all five profiles/roles. It checks final drawn contacts,
 repeat application, 25-rig solve costs and regeneration; pure tests cover singularity/constraint policies. See
 [the solver contract](docs/rig-solver.md). A3 connects gameplay locomotion and contact targets;
-A4 continues action/equipment migration.
+A4 connects action/equipment targets and solved socket attachments; see [the action contract](docs/rig-actions.md).
+
+`npm run test:rig:actions` checks actual spear/torso clearance on flat ground and stairs,
+both-role carry/combat handoffs, scaled cargo geometry, and action-to-death equipment clearance,
+observation bounds and pose continuity, including every throw start/release/recovery entry frame.
 
 ### Entity/component architecture
 
@@ -433,8 +442,9 @@ Components describe transform, health, actor capabilities, movement, navigation,
 
 Every rendered actor now owns a `rigPose` component: a shared immutable humanoid definition,
 independent numerical pose/history buffers, the locomotion/contact planner, and the binding to
-existing geometry. Living motion produces canonical poses and sole targets; the binding performs
-final mesh application. Action/death compatibility channels remain for A4. Logical hand/head
+existing geometry. Living motion produces canonical poses, sole targets and required equipment
+grips; action/social/work layers and the temporary death collapse share the pose buffer. The binding
+performs final mesh and socket application. Reset/debug compatibility remains until A7. Logical hand/head
 joints and grip/sole frames add no scene nodes. Both kobold roles share anatomy.
 
 ```ts

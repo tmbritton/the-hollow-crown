@@ -175,7 +175,9 @@ try {
     maximumJointError = 0,
     maximumSolePenetration = 0,
     maximumPlantError = 0,
-    maximumTerrainQueries = 0;
+    maximumTerrainQueries = 0,
+    maximumGripError = 0,
+    maximumRadius = 0;
   const frames = [];
   for (const item of catalog) {
     const name = `${item.profile}/${item.clip}`;
@@ -211,6 +213,67 @@ try {
           }
         }
         const grounding = binding.grounding;
+        const rendererPath = '/src/actorRendering.ts';
+        const { ACTOR_OBSERVATION_RADIUS } = (await import(
+          rendererPath
+        )) as typeof import('../src/actorRendering.ts');
+        let radius = 0;
+        for (const mesh of rig.root.getChildMeshes()) {
+          if (!mesh.isEnabled() || !mesh.isVisible) continue;
+          mesh.computeWorldMatrix(true);
+          for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld)
+            radius = Math.max(
+              radius,
+              corner.subtract(rig.root.position).length() /
+                Math.max(rig.root.scaling.x, rig.root.scaling.y, rig.root.scaling.z),
+            );
+        }
+        if (radius > ACTOR_OBSERVATION_RADIUS)
+          throw new Error(`Observation envelope misses ${actor.id}: ${radius}`);
+        // Independent actual mesh-chain endpoints against the drawn equipment frame.
+        const actions = binding.actions;
+        let gripError = 0;
+        for (const [i, side] of (['left', 'right'] as const).entries()) {
+          const target = actions.targets[`${side}Grip`];
+          if (target.release || !grounding.active) continue;
+          const handMatrix = rig.forearms[i].getWorldMatrix().m;
+          const actual = [0, 1, 2].map((row) => handMatrix[12 + row] - handMatrix[4 + row] * 0.27);
+          let node = null,
+            offset: readonly number[] = [0, 0, 0];
+          if (actions.mode === 'guard' && i === 0) {
+            node = rig.shield;
+            offset = [0, -0.12, -0.28];
+          }
+          if (actions.mode === 'spear') {
+            node = rig.spear;
+            offset = [0, 0, i ? -0.4 : -0.1];
+          }
+          if (actions.mode === 'throw' && i === 1) node = rig.javelin;
+          if (actions.mode === 'crossbow') {
+            node = rig.weapon;
+            offset = i ? [0.18, 0, -0.12] : [-0.18, 0, 0.08];
+          }
+          if (actions.mode === 'smoke') {
+            node = d.game.scene.getMeshByName(`${actor.id}:pipe`);
+            offset = [0.08, 0, 0];
+          }
+          if (actions.mode === 'carry') {
+            const index = d.game.ecs
+              .get('run')!
+              .require('tribute')
+              .cargo.findIndex((e) => e.require('cargo').owner === actor.entity);
+            node = d.game.scene.getTransformNodeByName(`Royal tribute crate ${index}`);
+            offset = [i ? 0.325 : -0.325, 0.25, 0];
+          }
+          if (!node) throw new Error(`Missing actual ${actions.mode} grip geometry`);
+          node.computeWorldMatrix(true);
+          const m = node.getWorldMatrix().m;
+          const expected = [0, 1, 2].map(
+            (row) =>
+              m[12 + row] + m[row] * offset[0] + m[4 + row] * offset[1] + m[8 + row] * offset[2],
+          );
+          gripError = Math.max(gripError, Math.hypot(...actual.map((v, k) => v - expected[k])));
+        }
         let penetration = 0,
           plantError = 0;
         if (grounding.active) {
@@ -228,10 +291,24 @@ try {
           )
             throw new Error('Grounding exceeded its per-actor budget');
         }
-        return { snapshot, error, penetration, plantError, queries: grounding.terrainQueries };
+        return {
+          snapshot,
+          error,
+          penetration,
+          plantError,
+          gripError,
+          radius,
+          queries: grounding.terrainQueries,
+        };
       });
       assert.ok(result.error < 1e-5, `${name}/${frame} joint error ${result.error}`);
       maximumJointError = Math.max(maximumJointError, result.error);
+      assert.ok(
+        result.gripError <= 0.01,
+        `${name}/${frame}: actual grip error ${result.gripError}`,
+      );
+      maximumGripError = Math.max(maximumGripError, result.gripError);
+      maximumRadius = Math.max(maximumRadius, result.radius);
       assert.ok(
         result.penetration <= 0.001,
         `${name}/${frame}: sole penetration ${result.penetration}`,
@@ -357,6 +434,8 @@ try {
         maximumSolePenetration,
         maximumPlantError,
         maximumTerrainQueries,
+        maximumGripError,
+        maximumRadius,
         baselineScope:
           'authoritative gameplay and travel-driven animation clocks; A3 intentionally changes rendered poses',
         identityPreserved: true,

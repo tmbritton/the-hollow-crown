@@ -98,6 +98,8 @@ export interface Components {
     shield?: TransformNode;
     spear?: TransformNode;
     javelin?: TransformNode;
+    weapon?: TransformNode;
+    stowed?: TransformNode;
     attackBlend: number;
     attackPose: LocomotionPose | null;
     socialBlend: number;

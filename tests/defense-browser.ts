@@ -29,6 +29,11 @@ const state = () =>
     const g = window.__dungeon.game,
       a = g.player.actor,
       rig = a.entity.require('rig');
+    const V = g.camera.target.constructor as typeof Vector3;
+    rig.forearms[0].computeWorldMatrix(true);
+    rig.shield!.computeWorldMatrix(true);
+    const hand = V.TransformCoordinates(new V(0, -0.27, 0), rig.forearms[0].getWorldMatrix());
+    const grip = V.TransformCoordinates(new V(0, -0.12, -0.28), rig.shield!.getWorldMatrix());
     return {
       defending: a.defending,
       defense: a.entity.require('defense').chart.snapshot.value,
@@ -40,7 +45,8 @@ const state = () =>
       speed: a.motion.actualSpeed,
       jump: a.jump.active,
       armYaw: rig.arms[0].rotation.y,
-      shieldOffset: rig.shield?.position.x,
+      shieldGripError: V.Distance(hand, grip),
+      actionMode: a.entity.require('rigPose').actions.mode,
       particles: g.ecs.query('particle').map((e) => e.require('particle').kind),
       plants: rig.footPlants.map((p) => p.anchor),
       head: rig.head?.rotation.asArray(),
@@ -196,7 +202,8 @@ try {
     await step();
     assert.equal((await state()).defending, false);
     assert.equal((await state()).armYaw, 0);
-    assert.equal((await state()).shieldOffset, 0);
+    assert.ok((await state()).shieldGripError < 0.01);
+    assert.equal((await state()).actionMode, 'free');
     pass(
       'Real F down/up raises a physically forward shield, blocks melee with sparks, and restores pose',
     );
@@ -370,7 +377,8 @@ try {
         }, reset);
       assert.equal((await state()).defending, false, reset);
       assert.equal((await state()).armYaw, 0, reset);
-      assert.equal((await state()).shieldOffset, 0, reset);
+      assert.ok((await state()).shieldGripError < 0.01, reset);
+      assert.equal((await state()).actionMode, 'free', reset);
       if (reset !== 'death') assert.deepEqual((await state()).plants, [null, null], reset);
       if (reset === 'menu') await page.keyboard.press('Escape');
       if (reset === 'inspection')

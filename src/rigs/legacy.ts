@@ -27,6 +27,8 @@ type Nodes =
   | 'shield'
   | 'spear'
   | 'javelin'
+  | 'weapon'
+  | 'stowed'
   | 'equipment'
   | 'stowedEquipment';
 export type LegacyRig = Omit<Components['rig'], Nodes> & {

@@ -2,7 +2,8 @@
 
 **2026-11-20. Implemented and verified; independent review READY.** Builds on the
 [A1 foundation](rig-foundation.md). A3's [locomotion/contact planner](rig-grounding.md) is now
-delivered in ordinary gameplay; A4's action/equipment migration is next. Measurements below
+delivered in ordinary gameplay; A4's [action/equipment migration](rig-actions.md) is also verified
+and independently reviewed READY. Measurements below
 record the A2 checkpoint.
 
 A3 adds an optional final-contact refinement callback to `solve()`, inside the existing four-pass

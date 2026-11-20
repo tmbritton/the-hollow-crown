@@ -108,23 +108,38 @@ export function createAnimationReview(
         target: target.asArray(),
         distance: Vector3.Distance(hands[hand], target),
       });
-    if (rig.shield?.getChildMeshes().some((m) => m.isEnabled() && m.isVisible))
-      grip('shield mount proxy', 0, point(rig.shield, 0, -0.12, 0));
-    for (const [name, weapon, halfLength, center] of [
-      ['spear shaft', rig.spear, 1.6, 0.85],
-      ['javelin shaft', rig.javelin, 0.575, 0],
+    const actions = actor.entity.require('rigPose').actions;
+    const visible = (node: typeof rig.shield) =>
+      node?.getChildMeshes().some((m) => m.isEnabled() && m.isVisible);
+    if (visible(rig.shield)) grip('shield strap', 0, point(rig.shield!, 0, -0.12, -0.28));
+    if (visible(rig.spear)) {
+      grip('primary spear grip', 1, point(rig.spear!, 0, 0, -0.4));
+      if (actions.mode === 'spear') grip('support spear grip', 0, point(rig.spear!, 0, 0, -0.1));
+    }
+    if (visible(rig.javelin)) grip('throwing grip', 1, point(rig.javelin!, 0, 0, 0));
+    if (visible(rig.weapon)) {
+      if (actions.mode === 'crossbow') {
+        grip('crossbow trigger', 1, point(rig.weapon!, 0.18, 0, -0.12));
+        grip('crossbow support', 0, point(rig.weapon!, -0.18, 0, 0.08));
+      } else grip('weapon handle', 1, point(rig.weapon!, 0, 0, 0));
+    }
+    for (const [name, offset] of [
+      ['pipe', [0.08, 0, 0]],
+      ['held card', [0, 0, -0.1]],
     ] as const) {
-      if (!weapon?.getChildMeshes().some((m) => m.isEnabled() && m.isVisible)) continue;
-      const a = point(weapon, 0, 0, center - halfLength);
-      const b = point(weapon, 0, 0, center + halfLength);
-      const delta = b.subtract(a);
-      hands.forEach((hand, i) => {
-        const t = Math.max(
-          0,
-          Math.min(1, Vector3.Dot(hand.subtract(a), delta) / delta.lengthSquared()),
-        );
-        grip(`${name} proximity proxy`, i, a.add(delta.scale(t)));
-      });
+      const mesh = g.scene.getMeshByName(`${actor.id}:${name}`);
+      if (mesh?.isEnabled()) grip(name, 1, point(mesh, offset[0], offset[1], offset[2]));
+    }
+    if (actions.mode === 'carry') {
+      const index = g.ecs
+        .get('run')
+        ?.get('tribute')
+        ?.cargo.findIndex((e) => e.require('cargo').owner === actor.entity);
+      const crate = g.scene.getTransformNodeByName(`Royal tribute crate ${index}`);
+      if (crate?.isEnabled()) {
+        grip('crate left', 0, point(crate, -0.325, 0.25, 0));
+        grip('crate right', 1, point(crate, 0.325, 0.25, 0));
+      }
     }
     return {
       id,

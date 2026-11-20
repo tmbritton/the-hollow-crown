@@ -13,6 +13,7 @@ import { PoseVector } from './types.ts';
 import type { PoseBuffer, RigDefinition } from './types.ts';
 import { FullBodySolver } from './solver.ts';
 import type { RigTargets } from './targets.ts';
+import type { ActionRig } from './actions.ts';
 
 type ContactMode = 'stance' | 'swing' | 'flight' | 'unsupported';
 type ReleaseReason = 'reset' | 'swing' | 'flight' | 'idle' | 'turn' | 'reach' | 'unsupported';
@@ -64,7 +65,7 @@ export class GroundedLocomotion {
   readonly authored: PoseBuffer;
   readonly solver: FullBodySolver;
   readonly contacts: readonly FootContact[];
-  readonly targets: RigTargets;
+  readonly targets: { -readonly [K in keyof RigTargets]: RigTargets[K] };
   readonly armYaw: [number, number] = [0, 0];
   readonly head = new PoseVector();
   active = false;
@@ -91,6 +92,7 @@ export class GroundedLocomotion {
   private sampledTime = -Infinity;
   private sampledTiles: NavigationWorld['tiles'] | undefined;
   private readonly sampledCorpses: CorpseBox[] = [];
+  private actions: ActionRig | undefined;
 
   constructor(definition: RigDefinition, plants: readonly { anchor: Spawn | null }[]) {
     if (plants.length !== 2) throw new Error('Humanoid contacts need two plants');
@@ -150,6 +152,7 @@ export class GroundedLocomotion {
     heading: number,
     world?: NavigationWorld,
     corpses: readonly CorpseBox[] = [],
+    actions?: ActionRig,
   ) {
     // A presentation sample consumes contact decisions once. Rendering/inspection of the same
     // authoritative clock + pose inputs reads that solved snapshot rather than planning again
@@ -160,6 +163,7 @@ export class GroundedLocomotion {
       this.sampledActor === actor.entity &&
       this.sampledAnimation === actor.motion.animation &&
       this.sampledKind === actor.kind &&
+      this.actions === actions &&
       this.world === world &&
       this.sampledTiles === world?.tiles &&
       this.sampledCorpses.length === corpses.length;
@@ -178,6 +182,7 @@ export class GroundedLocomotion {
           break;
         }
     if (repeated) return this.result;
+    this.actions = actions;
     const pose = this.authored,
       d = pose.definition,
       j = d.index;
@@ -240,6 +245,9 @@ export class GroundedLocomotion {
     this.corpseRise = Math.min(0.14, Math.max(this.contacts[0].step, this.contacts[1].step) * 0.3);
     pose.local[j.pelvis].position.y += this.corpseRise / scale.y;
     this.visualLift = motion.lift + this.corpseRise;
+    actions?.plan(pose);
+    this.targets.leftGrip = actions?.targets.leftGrip;
+    this.targets.rightGrip = actions?.targets.rightGrip;
     this.active = true;
     const result = this.solver.solve(pose, this.targets, this.refine);
     this.writeRequest(actor, motion, heading);
@@ -286,6 +294,7 @@ export class GroundedLocomotion {
       a[n++] = Number(c.blocked);
       a[n++] = c.mode === 'stance' ? 1 : c.mode === 'swing' ? 2 : c.mode === 'flight' ? 3 : 0;
     }
+    this.actions?.writeRequest(a, n);
   }
 
   private release(contact: FootContact, reason: ReleaseReason): void {

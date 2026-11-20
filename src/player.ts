@@ -90,11 +90,22 @@ export function createPlayer(
     feet.push(foot);
   }
   const shieldMount = new TransformNode('shield mount', scene);
-  shieldMount.parent = forearms[0];
+  shieldMount.parent = root;
   const shield = p('iron', 'shield', [0.14, 0.7, 0.55], [-0.17, -0.02, 0.07], shieldMount);
   p('gold', 'shield boss', [0.08, 0.17, 0.17], [-0.27, -0.02, 0.07], shieldMount);
-  p('iron', 'sword blade', [0.12, 0.83, 0.055], [0, -0.5, 0.14], forearms[1]);
-  p('gold', 'sword guard', [0.33, 0.08, 0.12], [0, -0.11, 0.14], forearms[1]);
+  p('dark', 'shield hand strap', [0.18, 0.09, 0.16], [-0.08, -0.12, -0.28], shieldMount);
+  const weapon = new TransformNode('sword grip', scene);
+  weapon.parent = root;
+  p('iron', 'sword blade', [0.12, 0.83, 0.055], [0, -0.48, 0], weapon);
+  p('gold', 'sword guard', [0.33, 0.08, 0.12], [0, -0.07, 0], weapon);
+  p('dark', 'sword handle', [0.09, 0.18, 0.09], [0, 0.04, 0], weapon);
+  const stowed = new TransformNode('wanderer back equipment', scene);
+  stowed.parent = root;
+  const stowedEquipment = [
+    p('iron', 'stowed wanderer shield', [0.55, 0.7, 0.14], [-0.2, 0, -0.08], stowed),
+    p('gold', 'stowed wanderer shield boss', [0.17, 0.17, 0.08], [-0.2, 0, -0.18], stowed),
+    p('iron', 'stowed wanderer sword', [0.12, 0.83, 0.055], [0.25, -0.12, -0.06], stowed),
+  ];
   const cape = p('cloth', 'cape', [0.71, 0.91, 0.12], [0, 0.91, -0.31]);
   cape.setPivotPoint(new Vector3(0, 0.455, 0));
   cape.rotation.x = -0.16;
@@ -172,6 +183,10 @@ export function createPlayer(
     cape,
     attackBlend: 0,
     shield: shieldMount,
+    weapon,
+    stowed,
+    equipment: [...weapon.getChildMeshes(), ...shieldMount.getChildMeshes()],
+    stowedEquipment,
     attackPose: null,
     socialBlend: 0,
     socialPose: null,

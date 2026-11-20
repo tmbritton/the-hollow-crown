@@ -1,8 +1,9 @@
 # A3 — locomotion and grounding migration
 
 **2026-11-20. Implemented and verified; independent review READY.** Living actors now use the
-[A2 solver](rig-solver.md) for locomotion/contact presentation. A4 action, equipment, work/social
-and temporary-death layer migration is next.
+[A2 solver](rig-solver.md) for locomotion/contact presentation. A4's
+[action, equipment, work/social and temporary-death migration](rig-actions.md) is now verified and
+independently reviewed READY. The compatibility section below records the A3 checkpoint.
 
 ## Ownership and pipeline
 
@@ -70,7 +71,7 @@ snapshot. Generated floor geometry is immutable during a run; a development tool
 floor tiles in place without advancing a step must reset grounding explicitly. Regeneration
 creates new world/rig state. Reset drops cached actor/animation/world/corpse references.
 
-## Compatibility boundary for A4
+## Compatibility boundary for A4 (historical A3 checkpoint)
 
 Upper-body actions retain their clocks/blend fields. Numerical Euler values remain binding hints
 only: a hint is used only if it matches the final solved matrix. Solved legs skip obsolete hints;

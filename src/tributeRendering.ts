@@ -4,6 +4,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Materials } from './materials.ts';
 import type { ECS } from './ecs.ts';
+import { FrameAttachment } from './rigs/attachments.ts';
 
 /** Four crates, their floor sockets and one hatch. Existing materials only; scene-owned. */
 export function createTributeRendering(
@@ -44,7 +45,7 @@ export function createTributeRendering(
       p = tribute.sites.cargo[i];
     socket.position.set(p.x, p.h + 0.025, p.z);
     for (const x of [-0.48, 0.48]) box('cache marking', socket, x, 0, 0, 0.08, 0.025, 0.9, 'gold');
-    return { entity, root, socket };
+    return { entity, root, socket, attachment: new FrameAttachment(root) };
   });
   const hatch = new TransformNode('Royal tribute escape hatch', scene),
     at = tribute.sites.exit;
@@ -59,20 +60,19 @@ export function createTributeRendering(
     update() {
       const current = ecs.get('run')?.get('tribute') === tribute;
       hatch.setEnabled(current);
-      for (const { entity, root, socket } of crates) {
+      for (const { entity, root, socket, attachment } of crates) {
         const cargo = entity.require('cargo'),
           p = entity.require('transform');
         const carried = cargo.state === 'carried',
-          owner = cargo.owner?.get('transform');
+          owner = cargo.owner?.get('rigPose');
         root.setEnabled(current && cargo.state !== 'delivered' && cargo.state !== 'recovered');
         socket.setEnabled(current);
-        const heading = carried && owner ? owner.heading : 0;
-        root.position.set(
-          p.x - Math.sin(heading) * (carried ? 0.42 : 0),
-          p.h + (carried ? 0.85 : 0.05),
-          p.z - Math.cos(heading) * (carried ? 0.42 : 0),
-        );
-        root.rotation.y = heading;
+        if (carried && owner?.actions.carrying) attachment.apply(owner.actions.frames.cargo);
+        else {
+          root.position.set(p.x, p.h + 0.05, p.z);
+          root.rotation.setAll(0);
+          root.scaling.setAll(1);
+        }
       }
     },
   };

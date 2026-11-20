@@ -43,6 +43,7 @@
     "test:animation:review": "node tests/animation-review-browser.ts",
     "test:rig": "node tests/rig-browser.ts",
     "test:rig:solver": "node tests/rig-solver-browser.ts",
+    "test:rig:actions": "node tests/rig-actions-browser.ts",
     "test:jump": "node tests/jump-browser.ts",
     "test:combat": "node tests/combat-browser.ts",
     "test:defense": "node tests/defense-browser.ts",

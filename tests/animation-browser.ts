@@ -422,6 +422,12 @@ try {
           elevation: actor.elevation,
           attackElapsed: actor.attack.swing?.elapsed ?? null,
           compression: actor.motion.animation.compression.value,
+          gripError: Math.max(
+            0,
+            ...Object.values(grounding.result.residuals)
+              .filter((r) => r.active && r.required)
+              .map((r) => r.position),
+          ),
           soles: rig.feet.map(
             (foot) => foot.getAbsolutePosition().y - 0.05 * scale.y - actor.position.h,
           ),
@@ -516,7 +522,8 @@ try {
       Math.max(...stepping.soles) > Math.max(...flat.soles) + 0.15,
       JSON.stringify({ kind, flat, stepping }),
     );
-    assert.equal(stepping.arm, flat.arm);
+    // Required equipment grips now coordinate the arm with the changed pelvis/feet.
+    assert.ok(stepping.gripError <= 0.01 && flat.gripError <= 0.01);
     assert.equal(stepping.attackElapsed, flat.attackElapsed);
     corpseResults.push(stepping);
   }
@@ -532,7 +539,7 @@ try {
   }
   const aim = await sample('ranged', 26, 'Crossbow: aim');
   const recoil = await sample('ranged', 30, 'Crossbow: recoil');
-  assert.ok(aim.arm < -1.4 && recoil.lean < 0);
+  assert.ok(aim.gripError <= 0.01 && recoil.gripError <= 0.01 && recoil.lean < 0);
   assert.ok(
     aim.muzzle![0] > 0.95 && Math.abs(aim.muzzle![1]) < 0.15,
     'crossbow points down the firing line',

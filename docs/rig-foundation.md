@@ -2,9 +2,11 @@
 
 **2026-11-20. Implemented; independent review READY.** Builds on the
 [A0 baseline](animation-baseline.md). A2's [coordinated target solver](rig-solver.md) is now delivered;
-A3's [locomotion/contact migration](rig-grounding.md) is also delivered; A4 is next. The
+A3's [locomotion/contact migration](rig-grounding.md) is also delivered; A4's
+[action/grip migration](rig-actions.md) is also verified and independently reviewed READY. The
 architecture/evidence below records the A1 checkpoint. A3 replaces living legacy leg writes with
-semantic poses/targets while retaining the compatibility boundary for A4.
+semantic poses/targets; A4 replaces action/attachment and temporary-death ownership. Remaining
+reset/debug compatibility is scheduled for A7 removal.
 
 ## Contracts and ownership
 

@@ -4,6 +4,126 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### A4 — action layers, grips and attachments — 2026-11-20 (verified; final independent review READY)
+
+`rigPose.actions` now owns shared attack/work/social layers, required hand targets and explicit
+equipment frames. Required grips join the existing foot/body solve; bindings alone apply final
+equipment transforms. Social props and cargo consume solved sockets. Temporary collapse samples
+the captured semantic pose against corpse age. See [docs/rig-actions.md](docs/rig-actions.md).
+
+**Observed reds and corrections:**
+
+- The first action regression failed on the missing module. A later independent actual-matrix
+  oracle failed for a pitched spear under nonuniform root scale: a uniform world frame beneath
+  that root required shear. Matching the hierarchy's scale-before-rotation basis fixes it;
+  origins remain in unscaled gameplay units. All **183 scaled actual-matrix comparisons** pass.
+- Initial drawn spear bounds reached **4.1544** outside the old four-unit observation envelope.
+  The first correction to 4.3 missed death/recovery cases found in independent review below.
+  The final conservative envelope is **4.8**. Gameplay collision/selection and attack geometry
+  are unchanged.
+- Dense corpse crossings exposed stale heading when installing an already-settled corpse over
+  an unrelated old pose. A persisted pure regression failed before the direct-settled heading fix;
+  ordinary deaths retain captured eased facing. Final animation crossings pass again.
+- Camera replay found forearm scales differing by **one/two floating-point epsilons** after reset.
+  A persisted NullEngine regression failed first; resetting all anatomical scales removes the
+  stale decomposition hint. Exact camera replay equality then passes.
+- Legacy arm-equality and shield-local-offset assertions were replaced with actual grip/reset
+  checks: coordinated arms may adjust when body/feet move, and shields now use explicit root frames.
+  The phalanx coordinate-specific fixture explicitly regenerates `MOURNING-731` before its adverse
+  approach; an initial unpinned setup had stayed idle with zero route plans.
+
+**Independent review corrections (persisted reds before fixes):**
+
+1. The original stance intersected the actual torso with the shaft for **45/84 frames**, up to
+   **0.40946 units** of shaft, including **0.25010** at impact despite passing grip checks. A
+   side-on torso/counterturned head and bounded fore/aft lunge now keep the shaft clear. The
+   expanded regression also exposed stair recovery grip/foot conflicts; centring the ready pose
+   over the feet and following visual lift fixes them. **252 flat/uphill/downhill frames** now
+   have zero intersections with a torso OBB expanded by 0.05; maximum grip error **0.00681448**,
+   lane error **1.526e−6** and final sole penetration **0.000534757**.
+2. A scene-root slung crate could not reproduce the sheared back-socket matrix: actual matrix
+   error **0.046524**, drawn strap-corner displacement **0.036232**. Its slung frame now explicitly
+   uses rigid, orthonormal unit dimensions at the solved socket position. Both-role carry/combat/
+   resume checks (**144 frames**) retain ownership and reach maximum corner error **1.208e−7**.
+3. Dead spearmen pointed their attached shaft underground and outside the envelope. The temporary
+   collapse now settles the arm at a supported angle and clock-samples the wrist outward/back,
+   preserving age-zero pose and primary grip. Minimum spear corner height is **0.07899875** above
+   support. Re-review caught post-release entry frame **38** at radius **4.624742**, outside the
+   interim 4.6 bound; the parent's expanded red also found frame **12** at **4.666062**. The final
+   **4.8** bound is checked for **every throw entry frame 12–66**, each across 46 collapse ages,
+   plus thrust/carry/crossbow/shield deaths: **2,714 samples**, with three zero-time repeats each.
+
+**Final checks actually run:**
+
+- Final `npm run check`: **336 pass / 28.53s native runner**, typecheck, lint and formatting
+  (**179 files**). Six new action tests cover **610 multi-profile grip/support samples**, same-clock
+  release/cache invalidation, work/attack interruption, cargo/guard handoff, sampling-independent
+  collapse and the scaled actual bindings. The existing reset test is strengthened. Complete
+  machine coverage remains **22 machines / 105 states / 226 branches**, with no new machine.
+- Final `npm run build` passes: **699 modules**, main bundle **1,671.09kB / 428.93kB gzip**;
+  existing large-chunk warning. Final local root `test:production` passes **five** checks, zero
+  browser/network errors, absent development hooks and no external requests. Its shield capture
+  was inspected. No new hosted deployment or Pages-subpath publication is claimed.
+- `A0_POSE_REPORT=test-results/animation-review-catalog.json npm run test:rig`: **428 samples /
+  all 30 clips**, zero A0 gameplay/action-clock difference. Actual required hand/grip maximum
+  **2.57411e−6**, sole-corner penetration **2.55304e−7**, plant drift **4.31563e−6**, semantic/actual
+  joint mismatch **5.64408e−6**. Actual equipment matrices, enabled corner bounds, mesh/material/
+  shadow/observation identity, selection and three-regeneration plateau pass. The separate
+  `npm run test:rig:actions` covers the additional geometry/handoff cases above.
+- Chromium affected suites pass: animation's gait/actions/jumps/corpse contacts and resets;
+  **combat15 / defense9 / phalanx8 / social15 / tribute9 / objective-work17 / discoveries17**.
+  These include actual held-F input, thrown release/flight, spear opening and recovery, real
+  porter delivery/interception, work-clock boundaries and witnessed/hidden death semantics.
+  Rendering-heavy suites ran sequentially; unchanged gameplay evidence was reused after targeted
+  presentation corrections rather than repeating every suite after every edit. After the final
+  review fixes, rig, phalanx, animation, discoveries and production were refreshed successfully.
+- **18 clips / 36 camera replays / 520 sampled poses** pass exact replay equality. Normal then
+  quarter-speed playback was exercised for all 18 side sequences. Five temporal sheets (72 chosen
+  frames), spear/carry/formation/social and production captures were inspected. These are 60 Hz
+  simulations sampled at 10 Hz, not a claim of every-frame motion review. After review corrections,
+  controls and **thrust/throw/opening** passed a fresh six-camera replay check. Corrected impact and
+  settled side/gameplay captures were inspected by the reviewer and parent.
+- **2,334 meshes / 447 nodes / 28 materials / 4 textures / 5,719 entities** plateau across the
+  workload and three regenerations. Compared with A3: +43 procedural meshes and +50 attachment
+  mounts. The 48 social prop meshes now belong to actor render arrays, removing their former
+  standalone render-wrapper entities; actor population remains 25.
+
+**Cost:** the final recorded integrated 25-rig/four-corpse/four-action-kind workload, 60 warmup
++240 measured updates, is **2.3679ms mean / 3.00ms p95**, maximum **882** and mean **535.85**
+terrain lookups/update. Statistical allocated-byte estimate **227,138,024** at 32KiB sampling
+includes setup/warmup/yields/instrumentation and collected objects, not retained heap or exact
+allocations. Chromium/SwiftShader, 800×600 CPU fixture; not GPU FPS.
+
+The pre-review **2.9433/4.00ms** result exceeded A3's **2.2/3.4ms investigation thresholds**.
+One bounded CPU trace identified binding,
+matrix work and the combined action/contact pipeline; its instrumented **4.59/6.90ms** is not a
+comparable benchmark. Reusing inverse-root and socket matrices removes redundant work but local
+timing variation does not establish a causal speedup. The hard per-actor ceilings remain
+**four passes / 16 limb solves / 249 joint evaluations / 66 floor / 74 corpse queries**. Independent
+corrected measurement was **2.0342/2.70ms**. The reviewer accepts provisional A5 investigation
+thresholds **3.2/4.5ms**; these are investigation triggers, not portable timing assertions.
+
+**Final independent review: READY, all three blockers cleared.** Attributed reviewer evidence:
+
+- Initial **552 every-frame action samples** with three repeats each; original **84-frame** torso
+  probe; both-role cargo handoffs and **184** action-to-death samples. Seven focused tests pass.
+- Corrective recheck: zero intersections in the original 84-frame thrust, primary/support grip
+  error **1.666e−7**, lane x **0.400000006**, and zero repeat drift. Cargo corner error **1.208e−7**.
+  Additional **593 phase/age samples** have zero incremental/full-FK or direct/progressive differences.
+- Final narrow bound recheck: **55 entry frames × seven ages = 385 samples**, maximum radius
+  **4.6660620863**, minimum clearance inside the **actual** observation sphere **0.175258152**,
+  minimum spear height **0.078998751**, age-zero error at most **6.67e−16**, and zero FK/direct-sampling
+  differences. The reviewer reused the parent's passing 2,714-sample persisted regression after
+  inspecting it; it did not claim to rerun that full fixture. No browser page errors.
+- Broad checks and resource evidence were reused. The parent subsequently ran the final check/build
+  and affected browser refresh above. Review probes/reports and all captures remain ignored.
+
+**Visual review:** hands now meet long-weapon/shield/crate grips, the carried crate is in front,
+and props follow the body through social/work and collapse. The worst remaining visible
+discontinuities are discrete equipment swaps and instant guard placement; A6 owns guard
+preparation/settling. The rigid tail remains **A5's next feature**. A4 is independently reviewed
+**READY**; this containing commit records the verified implementation and review corrections.
+
 ### A3 — live locomotion and grounding migration — 2026-11-20 (verified, independent review READY)
 
 Living player/enemy rigs now compose semantic poses and coordinated sole targets through

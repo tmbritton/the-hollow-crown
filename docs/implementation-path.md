@@ -25,7 +25,7 @@ each slice test-first, independently reviewed and committed:
 | A1 | Shared humanoid rig definitions and bindings — complete, independent review READY | All 25 actors use typed semantic anatomy/profiles, quaternion pose/history buffers and one final binding writer. 428 samples match A0 within 2.384e−7; render identity, selection, reset and cost checks pass. See [rig foundation](rig-foundation.md). |
 | A2 | Coordinated full-body IK — complete, independent review READY | Four-pass bounded solver, simultaneous contacts/grips, orientation/limits, explicit priorities and residuals. 323 everyday tests; 1,210 actual-mesh browser samples, resource plateau and bounded costs. See [solver contract](rig-solver.md). |
 | A3 | Locomotion and grounding migration — complete, independent review READY | All living actor kinds compose semantic poses and coordinated sole targets. 330 tests; 428 A0-identical authority samples, final sole/plant checks, animation/movement/jump/production passes and bounded cost/resource checks. See [grounding contract](rig-grounding.md). |
-| A4 | Action, equipment, work and social migration | Convert melee/crossbow/spear/javelin, guard/opening, weapon sockets, cards/smoke/hacky-sack, work/carry and the temporary death collapse to rig layers and targets. |
+| A4 | Action, equipment, work and social migration — complete, final independent review READY | Shared action layers, coordinated grips, solved sockets and semantic collapse. 336 tests, 428 A0-identical authority samples, actual shaft/cargo/death regressions, affected browsers and production smoke. All three review blockers cleared; see [action contract](rig-actions.md). |
 | A5 | Humanoid-with-tail kobold rig | Replace the existing rigid tail stub with four articulated, tapered segments on every kobold; bounded secondary motion/clearance, visible silhouettes and formation-safe motion. |
 | A6 | Shield anticipation and reaction | Body/arm preparation, decisive guarding and controlled lowering; confirmed once-only directional block recoil and recovery. Preserve instant F defense and the phalanx's authoritative vulnerability windows. |
 | A7 | Rig cutover and death-physics handoff | Remove legacy pose writers after every animation migrates; validate solved pose/velocity snapshots, resets, resources and production delivery before physics takes over. |
@@ -44,7 +44,8 @@ no blockers; the parent made the repository public, deployed through GitHub Acti
 the actual hosted production game. **T2 test-feedback work is implemented and independently
 reviewed READY. A0 motion review is also implemented and independently reviewed READY.
 A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration are also complete
-and reviewed READY. A4 action/equipment/work/social migration is next; A4–A7 remain planned before P8/P9.**
+and reviewed READY. A4 action/equipment/work/social migration is also verified and independently
+reviewed READY. A5 articulated tails is next; A5–A7 remain planned before P8/P9.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -61,7 +62,7 @@ inventory and compaction handoff. Preserve the raw notes as the source of intent
 ## Before the next procedural-feature expansion — Effect refactor
 
 The user requested this scheduling boundary on **2026-11-20**. Continue the existing
-**A4–A7 → P8 → P9** queue after delivered A3; A4 is the immediate next implementation. Complete the generation
+**A5–A7 → P8 → P9** queue; A4 is implemented and independently reviewed READY. Complete the generation
 slices below before authoring additional procedural scene recipes, keep variants, adventure
 grammars, or generated encounters/objectives. The default insertion point is after P9; if content
 work moves, its Effect prerequisite moves with it.

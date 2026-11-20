@@ -262,7 +262,13 @@ await mkdir('test-results', { recursive: true });
 try {
   await page.goto(`${process.env.DEMO_URL || 'http://localhost:5173'}/?debug&seed=MOURNING-731`);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
-  await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
+  await page.evaluate(() => {
+    window.__dungeon.engine.stopRenderLoop();
+    // Development dependency reloads intentionally randomize URL seeds. Pin the adverse world
+    // explicitly before using its known stable approach coordinates.
+    window.__dungeon.regenerate('MOURNING-731');
+  });
+  await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
   await page.evaluate(async () => {
     const d = window.__dungeon,
       g = d.game,

@@ -9,6 +9,7 @@ import { part } from './geometry.ts';
 import { hackySackPass, isSocializing } from './social.ts';
 import { sampleCurve, volumeScale } from './animationCurves.ts';
 import { updateInstanceMatrices } from './observation.ts';
+import { worldPoint } from './rigs/pose.ts';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 /** Shared props remain after an interrupted game; hand props and smoke follow activity. */
@@ -23,13 +24,14 @@ export function createSocialRendering(
     participants.map((actor) => [actor.brain!.social!.id, actor.brain!.social!]),
   );
   const held = participants.map((actor) => {
-    const hand = actor.entity.require('rig').forearms[1];
+    const hand = actor.entity.require('rig').root;
+    const binding = actor.entity.require('rigPose');
     const card = part(
       scene,
       materials.bone,
       `${actor.id}:held card`,
       [0.17, 0.025, 0.24],
-      [0, -0.17, 0.1],
+      [0, 0, 0],
       hand,
       shadow,
     );
@@ -38,7 +40,7 @@ export function createSocialRendering(
       materials.wood,
       `${actor.id}:pipe`,
       [0.22, 0.045, 0.045],
-      [-0.08, -0.17, 0.16],
+      [0, 0, 0],
       hand,
       shadow,
     );
@@ -47,9 +49,13 @@ export function createSocialRendering(
       materials.eyes,
       `${actor.id}:pipe ember`,
       [0.055, 0.05, 0.055],
-      [-0.18, -0.15, 0.16],
+      [0, 0, 0],
       hand,
     );
+    binding.attach(card, 'card', [0, 0, 0.1]);
+    binding.attach(pipe, 'pipe', [-0.08, 0, 0]);
+    binding.attach(ember, 'pipe', [-0.18, 0.02, 0]);
+    actor.entity.require('render').meshes.push(card, pipe, ember);
     return { actor, card, pipe, ember };
   });
   const balls: { mesh: Mesh; group: SocialGroup }[] = [];
@@ -115,20 +121,17 @@ export function createSocialRendering(
         pipe.setEnabled(smoking);
         ember.setEnabled(smoking);
         if (!smoking) return;
+        ember.computeWorldMatrix(true);
+        const origin = ember.getAbsolutePosition();
         activeSmoke = true;
         for (let i = 0; i < 3; i++) {
           const life = ((combat.time + actor.brain!.social!.phase) * 0.5 + i / 3) % 1;
           const size = Math.sin(life * Math.PI) * 0.11;
           const offset = (index * 3 + i) * 16;
-          const p = actor.position;
           matrices[offset] = matrices[offset + 5] = matrices[offset + 10] = size;
-          matrices[offset + 12] =
-            p.x +
-            Math.sin(p.heading) * 0.35 +
-            Math.cos(p.heading) * 0.25 +
-            Math.sin(life * 8) * 0.05;
-          matrices[offset + 13] = p.h + 1.4 + life * 0.65;
-          matrices[offset + 14] = p.z + Math.cos(p.heading) * 0.35 - Math.sin(p.heading) * 0.25;
+          matrices[offset + 12] = origin.x + Math.sin(life * 8) * 0.05;
+          matrices[offset + 13] = origin.y + life * 0.65;
+          matrices[offset + 14] = origin.z;
         }
       });
       updateInstanceMatrices(smoke, matrices, activeSmoke);
@@ -139,13 +142,18 @@ export function createSocialRendering(
           mesh.scaling.setAll(1);
           continue;
         }
-        const from = combat.actor(pass.from)!.position;
-        const to = combat.actor(pass.to)!.position;
+        const foot = (id: string) => {
+          const pose = combat.actor(id)!.entity.require('rigPose').pose;
+          const p = worldPoint(pose, 'rightFoot', [0, 0.07, pose.definition.profile.soleForward]);
+          return { x: p[0], h: p[1], z: p[2] };
+        };
+        const from = foot(pass.from);
+        const to = foot(pass.to);
         const u = pass.progress;
         mesh.position.set(
-          from.x * (1 - u) + to.x * u + (group.center.x - (from.x * (1 - u) + to.x * u)) * 0.2,
-          group.center.h + 0.15 + 4 * u * (1 - u) * 0.85,
-          from.z * (1 - u) + to.z * u + (group.center.z - (from.z * (1 - u) + to.z * u)) * 0.2,
+          from.x * (1 - u) + to.x * u,
+          from.h * (1 - u) + to.h * u + 0.09 + 4 * u * (1 - u) * 0.85,
+          from.z * (1 - u) + to.z * u,
         );
         // Stretch along the parabolic flight tangent, rather than a spinning local axis.
         const dx = (to.x - from.x) * 0.8,

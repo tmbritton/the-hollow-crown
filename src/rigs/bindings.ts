@@ -16,11 +16,16 @@ import {
 import { LegacyNode, sampleLegacy } from './legacy.ts';
 import type { LegacyRig } from './legacy.ts';
 import { GroundedLocomotion } from './grounding.ts';
+import { ActionRig, SHIELD_GRIP, SPEAR_GRIPS } from './actions.ts';
+import type { ActionFrame } from './actions.ts';
+import { FrameAttachment } from './attachments.ts';
 
 export interface RigBinding {
   readonly pose: PoseBuffer;
   readonly legacy: LegacyRig;
   readonly grounding: GroundedLocomotion;
+  readonly actions: ActionRig;
+  attach(node: TransformNode, frame: ActionFrame, offset?: XYZ): void;
   readonly attachments: readonly {
     name: string;
     space: 'attachment-local';
@@ -89,17 +94,26 @@ export function bindHumanoid(
   };
   for (const [node, data] of nodes)
     data.parent = node.parent ? (nodes.get(node.parent) ?? null) : null;
-  // Existing debug/tests read the old rig contract; these are aliases, never parallel blend flags.
+  const actions = new ActionRig(humanoid(profile));
+  // Existing debug/tests read the old rig contract; these alias the action layer's owned state.
   const alias = <K extends 'attackBlend' | 'attackPose' | 'socialBlend' | 'socialPose'>(key: K) =>
     Object.defineProperty(rig, key, {
       enumerable: true,
       configurable: true,
-      get: () => legacy[key],
-      set: (value: LegacyRig[K]) => {
-        legacy[key] = value;
+      get: () => actions[key],
+      set: (value: ActionRig[K]) => {
+        actions[key] = value;
       },
     });
-  for (const key of ['attackBlend', 'attackPose', 'socialBlend', 'socialPose'] as const) alias(key);
+  for (const key of ['attackBlend', 'attackPose', 'socialBlend', 'socialPose'] as const) {
+    alias(key);
+    Object.defineProperty(legacy, key, {
+      get: () => actions[key],
+      set: (value: (typeof actions)[typeof key]) => {
+        Object.assign(actions, { [key]: value });
+      },
+    });
+  }
   const pose = createPose(humanoid(profile));
   const grounding = new GroundedLocomotion(pose.definition, rig.footPlants);
   sampleLegacy(legacy, pose);
@@ -168,9 +182,7 @@ export function bindHumanoid(
     add(rig.feet[i], `${side}Foot`);
   }
   for (const mesh of headMeshes) add(mesh, 'head');
-  const extras = [rig.cape, rig.shield, rig.spear, rig.javelin].filter(
-    (node): node is TransformNode => !!node,
-  );
+  const extras = [rig.cape].filter((node): node is TransformNode => !!node);
   const visibility = channels.filter(({ node }) => node !== rig.root && node !== rig.body);
   const writeMatrix = (entry: Entry) => {
     const m = local,
@@ -224,17 +236,26 @@ export function bindHumanoid(
     );
   };
   let resetPending = true;
+  const attached: { binding: FrameAttachment; frame: ActionFrame }[] = [];
   const binding: RigBinding = {
     pose,
     legacy,
     grounding,
+    actions,
+    attach(node, frame, offset) {
+      if (node.parent !== rig.root)
+        throw new Error('Attachment must be parented to its actor root');
+      if (attached.some((a) => a.binding.node === node))
+        throw new Error('Duplicate attachment writer');
+      attached.push({ binding: new FrameAttachment(node, offset), frame });
+    },
     attachments: [
       ...(rig.shield
         ? [
             {
               name: 'shield',
               space: 'attachment-local' as const,
-              primaryGrip: [0, -0.12, 0] as XYZ,
+              primaryGrip: SHIELD_GRIP,
             },
           ]
         : []),
@@ -243,8 +264,8 @@ export function bindHumanoid(
             {
               name: 'spear',
               space: 'attachment-local' as const,
-              primaryGrip: [0, 0, 0] as XYZ,
-              secondaryGrip: [0, 0, 0.45] as XYZ,
+              primaryGrip: SPEAR_GRIPS[1],
+              secondaryGrip: SPEAR_GRIPS[0],
             },
           ]
         : []),
@@ -261,6 +282,7 @@ export function bindHumanoid(
     invalidateHistory() {
       if (grounding.active) binding.captureLegacy();
       grounding.reset();
+      actions.reset();
       resetPending = true;
     },
     captureLegacy() {
@@ -292,6 +314,8 @@ export function bindHumanoid(
         node.scaling.set(data.scaling.x, data.scaling.y, data.scaling.z);
       }
       for (const { node, data } of visibility) node.setEnabled(data.enabled);
+      actions.finish(pose);
+      for (const a of attached) a.binding.apply(actions.frames[a.frame], entries[0].inverse);
       if (resetPending) {
         resetHistory(pose);
         resetPending = false;
@@ -300,6 +324,9 @@ export function bindHumanoid(
   };
   bindings.set(rig, binding);
   entity.add('rigPose', binding);
+  for (const key of ['weapon', 'shield', 'spear', 'javelin'] as const)
+    if (rig[key]) binding.attach(rig[key], key);
+  if (rig.stowed) binding.attach(rig.stowed, 'back');
   binding.commit(true);
   return binding;
 }

@@ -123,6 +123,10 @@ export function createEnemyRendering(
     const equipment = [];
     const stowedEquipment = [];
     const role = actor.entity.get('squadMember')?.role;
+    const weapon = new TransformNode(`${actor.id}:weapon grip`, scene);
+    weapon.parent = root;
+    const stowed = new TransformNode(`${actor.id}:back equipment`, scene);
+    stowed.parent = root;
     let shield: TransformNode | undefined;
     let spear: TransformNode | undefined;
     let javelin: TransformNode | undefined;
@@ -131,37 +135,52 @@ export function createEnemyRendering(
       shield.parent = root;
       equipment.push(p('iron', 'squad shield', [0.14, 0.72, 0.62], [-0.17, -0.02, 0.07], shield));
       equipment.push(p('gold', 'shield boss', [0.08, 0.16, 0.16], [-0.27, -0.02, 0.07], shield));
-      stowedEquipment.push(p('iron', 'stowed shield', [0.62, 0.72, 0.14], [-0.24, 0.87, -0.29]));
+      equipment.push(
+        p('dark', 'shield hand strap', [0.18, 0.09, 0.16], [-0.08, -0.12, -0.28], shield),
+      );
       stowedEquipment.push(
-        p('gold', 'stowed shield boss', [0.16, 0.16, 0.08], [-0.24, 0.87, -0.39]),
+        p('iron', 'stowed shield', [0.62, 0.72, 0.14], [-0.24, -0.08, -0.04], stowed),
+      );
+      stowedEquipment.push(
+        p('gold', 'stowed shield boss', [0.16, 0.16, 0.08], [-0.24, -0.08, -0.14], stowed),
       );
     }
     if (goblin) {
-      equipment.push(p('wood', 'crossbow', [0.66, 0.11, 0.15], [0, -0.11, 0.24], forearms[1]));
-      equipment.push(p('iron', 'crossbow stock', [0.1, 0.13, 0.5], [0, -0.12, 0.23], forearms[1]));
-      // The raised forearm points local -Y forward; keep the muzzle on that firing line.
-      for (const mesh of equipment) mesh.rotation.x = Math.PI / 2;
+      equipment.push(p('wood', 'crossbow', [0.66, 0.11, 0.15], [0, 0, 0.12], weapon));
+      equipment.push(p('iron', 'crossbow stock', [0.1, 0.13, 0.5], [0, 0, 0], weapon));
+      equipment.push(p('wood', 'crossbow grip', [0.26, 0.1, 0.12], [0.09, 0, -0.12], weapon));
+      stowedEquipment.push(p('wood', 'stowed crossbow', [0.66, 0.11, 0.15], [0, 0, -0.05], stowed));
+      stowedEquipment.push(
+        p('iron', 'stowed crossbow stock', [0.1, 0.5, 0.13], [0, 0, -0.05], stowed),
+      );
     } else if (role === 'spearman') {
       spear = new TransformNode(`${actor.id}:long spear mount`, scene);
       spear.parent = root;
-      equipment.push(p('wood', 'long spear haft', [0.07, 0.07, 3.2], [0, 0, 0.85], spear));
-      equipment.push(p('iron', 'long spear tip', [0.16, 0.08, 0.35], [0, 0, 2.6], spear));
+      equipment.push(p('wood', 'long spear haft', [0.07, 0.07, 3.7], [0, 0, 1.1], spear));
+      equipment.push(p('iron', 'long spear tip', [0.16, 0.08, 0.35], [0, 0, 3.1], spear));
       javelin = new TransformNode(`${actor.id}:javelin mount`, scene);
       javelin.parent = root;
       equipment.push(p('wood', 'javelin haft', [0.065, 0.065, 1.15], [0, 0, 0], javelin));
       equipment.push(p('iron', 'javelin tip', [0.13, 0.07, 0.22], [0, 0, 0.68], javelin));
-      stowedEquipment.push(p('wood', 'stowed long spear', [0.09, 2.1, 0.09], [0.3, 1.2, -0.25]));
-      stowedEquipment.push(p('iron', 'stowed spear tip', [0.18, 0.38, 0.08], [0.3, 2.42, -0.25]));
+      stowedEquipment.push(
+        p('wood', 'stowed long spear', [0.09, 2.1, 0.09], [0.3, 0.25, 0], stowed),
+      );
+      stowedEquipment.push(
+        p('iron', 'stowed spear tip', [0.18, 0.38, 0.08], [0.3, 1.47, 0], stowed),
+      );
     } else {
-      equipment.push(p('wood', 'weapon haft', [0.09, 0.7, 0.09], [0, -0.3, 0.12], forearms[1]));
+      equipment.push(p('wood', 'weapon haft', [0.09, 0.7, 0.09], [0, -0.03, 0], weapon));
       equipment.push(
         p(
           'iron',
           skeleton ? 'rusted blade' : 'spear tip',
           [0.14, skeleton ? 0.55 : 0.32, 0.07],
-          [0, -0.75, 0.12],
-          forearms[1],
+          [0, -0.48, 0],
+          weapon,
         ),
+      );
+      stowedEquipment.push(
+        p('wood', 'stowed weapon', [0.09, 0.9, 0.09], [0.25, 0.2, -0.08], stowed),
       );
     }
     const meshes = root.getChildMeshes();
@@ -180,6 +199,8 @@ export function createEnemyRendering(
       shield,
       spear,
       javelin,
+      weapon,
+      stowed,
       attackBlend: 0,
       attackPose: null,
       socialBlend: 0,

@@ -30,12 +30,13 @@ Execution record for [implementation path](implementation-path.md). Started **20
    A2 implements the bounded numerical target solver and existing-mesh browser fixtures, including
    simultaneous feet/grips, body correction, orientation, limits and explicit infeasibility.
    A3 now supplies live semantic poses, slope-aware sole targets and bounded final-contact checks.
-   **A4 action/equipment/work/social migration is next.** Articulated tails,
+    **A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.**
+    A5 articulated tails is the next feature. Articulated tails,
    shield reaction and death physics remain planned. See [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **Effect adoption is planned before the next procedural-feature expansion.** Continue A4–A7
+- **Effect adoption is planned before the next procedural-feature expansion.** Continue A5–A7
   and P8/P9 first. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
   The source evaluation/scratch prototype does not constitute production implementation.
@@ -150,15 +151,47 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | T2 | Implemented and verified; independent review READY | Profile: 315 tests / 303.11s; broad seed/timing sweeps, repeated route searches and exhaustive model prefixes dominate | At T2 checkpoint: core 301 / 26.79s, full 319 / 301.57s; all original contracts retained, models 22/105/226 plus 8,206 extended work paths | `e86dd09` |
 | A0 | Complete; independent review READY | Browser red at missing `animation.pause`; review exposed reset freeze, abbreviated opening and capped diagnostic surface | 302 core tests, format/lint/build; controls and 25-actor baseline, 30 clips/60 views/856 samples, existing animation and root production smoke; review corrections independently cleared | `e86dd09` |
 | A1 | Complete; independent review READY | Missing rig/binding module reds; actual entering/leaving-lava regression failed before authoritative-position fix | 309 core tests; format/lint/build; 428 A0-matched samples, identity/selection/history/resource checks; animation, movement16, jump8, production5 pass; independent matrix/socket/invalid-input probes pass | `d23ced6` |
-| A2 | Complete; independent review READY | Missing solver module, then persisted scale/reporting/limit/pole/fold review reds | 323 core tests; typecheck/lint/format/build; 968 FK, 300 scaled-binding and 1,210 browser samples; animation pass, captures reviewed, resource plateau; independent continuity probes clear blockers | Containing delivery |
-| A3 | Complete; independent review READY | Missing grounding module; high stacked corpse/swing lift; preserved release-frame and hip reset/death regressions failed before fixes | 330 tests; format/lint/build; 428 A0-identical authority samples, bounded final contacts; animation/movement16/jump8/production5; 1.863/2.50ms integrated CPU; independent lifecycle/geometry review READY | Containing delivery |
-| A4–A7 | Planned after A3 | Action/equipment/work/social migration, tailed kobolds, shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
+| A2 | Complete; independent review READY | Missing solver module, then persisted scale/reporting/limit/pole/fold review reds | 323 core tests; typecheck/lint/format/build; 968 FK, 300 scaled-binding and 1,210 browser samples; animation pass, captures reviewed, resource plateau; independent continuity probes clear blockers | `279bec5` |
+| A3 | Complete; independent review READY | Missing grounding module; high stacked corpse/swing lift; preserved release-frame and hip reset/death regressions failed before fixes | 330 tests; format/lint/build; 428 A0-identical authority samples, bounded final contacts; animation/movement16/jump8/production5; 1.863/2.50ms integrated CPU; independent lifecycle/geometry review READY | `279bec5` |
+| A4 | Complete; final independent review READY | Missing module, scale/envelope/reset regressions; persisted review reds for torso intersection, slung cargo shear and spear death bounds/clearance | 336 tests/check/build; 428 A0-identical authority samples; 252 actual shaft/torso, 144 cargo-handoff and 2,714 corpse-age samples; affected browsers/production5. Independent follow-up clears all blockers | Containing delivery |
+| A5–A7 | Planned after A4 | Tailed kobolds, shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
 | P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 | EF0–EF4 | Planned after the animation/death-physics queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log
+
+### A4 — action, equipment, work/social and temporary death migration — 2026-11-20
+
+- `rigPose.actions` owns the shared numerical layers, grip intents and attachment frames. Weapons,
+  shields, social props and cargo use solved sockets; required hand/foot constraints share one
+  bounded solve. The porter carries its coffer in front and explicitly slings it for combat without
+  changing logical ownership. Collapse samples from a captured solved pose and authoritative corpse age.
+- Six new pure/NullEngine tests and the strengthened reset regression cover same-clock release,
+  interruption, cargo/guard handoff, sampling-independent collapse and actual nonuniform-scale bindings.
+  Browser-derived regressions fixed a 4.154-unit observation bound miss, stale directly-installed
+  settled-corpse heading and epsilon scale retention across camera replays.
+- Final `npm run check`: **336 pass / 28.53s**, typecheck, lint and format (**179 files**).
+  Final build and root production smoke pass. Models remain **22 machines / 105 states / 226 branches**.
+- Rig browser: **428 samples / 30 clips**, exact A0 authority parity, actual required grip maximum
+  **2.575e−6**, unchanged bounded feet/plant tolerances and stable resources through regeneration.
+  Animation, combat15, defense9, phalanx8, social15, tribute9, objective-work17 and discoveries17 pass.
+- **18 clips / 36 camera replays / 520 samples**, normal then quarter-speed viewer exercise; five
+  temporal sheets and relevant gameplay/production captures inspected. Integrated workload is
+  **2.368/3.00ms mean/p95** after review corrections; historical cost/profiling is retained in VERIFICATION.md.
+- Independent review reproduced shaft-through-torso, slung cargo shear and underground/out-of-bound
+  dead spears. The persistent browser regression failed first. Side-on stance, rigid slung frame,
+  supported collapse arm/wrist and a complete throw/death envelope now pass **252 shaft/stair frames,
+  144 cargo-handoff frames and 2,714 corpse-age samples**. Radius is conservatively **4.8** against
+  measured **4.666063**. Initial corrected review exposed the missing post-release boundary; all
+  55 throw entry frames are now covered.
+- **Final independent review READY, all blockers cleared.** Follow-up independently checks 385
+  boundary samples with zero FK/direct-sampling differences, 0.078999 minimum spear clearance and
+  0.175258 minimum margin inside the actual observation sphere. Final rig/phalanx/animation/
+  discoveries/production checks pass; controls plus three affected motion clips were refreshed.
+  This containing commit records the reviewed A4 delivery; A5 articulated tails is next.
+  See [contract](rig-actions.md).
 
 ### A3 — live locomotion and grounding migration — 2026-11-20
 

@@ -97,8 +97,14 @@ test('review: stop/reset and settled death clear all IK hip translations and rot
         legs[i].position.asArray().every((v, k) => Math.abs(v - before[i][k]) < 1e-6),
         'handoff starts from current pose',
       );
+    forearms[0].scaling.set(1 + Number.EPSILON, 1 - Number.EPSILON, 1);
+    binding.captureLegacy();
     stopActor(actor);
     resetActorRig(rig, actor.position);
+    assert.ok(
+      forearms[0].scaling.equalsToFloats(1, 1, 1),
+      'reset discards decomposed scale roundoff as well as rotations',
+    );
     for (let i = 0; i < 2; i++) {
       assert.ok(
         legs[i].position
