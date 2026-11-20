@@ -19,10 +19,10 @@ test('generation analysis describes the actual graph, gate, encounters and clear
   assert.equal(report.graph.loops, world.connections.length - world.rooms.length + 1);
   assert.equal(report.resources.tiles, world.tiles.size);
   assert.equal(report.resources.props, world.props.length);
-  assert.equal(report.resources.enemies, 21);
+  assert.equal(report.resources.enemies, 24);
   assert.equal(report.encounters.filter((e) => e.kind === 'skeleton').length, 8);
   assert.equal(report.encounters.filter((e) => e.kind === 'goblin').length, 4);
-  assert.equal(report.encounters.filter((e) => e.kind === 'kobold').length, 9);
+  assert.equal(report.encounters.filter((e) => e.kind === 'kobold').length, 12);
   const ecs = new ECS();
   registerWorld(ecs, world);
   createActor(ecs, world, 'player', 'player', world.spawn);
@@ -122,7 +122,7 @@ test('fixed 100-seed corpus stays valid and selects twelve stable, explained gal
   });
   for (const report of reports) {
     assert.deepEqual(report.validationErrors, [], report.trace.identity.seed);
-    assert.equal(report.resources.enemies, 21, report.trace.identity.seed);
+    assert.equal(report.resources.enemies, 24, report.trace.identity.seed);
     assert.ok(report.progression.requiredRoute !== null);
     assert.equal(report.rooms.find((r) => r.id === 'throne')?.beforeAltar, false);
   }

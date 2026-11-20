@@ -16,17 +16,18 @@ each slice test-first, independently reviewed and committed:
 | P2 | Make corpses traversal-friendly — `726af8a`, accepted, review READY | Corpse speed penalties removed for player and enemies; procedural stair-stepping/contact animation uses rendered body surfaces. Water slowdown, living-body blocking, stable footing and cancellation/reset are preserved. Final independent review cleared both contact and ramp-rotation blockers. |
 | P3 | Move toward blocked floor clicks — `9f8e1d7`, complete, final review READY | Unreachable floor requests approach the closest safely reachable point. Route clearance, void/door/locked-gate rules, precise arrival and settled holds are preserved. Cached routes reroot after travel; equally close approaches prefer shorter travel. Final independent review cleared both route-quality blockers. Verified results are in the progress tracker and VERIFICATION.md. |
 | P4 | Give skeletons a lurching gait — `be29b8c`, complete, independent review READY | Distance-sampled 64/36 load/catch-up timing, rib lean/twist and trailing skull. Shared foot grounding and attack priority retained. 268 tests/full checks, affected animation pass and reviewed motion sequences. Independent review found no blockers; attributed probes are in progress/verification records. |
-| P5 | Hold F to defend — complete, independent review READY | Shared opt-in ECS `actorDefense` chart; inclusive 120° frontal melee/projectile block, travel-vector bolt direction, forward shield/lowered weapon, full-speed grounded movement, attack/work interruption and release latch across jump/cancellation/resets. Independent review found no blockers; implementation checks and attributed review probes are recorded in the progress tracker and VERIFICATION.md. |
-| P6a | Introduce declarative kobold squad coordination — next, not started | A group statechart coordinates at least three shield bearers and one spearman; individuals retain their own charts. Seeded population/encounter placement, occupancy and objective carrier assignments remain coherent. |
-| P6b | Deliver the phalanx encounter | Slow coordinated advance, shielded front rank, rear spear thrusts or javelins, a telegraphed shield-opening window, and coordinated backward withdrawal when losing. Test formation spacing, interruptions, casualties, narrow approaches and retreat without overlap or gate bypass. |
+| P5 | Hold F to defend — `975c533`, complete, independent review READY | Shared opt-in ECS `actorDefense` chart; inclusive 120° frontal melee/projectile block, travel-vector bolt direction, forward shield/lowered weapon, full-speed grounded movement, attack/work interruption and release latch across jump/cancellation/resets. Independent review found no blockers; implementation checks and attributed review probes are recorded in the progress tracker and VERIFICATION.md. |
+| P6a | Introduce declarative kobold squad coordination — complete, independent review READY | Three existing packs now have three shield bearers and one spearman each (24 enemies). ECS group charts own shared targeting, bounded assembly, engagement, return/yield and defeat; individual charts remain. Final review cleared the role-aware defense-test blocker, with no production defects or other issues. See progress/verification records. |
+| P6b | Deliver the phalanx encounter — next, not started | Slow coordinated advance, shielded front rank, rear spear thrusts or javelins, a telegraphed shield-opening window, and coordinated backward withdrawal when losing. Test formation spacing, interruptions, casualties, narrow approaches and retreat without overlap or gate bypass. |
 | P7 | Publish the repository and GitHub Pages demo | Inspect repository/remotes and publishing configuration, make the intended repository public, build/deploy through GitHub Actions, and verify the deployed production game at its Pages base path. Keep development hooks and generated test artifacts out of the deployed app. |
 
 P1's resource-fix slice is committed as **`6378d61`**. **P2 corpse traversal is committed at
 `726af8a`, accepted by the user and independently reviewed READY.** **P3 blocked-floor
 click fallback is complete at `9f8e1d7`; final independent review returned READY.**
 **P4 skeleton gait is complete at `be29b8c`, independently reviewed READY with no blockers.
-P5 held-F defense is complete, independently reviewed READY with no blockers, and authorized
-for its normal-hook feature commit. P6a squad coordination is next, not started.**
+P5 held-F defense is complete at `975c533`, independently reviewed READY with no blockers.
+P6a is complete against that baseline, independently reviewed READY with no remaining blockers.
+P6b is next, not started.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -41,7 +42,7 @@ The current generator already validates 100 seeds, but has no versioned diagnost
 or repeatable visual comparison tool. These are useful prerequisites for changing history,
 scene composition, encounters, or objective placement without losing reproducibility.
 
-The current gameplay baseline is thirteen room roles, 21 enemies, and the altar-before-throne
+That historical gameplay baseline was thirteen room roles, 21 enemies, and the altar-before-throne
 gate. The [competing-objectives design](competing-objectives-design.md) is the authoritative
 objective-system target. Its autonomous work and race rules need their own tested slices;
 the earlier player-triggered danger-clock proposal is a mechanics reference.

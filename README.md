@@ -73,7 +73,7 @@ Regeneration resets everything. These optional outcomes never replace the altar-
 ### Independent rival: royal tribute
 
 The shrine/smithy warning also announces **Carry away the royal tribute — 4**. Entering the
-stairs or stable can activate this plan separately. The existing **three stairs kobolds** supply
+stairs or stable can activate this plan separately. The existing **four stairs kobolds** supply
 one porter at a time; the other survivors retain their ordinary species behavior. Four gold-bound
 crates occupy a reserved **stairs cache**, separate from the three core reliquaries. Each porter
 must reach a crate, spend **20 uninterrupted seconds packing it**, carry it through ordinary
@@ -123,11 +123,11 @@ support, camera/rings, navigation, jump state and melee/projectile elevation rem
 
 ### Enemies and combat
 
-Each dungeon seeds **21 enemies** outside the entrance and altar rooms:
+Each dungeon seeds **24 enemies** outside the entrance and altar rooms:
 
 - **8 skeletons:** slow, lurching wanderers at **1.65 units/second**. They pursue nearby living characters, including goblins and kobolds, but ignore other skeletons. They cannot operate doors.
 - **4 goblins:** take smoke breaks when unaware of threats. In combat, these ranged skirmishers retreat, break line of sight using cover, crouch while hiding, and peek out to fire crossbow bolts. They flee at **5.2 units/second**, slightly faster than your walk; hold **Shift** to close the gap at 7.4. Bolts travel through the world and can be dodged or stopped by walls, furniture, and doors.
-- **9 kobolds in three packs:** gather for seeded card games, hacky sack, or smoke breaks. They put away weapons, face their gathering, and use activity-specific poses and procedural props. Detected threats interrupt activities; packs share alerts, regroup, and approach distinct front/side/rear positions around their target. Survivors return to their gathering after losing the threat; a lone survivor takes a smoke break. Pack members have staggered attack cooldowns.
+- **12 kobolds in three four-member squads:** each starts with **three shield bearers and one long-spearman**, in the existing stable, stairs and treasury rooms. They gather for seeded cards, hacky sack or smoke breaks, with shields/spears visibly stowed. A shared squad chart acquires one threat, briefly assembles, then releases ordinary melee and four distinct target approaches. Shield bearers use the shared frontal defense while assembling; close threats still allow ordinary melee. Survivors return after losing the threat; a lone survivor smokes. Attack cooldowns remain staggered. This is the **P6a foundation**: the slow physical phalanx, shield-opening cue, rear spear thrust/javelin and coordinated backward withdrawal are **planned P6b** work.
 
 Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
 
@@ -179,7 +179,7 @@ immediately**, including preload. F pressed during a jump cannot raise it on lan
 and press again. **X**, blur, menu, inspection, hidden tabs, death and teleport cancel defense;
 release and press F again to resume. Regeneration creates a lowered shield, and key repeats from
 a previous hold cannot raise it. Starting shrine work or a door-approach command also lowers it
-through the shared stop path. Existing enemies do not defend yet.
+through the shared stop path. Kobold shield bearers use this same capability during squad assembly.
 
 Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths buckle before falling, compress on contact and rebound briefly into their final corpse pose. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These render-only curves keep controls, collision and damage timing authoritative.
 
@@ -216,6 +216,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/machines/actors/defense.ts` | Opt-in held-defense lifecycle and 120° incoming-direction test |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
+| `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original four-member role/slot references, shared target and synchronous squad lifecycle |
 | `src/machines/` | Typed XState charts organized into `monsters/`, `actors/`, `navigation/`, `world/`, and `ui/` |
 | `src/social.ts` / `src/socialRendering.ts` | Seeded social gatherings, activity coordination, and procedural cards, hacky sacks, pipes and smoke |
 | `src/enemyRendering.ts` | Procedural enemy rigs, selection, health bars and pooled effect rendering |
@@ -320,8 +321,8 @@ The fixed-step order is door state → objective prework → player intent/pursu
 
 The optional ECS `defense: Defense` component owns the synchronous **`actorDefense`** chart:
 `lowered`, `raised`, and `latched` (cancelled/invalid press awaiting release). `createActor`
-installs it for the player only. A future kobold shield bearer can opt in with the same component
-and `requestDefense(actor)` boundary; population and species decisions remain unchanged here.
+installs it for the player; squad installation also opts the three shield bearers into the same
+component and `requestDefense(actor)` boundary. The spearman has no shield capability.
 `PRESS` carries current eligibility and key-repeat facts, `RELEASE` lowers/rearms, and `CANCEL`
 latches a raised hold. `Actor.defending` also checks current life/corpse, jump and attack facts;
 combat clears invalid raised states. No independent held-F flag or render clock owns defense.
@@ -342,6 +343,37 @@ decides hostility/death attribution. Damage without attack metadata (such as lav
 shield. Invalid/zero travel cannot grant immunity. Blocks return `false` (no accepted damage),
 without touching health/protection, blood or death callbacks. Each block emits at most six gold
 fragments lasting 0.18–0.28 seconds, within the shared particle budget.
+
+### Kobold squad foundation (P6a; complete, independent review READY)
+
+Each `pack:stable`, `pack:stairs` and `pack:treasury` ECS entity owns a `koboldSquad` component.
+Its synchronous chart owns **idle → assembling → engaging → returning**, plus terminal
+**defeated**. Each actor retains its species chart and a `squadMember` reference containing the
+original entity, group entity, immutable role and original slot. Casualties never renumber slots;
+a replacement entity with the same ID cannot inherit membership or cargo. Regeneration installs
+fresh groups/charts. Health and death remain on the actual actor components.
+
+The chart's target is the authoritative **entity reference**, projected into each member's attack
+intent. Squad perception samples before individual decisions at 0.15-second intervals, chooses a
+deterministic nearest visible hostile, and retains it while valid. Only sightings or actual hits
+refresh its five-second memory; members cannot circulate alerts forever. Damage shares the alert
+and interrupts unfinished work immediately, including at the work-commit boundary. Death samples
+the group immediately. A casualty during engagement re-enters assembly; the last death defeats it.
+
+Assembly holds nearby members or routes separated members toward their actual center, with normal
+floor, furniture, door and living-body checks. Cohesive squads engage after 0.35 seconds; a
+1.2-second upper bound prevents inaccessible members from stalling everyone. Shared threat takes
+priority over porter jobs; without a threat, the assigned porter travels/works before social return.
+All four original stairs members can take over, including the spearman as sole survivor.
+Returning squads refresh routes on the existing AI cadence as temporary body obstructions clear.
+If members occupy each other's home approaches, the first displaced original slot can yield to one
+of at most twelve nearby clear route candidates; no bodies are snapped or allowed to overlap.
+
+**P6b handoff:** `members` / `living`, chart `state` / `target`, derived `center` / `heading`, and
+`approach(member)` are already consumed by assembly and four-way melee positioning. Replace that
+radial approach with role-specific rank slots for the physical formation; no future attack timers
+or unused formation state are installed. Role rigs have drawn and stowed equipment; death enables
+only the drawn set. P6a keeps ordinary melee reach, impact timing, speed and cooldowns.
 
 ### Floor-navigation contracts (P3; complete, independently reviewed READY)
 
@@ -372,7 +404,7 @@ travel state; successful arrival uses its existing `ARRIVE` event.
 
 All state-machine definitions live under `src/machines/`:
 
-- `monsters/skeleton.ts`, `monsters/goblin.ts`, `monsters/kobold.ts`: independent species machines. Shared perception contracts and the factory live alongside them. Species charts select named effects; combat systems carry out pathfinding, pursuit, fleeing and attacks.
+- `monsters/skeleton.ts`, `monsters/goblin.ts`, `monsters/kobold.ts`: independent species machines. `monsters/koboldSquad.ts` coordinates the seeded packs above them. Shared perception contracts and the factory live alongside them. Species charts select named effects; combat systems carry out pathfinding, pursuit, fleeing and attacks.
 - `actors/`: attack wind-up/impact/recovery/death, held-defense/release latch, mutually exclusive pursuit/door commands, health/protection/death, locomotion phases, and interruptible objective work cycles.
 - `navigation/`: route following, waiting for an opening door, arrival and blocked/stuck cancellation.
 - `world/`: door locks/opening/closing, one-way chest claiming, altar-to-crown progression, and objective terminal lifecycles.
@@ -390,7 +422,7 @@ npm run test:models
 
 The latest XState includes model-testing tools in **`xstate/graph`**. `tests/models/` generates paths to every modeled state and extends each path with every candidate event, including ignored/invalid attempts and self-loops. Inspector microstep data measures every declared transition branch, including guards and eventless transitions. Invariants are checked after each stable step, and the pure simulation adapter is compared against a live XState actor.
 
-The suite currently covers **21 machines, 95 declared atomic states, and 179 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. Defense partitions eligible/ineligible and fresh/repeated presses, release and cancellation, including ignored events in each state. The report is written to `test-results/machine-model-report.json`.
+The suite currently covers **22 machines, 100 declared atomic states, and 196 transition branches**. Adding an exported machine, unreachable state, or uncovered branch fails the suite. Negative fixtures verify that the coverage checks really fail. Timers and other continuous values use documented finite partitions; deterministic bounded walks exercise longer cycles rather than claiming exhaustive enumeration of infinitely many paths. Squad partitions cover competing targets, assembly/timeouts, memory loss, return, casualties and final death. Regeneration installs a fresh chart. The report is written to `test-results/machine-model-report.json`.
 
 ### Rendering choices
 
@@ -626,8 +658,8 @@ are read views; the agenda announces group/route/progress without inventing hidd
 `planTribute` selects at most 81 candidates per room from the already-reserved central floor network,
 then stores plain sites in `world.tribute`; `tributeBlueprint` returns a detached copy. Final generation
 validates every pre-altar pickup/intervention and delivery route. Initial enemies/gatherings avoid those
-faces. Identity is now `layout-v3 / keep-v4 / last-ember-v1+tribute-v1`, preserving layout/art RNG streams.
-The 100 new tribute seeds retain 21 enemies and three reliquaries. Longest shrine/cache tile route is
+faces. Identity is now `layout-v3 / keep-v4 / last-ember-v1+tribute-v2+kobold-squads-v1`, preserving layout/art RNG streams.
+The P6a 100-seed tribute check has 24 enemies and three reliquaries. Longest shrine/cache tile route is
 126 steps: about 26s walking, plus 36s ordinary restoration, versus at least 112s porter work **plus
 physical travel**. This geometric response budget excludes combat and dynamic obstruction delays.
 
@@ -642,11 +674,11 @@ hero's successful work, while the rite is learned only when its inspection capti
 `src/generation/lastEmber.ts` reuses the entrance shrine's reserved work face, the forge recipe's
 anvil approach and an entrance portrait. Validation checks all three before the altar with ordinary
 navigation and rejects interactions that could steal E from another authored approach. Missing or
-invalid sites use the existing bounded 40-attempt generator. `last-ember-v1+tribute-v1` is a separate
+invalid sites use the existing bounded 40-attempt generator. `last-ember-v1+tribute-v2+kobold-squads-v1` is a separate
 scenario revision in generation identity/reports, preserving existing layout/keep RNG streams. Some seeds
 now accept a later attempt; `trial-23` rejects its former attempt 1 because a promised site is missing.
 
-The 100 O3 seeds retain 21 enemies and four goblins, with no replacement workers. Their longest
+The historical 100 O3 seeds had 21 enemies and four goblins, with no replacement workers. Their longest
 shrine/focus route is 128 tile steps; accepted attempts range from 0–2. At 4.8 units/s, that route plus
 36 seconds of ordinary restoration takes about 63 seconds, versus 120 seconds of uninterrupted rival
 work. This is a geometric response budget, not a guarantee against combat/obstruction delays.
@@ -776,7 +808,7 @@ It returns the accepted world and a JSON-safe trace with seed, generator/content
 zero-based attempt numbers, and placement/validation rejection reasons. A `GenerationError`
 retains that trace if the bounded attempt budget is exhausted. Diagnostic callers can lower
 `maxAttempts` (1–40) to reproduce a rejection. The current identity is `layout-v3` / `keep-v4`,
-with scenario revision `last-ember-v1+tribute-v1`.
+with scenario revision `last-ember-v1+tribute-v2+kobold-squads-v1`.
 Scene recipes change seeded furniture layouts and can change which layout attempt is accepted;
 the original topology RNG salt is retained. Older-version seed layouts are historical.
 `world.keep` adds one of three authored

@@ -125,6 +125,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     if (corpse) {
       // Death leaves ordinary equipment visible even when work/social activity had stowed it.
       for (const mesh of rig.equipment ?? []) mesh.setEnabled(true);
+      for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(false);
       const fall = deathPose(corpse.age);
       const scale = volumeScale(fall.stretch, fall.reach);
       rig.root.rotation.x = fall.rotation;
@@ -162,6 +163,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     const work = entity.get('work')?.snapshot();
     const working = work?.status === 'working' || work?.status === 'ready';
     for (const mesh of rig.equipment ?? []) mesh.setEnabled(!relaxing && !working);
+    for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(relaxing || working);
     rig.root.rotation.x = 0;
     const pose = animateLocomotion(
       actor.motion.animation,

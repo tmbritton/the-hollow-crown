@@ -95,7 +95,7 @@ test('Last Ember sites are deterministic, reserved and routable before the altar
       plan = emberBlueprint(f.world);
     assert.deepEqual(plan, emberBlueprint(generateDungeon(`ember-${i}`)));
     assert.deepEqual(validateDungeon(f.world), []);
-    assert.equal(f.enemies.length, 21);
+    assert.equal(f.enemies.length, 24);
     assert.equal(f.enemies.filter((a) => a.kind === 'goblin').length, 4);
     assert.ok(f.worker.entity.get('inhabitant'));
     const reachable = reachableTiles(f.world);

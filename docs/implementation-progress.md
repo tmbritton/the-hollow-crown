@@ -19,10 +19,18 @@ Execution record for [implementation path](implementation-path.md). Started **20
   **P2 is committed at `726af8a`; final independent review returned READY and the user accepted traversal.**
   **P3 is complete at `9f8e1d7`; final independent review returned READY, clearing both route-quality blockers.**
   **P4 skeleton gait is complete at `be29b8c`, independent review READY with no blockers.
-  P5 held-F defense is complete, independent review READY with no blockers.
-  P6a squad coordination is next, not started**; P6b–P7 remain planned.
+  P5 held-F defense is complete at `975c533`, independent review READY with no blockers.
+  P6a four-member squad foundation is complete, final independent review READY**;
+  physical phalanx **P6b is next, not started**. Publishing P7 remains planned.
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
+- P6a review correction: **291 full tests**, typecheck/format/lint and **9 defense-browser checks**
+  pass. The reviewer found no production defect; its blocker was an obsolete no-enemy-defense test,
+  now corrected to the nine shield roles. **Final independent review is READY**, clearing that blocker.
+  Existing build,
+  squad/social **15**, tribute **9**, gameplay **18 + 5 continuation** and visual results are reused.
+  Model coverage remains **22 machines / 100 states / 196 branches**. The containing feature commit
+  records P6a; raw user notes are excluded.
 - P5: **52 focused / 281 full tests**, strict typing, format/lint/build pass. One Chromium defense
   pass (**9 checks**) and combat pass (**15 checks**); four corrected front/side/block/ramp views
   reviewed through a capture-only refresh. **21 machines / 95 states / 179 branches**. Independent
@@ -103,11 +111,101 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P2 | Complete; user accepted, final independent review READY | Original edge red: 0.348118 penetration. Follow-up math tests 0 pass/3 fail; translated ramp reproduced 0.068665 penetration before analytic inverse fix | 246 tests, format/lint/build; animation 28 crossings/575 contacts and reviewed captures; final review cleared all blockers with targeted geometry/contact/lifecycle probes | `726af8a` |
 | P3 | Complete; final independent review READY | Initial audit 10 pass/3 fail; review regressions 13 pass/3 fail: actual-travel old-root detour, far-side equal endpoint and distant-motion replans | 60 focused / 263 full tests, format/lint/build, 16 Chromium movement checks; final review cleared both blockers with 17 partial tests, 24 route/tie and 72 body-cache/gate cases plus stable-hold/performance/capture checks | `9f8e1d7` |
 | P4 | Complete; independent review READY, no blockers | 9 pass / 2 fail before production edits: mirrored legs and prematurely released left plant | 23 focused / 268 full tests, format/lint/build; Chromium animation 32 crossings/732 contacts, 46 shared + 44 skeleton captures; independent phase/contact/baseline/reset and visual review passed | `be29b8c` |
-| P5 | Complete; independent review READY, no blockers | 1 pass / 4 fail on actual frontal health loss before production edits, then lifecycle/model contracts failed on missing defense module | 52 focused / 281 full tests, format/lint/build; Chromium defense 9, combat 15; 21 machines / 95 states / 179 branches; independent targeted geometry/latch/work/input/pool/regeneration review passed | This commit |
-| P6a | Next, not started | Declarative kobold squad coordination; see implementation-path.md | User gameplay notes | — |
-| P6b–P7 | Planned, before new roadmap expansion | See current priority table in implementation-path.md | User gameplay notes and release request | — |
+| P5 | Complete; independent review READY, no blockers | 1 pass / 4 fail on actual frontal health loss before production edits, then lifecycle/model contracts failed on missing defense module | 52 focused / 281 full tests, format/lint/build; Chromium defense 9, combat 15; 21 machines / 95 states / 179 branches; independent targeted geometry/latch/work/input/pool/regeneration review passed | `975c533` |
+| P6a | Complete; final independent review READY, no blockers | Missing squad module and 21≠24 population reds; detour/swapped-home reds; reviewer reproduced obsolete no-enemy-defense assertion | 291 full after all corrections; typecheck/format/lint; defense 9; prior build/social 15/tribute 9/gameplay 18+5 reused; final review clears role-aware assertion | This commit |
+| P6b | Next, not started | Physical phalanx; see implementation-path.md | User gameplay notes | — |
+| P7 | Planned after P6b | Public repository and Pages demo; see implementation-path.md | User release request | — |
 
 ## Work log
+
+### P6a — final independent review and delivery — 2026-11-19
+
+- Final independent reviewer returned **READY**, clearing the role-aware defense-test blocker and
+  finding no other issues. The reviewer inspected the **9-check, zero-error defense report**, the
+  complete **22-machine / 100-state / 196-branch** model report and the **291-test** post-correction
+  result; the existing production build remains valid. These are attributed review findings.
+- Earlier independent production probes remain attributed below: **100 other seeds / 1,100 work
+  routes**, **24 home permutations**, **1,260 poses / 237,600 mesh corners**, and lifecycle/visual
+  checks. Broad verification was reused. The gameplay evidence remains **18 checks + five continued
+  checks after a tool timeout**, not an uninterrupted 23-check run.
+- **P6a is complete and authorized for its normal-hook feature commit.** This entry's containing
+  commit records the feature. **P6b is next, not started**; its handoff is the existing original
+  membership/role/slot references, shared chart state/target, center/heading and `approach(member)`.
+  P5 remains **`975c533`**. Raw `docs/notes.md` is untouched and excluded; no new agents or service
+  operations were used for delivery.
+
+### P6a — independent review test correction — 2026-11-19
+
+- Reviewer returned **BLOCKED** on one obsolete test expectation and reported **no production
+  defect**. Its focused MOURNING-731 regeneration probe found exactly nine enemy defense components:
+  the old `some(has('defense')) === false` assertion failed **true !== false**. That supplied red
+  evidence was reused; no broad red rerun was needed.
+- Updated only the test's role/capability assertions: nine shield-bearing kobolds have defense;
+  three spearmen, eight skeletons and four goblins do not. Every enemy is checked individually.
+  Existing hero regeneration/hold/repeat/key-up/fresh-press latch cases remain intact. Corrected
+  VERIFICATION.md's tribute report link to `test-results/chromium-tribute.json`.
+- **Attributed reviewer passes:** eight squad tests; model **5 states / 17 branches / 1,302 paths /
+  480 cyclic steps**; 100 other seeds with exact populations, **300 groups / 1,100 work routes**;
+  **24 circular home permutations** with minimum separation **0.908**, maximum step **0.04833**, no
+  overlap/teleport; **1,260 poses / 237,600 mesh corners** passing shadow/envelope checks (reported
+  worst envelope value **0.664**), shield-facing dot **1**, death/regeneration, disposed old meshes
+  and zero errors. Idle/engaged/assembly captures were reviewed. These are reviewer-supplied results;
+  broad implementation results were reused.
+- **Local checks:** the affected Chromium defense suite ran **once**, passing all **9 checks** with
+  zero errors. Typecheck, format (**143 files**) and lint pass. One full **npm test** run after all
+  corrections passes **291 tests in 363.82s**; model report complete at **22 / 100 / 196**. The prior
+  289-test/31-focused implementation evidence remains qualified below. Existing build and
+  squad/social, tribute and gameplay browser results were not repeated.
+- No production edits, agents, staging or commit for this correction. Raw notes and existing
+  services untouched; owned **5187** Vite/browser scopes cleaned up. Follow-up review was pending
+  at this correction checkpoint; the final independent **READY** verdict above clears the gate.
+
+### P6a — four-member squad foundation — 2026-11-19
+
+- Baseline **`975c533`**. Read the guide, README, docs index/path/progress, user notes and applicable
+  monster plan. Current source remained authoritative. No agents, staging or commits; raw notes
+  untouched. Independent review was the next delivery gate at this implementation checkpoint;
+  the final **READY** verdict above clears it. P6b remains planned.
+- **Red first:** new squad contracts failed on the missing module; the strengthened 100-seed
+  population/work contract failed at **21 versus 24** before production edits. Contracts cover
+  original entity/role identity, shared perception/damage alerts, real movement/melee/return,
+  casualties/defeat, target loss/replacement and fresh regeneration.
+- Three existing packs now each contain **three shield bearers and one spearman**: **12 kobolds,
+  24 enemies**. The ECS group owns a synchronous XState lifecycle and authoritative target reference;
+  individual species charts remain. Bounded assembly and role-bearing radial approaches feed normal
+  navigation/occupancy. Shield bearers opt into P5 defense while assembling. Procedural drawn/stowed
+  shields and long spears distinguish roles; death restores only drawn equipment.
+- Tribute's original roster is four. Shared combat interrupts ready work before commit. The added
+  spearman physically recovers/delivers a predecessor's drop as sole survivor in **three seeds**;
+  all four off-screen deliveries and independent/same-step Last Ember outcomes pass. A fixture that
+  killed the independent smithy worker before asserting its clock unresolved was corrected.
+- **100 tribute seeds** preserve 8 skeletons/4 goblins, three reliquaries, four safe social slots,
+  interaction/work approaches and pre-altar routes; longest shrine/cache route remains **126 tiles**.
+  Existing keep/portrait stream fixtures pass. The independent scenario revision is
+  `last-ember-v1+tribute-v2+kobold-squads-v1`; layout-v3/keep-v4 remain stable.
+- Initial required checks ran once after targeted checks: **289 tests**, format/lint/typecheck/build
+  pass. Model totals are **22 / 100 / 196**; squad coverage is **5 states / 17 branches / 1,302 generated
+  paths / 480 cyclic steps**. An initially excessive Cartesian model partition was reduced to the
+  meaningful time/target/cohesion/casualty/return boundaries without weakening branch coverage.
+- Browser iteration found two genuine return problems and each received a pure failing regression
+  before its fix: a stale temporary-occupancy detour took **64 seconds**, and two original members
+  occupied each other's social approaches indefinitely. Returning squads now refresh home routes on
+  the existing THINK cadence; the first displaced slot can physically yield to a clear nearby point.
+  No formation teleport or collision bypass. Final physical returns are **3s cards / 2s hacky sack /
+  5s smoke**. Focused-fixture startup now waits for initial scene readiness before regeneration and
+  normalizes only its setup positions; a premature-regeneration shader error was not counted as a pass.
+- Final **31 focused tests**, format/lint/typecheck/build pass after corrections. The full test suite
+  was not repeated. Chromium squad/social **15** and tribute **9** pass with no errors. The optional
+  cross-cutting gameplay pass completed **18 checks**, including the full core route, before the
+  combined 600s shell budget expired; only its remaining **five** layout/regeneration/asset/error
+  checks were continued, all passing. No repeat of the successful main gameplay checks.
+- Reviewed the four-role idle/engaged stable and treasury views and card-game views, plus tribute
+  work/delivery captures. Some card views have ordinary wall occlusion; stable/treasury captures
+  show all four roles clearly. See VERIFICATION.md for paths and timeout qualifications.
+- P6b can consume the live `members`/`living`, chart `state`/`target`, `center`/`heading` and current
+  `approach(member)` contract. Physical ranks, slow advance, opening cues, rear thrusts/javelins and
+  coordinated backward withdrawal are deliberately still planned. Owned **5187** Vite/browser
+  scopes are closed; existing 4096/tailnet 8443 services were untouched.
 
 ### P5 — independent review and delivery — 2026-11-19
 
@@ -125,7 +223,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Review reused the implementation's **281-test/full-check/build**, **9 defense-browser checks**
   and **15 combat-browser checks**. The existing implementation qualifications below are retained.
 - **P5 is complete and the user approved its normal-hook feature commit.** This entry's containing
-  commit records P5. **P6a squad coordination is next, not started.** P4 remains **`be29b8c`**;
+  commit records P5. **At that P5 checkpoint, P6a squad coordination was next, not started.** P4 remains **`be29b8c`**;
   raw `docs/notes.md` is untouched and excluded. No new agents were used for delivery.
 
 ### P5 — held-F frontal shield — 2026-11-19 (pre-review checkpoint)
@@ -949,6 +1047,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
 
 ## Follow-ups and blockers
 
+- P6a is complete with final independent review READY; no remaining P6a blocker. **P6b is next**,
+  using the documented squad contracts for the physical phalanx encounter.
 - O2 is complete at `d698f27`; O3 is complete at `9be81bb`; O4 completes the composed run plan
   with independent review READY. The dependency-ordered feature sequence through O4 is delivered.
 - No current O1 correctness blocker: final independent review is READY. D1's camera-occlusion

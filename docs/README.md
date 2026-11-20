@@ -3,7 +3,7 @@
 | Document | Purpose |
 | --- | --- |
 | [Implementation path](implementation-path.md) | Dependency-ordered feature slices and the test-first, verification, review, commit workflow. |
-| [Implementation progress](implementation-progress.md) | Delivery tracker, test-first evidence, checks and review. P1: `6378d61`, application investigation closed by user. P2: `726af8a`, accepted and independently reviewed READY. P3: `9f8e1d7`, complete, final independent review READY. P4: `be29b8c`, complete, independent review READY. P5 held-F defense is complete, independent review READY with no blockers. P6a squad coordination is next, not started. |
+| [Implementation progress](implementation-progress.md) | Delivery tracker, test-first evidence, checks and review. P1 closed; P2 accepted; P3–P6a complete, independently reviewed READY (P5: `975c533`). P6a's role-aware defense-test blocker is cleared. P6b physical phalanx attacks/withdrawal are next, not started. |
 | [Procedural content improvement plan](procedural-content-improvement-plan.md) | Shared keep identities, composed scenes, memorable inhabitants, discoveries, adventure grammars, and seed-review tooling. Recommended next procedural-content slice. |
 | [Encounter narrative design notes](encounter-narrative-design-notes.md) | Jon Ingold's Narrative Sorcery talk: order-independent encounters, defensive logic, player knowledge, consequences, and a proposed watchkeeper scenario. |
 | [Ravenloft scenario design notes](ravenloft-scenario-design-notes.md) | Thirteen board-game adventures distilled into objective structures, staged reveals, pressure, remote weaknesses, alternative resolutions, and proposed dungeon scenarios. |

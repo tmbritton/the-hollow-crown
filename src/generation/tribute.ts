@@ -49,7 +49,7 @@ export function planTribute(world: World) {
   };
   const cargo = points('stairs', 4).map((p, i) => ({ id: `tribute:cargo:${i}`, ...p }));
   const exit = { id: TRIBUTE.exit, ...points('stable', 1)[0] };
-  return { cargo, exit, workers: [0, 1, 2].map((i) => `kobold:stairs:${i}`) };
+  return { cargo, exit, workers: [0, 1, 2, 3].map((i) => `kobold:stairs:${i}`) };
 }
 
 export type TributeBlueprint = ReturnType<typeof planTribute>;

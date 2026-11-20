@@ -429,14 +429,30 @@ try {
     await page.keyboard.down('f');
     await step();
     assert.ok((await state()).defending);
-    assert.equal(
-      await page.evaluate(() =>
-        window.__dungeon.game.combat.enemies.some((a) => a.entity.has('defense')),
-      ),
-      false,
+    const enemies = await page.evaluate(() =>
+      window.__dungeon.game.combat.enemies.map((a) => ({
+        id: a.id,
+        kind: a.kind,
+        role: a.entity.get('squadMember')?.role,
+        defense: a.entity.has('defense'),
+      })),
     );
+    assert.equal(enemies.length, 24);
+    assert.equal(enemies.filter((a) => a.kind === 'kobold' && a.role === 'shieldbearer').length, 9);
+    assert.equal(enemies.filter((a) => a.kind === 'kobold' && a.role === 'spearman').length, 3);
+    assert.equal(enemies.filter((a) => a.kind === 'skeleton').length, 8);
+    assert.equal(enemies.filter((a) => a.kind === 'goblin').length, 4);
+    assert.equal(enemies.filter((a) => a.defense).length, 9);
+    for (const enemy of enemies)
+      assert.equal(
+        enemy.defense,
+        enemy.kind === 'kobold' && enemy.role === 'shieldbearer',
+        `${enemy.id}: only shield bearers opt into enemy defense`,
+      );
     await page.keyboard.up('f');
-    pass('Regeneration creates a fresh opt-in player defense; a still-held key cannot raise it');
+    pass(
+      'Regeneration restores player/role-based defense; a still-held key cannot raise the hero guard',
+    );
     assert.deepEqual(errors, []);
     await writeFile(
       'test-results/chromium-defense-report.json',

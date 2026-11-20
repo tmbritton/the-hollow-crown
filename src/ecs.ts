@@ -17,6 +17,7 @@ import type { WorkAction } from './machines/actors/work.ts';
 import type { LastEmber } from './lastEmber.ts';
 import type { Tribute } from './tribute.ts';
 import type { Cargo } from './cargo.ts';
+import type { KoboldSquad, SquadMember } from './koboldSquads.ts';
 import type { Statechart } from './machines/statechart.ts';
 import type { focusMachine } from './machines/world/focus.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
@@ -42,6 +43,8 @@ export interface Components {
   lastEmber: LastEmber;
   tribute: Tribute;
   cargo: Cargo;
+  koboldSquad: KoboldSquad;
+  squadMember: SquadMember;
   focus: Statechart<typeof focusMachine>;
   transform: Spawn & { heading: number };
   actor: { kind: ActorKind; speed: number; opensDoors: boolean };
@@ -96,6 +99,7 @@ export interface Components {
     socialBlend: number;
     socialPose: LocomotionPose | null;
     equipment?: AbstractMesh[];
+    stowedEquipment?: AbstractMesh[];
   };
   tile: Tile;
   room: Room;

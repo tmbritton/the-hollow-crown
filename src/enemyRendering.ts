@@ -113,11 +113,29 @@ export function createEnemyRendering(
       feet.push(foot);
     }
     const equipment = [];
+    const stowedEquipment = [];
+    const role = actor.entity.get('squadMember')?.role;
+    let shield: TransformNode | undefined;
+    if (role === 'shieldbearer') {
+      shield = new TransformNode(`${actor.id}:shield mount`, scene);
+      shield.parent = forearms[0];
+      equipment.push(p('iron', 'squad shield', [0.14, 0.72, 0.62], [-0.17, -0.02, 0.07], shield));
+      equipment.push(p('gold', 'shield boss', [0.08, 0.16, 0.16], [-0.27, -0.02, 0.07], shield));
+      stowedEquipment.push(p('iron', 'stowed shield', [0.62, 0.72, 0.14], [-0.24, 0.87, -0.29]));
+      stowedEquipment.push(
+        p('gold', 'stowed shield boss', [0.16, 0.16, 0.08], [-0.24, 0.87, -0.39]),
+      );
+    }
     if (goblin) {
       equipment.push(p('wood', 'crossbow', [0.66, 0.11, 0.15], [0, -0.11, 0.24], forearms[1]));
       equipment.push(p('iron', 'crossbow stock', [0.1, 0.13, 0.5], [0, -0.12, 0.23], forearms[1]));
       // The raised forearm points local -Y forward; keep the muzzle on that firing line.
       for (const mesh of equipment) mesh.rotation.x = Math.PI / 2;
+    } else if (role === 'spearman') {
+      equipment.push(p('wood', 'long spear haft', [0.09, 2.1, 0.09], [0, 0.35, 0.12], forearms[1]));
+      equipment.push(p('iron', 'long spear tip', [0.18, 0.38, 0.08], [0, 1.57, 0.12], forearms[1]));
+      stowedEquipment.push(p('wood', 'stowed long spear', [0.09, 2.1, 0.09], [0.3, 1.2, -0.25]));
+      stowedEquipment.push(p('iron', 'stowed spear tip', [0.18, 0.38, 0.08], [0.3, 2.42, -0.25]));
     } else {
       equipment.push(p('wood', 'weapon haft', [0.09, 0.7, 0.09], [0, -0.3, 0.12], forearms[1]));
       equipment.push(
@@ -142,6 +160,8 @@ export function createEnemyRendering(
       feet,
       footPlants: [{ anchor: null }, { anchor: null }],
       equipment,
+      stowedEquipment,
+      shield,
       attackBlend: 0,
       attackPose: null,
       socialBlend: 0,

@@ -31,7 +31,7 @@ test('diagnostic generation preserves the versioned scene geometry fixture', () 
     seed: world.seed,
     generatorVersion: 'layout-v3',
     contentVersion: 'keep-v4',
-    scenarioVersion: 'last-ember-v1+tribute-v1',
+    scenarioVersion: 'last-ember-v1+tribute-v2+kobold-squads-v1',
   });
   assert.equal(report.acceptedAttempt, world.attempt);
   assert.deepEqual(report.attempts, [{ attempt: 0, stage: 'accepted', reasons: [] }]);

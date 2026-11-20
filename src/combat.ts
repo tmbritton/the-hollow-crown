@@ -1,4 +1,12 @@
-import { Actor, cancelAttack, createActor, makeBrain, moveActor, stopActor } from './actors.ts';
+import {
+  Actor,
+  cancelAttack,
+  createActor,
+  makeBrain,
+  moveActor,
+  requestDefense,
+  stopActor,
+} from './actors.ts';
 import { ECS } from './ecs.ts';
 import type { EnemyKind } from './ecs.ts';
 import type { NavigationWorld } from './navigation.ts';
@@ -9,6 +17,8 @@ import { seedSocialGroups } from './social.ts';
 import { seedInhabitant, seedEmberWorker } from './generation/inhabitants.ts';
 import { tributeBlueprint } from './generation/tribute.ts';
 import { inGuardArc } from './machines/actors/defense.ts';
+import { installKoboldSquads } from './koboldSquads.ts';
+import type { KoboldSquad } from './koboldSquads.ts';
 
 /** Attack geometry is independent of source identity (a bolt's owner may have moved or died). */
 export interface DamageImpact {
@@ -85,9 +95,9 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
     ['butchery', 'goblin', 1],
     ['smithy', 'goblin', 1],
     ['treasury', 'goblin', 1],
-    ['stable', 'kobold', 3],
-    ['stairs', 'kobold', 3],
-    ['treasury', 'kobold', 3],
+    ['stable', 'kobold', 4],
+    ['stairs', 'kobold', 4],
+    ['treasury', 'kobold', 4],
   ];
   for (const [room, kind, count] of groups) {
     const candidates = [...world.tiles.values()]
@@ -121,6 +131,7 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
     }
   }
   seedSocialGroups(enemies, world);
+  installKoboldSquads(ecs, enemies);
   seedInhabitant(world, enemies);
   seedEmberWorker(world, enemies);
   return enemies;
@@ -134,6 +145,7 @@ export class CombatSystem {
   private readonly random: Random;
   private readonly onDeath: (victim: Actor, source?: Actor) => void;
   time = 0;
+  private squadElapsed = 0.15;
 
   constructor(
     ecs: ECS,
@@ -164,6 +176,12 @@ export class CombatSystem {
 
   target(actor: Actor, target: Actor): boolean {
     if (!actor.alive || !hostile(actor, target)) return false;
+    const squad = actor.entity.get('squadMember')?.group.get('koboldSquad');
+    if (squad) {
+      squad.chart.send({ type: 'ALERT', target: target.entity });
+      this.syncSquad(squad);
+      return true;
+    }
     cancelAttack(actor);
     actor.navigator.cancel();
     actor.attack.target = target.id;
@@ -331,6 +349,8 @@ export class CombatSystem {
   private chooseTarget(actor: Actor): Actor | undefined {
     const brain = actor.brain;
     if (!brain) return undefined;
+    const squad = actor.entity.get('squadMember')?.group.get('koboldSquad');
+    if (squad) return squad.target ? new Actor(squad.target) : undefined;
     const radius = actor.kind === 'skeleton' ? 6 : 10;
     const visible = this.actors
       .filter(
@@ -432,9 +452,10 @@ export class CombatSystem {
     // Stable, distinct slots around the shared target: a front pressure fighter and side/rear flankers.
     const anchor = leader?.brain?.home ?? brain.home;
     const bearing = Math.atan2(anchor.z - target.position.z, anchor.x - target.position.x);
-    const angle = bearing + (brain.slot * Math.PI * 2) / 3;
+    const angle = bearing + (brain.slot * Math.PI * 2) / Math.max(1, pack.length);
     const radius = 1.12;
-    const goal = {
+    const member = actor.entity.get('squadMember');
+    const goal = member?.group.get('koboldSquad')?.approach(member) ?? {
       x: target.position.x + Math.cos(angle) * radius,
       z: target.position.z + Math.sin(angle) * radius,
     };
@@ -465,10 +486,11 @@ export class CombatSystem {
         actor.attack.cooldown <= 0,
       coolingDown: actor.attack.cooldown > 0,
       regroup:
-        !!leader &&
-        !!target &&
-        distance(actor.position, leader.position) > 7 &&
-        distance(actor.position, target.position) > 4,
+        actor.entity.get('squadMember')?.group.get('koboldSquad')?.state === 'assembling' ||
+        (!!leader &&
+          !!target &&
+          distance(actor.position, leader.position) > 7 &&
+          distance(actor.position, target.position) > 4),
       melee: !!target && this.inMelee(actor, target),
       atHome: distance(actor.position, brain.home) < 0.2,
       activity:
@@ -501,14 +523,48 @@ export class CombatSystem {
     const brain = actor.brain!;
     for (const effect of effects) {
       switch (effect.type) {
-        case 'returnHome':
+        case 'returnHome': {
+          const squad = actor.entity.get('squadMember')?.group.get('koboldSquad');
+          const destination = actor.navigator.destination;
+          // Finish a yield route while the home is still occupied. Replanning it every
+          // THINK would turn back before the other member has room to pass.
           if (
+            squad &&
+            actor.navigator.active &&
+            destination &&
+            distance(destination, brain.home) > 0.25 &&
+            !actor.navigator.canOccupy(brain.home)
+          )
+            break;
+          if (
+            // Returning packs can briefly obstruct each other's approaches. Refresh on the
+            // existing THINK cadence so a cleared ally does not leave a dungeon-sized detour.
+            squad ||
             !actor.navigator.active ||
             !actor.navigator.destination ||
             distance(actor.navigator.destination, brain.home) > 0.25
-          )
-            this.route(actor, brain.home);
+          ) {
+            if (!this.route(actor, brain.home) && squad?.state === 'returning') {
+              // A swapped pair can occupy each other's exact homes. The first displaced
+              // original slot yields outside the gathering, using ordinary live clearance.
+              const returning = squad.living.filter((m) => {
+                const a = new Actor(m.entity);
+                return (
+                  a.brain && !a.entity.has('work') && distance(a.position, a.brain.home) >= 0.2
+                );
+              });
+              if (returning[0]?.entity === actor.entity) {
+                const homes = squad.living.flatMap((m) => m.entity.get('brain')?.home ?? []);
+                this.localGoals(actor, 3)
+                  .filter((p) => homes.every((home) => distance(p, home) > 1.1))
+                  .sort((a, b) => distance(a, actor.position) - distance(b, actor.position))
+                  .slice(0, 12)
+                  .some((goal) => this.route(actor, goal));
+              }
+            }
+          }
           break;
+        }
         case 'socialize': {
           actor.navigator.cancel();
           const center = brain.social?.center;
@@ -542,6 +598,21 @@ export class CombatSystem {
           if (target) this.seekFiringPosition(actor, target, false);
           break;
         case 'regroup': {
+          const squad = actor.entity.get('squadMember')?.group.get('koboldSquad');
+          if (squad) {
+            // Assembly is bounded by the group chart. Spread members approach the real center
+            // through ordinary navigation; nearby members hold, never snap into formation.
+            if (distance(actor.position, squad.center) > 3) this.route(actor, squad.center);
+            else {
+              actor.navigator.cancel();
+              if (target)
+                actor.position.heading = Math.atan2(
+                  target.position.x - actor.position.x,
+                  target.position.z - actor.position.z,
+                );
+            }
+            break;
+          }
           const leader = this.actors.find((a) => a.alive && a.brain?.pack === brain.pack);
           if (leader) {
             const goals = this.localGoals(leader, 2).sort(
@@ -587,6 +658,7 @@ export class CombatSystem {
       target.attack.die();
       target.brain?.behavior.send({ type: 'DIE' });
       target.entity.add('corpse', { age: 0 });
+      this.updateSquads(0);
       this.onDeath(target, source);
       for (const other of this.actors)
         if (other.attack.target === target.id) {
@@ -594,11 +666,86 @@ export class CombatSystem {
           other.navigator.cancel();
         }
     } else if (target.brain && source) {
-      target.attack.target = source.id;
-      target.brain.memory = 5;
+      const squad = target.entity.get('squadMember')?.group.get('koboldSquad');
+      if (squad && source.alive && this.ecs.get(source.id) === source.entity) {
+        squad.chart.send({ type: 'ALERT', target: source.entity });
+        this.syncSquad(squad);
+      }
+      target.attack.target = squad ? (squad.target?.id ?? null) : source.id;
+      target.brain.memory = squad ? 0 : 5;
       target.brain.think = 0;
     }
     return true;
+  }
+
+  private syncSquad(squad: KoboldSquad): void {
+    for (const member of squad.living) {
+      const actor = new Actor(member.entity);
+      if (!actor.brain) continue;
+      const id = squad.target?.id ?? null;
+      if (actor.attack.target !== id) {
+        actor.attack.interrupt();
+        actor.attack.target = id;
+        actor.navigator.cancel();
+        actor.brain.think = 0;
+      }
+      if (id) actor.entity.get('work')?.interrupt('Squad threatened');
+    }
+  }
+
+  private updateSquads(dt: number): void {
+    this.squadElapsed += dt;
+    if (dt > 0 && this.squadElapsed < 0.15) return;
+    const elapsed = dt === 0 ? 0 : this.squadElapsed;
+    if (dt > 0) this.squadElapsed = 0;
+    const actors = this.actors;
+    for (const entity of this.ecs.query('koboldSquad')) {
+      const squad = entity.require('koboldSquad');
+      const members = squad.living.map((m) => new Actor(m.entity));
+      const current = squad.target;
+      const valid =
+        !!current &&
+        this.ecs.get(current.id) === current &&
+        members.some(
+          (a) =>
+            hostile(a, new Actor(current)) &&
+            distance(a.position, new Actor(current).position) < 16,
+        );
+      const visible = (other: Actor) =>
+        members.some(
+          (a) =>
+            hostile(a, other) &&
+            distance(a.position, other.position) < 10 &&
+            clearSight(this.world, a.position, other.position),
+        );
+      const seen =
+        valid && visible(new Actor(current))
+          ? new Actor(current)
+          : !valid
+            ? actors
+                .filter(visible)
+                .sort(
+                  (a, b) =>
+                    distance(squad.center, a.position) - distance(squad.center, b.position) ||
+                    a.id.localeCompare(b.id),
+                )[0]
+            : undefined;
+      if (seen) squad.chart.send({ type: 'ALERT', target: seen.entity });
+      const before = squad.state;
+      squad.chart.send({
+        type: 'TICK',
+        dt: elapsed,
+        survivors: members.length,
+        valid: !!seen || valid,
+        cohesive: members.every((a) => distance(a.position, squad.center) < 4),
+        home: members.every(
+          (a) => !a.brain || a.entity.has('work') || distance(a.position, a.brain.home) < 0.2,
+        ),
+      });
+      this.syncSquad(squad);
+      if (before !== squad.state)
+        for (const actor of members) if (actor.brain) actor.brain.think = 0;
+    }
   }
 
   private blockParticles(target: Actor): void {
@@ -674,6 +821,7 @@ export class CombatSystem {
 
   update(dt: number): void {
     this.time += dt;
+    this.updateSquads(dt);
     for (const actor of this.actors) {
       if (!actor.defending) actor.entity.get('defense')?.cancel();
       actor.health.advance(dt);
@@ -690,6 +838,19 @@ export class CombatSystem {
       }
       const brain = actor.brain;
       if (brain) {
+        const squad = actor.entity.get('squadMember')?.group.get('koboldSquad');
+        const threat = squad?.target ? new Actor(squad.target) : undefined;
+        if (
+          squad?.state === 'assembling' &&
+          threat &&
+          !actor.attack.swing &&
+          !this.inMelee(actor, threat)
+        ) {
+          if (!actor.defending) {
+            actor.entity.get('defense')?.release();
+            requestDefense(actor);
+          }
+        } else actor.entity.get('defense')?.release();
         brain.think -= dt;
         brain.memory -= dt;
         if (brain.think <= 0) {

@@ -12,7 +12,7 @@ test('every profile names one existing inhabitant with a truthful home, group an
   for (let i = 0; i < 60; i++) {
     const world = generateDungeon(`inhabitant-${i}`);
     const enemies = seedEnemies(new ECS(), world);
-    assert.equal(enemies.length, 21);
+    assert.equal(enemies.length, 24);
     const named = enemies.filter((a) => a.entity.get('inhabitant')?.id === 'inhabitant:standout');
     assert.equal(named.length, 1, 'one existing enemy must have a stable identity');
     const actor = named[0];
@@ -41,7 +41,11 @@ test('every profile names one existing inhabitant with a truthful home, group an
         'pilgrim-redoubt': 'kobold',
       }[world.keep.profile.id],
     );
-    if (identity.role === 'dealer') assert.equal(actor.brain!.social?.activity, 'cards');
+    if (identity.role === 'dealer') {
+      assert.equal(actor.brain!.social?.activity, 'cards');
+      assert.equal(actor.brain!.social!.members.length, 4);
+      assert.ok(actor.brain!.social!.members.includes(actor.id));
+    }
     if (
       world.keep.profile.id === 'pilgrim-redoubt' &&
       enemies.some((a) => a.brain?.social?.activity === 'cards')

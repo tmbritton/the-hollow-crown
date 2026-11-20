@@ -16,7 +16,7 @@ await writeFile(
 );
 const failures = reports.filter(
   (r) =>
-    r.validationErrors.length || r.resources.enemies !== 21 || r.progression.requiredRoute === null,
+    r.validationErrors.length || r.resources.enemies !== 24 || r.progression.requiredRoute === null,
 );
 if (failures.length)
   throw new Error(`Invalid corpus seeds: ${failures.map((r) => r.trace.identity.seed).join(', ')}`);

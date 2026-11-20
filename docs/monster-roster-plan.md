@@ -114,7 +114,13 @@ For the throne fight, claiming the crown requires both altar activation and guar
 
 Social creatures gather at seeded, navigation-safe activity spots. Groups can play cards, pass a hacky sack, or take a smoke break; solitary creatures use a suitable solo activity. Activity-specific poses, put-away weapons, and visible props communicate that they are unaware. A detected hostile interrupts the activity and activates combat behavior. After the threat is lost, survivors return to their assigned gathering, with a solo fallback if too few remain for the group game. These activity and return states belong in each monster kind's own machine.
 
-This foundation is implemented for the current goblins and kobold packs. Future raider squads can use the same gathering data while their own machines handle hobgoblin orders and morale.
+This foundation is implemented for the current goblins and kobold packs. **P6a now gives each of the
+three existing kobold packs three shield bearers and one spearman (24 total enemies)**, with a
+shared ECS/XState target and assembly/engagement/return/defeat lifecycle above the individual charts.
+Shields use the shared defense capability during assembly; ordinary melee remains the interim attack.
+Physical phalanx ranks, slow advance, shield openings, rear thrusts/javelins and backward withdrawal
+remain **P6b**, not implemented by this foundation. Future raider squads can use the same gathering
+data while their own machines handle hobgoblin orders and morale.
 
 Replace species inequality as the hostility rule before introducing mixed groups:
 

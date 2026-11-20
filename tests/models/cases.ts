@@ -5,6 +5,8 @@ import { modelCase } from './coverage.ts';
 import { skeletonMachine } from '../../src/machines/monsters/skeleton.ts';
 import { goblinMachine } from '../../src/machines/monsters/goblin.ts';
 import { koboldMachine } from '../../src/machines/monsters/kobold.ts';
+import { koboldSquadMachine } from '../../src/machines/monsters/koboldSquad.ts';
+import { Entity } from '../../src/ecs.ts';
 import type { MonsterEvent, MonsterPerception } from '../../src/machines/monsters/types.ts';
 import { attackMachine } from '../../src/machines/actors/attack.ts';
 import { defenseMachine } from '../../src/machines/actors/defense.ts';
@@ -90,7 +92,56 @@ const swing = {
   ranged: false,
 };
 
+const squadTargets = [new Entity('threat-a'), new Entity('threat-b')];
+
 export const modelCases = [
+  modelCase(koboldSquadMachine, {
+    inputs: [undefined],
+    // Threat identity, no/partial/full memory, pre/post assembly threshold and casualties.
+    // Exact timeout boundaries are also exercised by the real simulation regressions.
+    abstractContext: ({ context }) => [
+      context.target?.id,
+      context.memory === 0 ? 0 : context.memory === 5 ? 2 : 1,
+      context.elapsed === 0 ? 0 : context.elapsed < 0.35 ? 1 : context.elapsed < 1.2 ? 2 : 3,
+      context.survivors,
+    ],
+    events: (): EventFromLogic<typeof koboldSquadMachine>[] => [
+      { type: 'ALERT', target: squadTargets[0] },
+      { type: 'ALERT', target: squadTargets[1] },
+      ...[0, 0.2, 0.35, 1.2, 5].flatMap((dt) =>
+        [false, true].map((cohesive) => ({
+          type: 'TICK' as const,
+          dt,
+          survivors: 4,
+          valid: true,
+          cohesive,
+          home: true,
+        })),
+      ),
+      ...[0, 1, 3, 4].flatMap((survivors) =>
+        [false, true].map((valid) => ({
+          type: 'TICK' as const,
+          dt: 0,
+          survivors,
+          valid,
+          cohesive: false,
+          home: false,
+        })),
+      ),
+    ],
+    invariant: (state, before, event) => {
+      assert.equal(
+        !!state.context.target,
+        state.matches('assembling') || state.matches('engaging'),
+      );
+      assert.ok(state.context.memory >= 0 && state.context.memory <= 5);
+      assert.ok(state.context.elapsed >= 0 && state.context.elapsed <= 1.2);
+      if (before?.matches('defeated')) assert.ok(state.matches('defeated'));
+      if (event?.type === 'TICK' && event.survivors === 0) assert.ok(state.matches('defeated'));
+      if (event?.type === 'ALERT' && !before?.matches('defeated'))
+        assert.equal(state.context.target, event.target);
+    },
+  }),
   modelCase(defenseMachine, {
     inputs: [undefined],
     events: (): EventFromLogic<typeof defenseMachine>[] => [

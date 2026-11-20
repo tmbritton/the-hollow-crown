@@ -13,7 +13,7 @@ test('seeded social groups preserve safe spawns and give packs stable gathering 
   for (let i = 0; i < 30; i++) {
     const world = generateDungeon(`SOCIAL-${i}`);
     const enemies = seedEnemies(new ECS(), world);
-    assert.equal(enemies.length, 21);
+    assert.equal(enemies.length, 24);
     for (const actor of enemies) {
       assert.ok(actor.navigator.canStand(actor.position));
       if (actor.kind === 'skeleton') {

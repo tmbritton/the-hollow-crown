@@ -4,7 +4,143 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
-### P5 — held-F frontal shield — 2026-11-19 (complete, independent review READY)
+### P6a — four-member squad foundation — 2026-11-19 (complete, independent review READY)
+
+Baseline **`975c533`**. Three existing packs each start with **three shield bearers and one
+spearman**: **12 kobolds / 24 enemies**, with no new rooms. ECS `koboldSquad` owns the synchronous
+`idle / assembling / engaging / returning / defeated` chart and one target entity reference.
+Original member/role/slot references persist through casualties; each actor retains its own chart.
+Shared perception and damage drive real decisions/work interruption, assembly guard, ordinary melee,
+navigation and return/yield. P6b's physical phalanx and special attacks/withdrawal remain planned.
+
+#### Final independent review — READY
+
+The final reviewer cleared the role-aware defense-test blocker and reported **no other issues**.
+It inspected the **9-check / zero-error defense report**, the complete **22 machines / 100 states /
+196 branches** model report and the **291-test** result after all corrections. The existing build
+remains valid. These are attributed reviewer findings, reusing the implementation verification.
+The prior independent 100-seed/1,100-route, 24-home-permutation and 1,260-pose probes remain attributed
+below. The **18 + 5 continued gameplay checks** retain their timeout qualification.
+
+**P6a is complete and authorized for its normal-hook feature commit; P6b is next, not started.**
+The containing feature commit records P6a. P5 remains **`975c533`**.
+
+#### Independent review and test correction
+
+The independent reviewer reported **no production defect**, but returned **BLOCKED** on the
+obsolete defense-browser regeneration assertion that no enemy has a defense component. Its focused
+MOURNING-731 reproduction evaluated the original line-434 expression to **true** and failed
+`true !== false`, with exactly **nine** shield-bearing enemies. This is the supplied reviewer red
+evidence; the broad suite was not rerun just to reproduce that known failure.
+
+The following are **attributed reviewer results**, not additional local verification runs:
+
+- **8 squad tests** and squad model **5 states / 17 branches / 1,302 paths / 480 cyclic steps**.
+- **100 other seeds**, exact populations across **300 squads**, and **1,100 work routes**.
+- **24 circular home permutations**, minimum separation **0.908**, maximum step **0.04833**,
+  with no overlap or teleport.
+- **1,260 poses / 237,600 mesh corners**, passing shadow/envelope checks (reported worst envelope
+  value **0.664**); shield-facing dot **1**; death/regeneration checks, old mesh disposal and zero errors.
+- Reviewed idle, engaged and assembly captures; reused the recorded broad implementation results.
+
+The test now asserts exactly **9 shield bearers with defense**, **3 spearmen without defense**,
+and **8 skeletons / 4 goblins without defense**, checking every enemy's role/capability pairing.
+The hero's regeneration-held-F, repeated keydown, key-up and fresh-press latch sequence is retained.
+No production code changed for this review correction. The tribute artifact path below is corrected
+to the actual `test-results/chromium-tribute.json`.
+
+**Local green checks after correction:** one Chromium defense-suite run passes **all 9 checks**,
+with zero errors (`test-results/chromium-defense-report.json`). `npm run typecheck`,
+`npm run format:check` (**143 files**) and `npm run lint` pass. One full `npm test` run after all
+corrections passes **291 tests in 363.82s**, including both return regressions and all **22 machines /
+100 states / 196 branches**. The full model report is complete again. The existing build and
+squad/social, tribute and gameplay browser results are reused. Owned 5187 Vite/browser scopes were
+closed; raw notes and existing services were untouched. No agents, staging or commits.
+Follow-up review was pending at that correction checkpoint; the final **READY** verdict above
+clears the blocker.
+
+#### Red → green
+
+- Before production edits, `node --test --test-name-pattern='squad|100 deterministic'
+  tests/kobold-squad.test.ts tests/tribute.test.ts` failed **0 pass / 2 fail**: missing squad module
+  and **21 !== 24**. Role/reference/behavior contracts were authored in that initial test file.
+- The strengthened **100-seed tribute corpus** passes with exact 8/4/12 species totals, four
+  members and three-shield/one-spear roles in each pack, four social participants, live occupancy,
+  reserved intervention approaches, three reliquaries and reachable pre-altar work routes.
+  Longest shrine/cache route: **126 tiles**. Existing scene, keep/history and portrait fixtures pass.
+- Three seeded sole-spearman survivors physically collect and deliver their predecessor's dropped
+  cargo. All-four off-screen deliveries, original-reference replacement rejection, shared-alert
+  interruption at the ready-work boundary, recovery and independent/simultaneous shrine outcomes pass.
+- Browser discovery: one return retained a **64s** route around a temporary ally obstruction.
+  `--test-name-pattern='long detour' tests/kobold-squad.test.ts` failed before cadence-based refresh.
+- Browser discovery: two members occupying each other's homes stayed returning beyond **90s**.
+  `--test-name-pattern='physically yields' tests/kobold-squad.test.ts` failed before deterministic
+  first-displaced-slot yielding. Both fixes use ordinary routes, living clearance and the current
+  squad lifecycle. Final browser returns: **3 / 2 / 5 seconds**, each below the asserted 20s bound.
+
+#### Checks actually run
+
+- Initial required batch after focused tests: **format, lint, npm test, build all pass**;
+  **289 tests** in **284.91s**. This precedes the two return regressions/fixes above. There was
+  **one full npm-test run at that implementation checkpoint**; the later 291-test review-correction
+  run above includes both return fixes.
+- Final affected batch after corrections: **25 squad/combat tests + 6 focused model/social/tribute
+  tests = 31 passing tests**, followed by format, lint and build (including strict type checking).
+  Formatting covers **143 files**. Existing bundle-size warning only.
+- Full-run model coverage: **22 machines / 100 states / 196 branches**. Squad: **5/5 states,
+  17/17 branches, 1,302 generated paths, 480 cyclic steps**. The filtered model run also passed;
+  the review-correction full run has refreshed `test-results/machine-model-report.json` with the
+  complete machine catalog.
+
+Final focused commands:
+
+```sh
+node --test tests/kobold-squad.test.ts tests/combat.test.ts
+node --test --test-name-pattern='actual offscreen|survivor takes|remote shared|resolve independently|a social pack|koboldSquad' tests/tribute.test.ts tests/social.test.ts tests/models.test.ts
+npm run format:check
+npm run lint
+npm run build
+```
+
+#### Browser and visual results
+
+Chromium/SwiftShader suites ran sequentially on owned **http://localhost:5187** (5173 absent):
+
+- **Squad/social: 15 checks**, all three four-member activities; shared assembly/engagement,
+  ordinary melee, living separation, bounded physical return and drawn/stowed death equipment.
+  `test-results/chromium-social-report.json`, no errors.
+- **Tribute: 9 checks**; real E/pointer combat, all-four physical deliveries, dropped cargo,
+  recovery/takeover, independent shrine outcome, modal pause, HUD and regeneration resources.
+  `test-results/chromium-tribute.json`, no errors.
+- **Gameplay: 18 checks + 5 continued checks**. The combined social/tribute/gameplay shell scope
+  hit its **600s** tool budget after the main core route, collisions, hazards, inspection and quality
+  checks passed. `test-results/chromium-report.json` truthfully retains that timeout/closed-page
+  result, with no browser errors. Only the remaining regeneration tail was continued through a
+  temporary test-only branch (subsequently removed): CINDER-42 and VIOLET-7 physical completion,
+  resource cleanup, local assets and zero shader/browser errors all pass in
+  `test-results/chromium-p6a-regeneration-report.json`. This is not an uninterrupted 23-check run.
+- Final repeated MOURNING-731 regeneration: **2,284 meshes / 28 materials / 4 textures / 52 effects /
+  34 shader sources**. Counts stabilize; this is not a hardware performance benchmark.
+
+Reviewed actual four-role idle and engaged captures:
+
+- `test-results/chromium-social-hackysack.png`
+- `test-results/chromium-squad-hackysack-engaged.png`
+- `test-results/chromium-social-smoke.png`
+- `test-results/chromium-squad-smoke-engaged.png`
+- Card idle/assembly/engaged views were reviewed too; ordinary walls partially occlude one member
+  in some card views. The stable/treasury views clearly show all four, their three shields and the
+  spearman's longer weapon. Tribute packing/carrier/delivered-exit captures were also reviewed.
+
+Earlier browser attempts exposed the two return defects; a focused smoke attempt regenerated before
+initial scene readiness and logged shader errors. The fixture now waits for readiness, stops its live
+loop and normalizes only setup positions. Those failed attempts are not counted as successful passes.
+All owned browser/Vite scopes, including the timed-out scope, cleaned up; a final port check found no
+5173/5187 listeners. Existing 4096/tailnet 8443 services and raw notes were untouched. No agents,
+staging or commits at those implementation/correction checkpoints. **Final independent review is
+READY**, as recorded above.
+
+### P5 — held-F frontal shield — 2026-11-19 (complete, independent review READY; historical baseline)
 
 Baseline **`be29b8c`** (committed P4, independent review READY). Shared optional ECS defense uses
 the synchronous XState `actorDefense` chart. Only the player opts in; the same component/request

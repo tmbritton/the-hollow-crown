@@ -96,7 +96,7 @@ test('generated scenery and interactables are entities, with deterministic safe 
     assert.equal(ecs.query('prop').length, world.props.length);
     assert.equal(ecs.query('interaction').length, world.entities.length);
     const enemies = seedEnemies(ecs, world);
-    assert.equal(enemies.length, 21);
+    assert.equal(enemies.length, 24);
     for (const actor of enemies) {
       assert.ok(actor.navigator.canStand(actor.position));
       assert.notEqual(world.tiles.get(key(actor.position.x, actor.position.z))?.room, 'entrance');

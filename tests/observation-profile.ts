@@ -183,7 +183,7 @@ try {
   }
   assert.deepEqual(errors, []);
   assert.ok(result.query.visible);
-  assert.equal(result.enabledRigs, 22);
+  assert.equal(result.enabledRigs, 25);
   assert.ok(
     result.query.matrixCalls < 100,
     'warm visible-target query must not prepare the whole scene',

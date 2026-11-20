@@ -32,6 +32,7 @@ async function fixture(kind: EnemyKind, x = 4, z = 0) {
       // Isolate each interaction while retaining real ECS, movement, combat and render systems.
       for (const a of g.combat.enemies) {
         a.entity.remove('brain');
+        a.entity.remove('squadMember');
         a.entity.remove('corpse');
         a.navigator.cancel();
         a.attack.reset();
@@ -39,6 +40,9 @@ async function fixture(kind: EnemyKind, x = 4, z = 0) {
         Object.assign(a.position, { x: 1000, z: 1000, h: 0 });
         a.motion.speed = 0;
       }
+      // These isolated species fixtures explicitly replace seeded squad coordination.
+      // The social browser exercises the intact four-member group chart and roles.
+      for (const group of g.ecs.query('koboldSquad')) g.ecs.remove(group.id);
       for (const e of [...g.ecs.query('particle'), ...g.ecs.query('projectile')])
         g.ecs.remove(e.id);
       const target = g.combat.enemies.find((a) => a.kind === kind);
@@ -123,8 +127,8 @@ try {
       health: g.player.actor.entity.require('health').current,
     };
   });
-  assert.equal(counts.actors, 22);
-  assert.equal(counts.rigs, 22);
+  assert.equal(counts.actors, 25);
+  assert.equal(counts.rigs, 25);
   assert.equal(counts.tiles, counts.expectedTiles);
   assert.ok(counts.doors > 0);
   assert.equal(counts.health, 100);
@@ -676,7 +680,7 @@ try {
       target: g.player.actor.attack.target,
     };
   });
-  assert.deepEqual(reset, { actors: 22, corpses: 0, particles: 0, shots: 0, target: null });
+  assert.deepEqual(reset, { actors: 25, corpses: 0, particles: 0, shots: 0, target: null });
   pass(
     'Regeneration replaces the ECS world without stale targets, corpses, particles or projectiles',
   );

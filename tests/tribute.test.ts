@@ -112,11 +112,26 @@ test('tribute: 100 deterministic reserved pre-altar cargo/exit routes preserve p
       sites = f.scenario.sites;
     assert.deepEqual(sites, tributeBlueprint(generateDungeon(`tribute-${i}`)));
     assert.deepEqual(validateDungeon(f.world), []);
-    assert.equal(f.enemies.length, 21);
+    assert.equal(f.enemies.length, 24);
+    assert.equal(f.enemies.filter((a) => a.kind === 'skeleton').length, 8);
+    assert.equal(f.enemies.filter((a) => a.kind === 'goblin').length, 4);
+    for (const room of ['stable', 'stairs', 'treasury']) {
+      const pack = f.enemies.filter((a) => a.brain?.pack === `pack:${room}`);
+      assert.equal(pack.length, 4);
+      assert.deepEqual(
+        pack.map((a) => a.entity.require('squadMember').role),
+        ['shieldbearer', 'shieldbearer', 'shieldbearer', 'spearman'],
+      );
+      for (const a of pack) {
+        assert.equal(a.brain!.social!.members.length, 4);
+        assert.ok(a.navigator.canOccupy(a.position));
+        assert.ok(a.navigator.canStand(a.brain!.home));
+      }
+    }
     assert.equal(f.world.entities.filter((e) => e.type === 'chest').length, 3);
     assert.equal(sites.cargo.length, 4);
     assert.equal(new Set(sites.cargo.map((c) => c.id)).size, 4);
-    assert.equal(sites.workers.length, 3);
+    assert.equal(sites.workers.length, 4);
     const nav = new Navigator(f.world);
     for (const p of [...sites.cargo, sites.exit]) {
       assert.ok(f.world.reserved.has(`${p.x},${p.z}`));
@@ -378,7 +393,7 @@ test('tribute: survivor takes over by navigating to the drop across three seeded
     const f = fixture(seed);
     for (const a of f.enemies)
       if (!f.scenario.sites.workers.includes(a.id)) f.combat.damage(a, 1000);
-    // Remove hero perception from the traversal fixture, keeping all three pack bodies.
+    // Remove hero perception from the traversal fixture, keeping all four pack bodies.
     Object.assign(f.player.position, { x: 1000, z: 1000, h: 0 });
     f.activate();
     const simulate = () => {
@@ -395,10 +410,49 @@ test('tribute: survivor takes over by navigating to the drop across three seeded
     assert.ok(carried, seed);
     const victim = carried.require('cargo').owner!;
     f.combat.damage(f.combat.actor(victim.id)!, 1000);
+    // The newly added fourth member must independently recover the original carrier's drop.
+    for (const id of f.scenario.sites.workers.slice(0, 3)) {
+      const actor = f.combat.actor(id)!;
+      if (actor.alive) f.combat.damage(actor, 1000);
+    }
     simulate();
     assert.equal(carried.require('cargo').state, 'loose');
     for (let i = 0; i < 18000 && carried.require('cargo').state !== 'delivered'; i++) simulate();
     assert.equal(carried.require('cargo').state, 'delivered', seed);
     assert.equal(f.record.get(TRIBUTE.objective).progress, 1);
+    assert.equal(f.ecs.get(f.scenario.sites.workers[3])!.require('squadMember').role, 'spearman');
   }
+});
+
+test('tribute: a remote shared combat alert interrupts ready porter work; threat loss resumes the same cargo', () => {
+  const f = fixture();
+  f.activate();
+  const worker = f.carrier();
+  const item = f.scenario.cargo.find((e) => e.require('cargo').owner === worker.entity)!;
+  teleportActor(worker, f.world, item.require('workSite').approach);
+  f.work.assign(worker, TRIBUTE.objective);
+  const ally = f.combat.actor(f.scenario.sites.workers[3])!;
+  f.tick(TRIBUTE.pickupSeconds, () => f.combat.damage(ally, 1, f.player));
+  assert.equal(item.require('cargo').state, 'claimed');
+  assert.equal(item.require('cargo').owner, worker.entity);
+  assert.equal(worker.attack.target, f.player.id);
+  assert.equal(worker.entity.get('work')?.snapshot().elapsed ?? 0, 0);
+  f.player.position.x = 1000;
+  f.player.position.z = 1000;
+  // Perception and work run without a render/camera gate; preserve real actor/health identity.
+  for (const actor of f.enemies)
+    if (!f.scenario.sites.workers.includes(actor.id)) {
+      if (actor.id === EMBER.worker) {
+        stopActor(actor);
+        actor.entity.remove('brain');
+        Object.assign(actor.position, { x: -1000, z: -1000 });
+      } else f.combat.damage(actor, 1000);
+    }
+  for (let i = 0; i < 18000 && item.require('cargo').state !== 'delivered'; i++) {
+    updateDoors(f.ecs, 1 / 60);
+    f.tick(1 / 60, () => f.combat.update(1 / 60));
+  }
+  assert.equal(item.require('cargo').state, 'delivered');
+  assert.equal(f.record.get(EMBER.restore).status, 'unresolved');
+  assert.equal(f.record.get(EMBER.profane).status, 'unresolved');
 });
