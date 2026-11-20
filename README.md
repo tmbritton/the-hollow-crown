@@ -2,11 +2,12 @@
 
 A playable, entirely code-generated dark-fantasy voxel dungeon built with **Babylon.js, XState 5.33.4, strict TypeScript, and HTML canvas**. The art direction draws on Hades' elevated compositions, Darkest Dungeon's atmosphere, and Mike Mignola's angular silhouettes and graphic shadows.
 
-**Public release pending:** P7's local release configuration passed independent prepublish review
-with **READY, no blockers**.
-The intended public repository is [tmbritton/the-hollow-crown](https://github.com/tmbritton/the-hollow-crown)
-and the demo URL is **https://tmbritton.github.io/the-hollow-crown/**. The repository is still
-private and Pages has not been enabled or deployed; these links are publication targets.
+**[Play the live demo](https://tmbritton.github.io/the-hollow-crown/)** ·
+**[Source on GitHub](https://github.com/tmbritton/the-hollow-crown)**
+
+P7 is published and verified at **`3934e17`** (2026-11-20). The repository is public and the
+HTTPS GitHub Pages demo passes the hosted production smoke check. See [VERIFICATION.md](VERIFICATION.md)
+for the deployment run and recorded results.
 
 ## Run
 
@@ -62,21 +63,13 @@ actions deploy through the `github-pages` environment and expose its URL. Deploy
 without cancelling an in-progress run. The built-in token/OIDC needs no deployment secret.
 `package.json` remains `private: true` to prevent npm publication; GitHub visibility is a separate setting.
 
-#### First publication handoff (pending)
+#### Deployment maintenance
 
-Independent prepublish review is **READY**. After the normal-hook P7 commit, excluding the user's
-untracked `docs/notes.md`, the publisher needs repository administration for visibility and
-permission to manage Pages/Actions. With the currently absent Pages site, perform the one-time setup:
-
-```sh
-gh repo edit tmbritton/the-hollow-crown --visibility public --accept-visibility-change-consequences
-gh api --method POST repos/tmbritton/the-hollow-crown/pages -f build_type=workflow
-git push origin main
-```
-
-`build_type=workflow` selects **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-Allow the workflow's official actions and its scoped deployment permissions; the `github-pages`
-environment must permit `main`. The push starts deployment. If a manual run is needed after setup:
+Pages is configured with **Source: GitHub Actions** (`build_type=workflow`) and the public HTTPS
+site is live. The first verified deployment is
+[run 44745698117](https://github.com/tmbritton/the-hollow-crown/actions/runs/44745698117)
+at `3934e17`. Pushes to `main` automatically run the checked deployment workflow. To deploy `main`
+manually and inspect the result:
 
 ```sh
 gh workflow run pages.yml --repo tmbritton/the-hollow-crown --ref main
@@ -86,9 +79,9 @@ gh api repos/tmbritton/the-hollow-crown/pages --jq '{html_url, build_type, statu
 DEMO_URL=https://tmbritton.github.io/the-hollow-crown/ npm run test:production
 ```
 
-Use the actual run ID from the listing. After the hosted check passes, record the deployed commit,
-workflow URL and smoke result in `VERIFICATION.md` and update the pending release status here and
-in the progress tracker. P8 ragdolls and P9 skeleton debris follow completion of P7 publication.
+Use the actual run ID from the listing. After future deployments, record the deployed commit,
+workflow URL and hosted smoke result in `VERIFICATION.md`. P7 is complete; P8 directional ragdolls
+are next and not implemented, followed by P9 skeleton debris.
 
 ## Play
 

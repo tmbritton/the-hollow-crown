@@ -22,10 +22,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
   P5 held-F defense is complete at `975c533`, independent review READY with no blockers.
    P6a four-member squad foundation is complete at `c3641c2`, final independent review READY**;
    physical phalanx **P6b is complete at `806a27b`, final independent review READY with both blockers cleared**.
-   **P7 local release configuration passed independent prepublish review READY, no blockers.**
-   Its normal-hook commit is authorized. The repository remains private with no Pages site;
-   parent visibility, setup, push/deploy and hosted smoke remain pending after the commit hash.
-   P8 ragdolls and P9 skeleton debris follow publication.
+   **P7 is complete and published at `3934e17`, following independent prepublish review READY.**
+   The public repository and HTTPS Pages demo are live. GitHub run **44745698117** succeeded;
+   the parent's actual hosted smoke passed **five checks with zero errors**, with reviewed captures.
+   **P8 directional ragdolls are next, not implemented; P9 skeleton debris follows P8.**
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
@@ -135,16 +135,37 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P5 | Complete; independent review READY, no blockers | 1 pass / 4 fail on actual frontal health loss before production edits, then lifecycle/model contracts failed on missing defense module | 52 focused / 281 full tests, format/lint/build; Chromium defense 9, combat 15; 21 machines / 95 states / 179 branches; independent targeted geometry/latch/work/input/pool/regeneration review passed | `975c533` |
 | P6a | Complete; final independent review READY, no blockers | Missing squad module and 21≠24 population reds; detour/swapped-home reds; reviewer reproduced obsolete no-enemy-defense assertion | 291 full after all corrections; typecheck/format/lint; defense 9; prior build/social 15/tribute 9/gameplay 18+5 reused; final review clears role-aware assertion | `c3641c2` |
 | P6b | Complete; final independent review READY, both blockers cleared | Review regressions fail 0/3 before fixes: circular/seeded rank stalls and ECS-order javelin interception | 315 tests/full checks; models 22/105/226; phalanx 8/combat 15; final review: fresh 24 arrangements, 600 geometry-oracle comparisons, lifecycle/hold/progression probes and 13 captures | `806a27b` |
-| P7 | Local configuration independently reviewed READY, no blockers; publication pending | Real project-path browser rejected root-built `/assets/index-…js` before Pages build fix | Node 24 npm ci, 315 tests/typecheck, format/lint/build; root/project smokes 5 checks each, zero errors; four captures. Independent actionlint/diff, 4 helper tests and URL/base/port/query/lifecycle/remote probes pass; official pins confirmed. Hosted publication remains parent-owned | This commit (local configuration) |
-| P8 | Queued after the original list | Directional ragdoll deaths, wall collisions and stair falls | New user note; not implemented | — |
+| P7 | Complete; public repository and hosted demo verified; independent prepublish review READY | Real project-path browser rejected root-built `/assets/index-…js` before Pages build fix | Local 315 tests/full checks/build and independent probes pass. GitHub run 44745698117 succeeds (build 8m 47s, deploy 15s), including CI root/project smokes. Parent's actual hosted smoke: five checks, zero errors; hosted lowered/defending captures reviewed | `3934e17` |
+| P8 | Next, not implemented | Directional ragdoll deaths, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 
 ## Work log
 
-### P7 — independent prepublish review and local delivery — 2026-11-20
+### P7 — public repository and hosted delivery — 2026-11-20 (complete)
+
+- Parent pushed **`3934e17eb90884dbecf2b4e31ca44459e9b58d12`** to `origin/main`, confirmed
+  **`isPrivate: false`**, and created Pages with **`build_type=workflow`**. The public source is
+  https://github.com/tmbritton/the-hollow-crown and the live HTTPS demo is
+  **https://tmbritton.github.io/the-hollow-crown/**.
+- Parent-reported [GitHub Actions run 44745698117](https://github.com/tmbritton/the-hollow-crown/actions/runs/44745698117)
+  **succeeded** at that commit, completed **2026-11-20T13:44:59Z**: **build 8m 47s / deploy 15s**.
+  Required checks, root build/browser smoke and Pages build/project-path smoke all passed in CI.
+- Parent ran `DEMO_URL=https://tmbritton.github.io/the-hollow-crown/ npm run test:production`:
+  **five checks, zero browser/network errors**. The saved report was read for this record; its
+  HTTPS URL is correct, all **31 requests** stay under the project path, and errors are empty.
+  Seed/bootstrap, map/movement, defense input, regeneration, quality and menus pass;
+  `window.__dungeon` is absent and F2 issues no Inspector request.
+- Parent read the actual hosted lowered/defending captures and confirmed the rendered game,
+  controls and shield poses. These are attributed hosted/CI results, not newly rerun local suites.
+  The hosted report/captures now occupy the earlier local project-path artifact filenames.
+- **P7 is complete at `3934e17`. P8 directional ragdolls are next, not implemented; P9 skeleton
+  debris follows P8.** This delivery-record change is documentation-only; raw notes remain
+  untouched and excluded. Earlier local and independent-review qualifications are retained below.
+
+### P7 — independent prepublish review and local delivery — 2026-11-20 (historical prepublication checkpoint)
 
 - Independent prepublish review returned **READY, no blockers**. The user authorized the intended
-  P7 local configuration commit with normal hooks. This containing commit records local delivery;
+  P7 local configuration commit with normal hooks. Commit `3934e17` records that local delivery;
   **public visibility, Pages setup/deployment and hosted verification remain pending**.
 - **Attributed reviewer results:** actionlint and diff checks; **four server-helper tests** under
   **Node 24.22.3**; URL/base, custom-port, query, owned cleanup, reused-server and remote-server

@@ -4,7 +4,51 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
-### P7 — independent prepublish review — 2026-11-20 (local READY; publication pending)
+### P7 — public repository and hosted delivery — 2026-11-20 (complete)
+
+**P7 is published and verified at `3934e17eb90884dbecf2b4e31ca44459e9b58d12`.** The parent pushed
+the reviewed local configuration to `origin/main`, confirmed the repository is public
+(`isPrivate: false`), and created Pages with `POST /repos/tmbritton/the-hollow-crown/pages`,
+`build_type=workflow`. The public HTTPS site is live:
+
+- **Play:** https://tmbritton.github.io/the-hollow-crown/
+- **Source:** https://github.com/tmbritton/the-hollow-crown
+- **Successful deployment:** [GitHub Actions run 44745698117](https://github.com/tmbritton/the-hollow-crown/actions/runs/44745698117)
+
+#### Actual GitHub Actions result
+
+Parent-reported run **44745698117** succeeded at the full commit above, completing at
+**2026-11-20T13:44:59Z**. The **build job took 8m 47s** and **deployment took 15s**. CI passed
+the required `npm run check`, root build/production browser smoke, and Pages build/project-path
+browser smoke before uploading and deploying the verified site artifact.
+
+#### Actual hosted production result
+
+The parent ran this against the deployed site, not a local preview:
+
+```sh
+DEMO_URL=https://tmbritton.github.io/the-hollow-crown/ npm run test:production
+```
+
+It passed **five reported checks with zero browser/network errors**. The saved
+`test-results/production-the-hollow-crown.json` was read for this delivery record: its URL is
+the HTTPS demo above, all **31 requests** remain under `/the-hollow-crown/`, and `errors` is empty.
+The report covers seeded bootstrap/rendering, real map/movement input, held F/release, seed entry,
+random regeneration, quality/menu resume, and absence of development hooks and external assets.
+`window.__dungeon` is absent even with `?debug`; F2 makes no Inspector request.
+
+The parent read and reviewed the actual hosted
+`test-results/production-the-hollow-crown-{lowered,defending}.png` captures, confirming the rendered
+game, controls and correct lowered/raised shield poses. These hosted results and the GitHub run
+are attributed to the parent; this documentation-only delivery does not rerun browser suites.
+The hosted report/captures replace the same-named earlier local project-path artifacts; the local
+results below remain historical evidence. Generated artifacts remain ignored.
+
+The independent prepublish **READY, no blockers** verdict and earlier local checks are retained
+below with their original qualifications. **P8 directional ragdolls are next, not implemented;
+P9 skeleton debris follows P8.**
+
+### P7 — independent prepublish review — 2026-11-20 (historical prepublication checkpoint)
 
 The independent prepublish reviewer returned **READY, no blockers**. The user authorized the
 normal-hook commit of the intended P7 local configuration. **The repository is still private;

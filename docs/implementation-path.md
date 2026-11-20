@@ -19,8 +19,8 @@ each slice test-first, independently reviewed and committed:
 | P5 | Hold F to defend — `975c533`, complete, independent review READY | Shared opt-in ECS `actorDefense` chart; inclusive 120° frontal melee/projectile block, travel-vector bolt direction, forward shield/lowered weapon, full-speed grounded movement, attack/work interruption and release latch across jump/cancellation/resets. Independent review found no blockers; implementation checks and attributed review probes are recorded in the progress tracker and VERIFICATION.md. |
 | P6a | Introduce declarative kobold squad coordination — `c3641c2`, complete, independent review READY | Three existing packs now have three shield bearers and one spearman each (24 enemies). ECS group charts own shared targeting, bounded assembly, engagement, return/yield and defeat; individual charts remain. Final review cleared the role-aware defense-test blocker, with no production defects or other issues. See progress/verification records. |
 | P6b | Deliver the phalanx encounter — `806a27b`, complete, final independent review READY | Slow coordinated ranks, vulnerable shield opening, rear thrust/javelin and shielded withdrawal. Both review blockers cleared: bounded local-detour recovery and earliest swept javelin interception. 315 tests/full checks; phalanx 8/combat 15 browser checks; final independent geometry, lifecycle, bounded-hold, progression and capture review pass. See VERIFICATION.md for attributed evidence and limits. |
-| P7 | Publish the repository and GitHub Pages demo — local configuration independently reviewed READY; publication pending | SHA-pinned official Actions, Node 24 locked install/checks, verified root/project builds and dist-only deployment configuration implemented. Independent prepublish review found no blockers; normal-hook commit authorized. Parent must make the repository public, select Pages source GitHub Actions, push/deploy and verify the hosted demo. See README for exact commands and VERIFICATION.md for attributed review evidence. |
-| P8 | Directional ragdoll deaths — queued after the original list | Apply an exaggerated death impulse in the killing blow's direction. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
+| P7 | Publish the repository and GitHub Pages demo — `3934e17`, complete | Independent prepublish review READY, no blockers. Public repository and HTTPS Pages demo deployed successfully by run 44745698117; required checks and root/project browser smokes pass in CI. Parent's actual hosted smoke passes five checks, zero errors, with reviewed shield/input captures. See VERIFICATION.md for commit, run URL, timings and attributed evidence. |
+| P8 | Directional ragdoll deaths — next, not implemented | Apply an exaggerated death impulse in the killing blow's direction. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
 | P9 | Skeleton breakup and settled bone decoration — queued after P8 | Skeleton deaths launch separated procedural body parts instead of retaining an intact corpse. Parts collide and settle as non-interactive set decoration. Reuse the death-motion foundation; preserve death/discovery semantics, bounded resources, pause and regeneration cleanup, with real-browser visual checks. |
 
 P1's resource-fix slice is committed as **`6378d61`**. **P2 corpse traversal is committed at
@@ -30,9 +30,9 @@ click fallback is complete at `9f8e1d7`; final independent review returned READY
 P5 held-F defense is complete at `975c533`, independently reviewed READY with no blockers.
 P6a is complete at `c3641c2`, independently reviewed READY with no remaining blockers.
 P6b is complete at `806a27b`; final independent review returned READY and cleared both blockers.**
-**P7's local configuration passed independent prepublish review READY, with no blockers; its
-normal-hook commit is authorized. Public visibility, Pages setup/deployment and hosted verification
-are still pending.** The parent owns those publication steps after receiving the commit hash.
+**P7 is complete and published at `3934e17`.** Independent prepublish review returned READY with
+no blockers; the parent made the repository public, deployed through GitHub Actions and verified
+the actual hosted production game. **P8 is next, not implemented; P9 follows P8.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -40,8 +40,8 @@ P5 establishes the defensive behavior needed by P6. P6a and P6b split the format
 reviewable slices. P7 follows the gameplay/stability pass. Historical broader art/performance
 milestones remain recorded, but do not supersede this user-directed queue.
 
-The two later additions to `docs/notes.md` are P8 and P9. At the user's request, finish the
-original list through P7 before beginning them. Preserve the raw notes as the source of intent.
+The two later additions to `docs/notes.md` are P8 and P9. The original list through P7 is now
+complete, satisfying the user's requested ordering. Preserve the raw notes as the source of intent.
 
 ## Chosen starting point (historical)
 
