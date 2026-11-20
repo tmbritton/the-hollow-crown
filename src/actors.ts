@@ -143,6 +143,7 @@ export function requestJump(actor: Actor): boolean {
 }
 
 export function stopActor(actor: Actor, cancelCombat = true): void {
+  actor.entity.get('rigPose')?.invalidateHistory();
   actor.entity.get('defense')?.cancel();
   cancelWork(actor);
   actor.navigator.cancel();

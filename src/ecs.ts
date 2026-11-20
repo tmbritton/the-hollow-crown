@@ -19,6 +19,7 @@ import type { Tribute } from './tribute.ts';
 import type { Cargo } from './cargo.ts';
 import type { KoboldSquad, SquadMember } from './koboldSquads.ts';
 import type { Statechart } from './machines/statechart.ts';
+import type { RigBinding } from './rigs/bindings.ts';
 import type { focusMachine } from './machines/world/focus.ts';
 import type { Creature, FloatingObject, LightSource, Portrait, Wall } from './renderTypes.ts';
 import type {
@@ -35,6 +36,7 @@ import type {
 export type ActorKind = 'player' | 'skeleton' | 'goblin' | 'kobold';
 export type EnemyKind = Exclude<ActorKind, 'player'>;
 export interface Components {
+  rigPose: RigBinding;
   discoveries: DiscoveryRecord;
   objectives: ObjectiveRecord;
   objectiveWork: ObjectiveWorkSystem;

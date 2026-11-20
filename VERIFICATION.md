@@ -4,6 +4,67 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### A1 — shared humanoid definitions and bindings — 2026-11-20 (verified, independent review READY)
+
+All **25 actors** now use the shared 20-joint humanoid definition, species profiles, numerical
+pose/history buffers and final mesh bindings. Logical hand/head frames reuse existing nodes and
+geometry. Both kobold roles share anatomy. Existing samplers/contact code write a numerical legacy
+bridge; bindings translate semantic poses through inverse-bind offsets and the existing pivots.
+See [docs/rig-foundation.md](docs/rig-foundation.md) for APIs and current migration boundaries.
+
+**Observed reds and corrections:** pure definition/binding tests initially failed on their missing
+modules. Independent review then reproduced terrain/room lookup reading the previous render root
+after the motor moved. A persistent browser regression failed with `['stone', 'lava']` instead of
+`['lava', 'stone']` on entering/leaving a boundary. `movePlayer` now reads its current actor `x/z`;
+the corrected cases reach x=0.57/lava and x=0.43/stone. Socket-axis NaNs and invalid coarse body
+mappings are rejected. The ordinary same-mesh skeleton reference continues selecting ordinary
+motion through the legacy profile lookup and now asserts that it contains no lurch.
+
+**Checks actually run:**
+
+- **Seven new pure tests** cover shared topology/immutability, actual proportions and sockets,
+  quaternion FK/local-world round trips versus Babylon, stable buffers/history, malformed
+  definitions, independent wrist orientation, neutral mesh parity, head/limb application and
+  retired binding rejection. Earlier focused rig/contact/leg iteration passed **17 tests** before
+  the additional wrist test; all are included in the final everyday gate.
+- `npm test`: **309 pass / 28.71s native test-runner elapsed** (excluding preceding typecheck).
+  Complete machine coverage remains **22 machines / 105 states / 226 branches**. Format
+  (**164 files**), lint, typecheck and production build pass; the existing bundle warning remains.
+- `A0_POSE_REPORT=test-results/animation-review-catalog.json npm run test:rig`: **428 samples /
+  30 clips**, maximum scalar difference from preserved A0 **2.384185791015625e−7**. Gameplay
+  positions/facts/clocks are compared along with render transforms/contact metrics. Maximum
+  pure-FK/rendered joint error **5.643607388144739e−6**, allowing Babylon Float32 world rounding.
+- Mesh, material, parent, vertex-count and pickability identity, exact shadow-list identity,
+  observation render-object/mesh-array identity and actual enemy-proxy ray selection all pass.
+  Repeated application preserves current and previous snapshots; three regenerated worlds start
+  with fresh current=previous history. **2,291 meshes / 397 transform nodes / 28 materials /
+  4 textures** remain stable, with **42 terrain lookups/update** as in A0.
+- Same bounded A0 workload (25 rigs, four corpses, four action kinds, 60 warmup +240 measured
+  updates): CDP-enabled **1.127ms mean / 1.50ms p95**. Statistical allocated-byte estimate
+  **157,565,116**, at a 32KiB interval including collected objects, setup/warmup/yields and test
+  instrumentation. This is not exact allocation count, retained heap or a causal speedup claim.
+  SwiftShader/800×600 CPU fixture; rendering/AI/motor/diagnostic sampling are outside the timed call.
+- `npm run test:animation` passes existing poses, corpse crossings, skeleton sequences and resets.
+  `test:movement` first found its pre-existing **21 ≠ 24** population assertion; correcting the
+  fixture to the current roster yields **16 passing checks**. `test:jump` passes **8 checks**,
+  including lava, airborne support, input cancellation and regeneration. Suites ran sequentially
+  with bounded deadlines. Relevant rig and animation captures were inspected.
+- `npm run test:production`: **five local root-path checks**, zero browser/network errors, no
+  development global or Inspector/external requests. No new hosted/Pages-subpath deployment is
+  claimed here. Reports/captures remain ignored under `test-results/`.
+
+**Independent review: READY, blocker cleared.** Attributed probes: **96** transform samples across
+four profiles / **20,352** matrix scalars versus separate Babylon hierarchies (pivots and nonuniform
+scales), maximum error **9.54e−7**; semantic edits under nonuniform root scale within **6.03e−6**;
+binding history/reset checks; actual `movePlayer` terrain and room boundary checks in both
+directions; **42 invalid-input cases**; **72 socket-frame comparisons** including rotated bases
+and nonuniform scale, maximum difference **1.96e−6**. Reviewer inspected the saved identity,
+selection, parity and resource evidence and reused broad tests rather than rerunning them.
+
+The worst existing visible issue remains A0's floating/root-mounted equipment and rear crate
+placement. A1 intentionally establishes pose/binding parity; A2/A4 solve coordinated grips and
+contacts. A2's bounded full-body IK is the next dependency-ready slice.
+
 ### A0 — animation motion-review baseline — 2026-11-20 (verified, independent review READY)
 
 Implemented the development-only `window.__dungeon.animation` controller, pose/contact observer,
@@ -62,7 +123,8 @@ and CPU evidence above are reused; the correction affects camera presentation on
 **Worst existing visual error:** floating root-mounted equipment (thrust/throw proximity roughly
 0.85/1.22 units), plus the crate behind forward-reaching arms. Actual foot-corner sampling also
 reveals existing stair/corpse-edge penetration, documented in the baseline. These are migration
-targets, not claims that the future A2/A4 quality gates already pass. A1 is next.
+targets, not claims that the future A2/A4 quality gates already pass. At this A0 checkpoint A1
+was next; its subsequent delivery is recorded above.
 
 ### T2 — measured test cadence before animation — 2026-11-20 (verified, review READY; pre-A0 checkpoint)
 

@@ -5,6 +5,8 @@ import { part } from './geometry.ts';
 import { tileAt, heightAt } from './world.ts';
 import { createActor, moveActor, stopActor, teleportActor } from './actors.ts';
 import { bindActorCollision, resetActorRig } from './actorRendering.ts';
+import { bindHumanoid } from './rigs/bindings.ts';
+import { profiles } from './rigs/humanoid.ts';
 import type { ECS } from './ecs.ts';
 import { MOVEMENT_KEYS, RUN_SPEED, WALK_SPEED } from './locomotion.ts';
 import type { Scene } from '@babylonjs/core/scene';
@@ -33,17 +35,23 @@ export function createPlayer(
   body.setPivotPoint(new Vector3(0, 0.55, 0));
   const p = (mat: MaterialName, name: string, size: Triple, pos: Triple, parent = body) =>
     part(scene, materials[mat], name, size, pos, parent, shadow);
+  const headMeshes: TransformNode[] = [];
+  const hp = (mat: MaterialName, name: string, size: Triple, pos: Triple) => {
+    const mesh = p(mat, name, size, pos);
+    headMeshes.push(mesh);
+    return mesh;
+  };
   p('dark', 'robe', [0.68, 0.73, 0.43], [0, 0.93, 0]);
   p('cloth', 'surcoat', [0.58, 0.66, 0.12], [0, 0.96, 0.27]);
   p('gold', 'belt', [0.73, 0.12, 0.49], [0, 0.72, 0]);
   p('gold', 'buckle', [0.15, 0.17, 0.06], [0, 0.73, 0.28]);
   p('cloth', 'split skirt', [0.8, 0.32, 0.5], [0, 0.52, 0]);
-  p('dark', 'hood', [0.61, 0.58, 0.57], [0, 1.57, 0]);
-  p('bone', 'mask', [0.42, 0.38, 0.12], [0, 1.53, 0.31]);
-  p('dark', 'visor', [0.43, 0.095, 0.025], [0, 1.58, 0.38]);
+  hp('dark', 'hood', [0.61, 0.58, 0.57], [0, 1.57, 0]);
+  hp('bone', 'mask', [0.42, 0.38, 0.12], [0, 1.53, 0.31]);
+  hp('dark', 'visor', [0.43, 0.095, 0.025], [0, 1.58, 0.38]);
   for (const x of [-0.12, 0.12])
-    p('eyes', 'watchful eyes', [0.075, 0.035, 0.03], [x, 1.585, 0.399]);
-  p('gold', 'hood crest', [0.12, 0.19, 0.48], [0, 1.92, -0.03]);
+    hp('eyes', 'watchful eyes', [0.075, 0.035, 0.03], [x, 1.585, 0.399]);
+  hp('gold', 'hood crest', [0.12, 0.19, 0.48], [0, 1.92, -0.03]);
   for (const x of [-0.43, 0.43]) {
     p('iron', 'pauldron', [0.29, 0.29, 0.49], [x, 1.28, 0]);
     p('gold', 'shoulder trim', [0.31, 0.07, 0.5], [x, 1.4, 0]);
@@ -117,10 +125,8 @@ export function createPlayer(
   }
   const teleport = (x: number, z: number, world: World) => {
     teleportActor(actor, world, { x, z });
-    resetActorRig(actor.entity.require('rig'));
+    resetActorRig(actor.entity.require('rig'), actor.position);
     destinationMarker.setEnabled(false);
-    const position = actor.position;
-    root.position.set(position.x, position.h, position.z);
   };
   const player = {
     actor,
@@ -171,6 +177,7 @@ export function createPlayer(
     socialPose: null,
   });
   root.rotation.y = player.heading;
+  bindHumanoid(actor.entity, profiles.player, headMeshes);
   return player;
 }
 
@@ -179,8 +186,7 @@ export function stopPlayer(player: Player): void {
   stopActor(player.actor);
   player.destinationMarker.setEnabled(false);
   player.moving = false;
-  resetActorRig(player.actor.entity.require('rig'));
-  player.root.position.y = player.actor.position.h;
+  resetActorRig(player.actor.entity.require('rig'), player.actor.position);
 }
 
 export function movePlayer(
@@ -213,7 +219,6 @@ export function movePlayer(
     dt,
   );
   const p = player.actor.position;
-  player.root.position.set(p.x, p.h, p.z);
   player.moving = player.motion.actualSpeed > 0.08;
   const destination = player.navigator.destination;
   player.destinationMarker.setEnabled(destination !== null);
@@ -225,10 +230,6 @@ export function movePlayer(
     );
     player.destinationMarker.scaling.setAll(1 + Math.sin(player.motion.animation.time * 7) * 0.1);
   }
-  player.marker.position.set(
-    player.root.position.x,
-    player.root.position.y + 0.035,
-    player.root.position.z,
-  );
-  return tileAt(world, player.root.position.x, player.root.position.z);
+  player.marker.position.set(p.x, p.h + 0.035, p.z);
+  return tileAt(world, p.x, p.z);
 }

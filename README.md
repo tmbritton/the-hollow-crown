@@ -82,8 +82,9 @@ DEMO_URL=https://tmbritton.github.io/the-hollow-crown/ npm run test:production
 Use the actual run ID from the listing. After future deployments, record the deployed commit,
 workflow URL and hosted smoke result in `VERIFICATION.md`. P7 is complete. The planned
 [animation foundation](docs/animation-roadmap.md) has begun: **A0 motion review is implemented and
-independently reviewed READY**. A1 shared rigs is next, then A2–A7, P8 directional ragdolls and P9
-skeleton debris. The [A0 baseline](docs/animation-baseline.md) records current motion and defects.
+independently reviewed READY**, and **A1's shared rig foundation is implemented and reviewed READY**.
+A2 coordinated full-body IK is next, then A3–A7, P8 directional ragdolls and P9 skeleton debris.
+See the [A0 baseline](docs/animation-baseline.md) and [A1 architecture](docs/rig-foundation.md).
 
 ## Play
 
@@ -281,6 +282,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
 | `src/machines/actors/defense.ts` | Opt-in held-defense lifecycle and 120° incoming-direction test |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
+| `src/rigs/` | Shared semantic humanoid definitions/profiles, quaternion pose/FK buffers, sockets, numerical legacy bridge and final mesh bindings |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
 | `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original role/slot references, bounded physical rank assembly, shared attack/opening phases and unit withdrawal |
 | `src/attackKinds.ts` / `src/phalanxPoses.ts` | Shared action geometry/timing contracts and simulation-clock-sampled spear/throw presentation |
@@ -397,6 +399,11 @@ camera with `camera(null)` and resume normally with `play()`. Generated HTML pla
 pose/contact reports live under ignored `test-results/`. See the [complete baseline and migration
 inventory](docs/animation-baseline.md) for commands, measurements and qualifications.
 
+`npm run test:rig` checks the shared rig's actual mesh/FK agreement, render-registration identity,
+selection, current-position terrain lookup and regeneration costs. With a preserved historical A0
+report, `A0_POSE_REPORT=test-results/animation-review-catalog.json npm run test:rig` also compares
+all 30 motion clips. See [the rig foundation](docs/rig-foundation.md) for ownership and APIs.
+
 ### Entity/component architecture
 
 `game.ecs` is the runtime registry. Player, enemies, doors, interactables, props, obstacles, rooms, tiles, render batches, projectiles, and hit particles have entity IDs and attachable components. Generated world data is registered **by reference**, preserving the existing pure generation/validation pipeline and preventing duplicate door or interaction state. A batched mesh can render many logical floor/prop entities efficiently.
@@ -412,6 +419,12 @@ site's enabled accessor. The runtime advances work around movement/combat and co
 outcomes after hazards, before respawn. Every ordinary world installs the composed plan once.
 
 Components describe transform, health, actor capabilities, movement, navigation, attack state, AI, interaction intent, corpse state, collision adapters, render rigs, and effects. Indexed queries visit only entities with the requested components; adding/removing components updates those indexes immediately. `Actor` is a checked view over these components, not an inheritance hierarchy or another copy of state.
+
+Every rendered actor now owns a `rigPose` component: a shared immutable humanoid definition,
+independent numerical pose/history buffers and the binding to its existing geometry. Legacy
+animation and foot-contact samplers write numerical channels; the binding performs final mesh
+application. Logical hand/head joints and grip/sole frames add no scene nodes. Both kobold roles
+share anatomy, while equipment attachments retain their current presentation until A4.
 
 ```ts
 import { Health } from './src/machines/actors/health.ts';
@@ -1038,7 +1051,7 @@ encounter. The visual identifier adds at most five small meshes using existing m
 Design roadmaps live in [`docs/`](docs/README.md):
 
 - [Procedural content improvement plan](docs/procedural-content-improvement-plan.md) — shared keep identities, scene recipes, memorable inhabitants, discoveries, adventure structure, and generator review tools.
-- [Animation roadmap](docs/animation-roadmap.md) — A0 motion review is complete; A1 shared rig definitions/bindings is next, followed by full-body IK, actor-animation migration, tailed rigs, shield motion, ragdolls and skeleton breakup. See the [recorded A0 baseline](docs/animation-baseline.md).
+- [Animation roadmap](docs/animation-roadmap.md) — A0 motion review and A1 shared rig definitions/bindings are complete; A2 full-body IK is next, followed by animation migration, tailed rigs, shield motion and death physics. See the [A0 baseline](docs/animation-baseline.md) and [A1 foundation](docs/rig-foundation.md).
 - [Dungeon demo plan](docs/dungeon-demo-plan.md) — demo goals, art direction, architecture, and milestones.
 - [4e incorporation plan](docs/4e-incorporation-plan.md) — tactical abilities, encounters, exploration systems, and rewards.
 - [Monster roster plan](docs/monster-roster-plan.md) — creature catalog, faction/squad behavior, and implementation waves.

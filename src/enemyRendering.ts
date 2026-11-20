@@ -9,6 +9,8 @@ import type { Ray } from '@babylonjs/core/Culling/ray';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { part } from './geometry.ts';
 import { bindActorCollision } from './actorRendering.ts';
+import { bindHumanoid } from './rigs/bindings.ts';
+import { profiles } from './rigs/humanoid.ts';
 import type { CombatSystem } from './combat.ts';
 import type { Actor } from './actors.ts';
 import type { Materials, MaterialName } from './materials.ts';
@@ -41,6 +43,12 @@ export function createEnemyRendering(
     }
     const p = (mat: MaterialName, name: string, size: Triple, pos: Triple, parent = body) =>
       part(scene, materials[mat], `${actor.id}:${name}`, size, pos, parent, shadow);
+    const headMeshes: TransformNode[] = [];
+    const hp = (mat: MaterialName, name: string, size: Triple, pos: Triple) => {
+      const mesh = p(mat, name, size, pos);
+      headMeshes.push(mesh);
+      return mesh;
+    };
     if (skeleton) {
       p('bone', 'spine', [0.13, 0.7, 0.15], [0, 1, 0]);
       for (const y of [0.83, 1.02, 1.21]) p('bone', 'ribs', [0.56, 0.095, 0.3], [0, y, 0]);
@@ -51,15 +59,15 @@ export function createEnemyRendering(
         p('dark', 'eye socket', [0.13, 0.13, 0.03], [x, 1.65, 0.215], head);
     } else {
       p(goblin ? 'moss' : 'dark', 'leather vest', [0.58, 0.55, 0.36], [0, 0.82, 0]);
-      p(skin, 'head', [0.5, 0.4, 0.4], [0, 1.32, 0.06]);
-      p(skin, goblin ? 'long nose' : 'snout', [goblin ? 0.17 : 0.34, 0.16, 0.28], [0, 1.26, 0.34]);
+      hp(skin, 'head', [0.5, 0.4, 0.4], [0, 1.32, 0.06]);
+      hp(skin, goblin ? 'long nose' : 'snout', [goblin ? 0.17 : 0.34, 0.16, 0.28], [0, 1.26, 0.34]);
       for (const sign of [-1, 1]) {
-        const ear = p(skin, 'pointed ear', [0.3, 0.14, 0.18], [sign * 0.32, 1.37, 0]);
+        const ear = hp(skin, 'pointed ear', [0.3, 0.14, 0.18], [sign * 0.32, 1.37, 0]);
         ear.rotation.z = sign * 0.4;
-        p('eyes', 'eyes', [0.08, 0.055, 0.03], [sign * 0.14, 1.36, 0.28]);
-        if (!goblin) p('bone', 'horn', [0.09, 0.24, 0.09], [sign * 0.2, 1.61, 0]);
+        hp('eyes', 'eyes', [0.08, 0.055, 0.03], [sign * 0.14, 1.36, 0.28]);
+        if (!goblin) hp('bone', 'horn', [0.09, 0.24, 0.09], [sign * 0.2, 1.61, 0]);
       }
-      if (goblin) p('dark', 'hood', [0.54, 0.16, 0.47], [0, 1.57, -0.02]);
+      if (goblin) hp('dark', 'hood', [0.54, 0.16, 0.47], [0, 1.57, -0.02]);
       else {
         const tail = p('brick', 'tail', [0.13, 0.13, 0.7], [0, 0.48, -0.5]);
         tail.rotation.x = -0.25;
@@ -177,6 +185,7 @@ export function createEnemyRendering(
       socialBlend: 0,
       socialPose: null,
     });
+    bindHumanoid(actor.entity, profiles[actor.kind], headMeshes);
     bindActorCollision(actor, scene, combat.world);
     const pick = MeshBuilder.CreateBox(
       `${actor.id}:selection`,

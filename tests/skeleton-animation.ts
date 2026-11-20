@@ -206,6 +206,12 @@ export async function captureSkeletonGait(page: Page) {
       });
       previous = frame;
     }
+    if (mode === 'ordinary control') {
+      assert.ok(
+        frames.every((f) => Math.abs(f.body[2]) < 1e-4 && f.head.every((v) => Math.abs(v) < 1e-10)),
+        'the same-mesh ordinary profile reference must not inherit skeleton lurch',
+      );
+    }
     if (mode === 'flat lurch') {
       assert.ok(
         Math.max(...frames.map((f) => f.body[0])) - Math.min(...frames.map((f) => f.body[0])) > 0.2,

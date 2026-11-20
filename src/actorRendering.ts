@@ -3,7 +3,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import type { Scene } from '@babylonjs/core/scene';
 import { Actor } from './actors.ts';
 import type { Components, ECS } from './ecs.ts';
-import { animateLocomotion, WALK_SPEED } from './locomotion.ts';
+import { animateLocomotion } from './locomotion.ts';
 import type { LocomotionPose } from './locomotion.ts';
 import {
   applyJumpPose,
@@ -24,6 +24,8 @@ import { readCorpseTerrain } from './corpseRendering.ts';
 import { skeletonLurch } from './skeletonGait.ts';
 import { ATTACKS } from './attackKinds.ts';
 import { spearPose } from './phalanxPoses.ts';
+import { rigBinding } from './rigs/bindings.ts';
+import { profiles } from './rigs/humanoid.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -57,7 +59,11 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
   return proxy;
 }
 
-export function resetActorRig(rig: Components['rig']): void {
+export function resetActorRig(renderRig: Components['rig'], position?: Spawn): void {
+  const binding = rigBinding(renderRig),
+    rig = binding.legacy;
+  binding.begin(0);
+  if (position) rig.root.position.set(position.x, position.h, position.z);
   rig.root.rotation.x = rig.root.rotation.z = 0;
   rig.root.scaling.setAll(1);
   rig.body.rotation.setAll(0);
@@ -76,6 +82,7 @@ export function resetActorRig(rig: Components['rig']): void {
   if (rig.cape) rig.cape.rotation.x = -0.16;
   rig.attackBlend = rig.socialBlend = 0;
   rig.attackPose = rig.socialPose = null;
+  binding.commit(true);
 }
 
 function blendPose(
@@ -116,8 +123,10 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
   // Finish every fallen pose before sampling contacts; ECS insertion order cannot affect feet.
   for (const entity of entities) {
     const actor = new Actor(entity),
-      rig = entity.require('rig'),
+      binding = entity.require('rigPose'),
+      rig = binding.legacy,
       p = actor.position;
+    binding.begin(dt);
     rig.root.position.set(p.x, actor.elevation, p.z);
     const turn = Math.atan2(
       Math.sin(p.heading - rig.root.rotation.y),
@@ -169,13 +178,15 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       if (rig.cape) rig.cape.rotation.x += (-0.16 - rig.cape.rotation.x) * settle;
       rig.attackBlend = rig.socialBlend = 0;
       rig.attackPose = rig.socialPose = null;
+      binding.commit();
     }
   }
   const corpses = readCorpseTerrain(ecs);
   for (const entity of entities) {
     if (entity.has('corpse')) continue;
     const actor = new Actor(entity),
-      rig = entity.require('rig');
+      binding = entity.require('rigPose'),
+      rig = binding.legacy;
     const defending = actor.defending;
     const relaxing = isSocializing(actor);
     const work = entity.get('work')?.snapshot();
@@ -188,9 +199,9 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       actor.motion.actualSpeed,
       actor.motion.wantsMovement,
       dt,
-      { player: WALK_SPEED, skeleton: 1.65, goblin: 2.5, kobold: 2.1 }[actor.kind],
+      profiles[actor.kind].gaitSpeed,
       actor.jump.airborne,
-      actor.kind === 'skeleton' ? 'skeleton' : 'ordinary',
+      profiles[actor.kind].gait,
     );
     const swing = actor.attack.swing;
     const member = entity.get('squadMember'),
@@ -357,5 +368,6 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       rig.head.rotation.set(lurch.headPitch * weight, 0, lurch.headRoll * weight);
     }
     if (rig.cape) rig.cape.rotation.x = pose.cape;
+    binding.commit();
   }
 }

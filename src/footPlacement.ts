@@ -7,6 +7,20 @@ import { corpseHeightAt, corpseStep, MAX_CORPSE_STEP } from './corpseTerrain.ts'
 import type { CorpseBox } from './corpseTerrain.ts';
 import { gaitFootPhase } from './skeletonGait.ts';
 
+type FootTransform = {
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  scaling: { x: number; y: number; z: number };
+};
+/** Numerical transform contract; production solves into a buffer, while geometry regressions
+ * can still exercise the exact algorithm against an independent scene-node fixture. */
+type FootRig = Pick<Components['rig'], 'footPlants' | 'socialBlend'> & {
+  root: FootTransform;
+  legs: FootTransform[];
+  knees: FootTransform[];
+  feet: FootTransform[];
+};
+
 const UPPER = 0.25,
   LOWER = 0.25;
 const CONTACT_EPSILON = 0.0001,
@@ -62,7 +76,7 @@ function legEndpoint(hip: number, knee: number, roll: number) {
  * takeoff and interrupted actions; short voxel legs never stretch to chase a stale plant. */
 export function placeFeet(
   actor: Actor,
-  rig: Components['rig'],
+  rig: FootRig,
   pose: LocomotionPose,
   world?: NavigationWorld,
   corpses: readonly CorpseBox[] = [],

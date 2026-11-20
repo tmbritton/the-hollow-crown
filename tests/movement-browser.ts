@@ -149,7 +149,7 @@ try {
   });
   assert.equal(
     await page.evaluate(() => window.__dungeon.game.player.navigator.occupancy!.bodies().length),
-    21,
+    24,
   );
   const liveTarget = { x: 3.2, z: 1.1 };
   await click(liveTarget);

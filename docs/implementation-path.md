@@ -22,7 +22,7 @@ each slice test-first, independently reviewed and committed:
 | P7 | Publish the repository and GitHub Pages demo — `3934e17`, complete | Independent prepublish review READY, no blockers. Public repository and HTTPS Pages demo deployed successfully by run 44745698117; required checks and root/project browser smokes pass in CI. Parent's actual hosted smoke passes five checks, zero errors, with reviewed shield/input captures. See VERIFICATION.md for commit, run URL, timings and attributed evidence. |
 | T2 | Faster test feedback — implemented, verified, review READY | At its checkpoint: core 301 / 26.79s versus the old 303.11s full run. Full 319-case coverage remains about 302s and is required in CI. Core retains all 22 machines / 105 states / 226 branches; original 8,206 work paths remain extended. |
 | A0 | Animation motion-review baseline — implemented, verified, independent review READY | 30 clips / 60 camera sequences / 856 world-pose samples; real input and fixed/slow playback, contact/grip-proxy metrics, 25-actor CPU/allocation/resource baseline and complete migration inventory. 302 everyday tests, affected animation and production smoke pass. See [baseline](animation-baseline.md). |
-| A1 | Shared humanoid rig definitions and bindings | Typed anatomy, profiles, joint limits, sockets and pose buffers; player/enemy mesh bindings with neutral-pose parity and one final writer. |
+| A1 | Shared humanoid rig definitions and bindings — complete, independent review READY | All 25 actors use typed semantic anatomy/profiles, quaternion pose/history buffers and one final binding writer. 428 samples match A0 within 2.384e−7; render identity, selection, reset and cost checks pass. See [rig foundation](rig-foundation.md). |
 | A2 | Coordinated full-body IK | Bounded pelvis/spine/shoulder adjustment plus limb IK; simultaneous foot contacts and hand grips, explicit priorities, infeasible-target fallbacks and final world-space validation. |
 | A3 | Locomotion and grounding migration | Convert idle/start/walk/run/stop, turns, skeleton lurch, crouch, backsteps, jumps and corpse/stair contacts for all actor kinds; preserve authoritative movement. |
 | A4 | Action, equipment, work and social migration | Convert melee/crossbow/spear/javelin, guard/opening, weapon sockets, cards/smoke/hacky-sack, work/carry and the temporary death collapse to rig layers and targets. |
@@ -43,7 +43,8 @@ P6b is complete at `806a27b`; final independent review returned READY and cleare
 no blockers; the parent made the repository public, deployed through GitHub Actions and verified
 the actual hosted production game. **T2 test-feedback work is implemented and independently
 reviewed READY. A0 motion review is also implemented and independently reviewed READY.
-A1 shared rig definitions/bindings is next; A1–A7 remain planned before P8/P9.**
+A1 shared rig definitions/bindings is also complete and reviewed READY. A2 coordinated full-body
+IK is next; A2–A7 remain planned before P8/P9.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 

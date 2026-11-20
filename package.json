@@ -41,6 +41,7 @@
     "test:movement": "node tests/movement-browser.ts",
     "test:animation": "node tests/animation-browser.ts",
     "test:animation:review": "node tests/animation-review-browser.ts",
+    "test:rig": "node tests/rig-browser.ts",
     "test:jump": "node tests/jump-browser.ts",
     "test:combat": "node tests/combat-browser.ts",
     "test:defense": "node tests/defense-browser.ts",

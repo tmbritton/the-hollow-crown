@@ -26,7 +26,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
    The public repository and HTTPS Pages demo are live. GitHub run **44745698117** succeeded;
    the parent's actual hosted smoke passed **five checks with zero errors**, with reviewed captures.
    **T2 faster test feedback and A0 motion review are implemented and verified, independent review READY.**
-   **A1 shared rig definitions/bindings is next.** Full-body IK, articulated tails, animation migration,
+   **A1 shared rig definitions/bindings is complete and independently reviewed READY; A2 is next.** Full-body IK, articulated tails, animation migration,
    shield reaction and death physics remain planned. See [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
@@ -139,13 +139,36 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P6a | Complete; final independent review READY, no blockers | Missing squad module and 21≠24 population reds; detour/swapped-home reds; reviewer reproduced obsolete no-enemy-defense assertion | 291 full after all corrections; typecheck/format/lint; defense 9; prior build/social 15/tribute 9/gameplay 18+5 reused; final review clears role-aware assertion | `c3641c2` |
 | P6b | Complete; final independent review READY, both blockers cleared | Review regressions fail 0/3 before fixes: circular/seeded rank stalls and ECS-order javelin interception | 315 tests/full checks; models 22/105/226; phalanx 8/combat 15; final review: fresh 24 arrangements, 600 geometry-oracle comparisons, lifecycle/hold/progression probes and 13 captures | `806a27b` |
 | P7 | Complete; public repository and hosted demo verified; independent prepublish review READY | Real project-path browser rejected root-built `/assets/index-…js` before Pages build fix | Local 315 tests/full checks/build and independent probes pass. GitHub run 44745698117 succeeds (build 8m 47s, deploy 15s), including CI root/project smokes. Parent's actual hosted smoke: five checks, zero errors; hosted lowered/defending captures reviewed | `3934e17` |
-| T2 | Implemented and verified; independent review READY | Profile: 315 tests / 303.11s; broad seed/timing sweeps, repeated route searches and exhaustive model prefixes dominate | At T2 checkpoint: core 301 / 26.79s, full 319 / 301.57s; all original contracts retained, models 22/105/226 plus 8,206 extended work paths | Containing delivery |
-| A0 | Complete; independent review READY | Browser red at missing `animation.pause`; review exposed reset freeze, abbreviated opening and capped diagnostic surface | 302 core tests, format/lint/build; controls and 25-actor baseline, 30 clips/60 views/856 samples, existing animation and root production smoke; review corrections independently cleared | Containing delivery |
-| A1–A7 | Planned after A0 | Shared humanoid/full-body IK, all-animation migration, tailed kobolds, shield anticipation/reaction and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
+| T2 | Implemented and verified; independent review READY | Profile: 315 tests / 303.11s; broad seed/timing sweeps, repeated route searches and exhaustive model prefixes dominate | At T2 checkpoint: core 301 / 26.79s, full 319 / 301.57s; all original contracts retained, models 22/105/226 plus 8,206 extended work paths | `e86dd09` |
+| A0 | Complete; independent review READY | Browser red at missing `animation.pause`; review exposed reset freeze, abbreviated opening and capped diagnostic surface | 302 core tests, format/lint/build; controls and 25-actor baseline, 30 clips/60 views/856 samples, existing animation and root production smoke; review corrections independently cleared | `e86dd09` |
+| A1 | Complete; independent review READY | Missing rig/binding module reds; actual entering/leaving-lava regression failed before authoritative-position fix | 309 core tests; format/lint/build; 428 A0-matched samples, identity/selection/history/resource checks; animation, movement16, jump8, production5 pass; independent matrix/socket/invalid-input probes pass | Containing delivery |
+| A2–A7 | Planned after A1 | Coordinated full-body IK, animation migration, tailed kobolds, shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
 | P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 
 ## Work log
+
+### A1 — shared humanoid definitions and bindings — 2026-11-20
+
+- Added the 20-joint shared definition, four immutable profiles, chains/limits, anatomical sockets
+  and coarse body mappings; independent local/world quaternion FK and reusable affine socket output.
+- ECS `rigPose` owns numerical channels, local/current/previous buffers and the binding. Existing
+  samplers write the temporary numerical bridge; only bindings apply final transforms. Explicit
+  logical head/hand frames reuse all existing scene geometry. See [architecture](rig-foundation.md).
+- Missing-module tests failed first. The independent review then exposed a real stale-root bug:
+  entering/leaving lava returned `stone/lava` instead of `lava/stone`. The new real-browser
+  regression failed before `movePlayer` switched to current authoritative terrain coordinates.
+- Seven new pure tests; **309 everyday tests / 28.71s native elapsed**, typecheck, lint, format
+  (**164 files**) and build pass. Models remain **22/105/226**.
+- **428** catalog samples match preserved A0 within **2.384e−7**. Render identity, shadows,
+  observation references and real ray selection pass. FK/rendered-joint delta is **5.644e−6**;
+  counts stay **2,291 meshes / 397 nodes / 28 materials / 4 textures** across three regenerations.
+  Cost: **1.127ms mean / 1.50ms p95**, **42 tile lookups**; allocation qualifications in verification.
+- Existing animation passes, including an explicit ordinary-gait control assertion. Movement's
+  obsolete 21-enemy expectation was corrected to the implemented 24; its **16** checks pass.
+  Jump **8** and local production **5** checks pass. Relevant captures were inspected.
+- Independent review returned **READY**, clearing the terrain blocker and passing bounded matrix,
+  history, socket and invalid-definition probes. A2 coordinated full-body IK is next.
 
 ### T2 — faster test feedback before animation — 2026-11-20 (verified, review READY)
 

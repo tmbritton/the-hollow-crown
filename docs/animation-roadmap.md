@@ -1,7 +1,8 @@
 # Animation roadmap — procedural full-body rigs and death physics
 
-**Updated 2026-11-20. A0 is implemented, verified and independently reviewed READY.
-A1–A7, P8 and P9 remain planned.** See the [A0 inventory and baseline](animation-baseline.md).
+**Updated 2026-11-20. A0 and A1 are implemented, verified and independently reviewed READY.
+A2–A7, P8 and P9 remain planned.** See the [A0 baseline](animation-baseline.md) and
+[A1 rig foundation](rig-foundation.md).
 
 This develops the character-animation work in the [dungeon demo plan](dungeon-demo-plan.md#character)
 and the animation deliveries in the [implementation path](implementation-path.md). It is the
@@ -34,7 +35,7 @@ P1–P7 delivered
 The original list through P7 is complete. This user-directed animation foundation now precedes
 P8/P9; retain their IDs and requested death behavior. The user subsequently requested **T2 test
 profiling/segmentation before animation**. Once that prerequisite is complete, **the first animation
-slice after compaction was A0**, now delivered. A1 shared definitions/bindings is next, followed
+slice after compaction was A0**, now delivered along with A1. A2 coordinated full-body IK is next, followed
 by independently reviewed feature-sized deliveries. No full-body solver or physics backend is installed yet.
 
 ### Goals
@@ -99,6 +100,9 @@ are numerical presentation data. Every new exported production machine needs a m
 
 ### 3.2 Data contracts — proposed, names may follow repository conventions
 
+A1 implements definitions/profiles, pose/history buffers and mesh bindings. Targets, coordinated
+constraint state and the final velocity/physics snapshot contract remain later-slice work.
+
 | Contract | Responsibility |
 | --- | --- |
 | `RigDefinition` | Immutable semantic joints, parent topology, rest transforms, segment dimensions, joint axes/limits, limb chains, bend hints, sockets, and coarse physics-body mappings. |
@@ -114,8 +118,8 @@ testing `actor.kind` throughout the solver. Distinguish anatomical **rig family*
 and combat role. `humanoid-with-tail` extends the shared humanoid definition; it is not a separate
 copy of its arms, feet or solver.
 
-Suggested modules are `src/rigs/{types,humanoid,humanoidWithTail,pose,solve,bindings}.ts` and focused
-animation layer modules. These paths are **proposed**, not present today. Keep pure pose/constraint
+Implemented A1 modules are `src/rigs/{types,humanoid,pose,legacy,bindings}.ts`. Tail, solver and focused
+animation-layer modules remain proposed. Keep pure pose/constraint
 math independently executable under Node; Babylon mesh mutation belongs in bindings. Current
 transform-node meshes are a valid rendering backend; selecting Babylon `Skeleton`/skinning is
 not a prerequisite. Do not add an unused physics dependency during A1–A6.
@@ -285,12 +289,12 @@ model coverage; it cannot enable or disable blocking independently of the defens
 ## 7. Feature-sized implementation slices
 
 Each slice uses the repository's test-first → implementation → affected verification → independent
-review → commit workflow. A0 is delivered; the remaining entries are planned acceptance gates.
+review → commit workflow. A0/A1 are delivered; the remaining entries are planned acceptance gates.
 
 | ID | Deliverable / primary touchpoints | Test-first and review gate |
 | --- | --- | --- |
 | **A0 — complete, review READY** | Motion-review baseline, 30-clip migration inventory, development frame/slow playback and joint/contact/proxy overlays. See [recorded baseline](animation-baseline.md). | Four profiles/both kobold roles, 60 camera sequences/856 samples, real input controls, interrupted strike, uncapped drawn contact and grip-proxy defects, 25-actor CPU/allocation/resource baseline. Production smoke confirms development hooks absent. |
-| **A1** | Typed humanoid definition, profiles, sockets, pose buffers and mesh bindings. Add proposed `src/rigs/` contracts and ECS state; adapt player and all existing enemy geometry through a temporary legacy-pose bridge. | Pure FK/local-world round trips, topology/axis validation, lengths/limits and neutral mesh-placement parity. Check material/shadow/observation/selection identity and regeneration cleanup. One final mesh writer; no new animation behavior yet. |
+| **A1 — complete, review READY** | Typed 20-joint humanoid definitions/profiles, sockets, pose/history buffers, ECS `rigPose` and existing-mesh bindings through a numerical legacy bridge. See [foundation](rig-foundation.md). | Seven pure regressions; 428 browser pose samples match A0 within 2.384e−7. Material/shadow/observation/selection identity, fresh history and resource plateau verified; one final transform writer. 309 everyday tests and affected browsers pass. |
 | **A2** | Full-body target solver: generalized limb IK, bounded pelvis/spine/shoulder adjustments, feet/hand orientation, priorities and residuals. | Simultaneous two-foot support plus two-hand grip at several proportions; one-foot step with torso lean, turning and slope. Test singularities, opposite bend hints, unreachable/conflicting targets, joint limits, finite outputs, zero-time idempotence and strict iteration/query budgets. A body correction must revalidate every affected end effector. |
 | **A3** | Migrate locomotion, lurch, crouch, backsteps, jump/landing and corpse/terrain contacts to rig targets for all actor kinds. | Match authoritative movement traces to baseline for walk/run/water/routes/retreat; moving ramps and corpse edges, released anchors, no running in place, no extra jump state. Review ordinary and asymmetric gait sequences, not just extreme poses. |
 | **A4** | Migrate weapon/grip, attack, social, work/carry and temporary death layers. Update equipment/social/cargo adapters to consume solved sockets. | Same-step impact/release and interruption tests; sword pursuit, crossbow muzzle, two-handed spear, throwing release, shield lane, stowed equipment, pipe/cards/hacky-sack, packing/unloading and crate grips. Preserve death/observation semantics and ordinary frame-independent work clocks. |
@@ -429,9 +433,10 @@ the existing Pages workflow, with a hosted smoke for meaningful release changes.
 3. P7 is live at **https://tmbritton.github.io/the-hollow-crown/**. Source baseline is **`3934e17`**;
    the preceding phalanx feature is **`806a27b`**. Publication run **44745698117** and its hosted
    smoke are recorded in verification/progress; do not redo publishing setup.
-4. T2 and **A0 motion-review baseline** are implemented and independently reviewed READY. Read
-   `docs/animation-baseline.md`, then begin **A1 shared rig definitions and bindings**. A1–A7/P8/P9
-   are not implemented. Keep every catalog row in the migration checklist; a walking hero alone
+4. T2, **A0 motion-review baseline** and **A1 rig foundation** are implemented and independently
+   reviewed READY. Read `docs/animation-baseline.md` and `docs/rig-foundation.md`, then begin
+   **A2 coordinated full-body IK**. A2–A7/P8/P9 are not implemented. Keep every catalog row in the
+   migration checklist; a walking hero alone
    is not completion of the rig conversion.
 5. Continue in order through A7 before P8, then P9. Do not start death physics ahead of the shared
    rig/migration gates or introduce fully physics-driven living movement as an incidental change.
