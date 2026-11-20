@@ -58,6 +58,26 @@ shared full-body rig, tailed kobolds, complete animation migration and shield mo
 The [animation roadmap](animation-roadmap.md) contains their architecture, per-slice gates, migration
 inventory and compaction handoff. Preserve the raw notes as the source of intent.
 
+## Before the next procedural-feature expansion — Effect refactor
+
+The user requested this scheduling boundary on **2026-11-20**. Continue the existing
+**A2–A7 → P8 → P9** queue; A2 remains the immediate next implementation. Complete the generation
+slices below before authoring additional procedural scene recipes, keep variants, adventure
+grammars, or generated encounters/objectives. The default insertion point is after P9; if content
+work moves, its Effect prerequisite moves with it.
+
+The [Effect refactor plan](effect-refactor-plan.md) defines architecture, determinism and failure
+contracts, implementation slices, measurements, and acceptance gates. All slices remain planned.
+
+| ID | Slice | Acceptance / verification |
+| --- | --- | --- |
+| EF0 | Refresh baseline and select exact Effect version | Current corpus/seed fixtures, generation/import/resource and Vite bundle baselines; explicit cost budgets and toolchain compatibility. |
+| EF1 | Extract generation stages and expected failures | Pure stage contracts; selective rejection handling; exact world/report and retry-budget parity. |
+| EF2 | Compose the generation pipeline with Effect | One bounded recovery policy, fresh execution state, typed failures/services, compatible synchronous facade; simulation hot paths retain ordinary calls. |
+| EF3 | Bounded local stage tracing | Useful seed/attempt/room/recipe traces; detached capped snapshots; diagnostic on/off parity and production debug isolation. |
+| EF4 | Integrate callers and pass pre-content adoption gate | Full corpus, application/production and cost checks; independent review; authoring guide for subsequent procedural features. Completes the prerequisite. |
+| EF5 | Run-owned construction and cleanup — separate follow-up | Evaluate after EF4; scope partial-build cleanup and regeneration resources against the completed animation/physics lifecycle. Not required to resume content after EF4. |
+
 ## Chosen starting point (historical)
 
 Start with Phase 0 of the [procedural-content plan](procedural-content-improvement-plan.md).

@@ -9,6 +9,13 @@ baseline, scene-composition and visual-identity gates. Unmarked work below remai
 
 **Date:** 2026-11-18.
 
+**Scheduling update — 2026-11-20:** continue the current animation/death-physics queue first.
+Before expanding the procedural feature catalog, complete EF0–EF4 in the
+[Effect refactor plan](effect-refactor-plan.md). This adds composable generation stages, typed
+failures and bounded diagnostics to the existing foundation. The phases below describe content
+work; their historical priority labels do not supersede the current
+[implementation path](implementation-path.md).
+
 **First delivery:** three recognizably different keep identities, coordinated scenes in the forge and bakery, one memorable inhabitant per keep, and tools for comparing seeds.
 
 ## 1. Goal

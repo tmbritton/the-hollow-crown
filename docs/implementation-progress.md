@@ -31,6 +31,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
+- **Effect adoption is planned before the next procedural-feature expansion.** Continue A2–A7
+  and P8/P9 first. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
+  EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
+  The source evaluation/scratch prototype does not constitute production implementation.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
   seeded assembly, plus javelin **90 versus 100 HP** by ECS order. Local-detour/progress recovery
   and earliest swept body contact fix both. **315 tests in 304.51s**, format (**148 files**), lint
@@ -145,8 +149,20 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | A2–A7 | Planned after A1 | Coordinated full-body IK, animation migration, tailed kobolds, shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
 | P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
+| EF0–EF4 | Planned after the animation/death-physics queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
+| EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log
+
+### Effect adoption plan — 2026-11-20 (planning only)
+
+- Added [effect-refactor-plan.md](effect-refactor-plan.md), preserving the source evaluation's
+  findings and defining EF0–EF4 as a pre-content generation refactor, with EF5 scoped separately.
+- User requested scheduling before more procedurally generated features, while continuing the
+  current animation work. A2 remains next; the default insertion point follows A2–A7 and P8/P9.
+- The plan covers deterministic stage composition, selective typed failures, fresh attempt state,
+  bounded local traces, synchronous API compatibility, cost measurements and per-slice gates.
+  Application/dependency adoption remains planned.
 
 ### A1 — shared humanoid definitions and bindings — 2026-11-20
 
