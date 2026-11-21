@@ -16,6 +16,14 @@ See [implementation progress](implementation-progress.md).
 
 Here, a level means the current generated keep. This design does not require a multi-floor campaign.
 
+**Product direction — 2026-11-20:** [compact living scenarios](game-direction.md) are the chosen
+scope. These autonomous, interruptible agendas supply simulation depth while the player directly
+controls one adventurer through approachable actions. Future scenario prototypes can connect an
+agenda's outcome or another world circumstance to a dangerous phase change; the existing O3/O4
+outcomes do not yet implement that wider transformation. Build and play a few scenarios before
+deciding how often such turns occur or whether players can prevent them. The current scheduling
+prerequisites remain in the [implementation path](implementation-path.md).
+
 The user's requirements are:
 
 - Multiple objectives can coexist in one level.

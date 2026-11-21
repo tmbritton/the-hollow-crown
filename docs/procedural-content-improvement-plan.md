@@ -9,6 +9,13 @@ baseline, scene-composition and visual-identity gates. Unmarked work below remai
 
 **Date:** 2026-11-18.
 
+**Direction update — 2026-11-20:** the chosen scope is smaller dungeon floors and tight,
+simulation-heavy scenarios with approachable single-adventurer controls. Build and play a few
+scenarios to discover useful interactions and escalation structures before generalizing the
+scenario framework. A large persistent dungeon world is a possible follow-up game. The
+[game direction](game-direction.md) records this decision, provisional experiments and unresolved
+questions; it guides future content work in this plan.
+
 **Scheduling update — 2026-11-20:** continue the current animation/death-physics queue first.
 Before expanding the procedural feature catalog, complete EF0–EF4 in the
 [Effect refactor plan](effect-refactor-plan.md). This adds composable generation stages, typed
@@ -268,6 +275,16 @@ If the profiles feel interchangeable, revise the authored relationships and comp
 
 ### Phase 5 — adventure grammars and encounter pacing
 
+**Current approach:** after the scheduling prerequisites above, prototype a few compact scenarios
+and evaluate them in play before expanding reusable adventure grammars. Explore autonomous agendas
+and circumstance-driven escalation, including whether a reversal helps each scenario. The
+[candidate playtests](game-direction.md#candidate-playtests) are alternatives to investigate,
+not a committed implementation sequence. Let observed player choices determine which mechanics
+and relationships deserve reusable contracts.
+
+The following motifs and work items remain a design vocabulary for that effort, rather than a
+requirement to build a general scenario framework before the first experiments.
+
 Begin with three authored motifs built from implemented mechanics:
 
 1. **Fork and rejoin:** a short exposed route and a longer covered route reach the same destination.
@@ -322,6 +339,9 @@ Begin with three authored motifs built from implemented mechanics:
 - Review both typical seeds and outliers. Keep regression seeds for awkward geometry and previously contradictory facts.
 - Compare unlabeled images and complete short runs; record which features players actually noticed and which choices changed.
 - Use several descriptive measurements and human review. Structural uniqueness alone is insufficient evidence of memorable play.
+- For scenario prototypes, record whether players understood NPC activities, acted on that knowledge,
+  encountered surprising but explainable consequences, benefited from preparation after a turn,
+  and could identify a different approach for another run. Use these observations to guide expansion.
 
 ### Runtime cost
 
@@ -350,4 +370,6 @@ Proposed additions: pure tests for identity/history consistency, independent RNG
 - [ ] Run the first-delivery review gate and revise weakly differentiated profiles.
 - [ ] Update [verification records](../VERIFICATION.md) with actual measured results before marking the delivery complete.
 
-The next scheduling decision after this slice is whether playtests favor deeper discovery/ownership or stronger adventure variation. Both build on the same generated facts, stable IDs, recipe constraints, and diagnostics.
+The current direction favors compact scenario experiments after the scheduling prerequisites above.
+Use those playtests to decide which discovery, simulation and adventure-variation systems to deepen.
+They share the same generated facts, stable IDs, recipe constraints and diagnostics.

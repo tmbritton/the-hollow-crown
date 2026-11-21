@@ -9,6 +9,18 @@ P7 is published and verified at **`3934e17`** (2026-11-20). The repository is pu
 HTTPS GitHub Pages demo passes the hosted production smoke check. See [VERIFICATION.md](VERIFICATION.md)
 for the deployment run and recorded results.
 
+## Development direction
+
+The chosen direction is **compact, simulation-heavy dungeon scenarios with approachable controls**:
+one adventurer in a small, living dungeon whose inhabitants pursue their own activities and
+competing agendas. Procedural generation should vary meaningful situations and interactions.
+Future prototypes will explore circumstance-driven turns that make a scenario much more dangerous,
+with earlier decisions shaping the aftermath. Build and play a few scenarios before settling their
+structure; a large persistent dungeon world is a possible follow-up-game direction.
+
+See [game direction](docs/game-direction.md) for decisions, candidate playtests and open questions.
+This is the development target; the **Play** section below describes currently implemented gameplay.
+
 ## Run
 
 Requires **Node.js 22.18+** (Node 24 LTS or newer recommended) and a desktop browser with WebGL2. Test scripts use Node's native TypeScript type stripping.
@@ -1092,6 +1104,7 @@ encounter. The visual identifier adds at most five small meshes using existing m
 
 Design roadmaps live in [`docs/`](docs/README.md):
 
+- [Game direction](docs/game-direction.md) — compact living dungeons, simple player controls, circumstance-driven escalation and playtest-led scenario development.
 - [Procedural content improvement plan](docs/procedural-content-improvement-plan.md) — shared keep identities, scene recipes, memorable inhabitants, discoveries, adventure structure, and generator review tools.
 - [Animation roadmap](docs/animation-roadmap.md) — A0 motion review and A1 shared rig definitions/bindings are complete; A2 full-body IK is next, followed by animation migration, tailed rigs, shield motion and death physics. See the [A0 baseline](docs/animation-baseline.md) and [A1 foundation](docs/rig-foundation.md).
 - [Dungeon demo plan](docs/dungeon-demo-plan.md) — demo goals, art direction, architecture, and milestones.

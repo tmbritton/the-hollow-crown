@@ -1,8 +1,17 @@
 # Ravenloft — adventure, scenario, and encounter inspiration
 
-**Status:** source analysis and proposed Hollow Crown adaptations; these scenario mechanics are not implemented.
+**Status:** source analysis and proposed Hollow Crown adaptations. The delivered autonomous
+Last Ember and tribute variants are documented in [competing objectives](competing-objectives-design.md);
+other pitches and extensions below remain proposals unless explicitly identified as implemented.
 
 **Date:** 2026-11-18.
+
+**Direction update — 2026-11-20:** [game direction](game-direction.md) selects compact, living
+dungeon scenarios and learning through a few playable experiments. The structures below are
+reference material for that work. The discussion also favors exploring a haunted-house/“haunt”-like
+turn caused by circumstances in the simulation, with a more dangerous aftermath shaped by earlier
+decisions. That is a separate design influence, not an additional claim about the Ravenloft source.
+Its frequency and preventability remain playtest questions; no exact halfway timer is prescribed.
 
 ## Source and scope
 
@@ -191,6 +200,11 @@ Validate the questions that distinguish these scenarios:
 New production statecharts would receive the project's existing model specifications; spatial and cross-entity properties need generation/integration checks too. These are proposed acceptance checks, not claims of implemented scenarios.
 
 ## Recommended sequence
+
+**Historical recommendation:** this sequence records the original source-analysis proposal.
+Current content development follows the [implementation path](implementation-path.md) and the
+[playtest-led direction](game-direction.md), rather than treating these pitches as a fixed queue.
+The autonomous Last Ember and tribute implementations already provide foundations for experiments.
 
 1. Keep the **Watchkeeper's Oath** as the first proof of identity, linked clues, and order-aware presentation.
 2. Add **The King's Borrowed Heart** to make those relationships mechanically useful with a compact remote-object interaction.

@@ -4,6 +4,19 @@ Started **2026-11-18**. This is the execution order for the planning documents, 
 that their proposed systems already exist. Track actual work in
 [implementation progress](implementation-progress.md).
 
+## Product direction — compact living scenarios
+
+The **2026-11-20** [game-direction decision](game-direction.md) focuses this game on smaller dungeon
+floors, tight scenarios and simulation depth behind approachable single-adventurer controls.
+Future content work should build and play a few scenarios, including experiments with
+circumstance-driven dangerous turns, before committing to a generalized scenario framework.
+Prototype pitches are provisional; their selection, order and escalation rules await playtesting.
+A large persistent dungeon world remains a possible follow-up game.
+
+Continue **A6–A7 → P8 → P9 → EF0–EF4** before further procedural-feature expansion. EF5 remains a
+separate follow-up. The direction establishes how to explore content after these gates, rather
+than introducing a new implementation slice ahead of the existing queue.
+
 ## Current priority — user gameplay notes
 
 The dependency-ordered sequence through O4 is delivered. The user-directed notes in
