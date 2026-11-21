@@ -1,7 +1,8 @@
 # A5 — articulated kobold tails
 
 **2026-11-20. Implemented and verified; final independent review READY.**
-This extends [A4 actions](rig-actions.md). A6 shield anticipation/reaction is next.
+This extends [A4 actions](rig-actions.md). [A6 shield motion](rig-shields.md) now supplies bounded
+block/opening counter-motion through the same tail planner; A7 is next after A6 delivery.
 
 ## Anatomy and ownership
 

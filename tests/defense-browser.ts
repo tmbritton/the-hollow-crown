@@ -47,6 +47,7 @@ const state = () =>
       armYaw: rig.arms[0].rotation.y,
       shieldGripError: V.Distance(hand, grip),
       actionMode: a.entity.require('rigPose').actions.mode,
+      shieldWeight: a.entity.require('rigPose').actions.shield.weight,
       particles: g.ecs.query('particle').map((e) => e.require('particle').kind),
       plants: rig.footPlants.map((p) => p.anchor),
       head: rig.head?.rotation.asArray(),
@@ -201,9 +202,12 @@ try {
     await page.keyboard.up('f');
     await step();
     assert.equal((await state()).defending, false);
-    assert.equal((await state()).armYaw, 0);
+    assert.ok((await state()).shieldWeight > 0 && (await state()).shieldWeight < 1);
     assert.ok((await state()).shieldGripError < 0.01);
     assert.equal((await state()).actionMode, 'free');
+    await step(60);
+    assert.equal((await state()).shieldWeight, 0);
+    assert.ok(Math.abs((await state()).armYaw) < 1e-6);
     pass(
       'Real F down/up raises a physically forward shield, blocks melee with sparks, and restores pose',
     );

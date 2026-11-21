@@ -432,6 +432,7 @@ export function bindHumanoid(
       legacy.root.rotation.copyFrom(rig.root.rotation);
     },
     invalidateHistory() {
+      entity.get('blockFeedback')?.reset();
       if (grounding.active) binding.captureLegacy();
       grounding.reset();
       actions.reset();

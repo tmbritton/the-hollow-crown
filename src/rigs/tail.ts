@@ -71,6 +71,8 @@ export interface TailInput {
   forward: number;
   airborne: boolean;
   attack: number;
+  recoil?: number;
+  recoilSide?: number;
   /** Temporary collapse is age-sampled, never a live spring after death. */
   age?: number;
 }
@@ -225,9 +227,14 @@ export class TailRig {
           ? acceleration * 0.008 +
             (input.airborne ? 0.4 : 0) +
             (input.forward < -0.05 ? 0.25 : 0) -
-            input.attack * 0.18
+            input.attack * 0.18 +
+            (input.recoil ?? 0) * 0.8
           : 0);
-      const y = yaw[i] + sway * 0.07 - turn * (0.04 + i * 0.008);
+      const y =
+        yaw[i] +
+        sway * 0.07 -
+        turn * (0.04 + i * 0.008) +
+        ((input.recoilSide ?? 0) * 0.9) / (i + 1);
       for (let axis = 0; axis < 2; axis++) {
         const n = a + axis,
           spring = this.springs[n];

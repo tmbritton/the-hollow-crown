@@ -51,9 +51,7 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
 export function resetActorRig(renderRig: Components['rig'], position?: Spawn): void {
   const binding = rigBinding(renderRig),
     rig = binding.legacy;
-  binding.grounding.reset();
-  binding.actions.reset();
-  binding.tail?.reset();
+  binding.invalidateHistory();
   binding.begin(0);
   if (position) rig.root.position.set(position.x, position.h, position.z);
   rig.root.rotation.x = rig.root.rotation.z = 0;
@@ -189,7 +187,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       16,
       0.62,
     );
-    actions.equipment(actor, pose);
+    actions.equipment(actor, pose, dt, time, rig.root.rotation.y);
     rig.spear?.setEnabled(!actions.stowed && actions.mode !== 'throw');
     rig.javelin?.setEnabled(!actions.stowed && actions.mode === 'throw' && !actions.released);
     // Backsteps keep a short, travel-driven gait facing the threat; no reversed root or
@@ -260,6 +258,8 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
             actor.motion.velocity.z * Math.cos(heading),
           airborne: actor.jump.airborne,
           attack: binding.actions.attackBlend,
+          recoil: binding.actions.shield.recoil,
+          recoilSide: binding.actions.shield.side + binding.actions.shield.counter * 0.3,
         },
         binding.tailClearance.clear,
       );

@@ -4,6 +4,123 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### A6 — shield preparation, lowering and accepted-block recoil — 2026-11-20 (final review READY)
+
+`blockFeedback` now publishes actor/run-owned accepted-block metadata and a bounded same-time
+aggregate. `rigPose.actions.shield` samples six bounded springs for placement/aperture, supporting
+load, directional recoil and phalanx counter-turn. Required guard targets are protective immediately;
+all gameplay defense/attack/work clocks remain authoritative. See [docs/rig-shields.md](docs/rig-shields.md).
+
+**TDD evidence:** five initial event tests failed on the missing component; the first motion suite
+failed on the missing module. Subsequent live-plan reds caught absent supporting-body preparation
+and counter-turn continuity. The quiet-state regression measured **480 unnecessary spring advances
+over 120 samples**, now **zero**. A real moving-stair case failed at **0.001146253 units** of running-
+flight sole penetration; fading grounded pelvis bracing during that flight restores **0.000906710**
+or better. A malformed optional contact red (zero events for an accepted block) now uses the labelled
+contact estimate. A queued world-direction regression also failed after a facing reversal; signed
+projection preserves that impulse. A final red caught released recoil using a newer motor heading
+instead of the actual eased rig heading; the rendering adapter now supplies the latter. These
+focused failures were observed in tool runs; no saved raw initial
+red log is claimed. The old immediate-neutral-arm browser assertion was updated to A6 lowering/
+settling; hard-reset assertions remain. The rig oracle now recognizes the active lowering grip.
+
+**Initial independent review: NOT READY.** The reviewer independently found two blockers:
+
+1. Moving release immediately restored torso gait into the still-raised board. Actual F/run40/release
+   overlapped the player's surcoat by **0.12020**, hood by **0.09765** and mask by **0.03777** units;
+   kobold shield/vest overlap reached **0.10337**. A new independent-mesh-SAT regression reproduced
+   the defect (`a6-review-red.log`). Coordinating the body release with a forward/outward shield arc
+   and scale-aware board height removes the added head/torso/leg overlaps in those fixtures.
+2. Mid-lower re-raise unconditionally reset placement and velocity, even when still protective.
+   Placement/aperture now retain the feasible pose and velocity; unsafe frames use twelve bounded
+   frame bisections to the first protective point along the guard path. Only outward constraint
+   velocity is discarded. The one-frame reversals now have **zero corner jump**, retaining
+   **−4.2016618056** placement velocity for both profiles.
+
+The reviewer separately passed five event-integrity probes (including 75 rotated direction/guard
+boundary cases), phase interruption and scale-bearing attachment checks. The original report and
+captures remain under `test-results/a6-independent-*`. Final follow-up clears both blockers;
+its independent measurements are attributed below.
+
+**Corrective checks actually run:**
+
+- Final full gate: `npm run check:full`, **377 pass / 299.59s**, typing/lint/format191.
+  There are seventeen new pure tests; existing model coverage remains **22 machines / 105 states /
+  226 branches**. No machine guards/durations or test selection rules changed. The earlier
+  full374/core358 checkpoints are superseded. After a capture-only browser edit, final
+  `npm run check` passes **359 / 29.43s**, including typing/lint/format191; transitions pass again.
+- Final `npm run build`: **705 modules**, main bundle **1,696.37kB / 437.38kB gzip**; existing
+  chunk-size warning. Root production smoke passes five checks, zero browser/network errors,
+  absent development hooks and no external requests. No A6 hosted deployment is claimed.
+- `test:rig:shield`: real F and real melee clock, immediate guard/release, modal reset, stronger/
+  weaker/side/batched reactions, rear-hit rejection, normal lowering, rapid reversal/repeat/jump,
+  exact zero-time reads, actual grips/soles and tail response. **Eight camera-replayed sequences /
+  1,056 frames**, plus **960 moving stair frames** and **132 gate frames**. Moving control/hit runs
+  have identical motor position/support/speed/health. Hand error is below **5.68e−6**; minimum guard
+  face dot in the replay sequences is **0.9830406**. The guarded gate covers the actual spear line under recoil, and the
+  fully open gate clears it throughout the action. Opening damage emits no block reaction.
+- Ten playback tracks / **220 captured frames** (shield-side and gameplay) were exercised at normal
+  then quarter speed after the corrections. Temporal sheets were inspected, including shield-side views and
+  uninterrupted lowering. This is 60 Hz simulation sampled at 10 Hz, not every-frame perceptual review.
+- `test:rig:shield:transitions`: **600 release/control frames** across five phases and both profiles,
+  real F/run40/release30, twelve reversals and sixteen opening interruptions pass. No added torso/
+  head/leg intersections versus controls; real-input pauldron maximum **0.029233** remains within
+  its prior free-motion baseline. Feasible reversals preserve exact corner positions/velocity;
+  unprotected reversals immediately cover the body/gate ray. Lost-target/death handoffs have zero
+  pose jump; death retires feedback. Ten corrective captures saved; moving release and feasible
+  reversal captures inspected.
+- Fresh `test:rig`: **428 samples / 30 clips**, exact A0 authority parity; existing actual contact/grip
+  tolerances and resource plateau pass. Corrective animation, defense9, phalanx8 and rig-actions
+  passes precede only the final heading-basis fix; that evidence is reused (2,714 collapse-age checks).
+  Fresh dense tails4488 and all-member tail-clearance/stability pass, preserving zero ECS-order
+  error and settled-corpse invariance.
+
+**Bounded cost:** one pending batch, five saturating integer sums and one latest immutable diagnostic
+event per actor; no event backlog or new scene geometry. Burst power is capped at two. Quiet springs
+skip integration; transitional placement adds one authored FK traversal and at most twelve board-frame
+projection iterations, while full-body solve/contact ceilings stay unchanged. The final 25-actor/
+four-corpse workload measures **3.1946ms mean / 4.00ms p95**, just below the 3.2/4.5ms investigation
+thresholds with limited headroom. Earlier measurements were **3.3708/4.10ms** and **3.0979/3.60ms**;
+the first prompted the dormant-spring work check. Timing variation prevents a causal speedup claim.
+Tile reads remain max **899**, mean **553.72**. Sampled allocation estimate **329,756,420 bytes** includes setup/warmup/yields/instrumentation
+and collected objects at 32KiB sampling; it is not retained heap or exact allocation count.
+Resources plateau across three regenerations at **2,382 meshes / 495 nodes / 28 materials / four
+textures / 5,719 entities**, with the same 25 actors. Chromium/SwiftShader CPU fixture, not hardware FPS.
+
+**Visual review:** supporting load, recoil and the controlled drop are readable; corrective moving
+release captures no longer show the head/torso tipping into the board. Feasible re-press captures
+are identical. Re-raising from an actually unprotected pose still requires an immediate boundary
+projection (up to **1.23492 units** at the farthest corner in the tested deep kobold lowers); this
+is necessary protection, not claimed continuous motion. Discrete equipment stowing is unchanged.
+Corrective logs use `a6-corrected-*`; raw reports, playback and captures remain ignored under
+`test-results/`.
+
+**Final independent review: READY**, clearing R1/R2 against the original acceptance contract.
+Attributed reviewer evidence (`test-results/a6-independent-followup-review.md`):
+
+- **22/22 native tests**, including five original independent event probes, pass. Actual F/run40/
+  release30 and **240 phase-varied release/control frames** show no living head/torso/leg shield
+  intersections. Actual attachment matrices agree within **4.08e−7** under nonuniform root scale.
+- **48 stationary/moving reversals** include ten already-protective cases retaining exactly zero
+  shield-corner, hand, full-pose and tail displacement, with all six spring velocities unchanged.
+  Unprotected cases immediately restore coverage and remain protected; minimum guarded face dot
+  **0.9802003302**. Twelve attack/recovery interruptions also pass. Zero-time replay drift is zero.
+- **360 frames** across all three shield slots with turning/directional bursts and **180 carry/guard
+  frames** preserve protection and grips without added tested living body intersections. Sixteen
+  pre-rolled **live-target** opening interruptions include actual gate/spearman deaths, target loss
+  and retreat; death handoff error is below **5.1e−16**, with feedback cleared. Twelve browser cases
+  independently confirm exact rendered-heading impulse projection after release.
+- Six new corrected captures inspected; instrumented probes have zero page errors. Broad parent
+  checks, resource plateau and qualified CPU evidence were reused, not independently rerun.
+
+The expanded independent turning case measures **1.49375 units** of necessary corner displacement,
+including the existing authoritative root-facing snap; full-open gate restoration reaches about
+**1.38546**. These remain the sharpest visual transitions. A **36-age inactive-shield death control**
+also reproduces **0.00813-unit** temporary shield/vest overlap, separating that baseline collapse
+limitation from the corrected living-release defect. Neither is a remaining A6 blocker. Optional
+future persistent cases are the review's browser-level heading adapter and live-target spearman
+casualty probes. This containing delivery records A6 after independent clearance.
+
 ### A5 — independent review corrections — 2026-11-20 (final review READY)
 
 The independent reviewer inspected initial delivery **`688e491`**, reproduced three blockers, then

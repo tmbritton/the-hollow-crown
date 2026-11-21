@@ -10,6 +10,7 @@ import { createMonsterBehavior } from './machines/monsters/index.ts';
 import { Health } from './machines/actors/health.ts';
 import { Occupancy } from './occupancy.ts';
 import { Jump } from './jump.ts';
+import { BlockFeedback } from './blockFeedback.ts';
 
 /** A checked view over components, not a second copy of actor state. */
 export class Actor {
@@ -107,6 +108,7 @@ export function createActor(
       .add('attack', new Attack()),
   );
   if (kind === 'player') actor.entity.add('defense', new Defense());
+  actor.entity.add('blockFeedback', new BlockFeedback(ecs, actor.entity));
   return actor;
 }
 
@@ -135,6 +137,7 @@ export function cancelWork(actor: Actor): void {
 
 export function requestJump(actor: Actor): boolean {
   if (!actor.alive || !actor.jump.request()) return false;
+  actor.entity.get('blockFeedback')?.reset();
   actor.entity.get('defense')?.cancel();
   actor.entity.get('work')?.interrupt('Jump started');
   // Preserve pursuit and floor commands, but do not resolve an interrupted sword strike.
@@ -143,6 +146,7 @@ export function requestJump(actor: Actor): boolean {
 }
 
 export function stopActor(actor: Actor, cancelCombat = true): void {
+  actor.entity.get('blockFeedback')?.reset();
   actor.entity.get('rigPose')?.invalidateHistory();
   actor.entity.get('defense')?.cancel();
   cancelWork(actor);

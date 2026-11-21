@@ -84,8 +84,8 @@ export class GroundedLocomotion {
   private sin = 0;
   private cos = 1;
   private allowCorpses = false;
-  private readonly request = new Float64Array(64);
-  private readonly sampledRequest = new Float64Array(64);
+  private readonly request = new Float64Array(96);
+  private readonly sampledRequest = new Float64Array(96);
   private sampledActor: Actor['entity'] | undefined;
   private sampledAnimation: Actor['motion']['animation'] | undefined;
   private sampledKind: Actor['kind'] | undefined;

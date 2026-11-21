@@ -40,7 +40,7 @@ each slice test-first, independently reviewed and committed:
 | A3 | Locomotion and grounding migration — complete, independent review READY | All living actor kinds compose semantic poses and coordinated sole targets. 330 tests; 428 A0-identical authority samples, final sole/plant checks, animation/movement/jump/production passes and bounded cost/resource checks. See [grounding contract](rig-grounding.md). |
 | A4 | Action, equipment, work and social migration — complete, final independent review READY | Shared action layers, coordinated grips, solved sockets and semantic collapse. 336 tests, 428 A0-identical authority samples, actual shaft/cargo/death regressions, affected browsers and production smoke. All three review blockers cleared; see [action contract](rig-actions.md). |
 | A5 | Humanoid-with-tail kobold rig — final independent review READY | Four tapered segments on all twelve kobolds, drawn anatomy/equipment/masonry clearance and stable fallback/corpse settling. Full360/final core342 gates, dense geometry and prolonged-contact regressions, affected suites and production pass; see [tail contract](rig-tails.md). |
-| A6 | Shield anticipation and reaction | Body/arm preparation, decisive guarding and controlled lowering; confirmed once-only directional block recoil and recovery. Preserve instant F defense and the phalanx's authoritative vulnerability windows. |
+| A6 | Shield anticipation and reaction — complete, final independent review READY | Actor/run-owned accepted-block batches, supporting preparation, coordinated lowering, constraint-aware reversal, bounded recoil and phalanx counter-motion. Full377/core359, actual browser body/grip/contact/lane checks and production pass; both review blockers cleared. See [shield contract](rig-shields.md). |
 | A7 | Rig cutover and death-physics handoff | Remove legacy pose writers after every animation migrates; validate solved pose/velocity snapshots, resets, resources and production delivery before physics takes over. |
 | P8 | Directional ragdoll deaths — after A7, not implemented | Apply an exaggerated death impulse in the killing blow's direction using the shared rig's final pose/velocity. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
 | P9 | Skeleton breakup and settled bone decoration — queued after P8 | Skeleton deaths launch separated procedural body parts instead of retaining an intact corpse. Parts collide and settle as non-interactive set decoration. Reuse the death-motion foundation; preserve death/discovery semantics, bounded resources, pause and regeneration cleanup, with real-browser visual checks. |
@@ -59,7 +59,8 @@ reviewed READY. A0 motion review is also implemented and independently reviewed 
 A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration are also complete
 and reviewed READY. A4 action/equipment/work/social migration is also verified and independently
 reviewed READY. A5 articulated tails is implemented, verified and independently reviewed READY.
-A6 shield motion is next; A6–A7 remain planned before P8/P9.**
+A6 shield motion is implemented, verified and independently reviewed READY; both blockers cleared.
+A7 remains next before P8/P9.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 

@@ -32,11 +32,12 @@ Execution record for [implementation path](implementation-path.md). Started **20
    A3 now supplies live semantic poses, slope-aware sole targets and bounded final-contact checks.
     **A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.**
     **A5 articulated tails is implemented, verified and independently reviewed READY.**
-   A6 shield motion is next. Shield reaction and death physics remain planned. See [animation roadmap](animation-roadmap.md)
+   **A6 shield motion is complete and independently reviewed READY; both review blockers cleared.**
+   A7 is next; death physics remains planned. See [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **Effect adoption is planned before the next procedural-feature expansion.** Deliver A5, then continue A6–A7
+- **Effect adoption is planned before the next procedural-feature expansion.** Continue A7
   and P8/P9 first. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
   The source evaluation/scratch prototype does not constitute production implementation.
@@ -155,13 +156,42 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | A3 | Complete; independent review READY | Missing grounding module; high stacked corpse/swing lift; preserved release-frame and hip reset/death regressions failed before fixes | 330 tests; format/lint/build; 428 A0-identical authority samples, bounded final contacts; animation/movement16/jump8/production5; 1.863/2.50ms integrated CPU; independent lifecycle/geometry review READY | `279bec5` |
 | A4 | Complete; final independent review READY | Missing module, scale/envelope/reset regressions; persisted review reds for torso intersection, slung cargo shear and spear death bounds/clearance | 336 tests/check/build; 428 A0-identical authority samples; 252 actual shaft/torso, 144 cargo-handoff and 2,714 corpse-age samples; affected browsers/production5. Independent follow-up clears all blockers | `c353fef` |
 | A5 | Complete; final independent review READY | Initial module/clearance reds; independent corpse, anatomy/equipment and masonry defects; prolonged partial-contact snap reproduced before correction | Full360/final core342 checks, build/affected browsers/production; all-member geometry and prolonged settling/release. Independent review clears all four blockers; investigated CPU band accepted | `688e491`; review fixes in containing delivery |
-| A6–A7 | Planned after A5 | Shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
+| A6 | Complete; final independent review READY | Event/motion/preparation reds; counter-turn, dormant-work, metadata and heading regressions; moving-stair and moving-release geometry reds | Full377/core359, build/production; actual shield/body/contact/lane checks, feasible reversal continuity, interruption/camera replays and affected browsers; 428 A0-identical authority samples. Both blockers independently cleared | Containing delivery |
+| A7 | Planned after A6 | Complete cutover and physics handoff | Per-slice acceptance gate in animation-roadmap.md; not implemented | — |
 | P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 | EF0–EF4 | Planned after the animation/death-physics queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log
+
+### A6 — shield preparation and confirmed-block reaction — 2026-11-20
+
+- Followed TDD: missing component/module and live guard-preparation failures preceded implementation;
+  focused reds also cover counter-turn continuity, 480 unnecessary dormant spring calls and unusable
+  optional contact metadata. A moving-stair browser red corrected flight-foot compression without
+  weakening the contact threshold.
+- Actor/run-owned accepted-block batches feed the shared action rig. Immediate protection surrounds
+  supporting anticipation, bounded directional recoil, controlled lowering, current-clock phalanx
+  preparation/opening and tail follow-through. Existing Defense/squad charts retain all authority.
+- Final full gate377/299.59s plus typing/lint/format191/build/production pass. Shield
+  browser checks real input/melee, 1,056 replay frames, 960 moving stair frames and 132 gate frames;
+  controls match hit runs' gameplay exactly. Rig428 matches A0 authority; affected defense/phalanx/
+  animation/actions/tail suites pass. Ten playback tracks and temporal sheets inspected.
+- Initial independent review was NOT READY: moving release intersected the body/head and re-press
+  unnecessarily reset feasible placement/velocity. Persisted red preceded coordinated body release,
+  scale-aware board height and minimum protective-frame projection. New transition suite passes
+  600 phase-varied release/control frames, twelve reversals and sixteen opening interruptions.
+  Feasible reversals now retain exact corners/velocity. A final TDD fix resolves accepted recoil in
+  the actual eased render heading after release.
+- Final cost3.195/4.00ms mean/p95, unchanged resource plateau. See [contract](rig-shields.md) and
+  `VERIFICATION.md` for caps, evidence and qualifications. Final everyday gate359/29.43s passes.
+- **Final independent review READY**, clearing both blockers: 22 focused native tests, real input,
+  240 release/control frames, 48 reversals (ten feasible cases with exact pose/all-velocity continuity),
+  twelve attack interruptions, 360 all-slot turning/burst frames, 180 carry frames, sixteen live-target
+  opening/casualty cases and twelve rendered-heading adapter cases. Six corrected captures inspected;
+  broad checks/cost/resource evidence reused. Remaining immediate restoration and baseline pauldron/
+  temporary-collapse limits are documented. This containing delivery records reviewed A6.
 
 ### A5 — independent review corrections — 2026-11-20
 

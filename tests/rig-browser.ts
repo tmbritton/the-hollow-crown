@@ -240,7 +240,10 @@ try {
           const actual = [0, 1, 2].map((row) => handMatrix[12 + row] - handMatrix[4 + row] * 0.27);
           let node = null,
             offset: readonly number[] = [0, 0, 0];
-          if (actions.mode === 'guard' && i === 0) {
+          if (
+            i === 0 &&
+            (actions.mode === 'guard' || (actions.mode === 'free' && actions.shield.weight > 0))
+          ) {
             node = rig.shield;
             offset = [0, -0.12, -0.28];
           }

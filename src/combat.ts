@@ -26,6 +26,8 @@ import type { AttackKind } from './attackKinds.ts';
 export interface DamageImpact {
   kind: 'melee' | 'projectile';
   travel: Point;
+  /** Actual swept projectile contact when available; melee otherwise uses a body-surface estimate. */
+  contact?: Spawn;
 }
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -750,6 +752,25 @@ export class CombatSystem {
     )
       return false;
     if (impact && target.defending && inGuardArc(target.position.heading, impact.travel)) {
+      const length = Math.hypot(impact.travel.x, impact.travel.z);
+      const contact =
+        impact.contact &&
+        [impact.contact.x, impact.contact.z, impact.contact.h].every(Number.isFinite)
+          ? impact.contact
+          : undefined;
+      target.entity.get('blockFeedback')?.publish(this.ecs, {
+        source: source?.entity ?? null,
+        time: this.time,
+        kind: impact.kind,
+        magnitude: amount,
+        travel: impact.travel,
+        contact: contact ?? {
+          x: target.position.x - (impact.travel.x / length) * 0.42,
+          z: target.position.z - (impact.travel.z / length) * 0.42,
+          h: target.elevation + 0.9,
+        },
+        estimatedContact: !contact,
+      });
       this.blockParticles(target);
       return false;
     }
@@ -1112,6 +1133,7 @@ export class CombatSystem {
           this.damage(target, shot.damage, owner, {
             kind: 'projectile',
             travel: { x: shot.vx, z: shot.vz },
+            contact: { x: p.x, z: p.z, h: p.h },
           });
           this.ecs.remove(entity.id);
           break;

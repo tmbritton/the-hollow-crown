@@ -98,10 +98,12 @@ independently reviewed READY**, and **A1's shared rig foundation is implemented 
 **A2's coordinated solver and A3's locomotion/contact migration are also implemented and independently reviewed READY.**
 A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.
 A5 articulated tails is implemented, verified and independently reviewed **READY**.
-A6 shield motion is next, then A7, P8 directional ragdolls and P9 skeleton debris.
+A6 shield motion is implemented, verified and independently reviewed **READY**.
+A7 is next, then P8 directional ragdolls and P9 skeleton debris.
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
 [A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md),
 [A4 action/grip contracts](docs/rig-actions.md), and [A5 articulated tails](docs/rig-tails.md).
+The [A6 shield contract](docs/rig-shields.md) describes anticipation, lowering and confirmed recoil.
 
 ## Play
 
@@ -275,6 +277,13 @@ a previous hold cannot raise it. Starting shrine work or a door-approach command
 through the shared stop path. Kobold shield bearers use this same capability during formation combat
 and withdrawal; their telegraphed opening genuinely lowers defense.
 
+The shield is protective immediately while the supporting body loads and settles. Confirmed blocks
+produce bounded directional shield/arm/torso recoil, a grounded brace and kobold-tail follow-through.
+Release lowers the shield smoothly while defense ends immediately; re-raising restores protection
+at once. Phalanx opening and recovery sample the existing group clocks, with hands attached and the
+guarded spear lane covered. Repeated rendering cannot replay a hit; menus, focus loss, teleport,
+jump and death clear the appropriate presentation state.
+
 Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths buckle before falling, compress on contact and rebound briefly into their final corpse pose. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These render-only curves keep controls, collision and damage timing authoritative.
 
 ## What is procedural?
@@ -311,6 +320,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
 | `src/rigs/` | Shared humanoid definitions/profiles, quaternion pose/FK, live locomotion/grounding and action/grip planners, bounded solver/residuals, socket attachments, temporary collapse, compatibility bridge and final mesh bindings |
 | `src/rigs/tail.ts` / `src/rigs/tailClearance.ts` | Shared tailed-humanoid extension, bounded angular follow-through, clearance projection and age-sampled tail collapse |
+| `src/blockFeedback.ts` / `src/rigs/shield.ts` | Actor/run-owned accepted-block batches and bounded shield/body preparation, lowering and directional recoil |
 | `src/wallGeometry.ts` | Shared physical masonry profile for procedural wall construction and render-only clearance |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
 | `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original role/slot references, bounded physical rank assembly, shared attack/opening phases and unit withdrawal |
@@ -454,6 +464,15 @@ sequences. See [the tail contract](docs/rig-tails.md).
 `npm run test:rig:tails:clearance` adds independent actual-mesh checks for every active group member,
 neighboring limbs/equipment/tails, generated masonry and stable settled corpses. It also tests
 reversed ECS order, first-frame prop visibility and prolonged partial-contact settling/release.
+
+`npm run test:rig:shield` checks real F/melee input, confirmed directional/batched recoil, normal
+lowering and rapid reversal, jump/modal resets, hand/foot contacts, moving stair parity, tail response
+and actual guarded/open phalanx lane geometry. It writes a two-camera playback viewer and numerical
+report under ignored `test-results/`; see [the shield contract](docs/rig-shields.md).
+
+`npm run test:rig:shield:transitions` adds phase-varied moving-release body clearance, actual F/run
+release, constraint-aware re-raise pose/velocity continuity and opening interruptions/death. It uses
+independent actual-mesh checks and saves numerical results plus corrective captures.
 
 ### Entity/component architecture
 

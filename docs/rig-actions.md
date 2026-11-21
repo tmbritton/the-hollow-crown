@@ -2,7 +2,8 @@
 
 **2026-11-20. Implemented and verified; final independent review READY.**
 This follows [A3 grounding](rig-grounding.md). [A5 articulated tails](rig-tails.md) is now implemented.
-A6 shield anticipation/reaction and A7 compatibility removal remain planned.
+[A6 shield anticipation/reaction](rig-shields.md) is implemented and independently reviewed READY; A7 compatibility
+removal remains planned.
 
 ## Ownership
 

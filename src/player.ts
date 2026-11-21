@@ -6,6 +6,7 @@ import { tileAt, heightAt } from './world.ts';
 import { createActor, moveActor, stopActor, teleportActor } from './actors.ts';
 import { bindActorCollision, resetActorRig } from './actorRendering.ts';
 import { bindHumanoid } from './rigs/bindings.ts';
+import { SHIELD_GEOMETRY } from './rigs/shield.ts';
 import { profiles } from './rigs/humanoid.ts';
 import type { ECS } from './ecs.ts';
 import { MOVEMENT_KEYS, RUN_SPEED, WALK_SPEED } from './locomotion.ts';
@@ -91,7 +92,13 @@ export function createPlayer(
   }
   const shieldMount = new TransformNode('shield mount', scene);
   shieldMount.parent = root;
-  const shield = p('iron', 'shield', [0.14, 0.7, 0.55], [-0.17, -0.02, 0.07], shieldMount);
+  const shield = p(
+    'iron',
+    'shield',
+    [...SHIELD_GEOMETRY.player.size],
+    [...SHIELD_GEOMETRY.player.center],
+    shieldMount,
+  );
   p('gold', 'shield boss', [0.08, 0.17, 0.17], [-0.27, -0.02, 0.07], shieldMount);
   p('dark', 'shield hand strap', [0.18, 0.09, 0.16], [-0.08, -0.12, -0.28], shieldMount);
   const weapon = new TransformNode('sword grip', scene);

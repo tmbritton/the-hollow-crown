@@ -12,6 +12,7 @@ import { bindActorCollision } from './actorRendering.ts';
 import { bindHumanoid } from './rigs/bindings.ts';
 import { humanoid, profiles } from './rigs/humanoid.ts';
 import { withTail } from './rigs/tail.ts';
+import { SHIELD_GEOMETRY } from './rigs/shield.ts';
 import type { CombatSystem } from './combat.ts';
 import type { Actor } from './actors.ts';
 import type { Materials, MaterialName } from './materials.ts';
@@ -158,7 +159,15 @@ export function createEnemyRendering(
     if (role === 'shieldbearer') {
       shield = new TransformNode(`${actor.id}:shield mount`, scene);
       shield.parent = root;
-      equipment.push(p('iron', 'squad shield', [0.14, 0.72, 0.62], [-0.17, -0.02, 0.07], shield));
+      equipment.push(
+        p(
+          'iron',
+          'squad shield',
+          [...SHIELD_GEOMETRY.kobold.size],
+          [...SHIELD_GEOMETRY.kobold.center],
+          shield,
+        ),
+      );
       equipment.push(p('gold', 'shield boss', [0.08, 0.16, 0.16], [-0.27, -0.02, 0.07], shield));
       equipment.push(
         p('dark', 'shield hand strap', [0.18, 0.09, 0.16], [-0.08, -0.12, -0.28], shield),
