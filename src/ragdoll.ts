@@ -59,7 +59,7 @@ export interface TerrainBox {
 /** Actual tile-height treads, not the living motor's smooth ramp. Stream a bounded local patch.
  * Physical walls persist when their upper artwork is cut away by the camera. */
 export type RagdollTerrain = NavigationWorld & { physicalObstacles?: readonly TerrainBox[] };
-export function physicalTerrain(world: RagdollTerrain, point: XYZ): TerrainBox[] {
+export function physicalTerrain(world: RagdollTerrain, point: XYZ, radius = 4): TerrainBox[] {
   const boxes: TerrainBox[] = [];
   const add = (
     name: string,
@@ -73,8 +73,8 @@ export function physicalTerrain(world: RagdollTerrain, point: XYZ): TerrainBox[]
   ) => boxes.push({ name, position: [x, top - h / 2, z], size: [w, h, d], yaw, top });
   const cx = Math.round(point[0]),
     cz = Math.round(point[2]);
-  for (let x = cx - 4; x <= cx + 4; x++)
-    for (let z = cz - 4; z <= cz + 4; z++) {
+  for (let x = cx - radius; x <= cx + radius; x++)
+    for (let z = cz - radius; z <= cz + radius; z++) {
       const tile = world.tiles.get(key(x, z));
       if (!tile) continue;
       add(`floor:${key(x, z)}`, x, tile.h + (tile.surface === 'stair' ? 0.03 : 0), z, 1, 1, 1);
@@ -150,11 +150,14 @@ export function physicalTerrain(world: RagdollTerrain, point: XYZ): TerrainBox[]
   return boxes;
 }
 
-/** Isolated presentation-only rigid-body island. Collision masks exclude living actors and other
- * corpses; constraints keep this body's anatomy together. Frozen remains retain no solver objects. */
+/** Isolated presentation-only rigid-body island. Skeleton anatomy separates; other profiles stay
+ * constrained. World-only contacts cannot affect living actors. Frozen remains retain no solver. */
 export class Ragdoll {
   readonly world: Float64Array;
   readonly seed: string;
+  readonly mode: 'articulated' | 'separated';
+  /** World-space envelope about the published root, including every detached chunk and attachment. */
+  radius = 0;
   private readonly terrain: RagdollTerrain;
   private simulation: World | null;
   private readonly parts: Body[] = [];
@@ -188,6 +191,7 @@ export class Ragdoll {
   ) {
     this.terrain = terrain;
     this.seed = seed;
+    this.mode = source.definition.profile.id === 'skeleton' ? 'separated' : 'articulated';
     this.world = new Float64Array(source.world);
     this.start = new Float64Array(source.world);
     const simulation = (this.simulation = new World({
@@ -203,6 +207,7 @@ export class Ragdoll {
     simulation.defaultContactMaterial.restitution = 0.12;
     const impulse = deathImpulse(travel, magnitude, seed);
     const random = randomFrom(`${seed}:spin`);
+    const scatter = randomFrom(`${seed}:scatter`);
     for (const [index, spec] of source.bodies.entries()) {
       const body = new Body({
         mass:
@@ -233,6 +238,13 @@ export class Ragdoll {
           new Box(new Vec3(...(spec.size.map((v) => v / 2) as [number, number, number]))),
         );
       body.velocity.set(...(spec.linear.map((v, i) => v + impulse[i]) as [number, number, number]));
+      if (this.mode === 'separated' && travel) {
+        const angle = scatter() * Math.PI * 2;
+        const speed = 0.6 + scatter() * 0.6;
+        body.velocity.x += Math.cos(angle) * speed;
+        body.velocity.y += scatter() * 0.7;
+        body.velocity.z += Math.sin(angle) * speed;
+      }
       body.angularVelocity.set(
         ...(spec.angular.map(
           (v) => Math.max(-14, Math.min(14, v)) + (travel ? (random() - 0.5) * 3 : 0),
@@ -249,7 +261,7 @@ export class Ragdoll {
     this.owners = source.definition.joints.map((_, i) => bodyOwner(source, i));
     for (let i = 0; i < source.bodies.length; i++) {
       const spec = source.bodies[i];
-      if (spec.parent < 0) continue;
+      if (spec.parent < 0 || this.mode === 'separated') continue;
       const a = this.parts[spec.parent],
         b = this.parts[i];
       const hinge = spec.joint.endsWith('Shin') || spec.joint.endsWith('Forearm');
@@ -278,6 +290,7 @@ export class Ragdoll {
       this.joints.push(joint);
       simulation.addConstraint(joint);
     }
+    this.updateBounds();
     this.syncTerrain();
   }
   get bodyCount(): number {
@@ -300,21 +313,29 @@ export class Ragdoll {
   private syncTerrain(): void {
     const simulation = this.simulation;
     if (!simulation) return;
-    const p = this.parts[0].position;
-    const terrainKey = `${Math.round(p.x)},${Math.round(p.z)}:${this.terrain.entities
+    // Released pieces can leave the pelvis patch. Union at most eleven 5×5 patches rather than
+    // filling an arbitrarily large rectangle between distant pieces. Duplicate cells share boxes.
+    const centers = new Map<string, XYZ>();
+    for (const body of this.mode === 'separated' ? this.parts : [this.parts[0]]) {
+      const p = body.position;
+      centers.set(`${Math.round(p.x)},${Math.round(p.z)}`, [p.x, p.y, p.z]);
+    }
+    const terrainKey = `${[...centers.keys()].join(';')}:${this.terrain.entities
       .filter((e) => e.type === 'door')
       .map((e) => (e.type === 'door' && e.open && !e.collider?.checkCollisions ? '1' : '0'))
       .join('')}`;
     if (terrainKey === this.terrainKey) return;
     this.terrainKey = terrainKey;
-    const boxes = physicalTerrain(this.terrain, [p.x, p.y, p.z]);
-    const current = new Set(boxes.map((b) => b.name));
+    const boxes = new Map<string, TerrainBox>();
+    for (const p of centers.values())
+      for (const box of physicalTerrain(this.terrain, p, this.mode === 'separated' ? 2 : 4))
+        boxes.set(box.name, box);
     for (const [name, body] of this.statics)
-      if (!current.has(name)) {
+      if (!boxes.has(name)) {
         simulation.removeBody(body);
         this.statics.delete(name);
       }
-    for (const box of boxes)
+    for (const box of boxes.values())
       if (!this.statics.has(box.name)) {
         const body = new Body({
           mass: 0,
@@ -328,6 +349,19 @@ export class Ragdoll {
         this.statics.set(box.name, body);
       }
   }
+  private updateBounds(): void {
+    this.radius = 0;
+    for (const b of this.parts)
+      this.radius = Math.max(
+        this.radius,
+        b.boundingRadius +
+          Math.hypot(
+            b.position.x - this.world[12],
+            b.position.y - this.world[13],
+            b.position.z - this.world[14],
+          ),
+      );
+  }
   private publish(): void {
     this.parts.forEach((b, i) => {
       this.bodyMatrix(b);
@@ -335,6 +369,7 @@ export class Ragdoll {
     });
     for (let i = 0; i < this.owners.length; i++)
       multiplyAffine(this.deltas[this.owners[i]], 0, this.start, i * 16, this.world, i * 16);
+    this.updateBounds();
     for (const j of this.joints) {
       const a = j.bodyA.pointToWorldFrame(j.pivotA),
         b = j.bodyB.pointToWorldFrame(j.pivotB);

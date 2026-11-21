@@ -13,9 +13,9 @@ circumstance-driven dangerous turns, before committing to a generalized scenario
 Prototype pitches are provisional; their selection, order and escalation rules await playtesting.
 A large persistent dungeon world remains a possible follow-up game.
 
-Continue **A6–A7 → P8 → P9 → EF0–EF4** before further procedural-feature expansion. EF5 remains a
-separate follow-up. The direction establishes how to explore content after these gates, rather
-than introducing a new implementation slice ahead of the existing queue.
+The **2026-11-21** user scheduling decision puts the CPU performance pass next after reviewed P9:
+**CPU0 → CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7 → EF0–EF4**, then further
+procedural-feature expansion. A0–A7/P8/P9 are complete. EF5 remains a separate follow-up.
 
 ## Current priority — user gameplay notes
 
@@ -43,7 +43,7 @@ each slice test-first, independently reviewed and committed:
 | A6 | Shield anticipation and reaction — complete, final independent review READY | Actor/run-owned accepted-block batches, supporting preparation, coordinated lowering, constraint-aware reversal, bounded recoil and phalanx counter-motion. Full377/core359, actual browser body/grip/contact/lane checks and production pass; both review blockers cleared. See [shield contract](rig-shields.md). |
 | A7 | Rig cutover and death-physics handoff — complete, final independent review READY | Semantic-only pose/reset ownership; detached world/joint/body velocities, death rebasing and pre-stop lethal metadata. Full383/core366, 84 handoffs, real landing/support regressions, 428 catalog samples and cross-system/root/Pages smoke pass. Landing blocker independently cleared; see [handoff contract](rig-handoff.md). |
 | P8 | Directional ragdoll deaths — complete, final independent review READY | Final-pose transfer, seeded launch/spin variation, constrained anatomy/tails, physical walls/treads and frozen relocated remains. Full389 checkpoint/core373, eleven browser sequences, 24 structural-contact cases, real melee/bolt/javelin, all-24 stress, pause/reset/respawn and root/Pages smokes pass. Both contact blockers independently cleared; see [contract](ragdoll-deaths.md). |
-| P9 | Skeleton breakup and settled bone decoration — queued after P8 | Skeleton deaths launch separated procedural body parts instead of retaining an intact corpse. Parts collide and settle as non-interactive set decoration. Reuse the death-motion foundation; preserve death/discovery semantics, bounded resources, pause and regeneration cleanup, with real-browser visual checks. |
+| P9 | Skeleton breakup and settled bone decoration — complete, independent review READY | Eleven anatomical chunks with seeded scatter, per-piece terrain coverage and scattered-remains perception. Full395/core377, seven breakup sequences, 24 contact cases, all-24 stress, affected gameplay and both production paths pass. Independent six-case geometry/distant-skull/knowledge probes find no blockers. See [contract](skeleton-breakup.md). |
 
 P1's resource-fix slice is committed as **`6378d61`**. **P2 corpse traversal is committed at
 `726af8a`, accepted by the user and independently reviewed READY.** **P3 blocked-floor
@@ -60,7 +60,7 @@ A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration 
 and reviewed READY. A4 action/equipment/work/social migration is also verified and independently
 reviewed READY. A5 articulated tails is implemented, verified and independently reviewed READY.
 A6 shield motion is implemented, verified and independently reviewed READY; both blockers cleared.
-A7 and P8 are implemented, verified and independently reviewed READY. P9 is next.**
+A7 and P8–P9 are implemented, verified and independently reviewed READY. CPU0 is next.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -74,14 +74,35 @@ shared full-body rig, tailed kobolds, complete animation migration and shield mo
 The [animation roadmap](animation-roadmap.md) contains their architecture, per-slice gates, migration
 inventory and compaction handoff. Preserve the raw notes as the source of intent.
 
+## Next delivery queue — CPU performance
+
+The user promoted the [CPU performance plan](cpu-performance-plan.md) on **2026-11-21**, after
+P9's independent READY review. Implement these slices in order, with test-first correctness,
+before/after evidence, independent review and normal-hook delivery for each. The old measurements
+at `3cfb378` are diagnostic history; **CPU0 must establish the post-P9 baseline** before optimization.
+
+| ID | Slice | Acceptance / verification |
+| --- | --- | --- |
+| CPU0 | Reproducible subsystem timing and correctness baseline — **next** | Bounded development-only tooling; exact revision/source and workload identity; repeatable authoritative state, counts and timing distributions; separate simulation, animation/death physics, presentation and scene costs. Include the later hitch window, active/settled deaths and regeneration; pin the expensive request and set budgets. |
+| CPU1 | Relevant door/blocker queries and cheap geometry records | Query equivalence across door/collider transitions, swept paths and terrain; distant doors incur no state reads; demonstrate whole-tick improvement against CPU0. |
+| CPU2 | Exact-zero displacement fast path | Stationary actors avoid collision sweeps while support, jump/landing, facing, route progress and resets remain correct. Measure independently of CPU1; preserve tiny real movement. |
+| CPU3 | Bound expensive route replans | Reproduce CPU0's request after CPU1/CPU2; preserve route quality and dynamic invalidation. If work spans ticks, budget all phases/requests and prove current-world publication, fairness and cancellation. |
+| CPU4 | Bounded nearby collision candidates | Conservative swept volumes match the full-scan oracle across doors, stairs, occupancy and slide responses; cache/resource lifecycle remains bounded. |
+| CPU5 | Reduce scene traversal and transform cost | Equal camera/state measurements; picking, observation, shadows, cutaways and skeleton-chunk identity survive geometry consolidation; resources plateau across regeneration. |
+| CPU6a | Demand-driven/cached animation geometry | Rebuild only relevant body/contact surfaces; preserve same-frame tail/equipment clearance, corpse/bone sampling and deterministic ordering. |
+| CPU6b | Separate presentation solving from catch-up; animation detail tiers | Gameplay clocks/outcomes agree across render cadences; event-time observation, attack/block presentation and A7/P8/P9 handoffs remain coherent; refresh before visibility/inspection. |
+| CPU7 | Integrated performance, resource and visual acceptance | Equivalent seeded workloads and camera paths, p95/max hitch and resource checks. Hardware FPS claims require real hardware evidence; report remaining goals explicitly. |
+
+CPU2 follows CPU1 in delivery order but retains an independent CPU0 comparison. CPU6a and CPU6b
+are separate review gates. The detailed work bounds, numerical targets and affected suites remain
+in the CPU plan. These slices are **queued, not implemented** by this scheduling update.
+
 ## Before the next procedural-feature expansion — Effect refactor
 
-The user requested this scheduling boundary on **2026-11-20**. Continue the existing
-**A6–A7 → P8 → P9** implementation queue after A5's review/delivery; A4 is independently reviewed READY.
-Complete the generation
-slices below before authoring additional procedural scene recipes, keep variants, adventure
-grammars, or generated encounters/objectives. The default insertion point is after P9; if content
-work moves, its Effect prerequisite moves with it.
+The user requested this pre-content boundary on **2026-11-20** and inserted the CPU pass on
+**2026-11-21**. Complete **CPU0–CPU7 → EF0–EF4** before authoring additional procedural scene
+recipes, keep variants, adventure grammars, or generated encounters/objectives. If content work
+moves, its Effect prerequisite moves with it.
 
 The [Effect refactor plan](effect-refactor-plan.md) defines architecture, determinism and failure
 contracts, implementation slices, measurements, and acceptance gates. All slices remain planned.

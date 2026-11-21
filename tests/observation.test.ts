@@ -32,6 +32,33 @@ function fixture() {
   return { engine, scene, camera, body, render, observation };
 }
 
+test('scattered remains use eligible chunk surfaces and a live world-space occlusion envelope', (t) => {
+  const { engine, scene, camera, render, observation } = fixture();
+  t.after(() => engine.dispose());
+  const root = new TransformNode('distant pelvis', scene);
+  root.position.x = 20;
+  const skull = box('detached skull', { size: 1 }, scene);
+  skull.parent = root;
+  skull.position.set(-20, 1, -4);
+  let radius = 1;
+  const grouped = new CameraObservation(camera, [{ root, radius: 1, worldRadius: () => radius }]);
+  assert.equal(grouped.visible(render), true);
+  radius = 22;
+  assert.equal(grouped.visible(render), false, 'a remote chunk still occludes other actors');
+  const small = box('small separated fragment', { size: 0.2 }, scene);
+  small.position.set(2, 1, 0);
+  const pieces = { root, meshes: [skull, small] };
+  assert.equal(
+    observation.visible(pieces, [small], () => false),
+    false,
+    'camera visibility cannot borrow player eligibility from a different piece',
+  );
+  assert.equal(
+    observation.visible(pieces, [small], () => true),
+    true,
+  );
+});
+
 test('camera observation tests rendered surfaces, ignoring invisible collision and selection proxies', (t) => {
   const { engine, scene, render, observation } = fixture();
   t.after(() => engine.dispose());

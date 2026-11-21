@@ -5,7 +5,9 @@
 Accepted lethal damage now transfers the [A7 final pose and velocity](rig-handoff.md) to
 presentation-only rigid bodies. Enemies launch in the killing blow's direction, hit structural
 walls and furniture, tumble over the visible stair treads, and become persistent frozen remains.
-Skeletons remain articulated here; anatomical breakup is the separate P9 slice.
+At the P8 checkpoint skeletons remained articulated. [P9](skeleton-breakup.md) now releases their
+anatomical chunks, adds scattered terrain/perception coverage and reduces the population's active
+constraint budget from 288 to 208. The P8 evidence below remains its historical delivery baseline.
 
 ## Ownership and backend
 

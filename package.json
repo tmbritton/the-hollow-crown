@@ -52,6 +52,7 @@
     "test:rig:handoff:landing": "node tests/rig-handoff-landing-browser.ts",
     "test:ragdoll": "node tests/ragdoll-browser.ts",
     "test:ragdoll:contacts": "node tests/ragdoll-contacts-browser.ts",
+    "test:skeleton:breakup": "node tests/skeleton-breakup-browser.ts",
     "test:jump": "node tests/jump-browser.ts",
     "test:combat": "node tests/combat-browser.ts",
     "test:defense": "node tests/defense-browser.ts",

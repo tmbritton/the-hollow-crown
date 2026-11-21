@@ -2,7 +2,7 @@
 
 **Updated 2026-11-21. A0–A7 are implemented, verified and independently reviewed READY.
 A7's final review clears the landing/support-velocity handoff blocker.
-P8 is implemented, verified and independently reviewed READY. P9 remains planned.** See the [A0 baseline](animation-baseline.md),
+P8 and P9 are implemented, verified and independently reviewed READY.** See the [A0 baseline](animation-baseline.md),
 [A1 rig foundation](rig-foundation.md), [A2 solver](rig-solver.md), [A3 grounding](rig-grounding.md),
 [A4 actions](rig-actions.md), [A5 tails](rig-tails.md), and [A6 shields](rig-shields.md).
 
@@ -368,6 +368,10 @@ request rather than moving physics into the rig migration.
 
 ### P9 skeleton breakup
 
+Implemented, verified and independently reviewed READY. See [the P9 contract](skeleton-breakup.md)
+for the eleven-chunk mapping, terrain/observation bounds and measured verification. The following
+acceptance contract was its basis.
+
 Use the same death impulse and final pose, but release anatomical bone chunks instead of retaining
 an intact skeleton corpse. Skull details stay with the skull; avoid a physics object for each
 tiny eye-socket voxel. Pieces fly, collide and settle into non-interactive decoration. Bound active
@@ -456,11 +460,12 @@ the existing Pages workflow, with a hosted smoke for meaningful release changes.
     [rig-actions.md](rig-actions.md) and [rig-tails.md](rig-tails.md). A5 is implemented/verified,
     with final independent review READY. A6 shield motion is implemented/verified, with final
     independent review READY. **A7 cutover** is complete and independently reviewed READY.
-    P8 is complete and independently reviewed READY. P9 is not implemented. Keep every catalog row in the
+    P8 and P9 are complete and independently reviewed READY. Keep every catalog row in the
    migration checklist; a walking hero alone
    is not completion of the rig conversion.
-5. Continue in order through A7 before P8, then P9. Do not start death physics ahead of the shared
-   rig/migration gates or introduce fully physics-driven living movement as an incidental change.
+5. The user scheduled [CPU0–CPU7](cpu-performance-plan.md) next on **2026-11-21**. Begin with CPU0's
+   fresh post-P9 measurement baseline; retain the completed rig, handoff and scattered-remains
+   contracts through optimization. EF0–EF4 follow CPU7 before procedural-feature expansion.
 
 ### Reference and continuity
 

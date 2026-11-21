@@ -290,7 +290,7 @@ try {
   assert.ok(report.disposed);
   assert.equal(report.mass.count, 24);
   assert.equal(report.mass.bodies, 312);
-  assert.equal(report.mass.constraints, 288);
+  assert.equal(report.mass.constraints, 208); // Eight skeletons release their ten joints each.
   assert.equal(report.mass.meshes, 0);
   assert.equal(report.mass.remaining, 0);
   for (const r of report.rows) {
@@ -319,7 +319,7 @@ try {
       actor.entity.require('rig').root.setEnabled(false);
     }
     for (const group of g.ecs.query('koboldSquad')) group.remove('koboldSquad');
-    const a = g.combat.enemies.find((a) => a.kind === 'goblin')!;
+    const a = g.combat.enemies.find((a) => a.kind === 'skeleton')!;
     Object.assign(a.position, { x: 1.5, z: 0, h: 0 });
     a.health.current = a.health.max;
     a.entity.require('rig').root.setEnabled(true);

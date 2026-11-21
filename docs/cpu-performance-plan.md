@@ -1,8 +1,9 @@
 # CPU performance plan — queries, collision, rendering and animation
 
-**Status:** proposed implementation plan, grounded in a completed CPU investigation. None of the
-optimizations below is implemented by this document. The measured baseline is **`3cfb378`**;
-concurrent shield-animation work was excluded from the final baseline measurements.
+**Status:** queued next after P9 by the user's **2026-11-21** scheduling decision; **CPU0 is next**.
+The slices below remain unimplemented. This plan is grounded in a completed CPU investigation at
+**`3cfb378`**; its historical measurements excluded concurrent shield-animation work. CPU0 must
+refresh them against the reviewed A0–A7/P8/P9 integration before accepting optimization results.
 
 **Goal:** recover responsive frame times on the Ryzen 5 2600X-class desktop while preserving the
 [compact living-dungeon direction](game-direction.md): autonomous inhabitants, readable combat,
@@ -97,9 +98,10 @@ CPU0 below makes the reusable measurement method part of the project before rely
 
 ## 3. Delivery sequence and integration
 
-These are feature-sized investigation/implementation slices. Each gets its own before/after evidence
-and acceptance review. CPU1–CPU4 target measured runtime work without requiring new content.
-CPU5–CPU6 overlap rig/render ownership and must be reconciled with animation work at integration.
+These are the next feature-sized investigation/implementation slices. Each gets its own before/after
+evidence and acceptance review. Deliver **CPU0 → CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b
+→ CPU7**, then EF0–EF4. CPU2 retains an independent CPU0 comparison despite its delivery position.
+CPU5–CPU6 must preserve the completed rig, ragdoll and separated-remains ownership contracts.
 
 | Slice | Scope | Depends on |
 | --- | --- | --- |
@@ -113,11 +115,10 @@ CPU5–CPU6 overlap rig/render ownership and must be reconciled with animation w
 | **CPU6b** | Separate presentation solving from catch-up and add animation LOD | CPU6a; explicit lifecycle/observation/death handoff |
 | **CPU7** | Integrated frame-time, resource and visual acceptance | Implemented slices above |
 
-The [implementation path](implementation-path.md) remains the global scheduling record. This plan
-defines internal dependencies, not an automatic replacement of the active animation/death-physics
-queue. Rebase onto completed concurrent work and refresh CPU0 before landing changes. Coordinate
-CPU6b with A7's cutover and P8's pose/velocity handoff. The Effect prerequisite remains attached to
-future procedural-feature expansion; runtime query/collision fixes do not add generated content.
+The [implementation path](implementation-path.md) records the user's promotion of this queue after
+P9. Refresh CPU0 on the delivered revision, including A7's cutover, P8's pose/velocity handoff and P9's
+separated anatomy, per-piece terrain and scattered-remains perception. The Effect prerequisite
+remains attached to future procedural-feature expansion and follows CPU7.
 
 ## 4. Scoped work and acceptance
 
@@ -137,6 +138,11 @@ Use the entrance and stable cases above, the later 361–660-tick hitch window, 
 movement, doorway, phalanx, cargo, corpse and regeneration situations. Reproduce the exact costly
 request with actor/request IDs, endpoints, route reason and occupancy/door revisions; the original
 profile establishes a spike but does not identify a fully pinned single-request regression fixture.
+
+Include ordinary active ragdolls, skeleton breakup, settled remains and a separately labelled
+all-enemy death burst. Attribute death-physics stepping/terrain work within animation instead of
+conflating active simulation with settled mesh/binding cost. Record cold/active/settled resource
+counts; the existing P8/P9 stress timings include frozen updates and are not a fresh CPU0 baseline.
 
 **Gate:** same-seed runs reproduce workload counts and authoritative state; bounded instrumentation
 does not change outcomes. Measure coarse/uninstrumented timing separately from detailed tracing,
@@ -337,8 +343,9 @@ pending-route behavior and presentation scheduling. Extend machine models for ch
 | Area | Existing affected browser checks |
 | --- | --- |
 | Queries, routing, collision | `npm run test:movement`, `npm run test:combat`, `npm run test:phalanx`, `npm run test:jump`, `npm run test:tribute`, `npm run test:last-ember` |
-| Scene/mesh changes | `npm run test:inspection`, `npm run test:discoveries`, `npm run test:portraits`, affected combat/animation suites |
-| Rig/scheduling changes | `npm run test:rig`, `npm run test:rig:solver`, `npm run test:rig:actions`, `npm run test:rig:tails`, `npm run test:rig:tails:clearance`, `npm run test:animation`, `npm run test:defense`, `npm run test:social` |
+| Scene/mesh changes | `npm run test:inspection`, `npm run test:discoveries`, `npm run test:portraits`, `npm run test:skeleton:breakup`, affected combat/animation suites |
+| Rig/scheduling changes | `npm run test:rig`, `npm run test:rig:solver`, `npm run test:rig:actions`, `npm run test:rig:tails`, `npm run test:rig:tails:clearance`, `npm run test:rig:shield`, `npm run test:rig:shield:transitions`, `npm run test:animation`, `npm run test:defense`, `npm run test:social` |
+| Death physics and handoff | `npm run test:rig:handoff`, `npm run test:rig:handoff:landing`, `npm run test:ragdoll`, `npm run test:ragdoll:contacts`, `npm run test:skeleton:breakup`, `npm run test:discoveries` |
 
 Targeted suites require a development server. Select the affected checks per slice and run
 rendering-heavy suites sequentially. Refresh this list for newly landed animation/shield checks.

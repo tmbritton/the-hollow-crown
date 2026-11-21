@@ -4,6 +4,102 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### P9 — skeleton breakup — 2026-11-21 (independent review READY)
+
+Baseline **`14f441c`** was clean and pushed. Skeletons now release eleven anatomical body groups
+from P8's exact final-pose handoff. A separate seeded scatter stream adds bounded variation without
+changing the common blow or hazard semantics. Existing geometry, skull details, held blade and
+single death identity remain owned by the original entity. The pelvis mesh is bound to its semantic
+pelvis. Per-chunk terrain patches cover separated pieces; dynamic envelopes and eligible actual
+chunk surfaces support occlusion and once-only discovery. See [the P9 contract](docs/skeleton-breakup.md).
+
+**TDD/iteration:** `test-results/p9-initial-red.log` records **14 pass / three fail** before
+implementation: absent separated mode, missing distant-chunk envelope, and an off-root chunk
+incorrectly rejected as an occluder. All pass after implementation. The stair browser initially
+reported 0.218 units below a tread top at a vertical-side contact, but the corner entered that
+tread by only 1.57e−7 horizontally. Its oracle now measures solid-box penetration along the
+shallowest axis, retaining the 0.015 contact threshold. This was a measurement correction, not a
+claimed physics repair. A discovery fixture initially used safe teleport to a void coordinate,
+which returned the hero to the entrance and witnessed the kill; it now explicitly places the
+fixture's hero out of range before the accepted death.
+
+**Checks actually run:**
+
+- Focused native physics/binding/observation: **25 passed**. New contracts cover exact entry,
+  zero-time pause, eleven chunks/no constraints, bounded reproducible variation, hazard inheritance,
+  detached skull travel beyond the old terrain patch, bounded terrain union, frozen stability and
+  release. Observation tests cover remote occlusion and same-surface player eligibility.
+- `npm run check:full`: **395 tests / 351.55s**, typing, lint and format pass. This includes the
+  extended generation/model/cargo checks, not a reused prior full run. Final `npm run check`:
+  **377 / 31.17s**, typing/lint/format **202 files** pass. No production machines were added.
+- `test:skeleton:breakup`: **seven sequences** (travel, melee, moving melee, jump, descending stairs,
+  wall, hazard), **448 captures** and actual geometry checks on every simulated frame. Max entry
+  matrix difference **3.82e−6**, skull-detail relative-distance drift **2.93e−6**, envelope excess
+  **zero**, worst final tread penetration **2.60e−5**. All expose eleven anatomical sample meshes,
+  settle, remain frozen, reset, release active resources and allocate **zero additional meshes**.
+  A real generated named skeleton dies unseen; exposing only its skull yields exactly one
+  `remains-found` event, with no name/killer disclosure or rewritten witnessed death.
+- `test:ragdoll:contacts`: **24 cases**, both door axes, skeleton/shield profiles, wall/corner and
+  multiple death keys. All initial overlap zero; worst transient upper-door overlap **0.007504**,
+  worst final masonry overlap **0.0000332**, below the unchanged 0.015 threshold.
+- `test:ragdoll`: **eleven shared death sequences**, actual timed melee and released bolt/javelin,
+  all-24 death stress and terminal cleanup pass. The population uses **312 bodies / 208 constraints**,
+  zero extra meshes and zero active physical resources after settling. The lifecycle subject is now
+  a skeleton: menu/inspection/hidden pause, visible-blur continuation, same-tick hero respawn and
+  in-flight regeneration pass. Three regenerations plateau at **2,382 meshes / 495 nodes / 28
+  materials / four textures / 5,719 entities / 25 actors**.
+- Sequential Chromium combat **15**, discoveries **17**, and animation suites pass, including
+  actual passable-corpse walk/run crossings, render-only foot contact, 52% water speed, real click
+  attacks and knowledge/occlusion/reset contracts. No browser errors were reported.
+- Root and Pages builds and both production smokes pass, with local bundled assets, real controls,
+  quality/regeneration and no debug hooks or external/network/page errors. **709 modules**; Pages
+  main **1,794.62kB / 466.44kB gzip**. The existing chunk-size warning remains.
+
+**Cost/visual qualifications:** the all-24/500-update sample measures **13.64ms mean / 30.60ms p95**,
+including all actor presentation and the frozen tail of the workload. This is a bounded software-
+rendered stress fixture, not hardware FPS or the A0 living-animation benchmark. Per-piece patches
+are bounded unions (at most eleven 5×5 floor patches); they do not fill an unbounded scatter rectangle.
+Three substeps, sixteen solver iterations, 24 islands and eight-second lifetime remain fixed.
+The 14-track sampled viewer was exercised at normal and quarter speed; representative launch,
+wall, stair, airborne and settled captures were inspected. Sampling is not an every-frame perceptual
+review. The main style limitation is coarse ribcage/hand-bound equipment, with possible bone overlap
+in crowded piles under the inherited world-only collision policy. Chunks never push actors or add
+gameplay interactions. No current-scope visual blocker was found in the parent's inspected captures.
+
+Verification used `DISPLAY= WAYLAND_DISPLAY=` with headless SwiftShader. One cold navigation timeout
+was resolved using the existing commit/readiness pattern; a combined three-suite shell deadline
+interrupted the first shared-ragdoll run. Its independent rerun passed in full. No system settings
+were changed. Logs and P9 captures are `test-results/p9-*`; the shared suites retain their existing
+`p8-*` report filenames, now reflecting the P9 run.
+
+**Independent review: READY, no current-scope blockers.** The reviewer inspected the diff/contract
+and reused the completed broad gates, browser suites, resource and production evidence. Fresh
+independent probes and twelve inspected captures are recorded in `test-results/p9-independent-review.md`
+and `p9-independent-probe.{mjs,json}`. Attributed results:
+
+- Six entry cases (travel, moving melee, airborne, both stair directions and distant skull), each
+  with 500 advancing and 30 frozen updates. Full actual-mesh relative transforms and an independent
+  OBB/solid-tread SAT oracle: entry error at most **9.54e−7**, anatomical group drift **5.36e−6**,
+  envelope excess **zero**, final solid overlap **1.133e−5**. Eleven chunks/samples, zero constraints,
+  zero new meshes and zero remaining active resources in every case.
+- A deliberately injected **24 units/s skull velocity** tests support beyond ordinary scatter:
+  the rendered skull reaches **15.049 units** from the root and settles. The actual distant skull
+  occludes a probe target that the old 4.8-radius rejection misses; hiding it reveals the target.
+- On generated **P9-NAMED-0**, camera visibility with player distance **17.310** grants no event;
+  nearby player-side cover still grants none. Removing cover grants exactly one unidentified
+  `remains-found` event. Original entity ownership, reset/sample cleanup, consumed-handoff replay
+  rejection, fresh death after cleanup and regeneration pass. **Zero page errors**.
+- Qualification: existing entry poses can already overlap treads (melee blade **0.15263**,
+  ascending foot **0.09401**, descending blade **0.12094**). Brief impact overlap also occurs
+  (**0.02286** travel pelvis / **0.02987** airborne foot; stress blade **0.07638** immediately after
+  entry), resolving to the final bound above. Neither parent nor reviewer claims all-frame <0.015
+  clearance. Coarse/overlapping piles and the unsupported pre-cleanup resurrection ordering remain
+  documented nonblockers. The recorded sampled playback and stress timing retain their qualifications.
+
+No production changes followed the READY verdict; subsequent documentation records review
+attribution and the user's decision to run CPU0–CPU7 next, ahead of EF0–EF4. The CPU investigation's
+historical timings are not post-P9 optimization results; CPU0 will establish that fresh baseline.
+
 ### P8 — directional, seed-varied ragdoll deaths — 2026-11-21 (final review READY)
 
 `cannon-es` **0.20.0** consumes the detached A7 handoff once, using 11 anatomical bodies or 15 with

@@ -60,6 +60,8 @@ export interface RigBinding {
   applyTail(): void;
   applyPhysics(world: Float64Array): void;
   physicsShapes(): RagdollShape[];
+  /** One actual anatomical surface per physical chunk, populated at handoff. */
+  readonly bodyMeshes: readonly AbstractMesh[];
 }
 const bindings = new WeakMap<Components['rig'], RigBinding>();
 export function rigBinding(rig: Components['rig']): RigBinding {
@@ -198,6 +200,7 @@ export function bindHumanoid(
     | null = null;
   const tailEntries = entries.filter((e) => definition.tail?.some((s) => s.index === e.joint));
   const surfaces: RigSurface[] = [];
+  const bodyMeshes: AbstractMesh[] = [];
   const surfaceSources: {
     mesh: AbstractMesh;
     matrix: Float64Array;
@@ -290,6 +293,7 @@ export function bindHumanoid(
     tail,
     tailClearance,
     surfaces,
+    bodyMeshes,
     tailSurfaces: surfaces.filter((s) => s.tail),
     sampleSurfaces(tailOnly = false) {
       for (const s of surfaceSources) {
@@ -378,6 +382,7 @@ export function bindHumanoid(
         for (const a of attached) a.binding.node.unfreezeWorldMatrix();
       }
       physicsAttachments = null;
+      bodyMeshes.length = 0;
       entity.remove('deathHandoff');
       const root = pose.local[0];
       const x = position?.x ?? root.position.x,
@@ -472,6 +477,7 @@ export function bindHumanoid(
         string,
         { body: number; frame: Float64Array; min: number[]; max: number[] }
       >();
+      const representatives = new Map<number, { mesh: AbstractMesh; volume: number }>();
       for (const s of surfaceSources) {
         if (!s.mesh.isEnabled() || !s.mesh.isVisible) continue;
         const entry = entries.find((e) => e.world === s.matrix);
@@ -483,6 +489,11 @@ export function bindHumanoid(
             frameName === 'shield' ? 'leftHand' : frameName === 'back' ? 'chest' : 'rightHand'
           ];
         const body = bodyOwner(snapshot, joint);
+        if (attachment < 0) {
+          const volume = s.size[0] * s.size[1] * s.size[2];
+          if (volume > (representatives.get(body)?.volume ?? 0))
+            representatives.set(body, { mesh: s.mesh, volume });
+        }
         const key = attachment >= 0 ? `attachment:${attachment}` : `body:${body}`;
         let group = groups.get(key);
         if (!group) {
@@ -511,6 +522,8 @@ export function bindHumanoid(
           }
         }
       }
+      bodyMeshes.length = 0;
+      bodyMeshes.push(...[...representatives.values()].map((r) => r.mesh));
       return [...groups.values()].map((g) => {
         inverse(bodyFrames[g.body], 0, inv);
         multiply(inv, 0, g.frame, 0, local, 0);

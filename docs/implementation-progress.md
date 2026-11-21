@@ -35,12 +35,16 @@ Execution record for [implementation path](implementation-path.md). Started **20
    **A6 shield motion is complete and independently reviewed READY; both review blockers cleared.**
    **A7 rig cutover/handoff is complete, final independent review READY; landing blocker cleared.**
    **P8 directional/seed-varied ragdolls are complete, final independent review READY; both contact blockers cleared.**
+   **P9 skeleton breakup is complete and independently reviewed READY; no current-scope blockers.**
    See [ragdoll contract](ragdoll-deaths.md), [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **Effect adoption is planned before the next procedural-feature expansion.** Continue P9
-  after the reviewed P8 delivery. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
+- **CPU performance is next**, per the user's **2026-11-21** decision. Start CPU0 on the delivered
+  P9 revision, then CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7. The historical
+  `3cfb378` measurements need a fresh integration baseline; no CPU slice is implemented yet.
+- **Effect adoption remains before the next procedural-feature expansion, after CPU7.**
+  EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
   The source evaluation/scratch prototype does not constitute production implementation.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
@@ -161,11 +165,44 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | A6 | Complete; final independent review READY | Event/motion/preparation reds; counter-turn, dormant-work, metadata and heading regressions; moving-stair and moving-release geometry reds | Full377/core359, build/production; actual shield/body/contact/lane checks, feasible reversal continuity, interruption/camera replays and affected browsers; 428 A0-identical authority samples. Both blockers independently cleared | Containing delivery |
 | A7 | Complete; final independent review READY | Missing history module, retired-snapshot and lethal-landing reds; Euler-independent geometry assertions retained | Full383/core366, 84 catalog handoffs, real melee/lava landing and stair controls, 428 A0-identical authority samples, cross-system browsers and root/Pages smokes; stable resources. Landing blocker independently cleared | Containing delivery |
 | P8 | Complete; final independent review READY | Missing-module, scaled-parent/frozen-contact, door/waist regressions; review's actual upper-plank/base penetration and replay reds | Full389 checkpoint/core373; eleven death sequences, 24 structural-contact cases and 24-death stress, real attacks, lifecycle, affected suites/root/Pages smokes. Independent original door repro, 18 door/16 wall/four all-frame masonry cases and lifecycle probes clear R1/R2/C1 | Containing delivery |
-| P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
-| EF0–EF4 | Planned after the animation/death-physics queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
+| P9 | Complete; independent review READY | Missing separated mode/envelope reds; actual eleven-chunk and named-skull browser checks | Full395/core377; seven breakup sequences, 24 structural contacts, all-24 stress, combat15/discoveries17/animation and root/Pages production. Independent six-case geometry, 15-unit skull support/occlusion, negative range/LOS and identity/reset probes pass | Containing delivery |
+| CPU0 | Next; queued after P9 | Fresh reproducible post-P9 timing/correctness baseline and pinned hitch request | Historical investigation at `3cfb378`; reusable tooling/current measurements not implemented | — |
+| CPU1–CPU7 | Queued after CPU0, in documented order | Door queries → stationary collision → route hitches → nearby candidates → scene traversal → CPU6a geometry demand → CPU6b scheduling → integrated acceptance | Per-slice contracts and evidence gates in cpu-performance-plan.md; optimization not started | — |
+| EF0–EF4 | Planned after CPU7, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log
+
+### CPU performance queue promoted — 2026-11-21
+
+- User requested P9 review confirmation, fixes if needed, commit/push, and CPU performance work
+  next. Confirmed the existing independent READY verdict with no current-scope blockers; reviewed
+  production code remains unchanged. The containing delivery records P9 and this scheduling decision.
+- Promoted the existing CPU plan to **CPU0 → CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7**.
+  CPU0 refreshes the older `3cfb378` investigation against completed rigs, ragdolls and bone debris.
+  CPU2 retains an independent baseline comparison; CPU6a/b retain separate review gates.
+- EF0–EF4 follow CPU7 and still precede further procedural content. Updated the global queue,
+  planning index, game direction and related plans; CPU implementation/performance gains are not
+  claimed by this documentation-only scheduling change.
+
+### P9 — skeleton breakup — 2026-11-21
+
+- Baseline `14f441c`, clean and pushed. Eleven existing anatomical body groups release their joints;
+  a separate seeded scatter stream adds bounded per-chunk variation. The skull retains jaw/eyes,
+  the hand retains its blade, and the pelvis mesh follows its semantic body.
+- Tests first failed on separated mode, distant-chunk bounds and occlusion. Per-piece terrain patch
+  unions preserve distant support; live physics envelopes and one surface/chunk keep camera/player
+  perception tied to the same actual bone. No new logical deaths, meshes or gameplay interactions.
+- Full395/351.55s and core377/31.17s, typing/lint/format202, root/Pages builds and both production
+  smokes pass. Seven breakup sequences, 24 structural contacts, eleven shared death scenarios,
+  all-24 stress, skeleton lifecycle, combat15/discoveries17/animation pass. Three regeneration
+  resource counts remain stable. See [contract](skeleton-breakup.md) and VERIFICATION.md.
+- 448 captures, 14 sampled normal/quarter-speed sequences and representative motion/settled views
+  inspected. **Independent review READY:** six entry/settle/reset cases, full relative-transform and
+  solid-tread SAT checks, a skull 15.05 units from its root, actual off-root occlusion, negative
+  player-range/LOS and once-only discovery. Max final overlap1.133e−5; zero page errors. Broad gates
+  reused. Brief impacts/inherited entry overlaps and coarse crowded piles remain qualified in the
+  verification record. The containing delivery records the user-authorized P9 commit.
 
 ### A7 — semantic cutover and death handoff — 2026-11-21
 

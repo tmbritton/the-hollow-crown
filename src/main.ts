@@ -172,6 +172,19 @@ function discoveryRecord(): DiscoveryRecord {
 function observesActor(actor: Actor): boolean {
   if (!ui.ready || paused() || game.inspection.active || !game.player.actor.alive) return false;
   const player = game.player.actor.position;
+  if (actor.entity.get('ragdoll')?.mode === 'separated') {
+    return game.observation.visible(
+      actor.entity.require('render'),
+      actor.entity.require('rigPose').bodyMeshes,
+      (point) =>
+        Math.hypot(player.x - point.x, player.z - point.z) <= 8 &&
+        clearSight(game.world, player, {
+          x: point.x,
+          z: point.z,
+          h: heightAt(game.world, point.x, point.z) ?? actor.position.h,
+        }),
+    );
+  }
   const position = actor.position;
   if (
     Math.hypot(player.x - position.x, player.z - position.z) > 8 ||
@@ -405,6 +418,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       ...ecs.query('rig').map((entity) => ({
         root: entity.require('rig').root,
         radius: ACTOR_OBSERVATION_RADIUS,
+        worldRadius: () => entity.get('ragdoll')?.radius,
       })),
       ...dungeon.creatures.map((creature) => ({
         root: creature.root,

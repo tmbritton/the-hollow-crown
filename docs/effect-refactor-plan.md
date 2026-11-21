@@ -2,11 +2,11 @@
 
 **Status:** planned; no production adoption has started. **Date:** 2026-11-20.
 
-**Scheduling:** complete the current animation work first. A2/A3 are delivered; continue the
-existing A4–A7 and P8/P9 sequence in the [implementation path](implementation-path.md).
-Schedule EF0–EF4 below **before the next expansion of procedurally generated features**—new
-scene recipes, keep variants, adventure grammars, or generated encounters/objectives. The default
-insertion point is after P9; if content work is rescheduled, carry this prerequisite with it.
+**Scheduling (updated 2026-11-21):** A0–A7 and P8/P9 are complete and independently reviewed READY.
+The user placed **CPU0–CPU7 next**, followed by EF0–EF4 in the [implementation path](implementation-path.md).
+EF0–EF4 still precede **the next expansion of procedurally generated features**—new scene recipes,
+keep variants, adventure grammars, or generated encounters/objectives. If content work is rescheduled,
+carry this prerequisite with it; refresh EF0's measurements after the CPU pass.
 
 EF5 is a separately scoped resource-lifecycle follow-up, evaluated after the generation pilot.
 It is not required to resume content work once EF4's adoption gate passes.
@@ -167,7 +167,8 @@ The following slices are all **planned**, not completed by the research prototyp
 
 ### EF0 — refresh baseline and pin the integration target
 
-**Depends on:** the current animation/death-physics queue reaching the pre-content insertion point.
+**Depends on:** the completed animation/death-physics foundation and the CPU0–CPU7 delivery pass
+reaching the pre-content insertion point.
 
 - Audit current generator/startup APIs, seed fixtures, imports, resources, and scripts. Recheck
   upstream version/docs; evaluate 4.1.5 as the research reference, then select and record an exact

@@ -57,7 +57,7 @@ export function createEnemyRendering(
     if (skeleton) {
       p('bone', 'spine', [0.13, 0.7, 0.15], [0, 1, 0]);
       for (const y of [0.83, 1.02, 1.21]) p('bone', 'ribs', [0.56, 0.095, 0.3], [0, y, 0]);
-      p('bone', 'pelvis', [0.4, 0.2, 0.28], [0, 0.63, 0]);
+      pelvisMeshes.push(p('bone', 'pelvis', [0.4, 0.2, 0.28], [0, 0.63, 0]));
       p('bone', 'skull', [0.48, 0.44, 0.4], [0, 1.64, 0], head);
       p('bone', 'jaw', [0.32, 0.12, 0.31], [0, 1.36, 0.07], head);
       for (const x of [-0.13, 0.13])

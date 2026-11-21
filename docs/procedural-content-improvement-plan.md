@@ -16,8 +16,8 @@ scenario framework. A large persistent dungeon world is a possible follow-up gam
 [game direction](game-direction.md) records this decision, provisional experiments and unresolved
 questions; it guides future content work in this plan.
 
-**Scheduling update — 2026-11-20:** continue the current animation/death-physics queue first.
-Before expanding the procedural feature catalog, complete EF0–EF4 in the
+**Scheduling update — 2026-11-21:** the animation/death-physics queue through P9 is complete.
+Complete the next [CPU0–CPU7 performance pass](cpu-performance-plan.md), then EF0–EF4 in the
 [Effect refactor plan](effect-refactor-plan.md). This adds composable generation stages, typed
 failures and bounded diagnostics to the existing foundation. The phases below describe content
 work; their historical priority labels do not supersede the current

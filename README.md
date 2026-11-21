@@ -101,7 +101,10 @@ A5 articulated tails is implemented, verified and independently reviewed **READY
 A6 shield motion is implemented, verified and independently reviewed **READY**.
 A7 rig cutover/death handoff is implemented, verified and independently reviewed **READY**.
 P8 directional, seed-varied ragdolls are implemented, verified and independently reviewed **READY**.
-P9 skeleton debris remains next.
+P9 skeleton breakup is implemented, verified and independently reviewed **READY**.
+**CPU0 (reproducible performance baseline) is next**, followed by CPU1–CPU7 in the
+[CPU performance plan](docs/cpu-performance-plan.md). EF0–EF4 follow the CPU pass before further
+procedural-feature expansion; see the [delivery sequence](docs/implementation-path.md).
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
 [A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md),
 [A4 action/grip contracts](docs/rig-actions.md), and [A5 articulated tails](docs/rig-tails.md).
@@ -109,6 +112,7 @@ The [A6 shield contract](docs/rig-shields.md) describes anticipation, lowering a
 The [A7 handoff contract](docs/rig-handoff.md) documents final pose/velocity snapshots and retirement.
 The [P8 ragdoll contract](docs/ragdoll-deaths.md) documents directional launches, seeded variation,
 physical contacts and bounded settling.
+The [P9 breakup contract](docs/skeleton-breakup.md) documents separated bones and scattered-remains perception.
 
 ## Play
 
@@ -261,7 +265,7 @@ rewrite an earlier uncertain account. Routine unnamed deaths are not journal ent
 
 Clicking an enemy locks onto it: the player follows its changing position and swings on entering melee reach, **continuing the chase through wind-up, the strike, and recovery**. Walk/run strides continue beneath the upper-body sword animation, and close pursuit continually updates its approach to a moving target. The player stops beside a stationary target rather than running into it. Holding the button keeps that target even as the enemy and camera move; releasing retains the command. Click another enemy to retarget, or click the floor / press WASD or X to cancel. A red ground ring and health display identify the target.
 
-Damage occurs at the strike's impact, with range and cover checked again. Living characters emit red blood fragments; skeletons emit pale bone dust. Dead enemies collapse into persistent, non-blocking corpses until regeneration. Death returns the player to the checkpoint with 2.5 seconds of protection. Chests and the altar still restore health.
+Damage occurs at the strike's impact, with range and cover checked again. Living characters emit red blood fragments; skeletons emit pale bone dust. Dead enemies leave persistent, non-blocking remains until regeneration. Skeletons break into eleven anatomical chunks: the skull, ribcage, pelvis and limbs scatter, collide with the world and settle as bone decoration. Death returns the player to the checkpoint with 2.5 seconds of protection. Chests and the altar still restore health.
 
 **Hold F to defend.** The raised shield blocks **100% of melee and bolt damage within a 120°
 frontal arc**, including its ±60° boundaries. The arc follows the hero's authoritative movement
@@ -289,7 +293,7 @@ at once. Phalanx opening and recovery sample the existing group clocks, with han
 guarded spear lane covered. Repeated rendering cannot replay a hit; menus, focus loss, teleport,
 jump and death clear the appropriate presentation state.
 
-Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths launch into articulated ragdolls with bounded seeded variation, collide with walls and visible stair treads, then settle into persistent non-blocking remains. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These presentation systems keep controls, living collision and damage timing authoritative.
+Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths launch into articulated ragdolls or separated skeleton chunks with bounded seeded variation, collide with walls and visible stair treads, then settle into persistent non-blocking remains. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These presentation systems keep controls, living collision and damage timing authoritative.
 
 ## What is procedural?
 
@@ -352,7 +356,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/skeletonGait.ts` | Stateless distance-sampled skeleton lurch and shared stance/swing phase mapping |
 | `src/jump.ts` | Frame-rate-independent jump trajectory, preload, airborne elevation and landing impacts |
 | `src/rigs/history.ts`, `src/deathHandoff.ts` | Final pose/velocity snapshots, death rebasing and pre-stop lethal-hit handoff |
-| `src/ragdoll.ts`, `src/deathPhysics.ts` | Bounded directional/seed-varied death physics, physical treads/walls, run-owned transfer and retirement |
+| `src/ragdoll.ts`, `src/deathPhysics.ts` | Bounded directional/seed-varied death physics, separated skeleton chunks, physical treads/walls, run-owned transfer and retirement |
 | `src/animationCurves.ts` / `src/actionPoses.ts` | Smooth/velocity-continuous curves, analytic springs, volume-preserving deformation, jump/attack/death/social poses |
 | `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
@@ -490,6 +494,9 @@ full-tick lava/respawn and independent uphill/downhill support-velocity controls
 geometry, all-24-body stress, pause/reset/respawn and regeneration. Reports and two-camera sampled
 motion captures go under `test-results/p8-*`; see [the P8 contract](docs/ragdoll-deaths.md).
 `npm run test:ragdoll:contacts` adds actual upper-door and settled wall-base/corner contact checks.
+`npm run test:skeleton:breakup` checks seven skeleton breakup sequences, skull-detail rigidity,
+scattered bounds/tread contacts, reset and once-only named discovery from a visible skull.
+`P9_CLIPS=stairs-down,wall` selects motion cases; reports/captures use `test-results/p9-*`.
 
 ### Entity/component architecture
 

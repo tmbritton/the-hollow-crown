@@ -60,6 +60,7 @@ export function updateInstanceMatrices(mesh: Mesh, matrices?: Float32Array, acti
 interface ObservationGroup {
   root: TransformNode;
   radius: number;
+  worldRadius?: () => number | undefined;
   meshes: AbstractMesh[];
   ray: Ray | null;
   intersects: boolean;
@@ -98,7 +99,14 @@ export class CameraObservation {
     }
   >();
 
-  constructor(camera: Camera, groups: readonly { root: TransformNode; radius: number }[] = []) {
+  constructor(
+    camera: Camera,
+    groups: readonly {
+      root: TransformNode;
+      radius: number;
+      worldRadius?: () => number | undefined;
+    }[] = [],
+  ) {
     this.camera = camera;
     this.groups = groups.map((group) => ({ ...group, meshes: [], ray: null, intersects: false }));
     camera.getScene().onNewMeshAddedObservable.add(() => {
@@ -256,12 +264,13 @@ export class CameraObservation {
           Math.abs(m[1]) + Math.abs(m[5]) + Math.abs(m[9]),
           Math.abs(m[2]) + Math.abs(m[6]) + Math.abs(m[10]),
         );
+      const worldRadius = group.worldRadius?.();
       group.intersects = intersectsSphere(
         ray,
         m[12],
         m[13],
         m[14],
-        group.radius * group.radius * scaleSquared,
+        worldRadius === undefined ? group.radius * group.radius * scaleSquared : worldRadius ** 2,
       );
       group.ray = ray;
     }
@@ -329,11 +338,16 @@ export class CameraObservation {
     );
   }
 
-  /** At most three rays, towards actual surfaces of the largest rig parts (not empty body bounds).
+  /** Three default rays towards actual surfaces (not empty bounds); separated remains supply one
+   * representative per anatomical chunk and require player eligibility on that same surface.
    * Cache geometry candidates and transform inputs, never visibility outcomes.
    * Current finite-segment bounds reject candidates before Babylon's triangle/instance picking.
    */
-  visible(render: Components['render']): boolean {
+  visible(
+    render: Components['render'],
+    samples?: readonly AbstractMesh[],
+    eligible?: (point: Vector3) => boolean,
+  ): boolean {
     if (!render.root?.isEnabled()) return false;
     this.pass++;
     this.ensureIndex();
@@ -354,10 +368,11 @@ export class CameraObservation {
     camera.getProjectionMatrix();
     const transform = camera.getTransformationMatrix();
     const viewport = camera.viewport.toGlobal(1, 1);
-    for (const sample of rig.samples) {
+    for (const sample of samples ?? rig.samples) {
       if (!this.rendered(sample)) continue;
       this.synchronize(sample);
       const center = sample.getBoundingInfo().boundingBox.centerWorld;
+      if (eligible && !eligible(center)) continue;
       const screen = Vector3.Project(center, Matrix.Identity(), transform, viewport);
       if (
         !(

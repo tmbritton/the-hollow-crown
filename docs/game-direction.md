@@ -120,10 +120,12 @@ checks support this process but do not establish that a scenario is enjoyable.
 
 ## Scheduling and related plans
 
-The existing queue remains **A6–A7 → P8 → P9 → EF0–EF4**, followed by further procedural-feature
-expansion. EF5 remains a separate follow-up. The
-[Effect generation adoption gate](effect-refactor-plan.md) precedes additional generated
-encounters/objectives; this product-direction decision does not reorder those prerequisites.
+With A0–A7/P8/P9 complete, the user's **2026-11-21** scheduling update makes
+**CPU0 → CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7 → EF0–EF4** the next queue,
+followed by further procedural-feature expansion. See the [CPU plan](cpu-performance-plan.md)
+and [implementation path](implementation-path.md). EF5 remains a separate follow-up. The
+[Effect generation adoption gate](effect-refactor-plan.md) still precedes additional generated
+encounters/objectives.
 
 After those gates, use small scenario experiments to guide content expansion. The
 [procedural content plan](procedural-content-improvement-plan.md) supplies generation foundations,
