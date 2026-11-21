@@ -31,14 +31,6 @@ export function createSolverReview(g: Game) {
       const fixture = solverFixture(binding.pose.definition.profile.id),
         solver = new FullBodySolver(binding.pose.definition);
       Object.assign(actor.position, { x: 0, z: 0, h: 0, heading: 0 });
-      for (const node of [
-        ...(binding.legacy.equipment ?? []),
-        ...(binding.legacy.stowedEquipment ?? []),
-        binding.legacy.shield,
-        binding.legacy.spear,
-        binding.legacy.javelin,
-      ])
-        if (node) node.enabled = false;
       return {
         id: actor.id,
         sample(frame: number, stepping: boolean) {
@@ -46,6 +38,14 @@ export function createSolverReview(g: Game) {
           const result = solver.solve(fixture.base, fixture.targets);
           copyLocal(result.pose.local, binding.pose.local);
           binding.apply();
+          for (const node of [
+            ...(rig.equipment ?? []),
+            ...(rig.stowedEquipment ?? []),
+            rig.shield,
+            rig.spear,
+            rig.javelin,
+          ])
+            node?.setEnabled(false);
           const a = fixture.targets.leftGrip!,
             b = fixture.targets.rightGrip!,
             foot = fixture.targets.rightSole!;

@@ -58,10 +58,6 @@ test('semantic binding preserves neutral geometry and writes independent head/li
       knees,
       feet,
       footPlants: [{ anchor: null }, { anchor: null }],
-      attackBlend: 0,
-      attackPose: null,
-      socialBlend: 0,
-      socialPose: null,
     };
     const entity = new ECS()
       .create('actor')
@@ -120,26 +116,25 @@ test('semantic binding preserves neutral geometry and writes independent head/li
     assert.equal(scene.transformNodes.length, nodes);
     assert.equal(scene.meshes.length, meshes);
     assert.equal(head.parent, body);
-    assert.equal(rig.footPlants, binding.legacy.footPlants);
-    rig.attackBlend = 0.7;
-    assert.equal(binding.legacy.attackBlend, 0.7);
+    assert.equal(rig.footPlants[0], binding.grounding.contacts[0].plant);
+    assert.ok(!('legacy' in binding) && !('attackBlend' in rig));
     const current = [...binding.pose.world];
     binding.apply();
     assert.deepEqual([...binding.pose.world], current);
     binding.begin(1 / 60);
-    binding.legacy.root.position.x = 10;
-    binding.commit();
+    binding.pose.local[0].position.x = 10;
+    binding.apply();
     assert.deepEqual([...binding.pose.previousWorld], current);
     binding.begin(0);
-    binding.commit();
+    binding.apply();
     assert.deepEqual(
       [...binding.pose.previousWorld],
       current,
       'zero-time application keeps previous-step history',
     );
     binding.invalidateHistory();
-    binding.legacy.root.position.x = 1000;
-    binding.commit();
+    binding.pose.local[0].position.x = 1000;
+    binding.apply();
     assert.deepEqual(
       [...binding.pose.previousWorld],
       [...binding.pose.world],
@@ -147,6 +142,8 @@ test('semantic binding preserves neutral geometry and writes independent head/li
     );
     scene.dispose();
     assert.throws(() => binding.apply(), /retired/);
+    assert.throws(() => binding.history.snapshot(), /retired/);
+    assert.equal(entity.has('rigPose'), false);
   } finally {
     engine.dispose();
   }

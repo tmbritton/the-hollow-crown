@@ -4,6 +4,96 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### A7 — semantic rig cutover and death handoff — 2026-11-21 (final review READY)
+
+Removed the numerical legacy adapter, mesh capture/commit, legacy Euler hints and render-component
+blend aliases. The old leg algorithm is retained only under `tests/historical-foot-placement.ts`.
+Final bindings publish fixed-step world history including constrained tails. On-demand immutable
+snapshots contain joint/body linear/angular velocities, stable proxy dimensions and death rebasing.
+Accepted lethal damage captures pre-stop motion and incoming travel before cancellation. Current
+collapse, corpse passability and hero respawn remain unchanged. See [contract](docs/rig-handoff.md).
+
+**Observed TDD/iteration evidence:** the handoff tests failed on the missing history module; the
+disposal regression failed because a retired binding still exposed snapshots. Both now pass.
+Adapter removal exposed test fixtures that wrote render heading and assertions tied to one Euler
+branch. Fixtures now set semantic presentation heading; the same strict wind-up/blend thresholds
+measure the actual forward-axis pitch, preserving equivalent orientations. No raw initial red log
+is claimed; failures were observed in tool output.
+
+**Checks actually run:**
+
+- `npm run check:full`: **383 pass / 303.05s** before review; corrective `npm run check`:
+  **366 / 29.61s**, typing, lint and formatting **195 files**. Seven new pure tests plus expanded binding retirement cover
+  once-only lethal metadata, false-hit rejection, quaternion wrapping/scale, rebasing, detached
+  immutable data and zero-time/reset derivatives. Models remain **22 machines / 105 states / 226 branches**.
+- `test:rig:handoff`: **84 lethal entry points / 28 living catalog rows**, actual drawn hand/foot/
+  tail origins and finite-difference velocities, exact repeats, root rebasing, once-only motor
+  inheritance, immutable capture after collapse and reset retirement. Every case stays below
+  **1e−5** pose / **0.001 units/s** velocity error; rebase/inheritance below **1e−8**.
+- `test:rig`: **428 samples / all 30 clips**, exact A0 gameplay/clock parity, max joint error
+  **5.6441e−6**, required grip **2.5742e−6**, sole penetration **2.5531e−7**, plant drift **4.3157e−6**.
+  Material/mesh/selection identity and the three-regeneration resource plateau pass.
+- Sequential affected Chromium suites: animation, rig-actions (including 2,714 collapse-age cases),
+  shield transitions, tails4488, all-member tail clearance/stability, movement16, jump8, combat15,
+  defense9, phalanx8, social15, objective-work17 and tribute9 all pass.
+- Corrective root and Pages builds: **706 modules**, main **1,696.12kB / 437.45kB gzip** and **1,696.14kB /
+  437.46kB gzip** respectively; existing chunk warning. Both production smokes pass five checks,
+  including path-local assets, real controls, regeneration and no debug hooks/external requests/errors.
+- Fresh review controls and **13 clips / 26 camera sequences / 380 samples** pass camera replay.
+  Both views were played at normal then quarter speed; five temporal sheets inspected, covering
+  locomotion/stairs/jump, moving strike, guard/interruption, crouch/death, throw/opening, hacky-sack
+  and cargo. This is 60Hz simulation sampled at 10Hz, not every-frame perceptual review.
+
+**Cost and lifecycle:** final 25-actor/four-corpse CPU fixture **3.1175ms mean / 4.10ms p95**; max/mean
+tile reads **899 / 553.72**. Sampled allocation **333,945,668 bytes** includes setup/warmup/yields,
+instrumentation and collected objects at 32KiB sampling; not retained heap or exact allocation count.
+Resources plateau at **2,382 meshes / 495 nodes / 28 materials / four textures / 5,719 entities /
+25 actors**. One fixed world buffer per rig; velocity/body extraction allocates only on explicit
+snapshot requests/death. Existing solver/contact/tail operation ceilings remain. CPU measurements
+are Chromium/SwiftShader observations, not hardware FPS or a causal speedup claim.
+
+**Visual limits:** existing necessary immediate guard restoration and discrete equipment stowing
+remain the sharpest transitions; temporary collapse is still the pre-P8 motion. No new visible
+regression was identified in the inspected captures. **Final independent review READY.**
+Logs/captures are ignored under `test-results/a7-*`, with `rig-handoff-report.json` and `rig-report.json`.
+
+**Initial independent review: NOT READY (B1).** Reviewer math probes passed **144 snapshots / 3,024
+joints / 1,728 bodies** including scale/shear, rebasing, angular and body-center velocities. Real
+turning/airborne melee and both projectile lethal paths, resets and retirement of all 25 bindings
+passed. However, a stationary jump's first grounded death inherited **−6.1 units/s** from stale root
+elevation history (or **−2.5333** after publishing the landing pose). Timed melee and actual main-tick
+lava/respawn independently reproduced it. This was handoff metadata, not collapse-motion regression.
+
+The persistent `test:rig:handoff:landing` red reproduced **−6.1** (`a7-review-landing-red.log`). Grounded
+capture now uses a separate current motor support derivative; airborne capture still uses ballistic
+velocity. Real melee kills on landing frame41 now yield **zero** inherited/root Y before and after
+publication; full-tick lava yields zero and normal respawn retires the event. Actual uphill/downhill
+controls retain **+0.2086823 / −0.2086823 units/s**. A pure regression covers stop/teleport/locked-step
+clearing. The 84-entry suite now derives its expected support velocity from actual pre/post motor
+positions rather than mirroring the production history getter. Fresh handoff, jump8, movement16,
+typing/lint/format/core and both build/production paths pass; unaffected extended generation/model,
+rendering/resource and broad cross-system evidence above is reused.
+
+**Final independent follow-up: READY; B1 cleared.** Attributed reviewer evidence:
+
+- **20 browser boundary checks plus full-tick lava/respawn** pass with zero page errors. Legal melee
+  at frame41 captures zero inherited/root Y before and after publication despite old root derivatives
+  −6.1/−2.5333. Rising timed melee preserves **3.7333333 units/s** ballistic velocity exactly.
+- Both stair directions preserve **±0.2086823** before/after publication and with history invalidated.
+  Rising/falling flight over those slopes preserves **+2.0666667 / −4.6** ballistic velocity without
+  adding support motion; world continuity error at most **2.22e−16**. Locked, stopped, teleported and
+  fully blocked motors clear support motion before immediate lethal capture.
+- **64 independent motor/headless cases** cover four species, both slope directions, grounded lethal
+  inheritance, cleanup and flight. Earlier successful math, real projectile/death ownership and
+  all-25 retirement evidence is reused alongside the parent's corrected gates/builds/browser checks.
+- An extra uphill takeoff probe reproduced a pre-existing zero-height `Jump.advance` contact edge
+  in unchanged code: a positive support rise at exact takeoff can land immediately. The reviewer
+  isolated it independently of A7 and classified it as a separate, nonblocking gameplay follow-up.
+
+Reports and original diagnostics are preserved as `a7-independent-review.md` and
+`a7-independent-followup-review.md` with final `*-browser-final.json` / `*-motor.json` evidence under
+ignored `test-results/`. This containing delivery records A7 after independent clearance.
+
 ### A6 — shield preparation, lowering and accepted-block recoil — 2026-11-20 (final review READY)
 
 `blockFeedback` now publishes actor/run-owned accepted-block metadata and a bounded same-time

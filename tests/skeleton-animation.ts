@@ -55,8 +55,7 @@ export async function captureSkeletonGait(page: Page) {
         h: heightAt(g.world, start.x, start.z)!,
         heading: stairs ? Math.PI : Math.PI / 2,
       });
-      const rig = actor.entity.require('rig');
-      rig.root.rotation.y = actor.position.heading;
+      actor.entity.require('rigPose').heading = actor.position.heading;
       actor.entity.get('collision')?.sync?.(actor.position);
       // A labelled same-mesh ordinary species reference; restore kind after the sequence.
       // It uses the same 1.65-unit motor intent, not a second animation implementation.
@@ -66,7 +65,7 @@ export async function captureSkeletonGait(page: Page) {
         dead.health.current = 0;
         dead.entity.add('corpse', { age: 1 });
         const fallen = dead.entity.require('rig');
-        fallen.root.rotation.y = 0;
+        dead.entity.require('rigPose').heading = 0;
         fallen.root.setEnabled(true);
       }
       g.player.marker.setEnabled(false);
@@ -140,7 +139,8 @@ export async function captureSkeletonGait(page: Page) {
               actor.elevation !== actor.position.h
             )
               throw new Error('Lurch changed support or jump');
-            if (rig.attackPose) {
+            const actions = actor.entity.require('rigPose').actions;
+            if (actions.attackPose) {
               const base = animateLocomotion(
                 actor.motion.animation,
                 actor.motion.actualSpeed,
@@ -149,8 +149,10 @@ export async function captureSkeletonGait(page: Page) {
                 1.65,
               );
               const expected =
-                base.rightArm + (rig.attackPose.rightArm - base.rightArm) * rig.attackBlend;
-              if (Math.abs(rig.arms[1].rotation.x - expected) > 1e-10)
+                base.rightArm + (actions.attackPose.rightArm - base.rightArm) * actions.attackBlend;
+              const r = rig.arms[1].rotation;
+              const actual = Math.atan2(Math.sin(r.x), Math.cos(r.y) * Math.cos(r.x));
+              if (Math.abs(actual - expected) > 1e-10)
                 throw new Error('Lurch overwrote the ordinary weapon-arm blend');
             }
           }
@@ -185,7 +187,10 @@ export async function captureSkeletonGait(page: Page) {
                 p.y - 0.05 * rig.root.scaling.y - (heightAt(g.world, p.x, p.z) ?? actor.position.h)
               );
             }),
-            arm: rig.arms[1].rotation.x,
+            arm: Math.atan2(
+              Math.sin(rig.arms[1].rotation.x),
+              Math.cos(rig.arms[1].rotation.y) * Math.cos(rig.arms[1].rotation.x),
+            ),
             attack: actor.attack.swing?.elapsed ?? null,
           };
         },
@@ -269,7 +274,7 @@ export async function captureSkeletonGait(page: Page) {
       resetActorRig(rig);
       Object.assign(actor.position, { x: -1.5, z: 0, h: 0, heading: Math.PI / 2 });
       actor.entity.get('collision')?.sync?.(actor.position);
-      rig.root.rotation.y = actor.position.heading;
+      actor.entity.require('rigPose').heading = actor.position.heading;
       for (let i = 0; i < 48; i++) {
         moveActor(actor, g.world, { direction: { x: 1, z: 0 }, speed: 1.65 }, 1 / 60);
         animateActors(g.ecs, 1 / 60, i / 60, g.world);

@@ -1,8 +1,8 @@
 # Animation roadmap — procedural full-body rigs and death physics
 
-**Updated 2026-11-20. A0–A6 are implemented, verified and independently reviewed READY.
-A6's final review clears both release/reversal blockers.
-A7, P8 and P9 remain planned.** See the [A0 baseline](animation-baseline.md),
+**Updated 2026-11-21. A0–A7 are implemented, verified and independently reviewed READY.
+A7's final review clears the landing/support-velocity handoff blocker.
+P8/P9 remain planned.** See the [A0 baseline](animation-baseline.md),
 [A1 rig foundation](rig-foundation.md), [A2 solver](rig-solver.md), [A3 grounding](rig-grounding.md),
 [A4 actions](rig-actions.md), [A5 tails](rig-tails.md), and [A6 shields](rig-shields.md).
 
@@ -107,7 +107,7 @@ are numerical presentation data. Every new exported production machine needs a m
 
 A1 implements definitions/profiles, pose/history buffers and mesh bindings. A2 implements targets,
 bounded coordinated solving and residuals. A3 adds live contact state and semantic locomotion poses.
-The final velocity/physics snapshot contract remains later-slice work.
+A7 now provides the final [velocity/death snapshot contract](rig-handoff.md).
 
 | Contract | Responsibility |
 | --- | --- |
@@ -124,9 +124,9 @@ testing `actor.kind` throughout the solver. Distinguish anatomical **rig family*
 and combat role. `humanoid-with-tail` extends the shared humanoid definition; it is not a separate
 copy of its arms, feet or solver.
 
-Implemented A1 modules are `src/rigs/{types,humanoid,pose,legacy,bindings}.ts`; A2 adds
+Implemented A1 modules were `src/rigs/{types,humanoid,pose,legacy,bindings}.ts`; A7 removes `legacy.ts`. A2 adds
 `{targets,ikMath,solver}.ts`; A3 adds `grounding.ts` and final-contact refinement. A4 adds
-`{actions,attachments}.ts`. A5 adds `{tail,tailClearance}.ts`. Keep pure pose/constraint
+`{actions,attachments}.ts`. A5 adds `{tail,tailClearance}.ts`; A7 adds `src/rigs/history.ts` and `src/deathHandoff.ts`. Keep pure pose/constraint
 math independently executable under Node; Babylon mesh mutation belongs in bindings. Current
 transform-node meshes are a valid rendering backend; selecting Babylon `Skeleton`/skinning is
 not a prerequisite. Do not add an unused physics dependency during A1–A6.
@@ -302,8 +302,8 @@ model coverage; it cannot enable or disable blocking independently of the defens
 ## 7. Feature-sized implementation slices
 
 Each slice uses the repository's test-first → implementation → affected verification → independent
-review → commit workflow. A0–A6 are implemented and independently reviewed READY. Later entries
-are planned acceptance gates. A6 and its review corrections are recorded in the containing delivery.
+review → commit workflow. A0–A7 are implemented and independently reviewed READY. Later entries
+are planned acceptance gates. A7 and its review correction are recorded in the containing delivery.
 
 | ID | Deliverable / primary touchpoints | Test-first and review gate |
 | --- | --- | --- |
@@ -314,7 +314,7 @@ are planned acceptance gates. A6 and its review corrections are recorded in the 
 | **A4 — complete, final independent review READY** | Shared action/work/social layers, coordinated hand targets, explicit equipment/cargo frames, solved socket adapters and semantic temporary collapse. See [action contract](rig-actions.md). | 336 tests; 428 samples/all 30 clips with exact A0 authority parity. Actual shaft/torso, scaled cargo and 2,714 death-age checks; affected browsers and production pass. Independent review clears three geometry blockers, complete throw/death envelope and provisional cost thresholds. |
 | **A5 — complete, final independent review READY** | Shared 24-joint tailed extension, actual posed-surface/masonry clearance, stable bounded infeasible fallback and settled corpse ownership. See [tail contract](rig-tails.md). | Full360 and final core342 gates; 4,488 tail samples, all-member geometry, 128 neighbor placements, five masonry offsets, prolonged settling/release, first-frame visibility and exact ECS-order replay. Independent review clears all four blockers; accepted investigated CPU band and stable resources. |
 | **A6 — complete, final independent review READY** | Shared supporting anticipation, coordinated lowering, constraint-aware reversal, typed accepted-block batches and bounded directional recoil/counter-motion. See [shield contract](rig-shields.md). | Event/motion/live-plan and review-geometry TDD reds; full377/core359; actual shield/body contacts and lane coverage, feasible reversal continuity, moving-stair parity, interruptions/resets and camera replays. Both review blockers independently cleared; gameplay charts unchanged and resources stable. |
-| **A7** | Complete rig cutover, remove compatibility/direct-pose writers, and establish the animation-to-physics snapshot contract. | Every catalog row uses the rigs. Reset/retirement and repeated regeneration leave no old contacts/events/poses. Validate pose/velocity transfer from moving, turning, airborne, guarded, opening and interrupted actions; retain support/gameplay semantics. Run the final cross-system acceptance matrix and production subpath smoke. |
+| **A7 — complete, final independent review READY** | Semantic-only rig cutover and detached pose/velocity death handoff; see [contract](rig-handoff.md). | Every catalog row uses the rigs; full383/core366, 84 death entries, real landing/support controls, actual joint velocity/rebase/reset checks, 428 A0-identical authority samples, cross-system matrix and root/Pages smoke pass. Landing blocker independently cleared. |
 
 ### Definition of full migration
 
@@ -451,8 +451,8 @@ the existing Pages workflow, with a hosted smoke for meaningful release changes.
    `docs/rig-foundation.md`, `docs/rig-solver.md`, `docs/rig-grounding.md` and
     [rig-actions.md](rig-actions.md) and [rig-tails.md](rig-tails.md). A5 is implemented/verified,
     with final independent review READY. A6 shield motion is implemented/verified, with final
-    independent review READY. **A7 cutover** is next.
-    A7/P8/P9 are not implemented. Keep every catalog row in the
+    independent review READY. **A7 cutover** is complete and independently reviewed READY.
+    P8/P9 are not implemented. Keep every catalog row in the
    migration checklist; a walking hero alone
    is not completion of the rig conversion.
 5. Continue in order through A7 before P8, then P9. Do not start death physics ahead of the shared

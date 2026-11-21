@@ -1,10 +1,11 @@
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Navigator } from './navigation.ts';
-import type { Locomotion, LocomotionPose } from './locomotion.ts';
+import type { Locomotion } from './locomotion.ts';
 import type { Attack } from './machines/actors/attack.ts';
 import type { Defense } from './machines/actors/defense.ts';
 import type { BlockFeedback } from './blockFeedback.ts';
+import type { DeathHandoff } from './deathHandoff.ts';
 import type { Health } from './machines/actors/health.ts';
 import type { MonsterBehavior, BrainState } from './machines/monsters/index.ts';
 import type { SocialGroup } from './social.ts';
@@ -61,6 +62,8 @@ export interface Components {
     actualSpeed: number;
     wantsMovement: boolean;
     velocity: Point;
+    /** Current motor-step support-height derivative, separate from ballistic jump motion. */
+    supportVelocity: number;
     acceleration: Point;
   };
   jump: Jump;
@@ -68,6 +71,7 @@ export interface Components {
   attack: Attack;
   defense: Defense;
   blockFeedback: BlockFeedback;
+  deathHandoff: DeathHandoff;
   brain: {
     readonly state: BrainState;
     behavior: MonsterBehavior;
@@ -103,10 +107,6 @@ export interface Components {
     javelin?: TransformNode;
     weapon?: TransformNode;
     stowed?: TransformNode;
-    attackBlend: number;
-    attackPose: LocomotionPose | null;
-    socialBlend: number;
-    socialPose: LocomotionPose | null;
     equipment?: AbstractMesh[];
     stowedEquipment?: AbstractMesh[];
   };

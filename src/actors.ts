@@ -101,6 +101,7 @@ export function createActor(
         actualSpeed: 0,
         wantsMovement: false,
         velocity: { x: 0, z: 0 },
+        supportVelocity: 0,
         acceleration: { x: 0, z: 0 },
       })
       .add('jump', new Jump())
@@ -146,6 +147,7 @@ export function requestJump(actor: Actor): boolean {
 }
 
 export function stopActor(actor: Actor, cancelCombat = true): void {
+  if (!actor.entity.has('corpse')) actor.entity.remove('deathHandoff');
   actor.entity.get('blockFeedback')?.reset();
   actor.entity.get('rigPose')?.invalidateHistory();
   actor.entity.get('defense')?.cancel();
@@ -156,6 +158,7 @@ export function stopActor(actor: Actor, cancelCombat = true): void {
   actor.motion.wantsMovement = false;
   actor.motion.direction = { x: 0, z: 0 };
   actor.motion.velocity = { x: 0, z: 0 };
+  actor.motion.supportVelocity = 0;
   actor.motion.acceleration = { x: 0, z: 0 };
   actor.motion.animation = createLocomotion();
   for (const plant of actor.entity.get('rig')?.footPlants ?? []) plant.anchor = null;
@@ -194,6 +197,7 @@ export function moveActor(
 ): void {
   const p = actor.position,
     motion = actor.motion;
+  motion.supportVelocity = 0;
   const sampleVelocity = (x: number, z: number) => {
     motion.acceleration = { x: (x - motion.velocity.x) / dt, z: (z - motion.velocity.z) / dt };
     motion.velocity = { x, z };
@@ -247,6 +251,7 @@ export function moveActor(
   const moved = Math.hypot(next.x - p.x, next.z - p.z);
   sampleVelocity((next.x - p.x) / dt, (next.z - p.z) / dt);
   const ground = heightAt(world, next.x, next.z) ?? p.h;
+  motion.supportVelocity = (ground - p.h) / dt;
   actor.jump.advance(dt, ground - p.h);
   Object.assign(p, { x: next.x, z: next.z, h: heightAt(world, next.x, next.z) ?? p.h });
   collision?.sync?.(p);

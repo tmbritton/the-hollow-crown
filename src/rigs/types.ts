@@ -86,7 +86,7 @@ export interface RigDefinition {
   }[];
 }
 
-/** Small mutable numerical views, allocated once per pose/legacy channel, never scene nodes. */
+/** Small mutable numerical views, allocated once per pose channel, never scene nodes. */
 export class PoseVector {
   x = 0;
   y = 0;

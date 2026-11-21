@@ -9,7 +9,7 @@ import type { Components } from '../src/ecs.ts';
 import { createActor, moveActor, stopActor, teleportActor } from '../src/actors.ts';
 import { createLocomotion, animateLocomotion } from '../src/locomotion.ts';
 import { volumeScale } from '../src/animationCurves.ts';
-import { placeFeet } from '../src/footPlacement.ts';
+import { placeFeet } from './historical-foot-placement.ts';
 import { readCorpseTerrain } from '../src/corpseRendering.ts';
 import { corpseHeightAt, corpseStep } from '../src/corpseTerrain.ts';
 import { generateDungeon, heightAt, key } from '../src/world.ts';
@@ -128,7 +128,7 @@ test('tilted surfaces use oriented geometry; unchanged draws reuse samples and r
   }
 });
 
-function rigFor(scene: Scene): Components['rig'] {
+function rigFor(scene: Scene): Components['rig'] & { socialBlend: number } {
   const root = new TransformNode('walker', scene),
     body = new TransformNode('body', scene);
   body.parent = root;
@@ -159,10 +159,7 @@ function rigFor(scene: Scene): Components['rig'] {
     arms: [],
     forearms: [],
     footPlants: [{ anchor: null }, { anchor: null }],
-    attackBlend: 0,
-    attackPose: null,
     socialBlend: 0,
-    socialPose: null,
   };
 }
 

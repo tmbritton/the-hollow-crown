@@ -65,14 +65,10 @@ test('review: stop/reset and settled death clear all IK hip translations and rot
       knees,
       feet,
       footPlants: [{ anchor: null }, { anchor: null }],
-      attackBlend: 0,
-      attackPose: null,
-      socialBlend: 0,
-      socialPose: null,
     };
     actor.entity.add('rig', rig);
     const binding = bindHumanoid(actor.entity, profiles.goblin);
-    root.rotation.y = 1.3;
+    binding.heading = 1.3;
     const move = () => {
       for (let frame = 0; frame < 14; frame++) {
         moveActor(
@@ -90,15 +86,13 @@ test('review: stop/reset and settled death clear all IK hip translations and rot
       'fixture must produce real IK hip compensation',
     );
     const before = legs.map((l) => l.position.asArray());
-    binding.captureLegacy();
-    binding.commit();
+    binding.apply();
     for (let i = 0; i < 2; i++)
       assert.ok(
         legs[i].position.asArray().every((v, k) => Math.abs(v - before[i][k]) < 1e-6),
         'handoff starts from current pose',
       );
     forearms[0].scaling.set(1 + Number.EPSILON, 1 - Number.EPSILON, 1);
-    binding.captureLegacy();
     stopActor(actor);
     resetActorRig(rig, actor.position);
     assert.ok(

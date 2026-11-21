@@ -1,11 +1,12 @@
-import type { Components } from './ecs.ts';
-import type { LocomotionPose } from './locomotion.ts';
-import type { Actor } from './actors.ts';
-import type { NavigationWorld } from './navigation.ts';
-import { heightAt } from './world.ts';
-import { corpseHeightAt, corpseStep, MAX_CORPSE_STEP } from './corpseTerrain.ts';
-import type { CorpseBox } from './corpseTerrain.ts';
-import { gaitFootPhase } from './skeletonGait.ts';
+// Historical P2 geometry oracle. Production feet use rigs/grounding.ts and the shared solver.
+import type { Components } from '../src/ecs.ts';
+import type { LocomotionPose } from '../src/locomotion.ts';
+import type { Actor } from '../src/actors.ts';
+import type { NavigationWorld } from '../src/navigation.ts';
+import { heightAt } from '../src/world.ts';
+import { corpseHeightAt, corpseStep, MAX_CORPSE_STEP } from '../src/corpseTerrain.ts';
+import type { CorpseBox } from '../src/corpseTerrain.ts';
+import { gaitFootPhase } from '../src/skeletonGait.ts';
 
 type FootTransform = {
   position: { x: number; y: number; z: number };
@@ -14,7 +15,8 @@ type FootTransform = {
 };
 /** Numerical transform contract; production solves into a buffer, while geometry regressions
  * can still exercise the exact algorithm against an independent scene-node fixture. */
-type FootRig = Pick<Components['rig'], 'footPlants' | 'socialBlend'> & {
+type FootRig = Pick<Components['rig'], 'footPlants'> & {
+  socialBlend: number;
   root: FootTransform;
   legs: FootTransform[];
   knees: FootTransform[];

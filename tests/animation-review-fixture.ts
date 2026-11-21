@@ -167,7 +167,7 @@ export function createReviewStage(g: Game) {
         a.entity.get('collision')?.sync?.(a.position);
         const rig = a.entity.require('rig');
         rig.root.setEnabled(true);
-        rig.root.rotation.y = a.position.heading;
+        resetActorRig(rig, a.position);
       };
       place(actor.id, {
         ...p,

@@ -7,9 +7,9 @@ use [implementation path](implementation-path.md) for the dependency-ordered del
 | --- | --- |
 | [Game direction](game-direction.md) | Chosen compact, simulation-heavy scenario direction: approachable single-adventurer controls, autonomous agendas, circumstance-driven escalation and provisional playtest candidates. |
 | [Implementation path](implementation-path.md) | Dependency-ordered feature slices and the test-first, verification, review, commit workflow. |
-| [Implementation progress](implementation-progress.md) | Delivery tracker, checks and review. P1–P7 delivered; P7 published at `3934e17`. T2/A0 and A1–A6 independently reviewed READY. |
+| [Implementation progress](implementation-progress.md) | Delivery tracker, checks and review. P1–P7 delivered; P7 published at `3934e17`. T2/A0 and A1–A7 independently reviewed READY. |
 | [CPU performance plan](cpu-performance-plan.md) | Measured `3cfb378` CPU bottlenecks and proposed slices for door/obstacle queries, idle collision, route hitches, nearby colliders, scene traversal and animation scheduling, with correctness and hardware acceptance gates. |
-| [Animation roadmap](animation-roadmap.md) | Shared humanoid/tailed rigs, complete animation migration, shield motion and later death physics. A0–A6 independently reviewed READY; A7/P8/P9 planned. |
+| [Animation roadmap](animation-roadmap.md) | Shared humanoid/tailed rigs, complete animation migration, shield motion and later death physics. A0–A7 independently reviewed READY; P8/P9 planned. |
 | [Animation baseline](animation-baseline.md) | A0 review controls, complete 30-clip inventory, reproducible captures, current foot/grip defects, 25-actor baseline and initial A1/A2 budgets. |
 | [Rig foundation](rig-foundation.md) | Implemented A1 semantic anatomy/profiles, pose and socket APIs, ECS ownership, compatibility/final-writer boundaries and parity/cost verification. |
 | [Rig solver](rig-solver.md) | Implemented A2 coordinated body/limb IK, target spaces and priorities, binding-compatible scale, singular projections, operation budgets and actual-mesh verification. |
@@ -17,6 +17,7 @@ use [implementation path](implementation-path.md) for the dependency-ordered del
 | [Rig actions](rig-actions.md) | Implemented A4 action/work/social layers, coordinated grips, solved equipment/cargo sockets and semantic temporary collapse; final geometry checks and independent READY review. |
 | [Rig tails](rig-tails.md) | Reviewed A5 four-segment anatomy, drawn-surface/masonry clearance, stable fallback and corpse settling, bounded work and actual-mesh verification. |
 | [Rig shields](rig-shields.md) | A6 accepted-block events, immediate protective targets, supporting anticipation, controlled lowering/recoil and phalanx presentation; TDD and actual-mesh checks. |
+| [Rig handoff](rig-handoff.md) | A7 semantic-only pose ownership, fixed-step world velocities, detached/rebased death snapshots, pre-stop blow/motion capture and reset/disposal retirement. |
 | [Effect refactor plan](effect-refactor-plan.md) | Planned composable generation stages, typed failures and bounded local tracing, with a separate run-scope follow-up. Scheduled after the animation/death-physics queue and before further procedural-feature expansion. |
 | [Procedural content improvement plan](procedural-content-improvement-plan.md) | Shared keep identities, composed scenes, memorable inhabitants, discoveries, adventure grammars, and seed-review tooling. Further expansion follows the Effect gate and uses compact scenario playtests to guide reusable content systems. |
 | [Encounter narrative design notes](encounter-narrative-design-notes.md) | Jon Ingold's Narrative Sorcery talk: order-independent encounters, defensive logic, player knowledge, consequences, and a proposed watchkeeper scenario. |

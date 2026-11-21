@@ -52,10 +52,6 @@ test('review: every accepted scale-bearing node agrees with actual bound endpoin
       knees,
       feet,
       footPlants: [{ anchor: null }, { anchor: null }],
-      attackBlend: 0,
-      attackPose: null,
-      socialBlend: 0,
-      socialPose: null,
     };
     const binding = bindHumanoid(new ECS().create('actor').add('rig', rig), profiles.player);
     let maximumMismatch = 0,

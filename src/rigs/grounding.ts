@@ -284,7 +284,7 @@ export class GroundedLocomotion {
     a[n++] = this.head.x;
     a[n++] = this.head.y;
     a[n++] = this.head.z;
-    a[n++] = actor.entity.get('rig')?.socialBlend ?? 0;
+    a[n++] = this.actions?.socialBlend ?? 0;
     a[n++] = Number(actor.brain?.state === 'hackysack');
     for (const key of poseChannels) a[n++] = pose[key];
     for (const c of this.contacts) {
@@ -335,9 +335,7 @@ export class GroundedLocomotion {
     c.step = 0;
     c.anchorError = 0;
     const kicking =
-      (actor.entity.get('rig')?.socialBlend ?? 0) > 0.4 &&
-      actor.brain?.state === 'hackysack' &&
-      i === 1;
+      (this.actions?.socialBlend ?? 0) > 0.4 && actor.brain?.state === 'hackysack' && i === 1;
     if (actor.jump.airborne || kicking) {
       this.release(c, 'flight');
       c.mode = 'flight';

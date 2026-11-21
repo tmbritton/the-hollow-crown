@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine.js';
 import { Scene } from '@babylonjs/core/scene.js';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
-import { solveLeg } from '../src/footPlacement.ts';
+import { solveLeg } from './historical-foot-placement.ts';
 
 function legFixture() {
   const engine = new NullEngine(),

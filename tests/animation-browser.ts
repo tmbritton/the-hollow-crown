@@ -102,7 +102,7 @@ try {
         if (startHeight === null || corpseFloor === null)
           throw new Error('Crossing needs real supported terrain');
         Object.assign(dead.position, { ...corpsePoint, h: corpseFloor, heading: corpseHeading });
-        dead.entity.require('rig').root.rotation.y = corpseHeading;
+        dead.entity.require('rigPose').heading = corpseHeading;
         dead.health.current = 0;
         dead.entity.add('corpse', { age: 1 });
         Object.assign(mover.position, {
@@ -111,7 +111,7 @@ try {
           heading: Math.atan2(direction.x, direction.z),
         });
         const rig = mover.entity.require('rig');
-        rig.root.rotation.y = mover.position.heading;
+        mover.entity.require('rigPose').heading = mover.position.heading;
         let worst = {
           penetration: 0,
           frame: 0,
@@ -292,7 +292,7 @@ try {
         actor.motion.wantsMovement = false;
         Object.assign(actor.position, { x: 0, z: 0, h: 0, heading: Math.PI / 2 });
         actor.entity.get('collision')?.sync?.(actor.position);
-        rig.root.rotation.y = actor.position.heading;
+        actor.entity.require('rigPose').heading = actor.position.heading;
         if (overCorpse) {
           const dead = g.combat.enemies.find((a) => a.kind === 'skeleton' && a.id !== actor.id)!;
           dead.entity.add('corpse', { age: 1 });
@@ -306,7 +306,7 @@ try {
           });
           const fallen = dead.entity.require('rig');
           resetActorRig(fallen);
-          fallen.root.rotation.y = 0;
+          dead.entity.require('rigPose').heading = 0;
           fallen.root.setEnabled(true);
         }
         if (clip === 'walk' || clip === 'run' || clip === 'stop' || clip === 'running-melee') {
@@ -406,7 +406,11 @@ try {
           volume: scale.x * scale.y * scale.z,
           lean: rig.body.rotation.x,
           elbow: rig.forearms[1].rotation.x,
-          arm: rig.arms[1].rotation.x,
+          // Measure the local forward axis: equivalent Euler branches must describe the same wind-up.
+          arm: Math.atan2(
+            Math.sin(rig.arms[1].rotation.x),
+            Math.cos(rig.arms[1].rotation.y) * Math.cos(rig.arms[1].rotation.x),
+          ),
           leg: rig.legs[0].rotation.x,
           lift: visualLift,
           anchorHeight: rig.root.position.y,

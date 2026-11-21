@@ -21,11 +21,12 @@ import { installKoboldSquads } from './koboldSquads.ts';
 import type { KoboldSquad } from './koboldSquads.ts';
 import { ATTACKS } from './attackKinds.ts';
 import type { AttackKind } from './attackKinds.ts';
+import { captureDeath } from './deathHandoff.ts';
 
 /** Attack geometry is independent of source identity (a bolt's owner may have moved or died). */
 export interface DamageImpact {
   kind: 'melee' | 'projectile';
-  travel: Point;
+  travel: Point & { h?: number };
   /** Actual swept projectile contact when available; melee otherwise uses a body-surface estimate. */
   contact?: Spawn;
 }
@@ -778,7 +779,9 @@ export class CombatSystem {
     target.entity.get('work')?.interrupt('Executor hurt');
     this.hitParticles(target, source, impact?.travel);
     if (target.health.current === 0) {
+      const handoff = captureDeath(this.ecs, target, this.time, amount, source, impact);
       stopActor(target);
+      target.entity.add('deathHandoff', handoff);
       target.attack.die();
       target.brain?.behavior.send({ type: 'DIE' });
       target.entity.add('corpse', { age: 0 });
@@ -1132,7 +1135,7 @@ export class CombatSystem {
         if (target) {
           this.damage(target, shot.damage, owner, {
             kind: 'projectile',
-            travel: { x: shot.vx, z: shot.vz },
+            travel: { x: shot.vx, z: shot.vz, h: shot.vy },
             contact: { x: p.x, z: p.z, h: p.h },
           });
           this.ecs.remove(entity.id);

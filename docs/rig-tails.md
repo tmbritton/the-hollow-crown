@@ -2,7 +2,7 @@
 
 **2026-11-20. Implemented and verified; final independent review READY.**
 This extends [A4 actions](rig-actions.md). [A6 shield motion](rig-shields.md) now supplies bounded
-block/opening counter-motion through the same tail planner; A7 is next after A6 delivery.
+block/opening counter-motion through the same tail planner; [A7 cutover/handoff](rig-handoff.md) is reviewed READY.
 
 ## Anatomy and ownership
 
@@ -60,7 +60,7 @@ clears angles, velocities and history. Death captures the current tail, retires 
 and samples its transition against corpse age while counter-rotating the falling root. Corpses
 never avoid living neighbors; settled tails retain their final angles without clearance queries.
 Direct and progressive age sampling agree; the settled tail participates in ordinary corpse surfaces.
-P8 will take over these semantic joints through the later A7 physics handoff.
+P8 will take over these semantic joints through the completed A7 physics handoff.
 
 ## Budgets
 

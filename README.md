@@ -99,11 +99,13 @@ independently reviewed READY**, and **A1's shared rig foundation is implemented 
 A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.
 A5 articulated tails is implemented, verified and independently reviewed **READY**.
 A6 shield motion is implemented, verified and independently reviewed **READY**.
-A7 is next, then P8 directional ragdolls and P9 skeleton debris.
+A7 rig cutover/death handoff is implemented, verified and independently reviewed **READY**.
+P8 directional ragdolls and P9 skeleton debris remain next.
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
 [A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md),
 [A4 action/grip contracts](docs/rig-actions.md), and [A5 articulated tails](docs/rig-tails.md).
 The [A6 shield contract](docs/rig-shields.md) describes anticipation, lowering and confirmed recoil.
+The [A7 handoff contract](docs/rig-handoff.md) documents final pose/velocity snapshots and retirement.
 
 ## Play
 
@@ -318,7 +320,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/actors.ts` | Actor composition and shared movement, stopping, teleport and intent handling |
 | `src/machines/actors/defense.ts` | Opt-in held-defense lifecycle and 120° incoming-direction test |
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
-| `src/rigs/` | Shared humanoid definitions/profiles, quaternion pose/FK, live locomotion/grounding and action/grip planners, bounded solver/residuals, socket attachments, temporary collapse, compatibility bridge and final mesh bindings |
+| `src/rigs/` | Shared humanoid definitions/profiles, quaternion pose/FK, live locomotion/grounding and action/grip planners, bounded solver/residuals, socket attachments, temporary collapse, final pose/velocity history and mesh bindings |
 | `src/rigs/tail.ts` / `src/rigs/tailClearance.ts` | Shared tailed-humanoid extension, bounded angular follow-through, clearance projection and age-sampled tail collapse |
 | `src/blockFeedback.ts` / `src/rigs/shield.ts` | Actor/run-owned accepted-block batches and bounded shield/body preparation, lowering and directional recoil |
 | `src/wallGeometry.ts` | Shared physical masonry profile for procedural wall construction and render-only clearance |
@@ -346,7 +348,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/locomotion.ts` | Movement speeds, acceleration/deceleration, and procedural start/travel/stop animation |
 | `src/skeletonGait.ts` | Stateless distance-sampled skeleton lurch and shared stance/swing phase mapping |
 | `src/jump.ts` | Frame-rate-independent jump trajectory, preload, airborne elevation and landing impacts |
-| `src/footPlacement.ts` | Historical analytic leg/contact regression reference; live contacts use `src/rigs/grounding.ts` |
+| `src/rigs/history.ts`, `src/deathHandoff.ts` | Final pose/velocity snapshots, death rebasing and pre-stop lethal-hit handoff |
 | `src/animationCurves.ts` / `src/actionPoses.ts` | Smooth/velocity-continuous curves, analytic springs, volume-preserving deformation, jump/attack/death/social poses |
 | `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
@@ -474,6 +476,12 @@ report under ignored `test-results/`; see [the shield contract](docs/rig-shields
 release, constraint-aware re-raise pose/velocity continuity and opening interruptions/death. It uses
 independent actual-mesh checks and saves numerical results plus corrective captures.
 
+`npm run test:rig:handoff` checks 84 death-entry cases across the living catalog, actual drawn
+joint velocities, death rebasing, once-only inherited velocity, detached snapshots and reset.
+See [the handoff contract](docs/rig-handoff.md).
+`npm run test:rig:handoff:landing` adds actual lethal landing boundaries before/after publication,
+full-tick lava/respawn and independent uphill/downhill support-velocity controls.
+
 ### Entity/component architecture
 
 `game.ecs` is the runtime registry. Player, enemies, doors, interactables, props, obstacles, rooms, tiles, render batches, projectiles, and hit particles have entity IDs and attachable components. Generated world data is registered **by reference**, preserving the existing pure generation/validation pipeline and preventing duplicate door or interaction state. A batched mesh can render many logical floor/prop entities efficiently.
@@ -494,10 +502,13 @@ Every rendered actor now owns a `rigPose` component: a shared immutable humanoid
 independent numerical pose/history buffers, the locomotion/contact planner, and the binding to
 existing geometry. Living motion produces canonical poses, sole targets and required equipment
 grips; action/social/work layers and the temporary death collapse share the pose buffer. The binding
-performs final mesh and socket application. Reset/debug compatibility remains until A7. Logical hand/head
+performs final mesh and socket application; legacy pose adapters/blend aliases are removed. Logical hand/head
 joints and grip/sole frames add no scene nodes. Both kobold roles share anatomy.
 Their `humanoid-with-tail` extension adds four pelvis-rooted joints and `rigPose.tail` presentation
 state; the tail layer consumes the final body solve before the binding applies the shared pose.
+`rigPose.history` publishes completed fixed-step transforms and extracts detached joint/body velocity
+snapshots on demand. Accepted lethal damage captures `deathHandoff` before cancellation clears motor
+and jump state. P8 will consume this backend-neutral contract; the current collapse remains active.
 
 ```ts
 import { Health } from './src/machines/actors/health.ts';

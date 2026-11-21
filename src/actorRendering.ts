@@ -48,34 +48,11 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
   return proxy;
 }
 
-export function resetActorRig(renderRig: Components['rig'], position?: Spawn): void {
-  const binding = rigBinding(renderRig),
-    rig = binding.legacy;
-  binding.invalidateHistory();
-  binding.begin(0);
-  if (position) rig.root.position.set(position.x, position.h, position.z);
-  rig.root.rotation.x = rig.root.rotation.z = 0;
-  rig.root.scaling.setAll(1);
-  rig.body.rotation.setAll(0);
-  rig.body.scaling.setAll(1);
-  rig.body.position.setAll(0);
-  rig.head?.rotation.setAll(0);
-  rig.head?.scaling.setAll(1);
-  rig.javelin?.setEnabled(false);
-  rig.spear?.setEnabled(true);
-  for (const mesh of rig.equipment ?? []) mesh.setEnabled(true);
-  for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(false);
-  for (const limb of [...rig.arms, ...rig.forearms, ...rig.legs, ...rig.knees, ...rig.feet]) {
-    limb.rotation.setAll(0);
-    limb.scaling.setAll(1);
-  }
-  for (let i = 0; i < rig.legs.length; i++)
-    rig.legs[i].position.set((i ? 1 : -1) * binding.pose.definition.profile.hipWidth, 0.55, 0);
-  for (const plant of rig.footPlants) plant.anchor = null;
-  if (rig.cape) rig.cape.rotation.x = -0.16;
-  rig.attackBlend = rig.socialBlend = 0;
-  rig.attackPose = rig.socialPose = null;
-  binding.commit(true);
+export function resetActorRig(
+  renderRig: Components['rig'],
+  position?: Spawn & { heading?: number },
+): void {
+  rigBinding(renderRig).reset(position, position?.heading);
 }
 
 /** Conservative root-local envelope for the authored rigs, including weapons and all poses.
@@ -96,29 +73,22 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
   for (const entity of entities) {
     const actor = new Actor(entity),
       binding = entity.require('rigPose'),
-      rig = binding.legacy,
       p = actor.position;
     binding.begin(dt);
-    rig.root.position.set(p.x, actor.elevation, p.z);
     const turn = Math.atan2(
-      Math.sin(p.heading - rig.root.rotation.y),
-      Math.cos(p.heading - rig.root.rotation.y),
+      Math.sin(p.heading - binding.heading),
+      Math.cos(p.heading - binding.heading),
     );
     // A raised shield must face the authoritative guard now, even during a sharp turn.
     if (actor.defending || entity.get('squadMember')?.group.get('koboldSquad')?.active)
-      rig.root.rotation.y = p.heading;
-    else rig.root.rotation.y += turn * (1 - Math.exp(-18 * dt));
+      binding.heading = p.heading;
+    else binding.heading += turn * (1 - Math.exp(-18 * dt));
     const corpse = entity.get('corpse');
     if (corpse) {
-      rig.javelin?.setEnabled(false);
-      rig.spear?.setEnabled(true);
-      // Death leaves ordinary equipment visible even when work/social activity had stowed it.
-      for (const mesh of rig.equipment ?? []) mesh.setEnabled(true);
-      for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(false);
       binding.grounding.reset();
       binding.tail?.captureDeath(binding.pose);
       binding.actions.collapse(binding.pose, actor, corpse.age);
-      if (rig.cape) rig.cape.rotation.x = -0.16;
+      binding.cape = -0.16;
       binding.apply(!!binding.tail);
       if (binding.tail && binding.tailClearance) {
         if (!binding.tail.reuses(dt, corpse.age)) {
@@ -138,10 +108,8 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
   for (const entity of entities) {
     if (entity.has('corpse')) continue;
     const actor = new Actor(entity),
-      binding = entity.require('rigPose'),
-      rig = binding.legacy;
+      binding = entity.require('rigPose');
     const actions = binding.actions;
-    rig.root.rotation.x = 0;
     const pose = animateLocomotion(
       actor.motion.animation,
       actor.motion.actualSpeed,
@@ -152,15 +120,14 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       profiles[actor.kind].gait,
     );
     actions.layer(actor, ecs, pose, time, dt, carrying.has(entity));
-    for (const mesh of rig.equipment ?? []) mesh.setEnabled(!actions.stowed);
-    for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(actions.stowed);
     applyJumpPose(pose, actor.jump);
     const dynamics = actor.motion.animation;
-    const sin = Math.sin(rig.root.rotation.y),
-      cos = Math.cos(rig.root.rotation.y);
+    const sin = Math.sin(binding.heading),
+      cos = Math.cos(binding.heading);
     const acceleration = actor.motion.acceleration;
     const clamp = (value: number, limit: number) => Math.max(-limit, Math.min(limit, value));
-    const free = (1 - rig.attackBlend) * (1 - rig.socialBlend) * (actor.jump.airborne ? 0.35 : 1);
+    const free =
+      (1 - actions.attackBlend) * (1 - actions.socialBlend) * (actor.jump.airborne ? 0.35 : 1);
     pose.lean +=
       dynamics.forwardLean.advance(
         clamp((acceleration.x * sin + acceleration.z * cos) * 0.008, 0.18),
@@ -187,9 +154,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       16,
       0.62,
     );
-    actions.equipment(actor, pose, dt, time, rig.root.rotation.y);
-    rig.spear?.setEnabled(!actions.stowed && actions.mode !== 'throw');
-    rig.javelin?.setEnabled(!actions.stowed && actions.mode === 'throw' && !actions.released);
+    actions.equipment(actor, pose, dt, time, binding.heading);
     // Backsteps keep a short, travel-driven gait facing the threat; no reversed root or
     // free-running leg clock when a retreat is blocked.
     if (
@@ -204,28 +169,18 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       pose.lean *= -0.5;
     }
     const grounding = binding.grounding;
-    // Preserve readable authored Euler branches for compatibility/debug consumers until A7.
-    // These are numerical hints only; the binding accepts one only when it matches the solve.
-    rig.arms[0].rotation.x = pose.leftArm;
-    rig.arms[1].rotation.x = pose.rightArm;
-    rig.arms[0].rotation.z = -pose.armSpread;
-    rig.arms[1].rotation.z = pose.armSpread;
-    rig.forearms[0].rotation.x = -pose.leftElbow;
-    rig.forearms[1].rotation.x = -pose.rightElbow;
-    rig.body.rotation.set(pose.lean, pose.twist, pose.roll);
     grounding.armYaw[0] = grounding.armYaw[1] = 0;
     grounding.head.setAll(0);
-    if (rig.head) {
+    if (binding.pose.definition.profile.gait === 'skeleton') {
       const lurch = skeletonLurch(dynamics.stride);
       const weight =
         actor.kind !== 'skeleton' || actor.jump.active
           ? 0
-          : dynamics.blend * (1 - rig.attackBlend) * (1 - rig.socialBlend);
+          : dynamics.blend * (1 - actions.attackBlend) * (1 - actions.socialBlend);
       grounding.head.set(lurch.headPitch * weight, 0, lurch.headRoll * weight);
     }
-    if (rig.cape) rig.cape.rotation.x = pose.cape;
-    const solved = grounding.sample(actor, pose, rig.root.rotation.y, world, corpses, actions);
-    rig.root.scaling.copyFrom(solved.pose.local[0].scale);
+    binding.cape = pose.cape;
+    const solved = grounding.sample(actor, pose, binding.heading, world, corpses, actions);
     copyLocal(solved.pose.local, binding.pose.local);
     binding.apply(!!binding.tail);
   }
@@ -244,7 +199,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     const actor = new Actor(entity),
       binding = entity.require('rigPose');
     if (binding.tail && binding.tailClearance) {
-      const heading = binding.legacy.root.rotation.y;
+      const heading = binding.heading;
       if (!binding.tail.reuses(dt))
         binding.tailClearance.prepare(actor, ecs, binding.actions, world);
       binding.tail.sample(

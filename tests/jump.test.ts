@@ -7,7 +7,7 @@ import { ECS } from '../src/ecs.ts';
 import { CombatSystem } from '../src/combat.ts';
 import type { NavigationWorld } from '../src/navigation.ts';
 import type { Tile } from '../src/worldTypes.ts';
-import { solveLeg } from '../src/footPlacement.ts';
+import { solveLeg } from './historical-foot-placement.ts';
 
 function fixture() {
   const ecs = new ECS(),

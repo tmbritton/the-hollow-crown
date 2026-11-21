@@ -6,7 +6,8 @@ A3's [locomotion/contact migration](rig-grounding.md) is also delivered; A4's
 [action/grip migration](rig-actions.md) is also verified and independently reviewed READY. The
 architecture/evidence below records the A1 checkpoint. A3 replaces living legacy leg writes with
 semantic poses/targets; A4 replaces action/attachment and temporary-death ownership. Remaining
-reset/debug compatibility is scheduled for A7 removal.
+reset/debug compatibility was removed by [A7](rig-handoff.md); its current APIs supersede the
+historical adapter and commit/capture APIs described below.
 
 ## Contracts and ownership
 

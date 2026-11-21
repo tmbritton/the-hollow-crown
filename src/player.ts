@@ -188,15 +188,11 @@ export function createPlayer(
     feet,
     footPlants: [{ anchor: null }, { anchor: null }],
     cape,
-    attackBlend: 0,
     shield: shieldMount,
     weapon,
     stowed,
     equipment: [...weapon.getChildMeshes(), ...shieldMount.getChildMeshes()],
     stowedEquipment,
-    attackPose: null,
-    socialBlend: 0,
-    socialPose: null,
   });
   root.rotation.y = player.heading;
   bindHumanoid(actor.entity, profiles.player, headMeshes);

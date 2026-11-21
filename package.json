@@ -48,6 +48,8 @@
     "test:rig:tails:clearance": "node tests/rig-tail-clearance-browser.ts",
     "test:rig:shield": "node tests/rig-shield-browser.ts",
     "test:rig:shield:transitions": "node tests/rig-shield-transitions-browser.ts",
+    "test:rig:handoff": "node tests/rig-handoff-browser.ts",
+    "test:rig:handoff:landing": "node tests/rig-handoff-landing-browser.ts",
     "test:jump": "node tests/jump-browser.ts",
     "test:combat": "node tests/combat-browser.ts",
     "test:defense": "node tests/defense-browser.ts",

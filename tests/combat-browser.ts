@@ -162,7 +162,7 @@ try {
         Object.assign(actor.position, { x: 1000, z: 1000, h: 0 });
       const actor = g.combat.actor(id)!;
       Object.assign(actor.position, { x: 4, z: 0, h: 0, heading: Math.PI });
-      actor.entity.require('rig').socialBlend = 0;
+      actor.entity.require('rigPose').actions.socialBlend = 0;
       d.step([], 1);
     }, named.actorId);
     await clickEnemy(named.actorId);
@@ -198,7 +198,7 @@ try {
       g.camera.target.set(actor.position.x, actor.position.h + 1, actor.position.z);
       g.camera.radius = 7;
       g.camera.beta = 1.2;
-      actor.entity.require('rig').root.rotation.y = Math.PI;
+      actor.entity.require('rigPose').heading = Math.PI;
     }, named.actorId);
     await capture(`named-${named.kind}-detail`);
     await page.keyboard.press('KeyX');
@@ -440,7 +440,7 @@ try {
       health: g.combat.actor(id)!.health.current,
       blood: g.ecs.query('particle').some((e) => e.require('particle').kind === 'blood'),
       particles: (g.scene.getMeshByName('blood hit fragments') as Mesh | null)?.thinInstanceCount,
-      pose: g.player.actor.entity.require('rig').attackBlend,
+      pose: g.player.actor.entity.require('rigPose').actions.attackBlend,
     };
   }, goblin);
   assert.equal(hit.health, 12);
@@ -658,7 +658,7 @@ try {
     Object.assign(kobold.position, { x: 2.4, z: 1, h: 0 });
     for (const a of g.combat.enemies) {
       a.position.heading = Math.PI;
-      a.entity.require('rig').root.rotation.y = Math.PI;
+      a.entity.require('rigPose').heading = Math.PI;
     }
     d.teleport(0, -2.5);
     d.step([], 1);

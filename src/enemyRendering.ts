@@ -236,10 +236,6 @@ export function createEnemyRendering(
       javelin,
       weapon,
       stowed,
-      attackBlend: 0,
-      attackPose: null,
-      socialBlend: 0,
-      socialPose: null,
     });
     bindHumanoid(actor.entity, profiles[actor.kind], headMeshes, pelvisMeshes, tailJoinMeshes);
     bindActorCollision(actor, scene, combat.world);

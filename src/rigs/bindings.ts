@@ -11,11 +11,11 @@ import {
   evaluatePose,
   inverse,
   multiplyAffine as multiply,
-  resetHistory,
+  resetLocal,
   setEuler,
 } from './pose.ts';
-import { LegacyNode, sampleLegacy } from './legacy.ts';
-import type { LegacyRig } from './legacy.ts';
+import { PoseHistory } from './history.ts';
+import type { Spawn } from '../worldTypes.ts';
 import { GroundedLocomotion } from './grounding.ts';
 import { ActionRig, SHIELD_GRIP, SPEAR_GRIPS } from './actions.ts';
 import type { ActionFrame } from './actions.ts';
@@ -31,7 +31,9 @@ import type { RigSurface } from './tailClearance.ts';
 
 export interface RigBinding {
   readonly pose: PoseBuffer;
-  readonly legacy: LegacyRig;
+  readonly history: PoseHistory;
+  heading: number;
+  cape: number;
   readonly grounding: GroundedLocomotion;
   readonly actions: ActionRig;
   readonly tail?: TailRig;
@@ -48,9 +50,7 @@ export interface RigBinding {
   }[];
   begin(dt: number): void;
   invalidateHistory(): void;
-  commit(reset?: boolean): void;
-  /** Temporary A4 death handoff: capture the current binding output into legacy channels once. */
-  captureLegacy(): void;
+  reset(position?: Spawn, heading?: number): void;
   apply(deferTail?: boolean): void;
   applyTail(): void;
 }
@@ -73,70 +73,15 @@ export function bindHumanoid(
   const rig = entity.require('rig');
   if (bindings.has(rig)) throw new Error('Humanoid rig already bound');
   if (rig.root.parent) throw new Error('Actor anchor must be a scene root');
-  const nodes = new Map<Node, LegacyNode>();
-  const channels: { node: TransformNode; data: LegacyNode }[] = [];
-  const numeric = (node: TransformNode): LegacyNode => {
-    const existing = nodes.get(node);
-    if (existing) return existing;
-    const data = new LegacyNode();
-    data.position.copyFrom(node.position);
-    data.rotation.copyFrom(node.rotation);
-    data.scaling.copyFrom(node.scaling);
-    data.enabled = node.isEnabled(false);
-    nodes.set(node, data);
-    channels.push({ node, data });
-    return data;
-  };
-  const optional = (node: TransformNode | undefined) => (node ? numeric(node) : undefined);
-  const legacy: LegacyRig = {
-    root: numeric(rig.root),
-    body: numeric(rig.body),
-    head: optional(rig.head),
-    arms: rig.arms.map(numeric),
-    forearms: rig.forearms.map(numeric),
-    legs: rig.legs.map(numeric),
-    knees: rig.knees.map(numeric),
-    feet: rig.feet.map(numeric),
-    cape: optional(rig.cape),
-    shield: optional(rig.shield),
-    spear: optional(rig.spear),
-    javelin: optional(rig.javelin),
-    equipment: rig.equipment?.map(numeric),
-    stowedEquipment: rig.stowedEquipment?.map(numeric),
-    footPlants: rig.footPlants,
-    attackBlend: rig.attackBlend,
-    attackPose: rig.attackPose,
-    socialBlend: rig.socialBlend,
-    socialPose: rig.socialPose,
-  };
-  for (const [node, data] of nodes)
-    data.parent = node.parent ? (nodes.get(node.parent) ?? null) : null;
   const definition = rig.tail ? withTail(humanoid(profile)) : humanoid(profile);
   const actions = new ActionRig(definition);
   const tail = definition.tail ? new TailRig(definition) : undefined;
   const tailClearance = tail ? new TailClearance() : undefined;
-  // Existing debug/tests read the old rig contract; these alias the action layer's owned state.
-  const alias = <K extends 'attackBlend' | 'attackPose' | 'socialBlend' | 'socialPose'>(key: K) =>
-    Object.defineProperty(rig, key, {
-      enumerable: true,
-      configurable: true,
-      get: () => actions[key],
-      set: (value: ActionRig[K]) => {
-        actions[key] = value;
-      },
-    });
-  for (const key of ['attackBlend', 'attackPose', 'socialBlend', 'socialPose'] as const) {
-    alias(key);
-    Object.defineProperty(legacy, key, {
-      get: () => actions[key],
-      set: (value: (typeof actions)[typeof key]) => {
-        Object.assign(actions, { [key]: value });
-      },
-    });
-  }
   const pose = createPose(definition);
+  const history = new PoseHistory(pose);
   const grounding = new GroundedLocomotion(pose.definition, rig.footPlants);
-  sampleLegacy(legacy, pose);
+  pose.local[0].position.copyFrom(rig.root.position);
+  setEuler(pose.local[0], 0, rig.root.rotation.y, 0);
   evaluatePose(pose);
   const scratch: JointPose = {
     position: new PoseVector(),
@@ -144,8 +89,7 @@ export function bindHumanoid(
     scale: new PoseVector().setAll(1),
   };
   const local = new Float64Array(16),
-    inv = new Float64Array(16),
-    hintMatrix = new Float64Array(16);
+    inv = new Float64Array(16);
   interface Entry {
     node: TransformNode;
     joint: number;
@@ -154,7 +98,6 @@ export function bindHumanoid(
     inverse: Float64Array;
     parent: Entry | null;
     pivot: XYZ;
-    hint: LegacyNode;
   }
   const entries: Entry[] = [],
     byNode = new Map<Node, Entry>();
@@ -181,7 +124,6 @@ export function bindHumanoid(
       inverse: new Float64Array(16),
       parent: parent ?? null,
       pivot: [pivot.x, pivot.y, pivot.z],
-      hint: numeric(node),
     };
     composeNode(node, local);
     if (parent) multiply(parent.world, 0, local, 0, entry.world, 0);
@@ -207,36 +149,16 @@ export function bindHumanoid(
     if (rig.tail.length !== definition.tail.length) throw new Error('Incomplete tail binding');
     rig.tail.forEach((node, i) => add(node, definition.tail![i].index));
   }
-  const extras = [rig.cape].filter((node): node is TransformNode => !!node);
-  const visibility = channels.filter(({ node }) => node !== rig.root && node !== rig.body);
   const writeMatrix = (entry: Entry) => {
     const m = local,
       p = entry.pivot,
-      node = entry.node,
-      hint = entry.hint;
-    let sx = Math.hypot(m[0], m[1], m[2]),
+      node = entry.node;
+    const sx = Math.hypot(m[0], m[1], m[2]),
       sy = Math.hypot(m[4], m[5], m[6]),
       sz = Math.hypot(m[8], m[9], m[10]);
     if (Math.min(sx, sy, sz) < 1e-9 || !Number.isFinite(sx + sy + sz))
       throw new Error('Invalid binding scale');
-    // Solved A3 legs have no authored Euler branch to preserve. Avoid reconstructing and
-    // comparing the obsolete legacy leg hint on every final application.
-    let same = !(grounding.active && entry.joint >= pose.definition.index.leftThigh);
-    if (same) {
-      setEuler(scratch, hint.rotation.x, hint.rotation.y, hint.rotation.z);
-      scratch.scale.copyFrom(hint.scaling);
-      scratch.position.setAll(0);
-      compose(scratch, hintMatrix);
-      for (let col = 0; col < 3; col++)
-        for (let row = 0; row < 3; row++)
-          if (Math.abs(m[col * 4 + row] - hintMatrix[col * 4 + row]) > 1e-10) same = false;
-    }
-    if (same) {
-      node.rotation.set(hint.rotation.x, hint.rotation.y, hint.rotation.z);
-      sx = hint.scaling.x;
-      sy = hint.scaling.y;
-      sz = hint.scaling.z;
-    } else if (
+    if (
       (pose.definition.joints[entry.joint].name.endsWith('Shin') ||
         pose.definition.joints[entry.joint].name.endsWith('Forearm')) &&
       Math.max(Math.abs(m[1]), Math.abs(m[2]), Math.abs(m[4]), Math.abs(m[8])) < 1e-9
@@ -260,7 +182,7 @@ export function bindHumanoid(
       m[14] - p[2] + m[2] * p[0] + m[6] * p[1] + m[10] * p[2],
     );
   };
-  let resetPending = true;
+  let stepDuration = 0;
   const attached: { binding: FrameAttachment; frame: ActionFrame; visible?: () => boolean }[] = [];
   const tailEntries = entries.filter((e) => definition.tail?.some((s) => s.index === e.joint));
   const surfaces: RigSurface[] = [];
@@ -336,10 +258,8 @@ export function bindHumanoid(
   if (surfaces.length >= RIG_SURFACE_LIMIT) throw new Error('Rig surface budget exceeded');
   surfaces.push(cargoSurface);
   const finishHistory = () => {
-    if (resetPending) {
-      resetHistory(pose);
-      resetPending = false;
-    }
+    history.publish(stepDuration);
+    stepDuration = 0;
   };
   const applyEntry = (entry: Entry) => {
     multiply(pose.world, entry.joint * 16, entry.offset, 0, entry.world, 0);
@@ -350,7 +270,9 @@ export function bindHumanoid(
   };
   const binding: RigBinding = {
     pose,
-    legacy,
+    history,
+    heading: rig.root.rotation.y,
+    cape: -0.16,
     grounding,
     actions,
     tail,
@@ -426,45 +348,41 @@ export function bindHumanoid(
         : []),
     ],
     begin(dt) {
-      if (dt > 0 && !resetPending) resetHistory(pose);
-      // Temporary compatibility for explicit debug/root heading setup. Gameplay root translation
-      // is sampled from the actor by actorRendering, never integrated from mesh displacement.
-      legacy.root.rotation.copyFrom(rig.root.rotation);
+      stepDuration = dt;
     },
     invalidateHistory() {
       entity.get('blockFeedback')?.reset();
-      if (grounding.active) binding.captureLegacy();
       grounding.reset();
       actions.reset();
       tail?.reset();
-      resetPending = true;
+      history.invalidate();
+      stepDuration = 0;
     },
-    captureLegacy() {
-      for (const { node, data } of channels) {
-        data.position.copyFrom(node.position);
-        data.rotation.copyFrom(node.rotation);
-        data.scaling.copyFrom(node.scaling);
-      }
-    },
-    commit(reset = false) {
-      sampleLegacy(legacy, pose);
-      evaluatePose(pose);
+    reset(position, heading = binding.heading) {
+      entity.remove('deathHandoff');
+      const root = pose.local[0];
+      const x = position?.x ?? root.position.x,
+        y = position?.h ?? root.position.y,
+        z = position?.z ?? root.position.z;
+      binding.invalidateHistory();
+      resetLocal(pose);
+      root.position.set(x, y, z);
+      setEuler(root, 0, heading, 0);
+      binding.heading = heading;
+      binding.cape = -0.16;
       tail?.apply(pose);
       binding.apply();
-      if (reset) resetHistory(pose);
     },
     apply(deferTail = false) {
       if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
       evaluatePose(pose);
       for (const entry of entries)
         if (!deferTail || !tailEntries.includes(entry)) applyEntry(entry);
-      for (const node of extras) {
-        const data = nodes.get(node)!;
-        node.position.set(data.position.x, data.position.y, data.position.z);
-        node.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
-        node.scaling.set(data.scaling.x, data.scaling.y, data.scaling.z);
-      }
-      for (const { node, data } of visibility) node.setEnabled(data.enabled);
+      if (rig.cape) rig.cape.rotation.x = binding.cape;
+      for (const mesh of rig.equipment ?? []) mesh.setEnabled(!actions.stowed);
+      for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(actions.stowed);
+      rig.spear?.setEnabled(!actions.stowed && actions.mode !== 'throw');
+      rig.javelin?.setEnabled(!actions.stowed && actions.mode === 'throw' && !actions.released);
       actions.finish(pose);
       for (const a of attached) {
         if (a.visible) a.binding.node.setEnabled(a.visible());
@@ -482,6 +400,13 @@ export function bindHumanoid(
   for (const key of ['weapon', 'shield', 'spear', 'javelin'] as const)
     if (rig[key]) binding.attach(rig[key], key);
   if (rig.stowed) binding.attach(rig.stowed, 'back');
-  binding.commit(true);
+  binding.reset();
+  rig.root.onDisposeObservable.addOnce(() => {
+    binding.invalidateHistory();
+    history.retire();
+    entity.remove('deathHandoff');
+    entity.remove('rigPose');
+    bindings.delete(rig);
+  });
   return binding;
 }

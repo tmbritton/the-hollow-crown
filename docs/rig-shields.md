@@ -1,7 +1,7 @@
 # A6 — shield anticipation, confirmed-block reaction and recovery
 
 **2026-11-20. Implemented and verified; final independent review READY.**
-This follows [A5 tails](rig-tails.md). A7's complete cutover/physics snapshot remains next.
+This follows [A5 tails](rig-tails.md). [A7 cutover/handoff](rig-handoff.md) is also reviewed READY.
 
 ## Ownership and authority
 

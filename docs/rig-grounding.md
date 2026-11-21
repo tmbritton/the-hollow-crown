@@ -22,8 +22,8 @@ measured travel + locomotion/action/jump clocks
 
 `actorRendering.ts` composes the distance-driven gait, skeleton 64/36 lurch, crouch, backsteps,
 jump/landing and upper-body action curves into semantic joints. Living poses no longer call
-`placeFeet()` or translate legacy leg channels into the final pose. `footPlacement.ts` remains
-as the historical analytic geometry/contact regression reference.
+`placeFeet()` or translate legacy leg channels into the final pose. A7 moves the historical analytic
+geometry/contact reference to `tests/historical-foot-placement.ts` and removes remaining compatibility.
 
 The root stays at **actor X/Z and authoritative support + jump elevation**. Pelvis translation
 carries bob, run lift and corpse assistance. Heading retains eased facing and immediate guard/

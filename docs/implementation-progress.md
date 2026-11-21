@@ -33,12 +33,13 @@ Execution record for [implementation path](implementation-path.md). Started **20
     **A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.**
     **A5 articulated tails is implemented, verified and independently reviewed READY.**
    **A6 shield motion is complete and independently reviewed READY; both review blockers cleared.**
-   A7 is next; death physics remains planned. See [animation roadmap](animation-roadmap.md)
+   **A7 rig cutover/handoff is complete, final independent review READY; landing blocker cleared.**
+   Death physics remains planned. See [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **Effect adoption is planned before the next procedural-feature expansion.** Continue A7
-  and P8/P9 first. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
+- **Effect adoption is planned before the next procedural-feature expansion.** Continue P8/P9
+  after the reviewed A7 delivery. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
   The source evaluation/scratch prototype does not constitute production implementation.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
@@ -157,13 +158,35 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | A4 | Complete; final independent review READY | Missing module, scale/envelope/reset regressions; persisted review reds for torso intersection, slung cargo shear and spear death bounds/clearance | 336 tests/check/build; 428 A0-identical authority samples; 252 actual shaft/torso, 144 cargo-handoff and 2,714 corpse-age samples; affected browsers/production5. Independent follow-up clears all blockers | `c353fef` |
 | A5 | Complete; final independent review READY | Initial module/clearance reds; independent corpse, anatomy/equipment and masonry defects; prolonged partial-contact snap reproduced before correction | Full360/final core342 checks, build/affected browsers/production; all-member geometry and prolonged settling/release. Independent review clears all four blockers; investigated CPU band accepted | `688e491`; review fixes in containing delivery |
 | A6 | Complete; final independent review READY | Event/motion/preparation reds; counter-turn, dormant-work, metadata and heading regressions; moving-stair and moving-release geometry reds | Full377/core359, build/production; actual shield/body/contact/lane checks, feasible reversal continuity, interruption/camera replays and affected browsers; 428 A0-identical authority samples. Both blockers independently cleared | Containing delivery |
-| A7 | Planned after A6 | Complete cutover and physics handoff | Per-slice acceptance gate in animation-roadmap.md; not implemented | — |
+| A7 | Complete; final independent review READY | Missing history module, retired-snapshot and lethal-landing reds; Euler-independent geometry assertions retained | Full383/core366, 84 catalog handoffs, real melee/lava landing and stair controls, 428 A0-identical authority samples, cross-system browsers and root/Pages smokes; stable resources. Landing blocker independently cleared | Containing delivery |
 | P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 | EF0–EF4 | Planned after the animation/death-physics queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log
+
+### A7 — semantic cutover and death handoff — 2026-11-21
+
+- Rebased/pushed reviewed A6 as `7e6616d`, preserving incoming CPU plan `058e159` and both
+  documentation-index additions. A7 removes legacy nodes/sample/capture/commit, Euler hints and
+  render blend aliases; the old foot algorithm remains solely a historical test oracle.
+- TDD history/module and retirement reds preceded the snapshot/lifecycle contracts. Lethal capture
+  precedes cancellation; rebasing replaces root velocity once and retains articulation. Existing
+  age-sampled collapse remains active. See [handoff contract](rig-handoff.md).
+- Full383/303.05s and final core365/29.41s, typing/lint/format194, root/Pages builds and both
+  production smokes pass. Cross-system movement16/jump8/combat15/defense9/phalanx8/social15/work17/
+  tribute9, animation/actions, tails4488/clearance and shield transitions pass.
+- 84 catalog handoffs compare drawn joint velocities and immutable death/reset data; rig428 retains
+  exact A0 authority and stable resources. CPU3.1175/4.10ms mean/p95 is qualified software-rendered
+  fixture evidence. 13 clips/26 camera sequences played normal/quarter speed; five sheets inspected.
+  Initial independent review found stale airborne Y inherited on grounded death; current motor
+  support velocity fixes it. Persisted real melee/lava red now passes before/after publication,
+  retaining both stair-direction controls. Corrective core366/29.61s, handoff/jump/movement and
+  both build/production paths pass. **Final independent review READY:** original 144 snapshots/
+  3,024 joints/1,728 bodies math and all-25 retirement checks, plus follow-up 64 motor cases and
+  20 browser boundaries/lava confirm support/ballistic separation and reset cleanup. Broader checks
+  are explicitly reused. This containing delivery records reviewed A7.
 
 ### A6 — shield preparation and confirmed-block reaction — 2026-11-20
 

@@ -2,8 +2,8 @@
 
 **2026-11-20. Implemented and verified; final independent review READY.**
 This follows [A3 grounding](rig-grounding.md). [A5 articulated tails](rig-tails.md) is now implemented.
-[A6 shield anticipation/reaction](rig-shields.md) is implemented and independently reviewed READY; A7 compatibility
-removal remains planned.
+[A6 shield anticipation/reaction](rig-shields.md) and [A7 cutover/handoff](rig-handoff.md) are
+implemented and independently reviewed READY.
 
 ## Ownership
 
@@ -65,9 +65,8 @@ are checked across the complete temporary collapse.
 
 Reset clears action targets/blends/death capture, resets anatomical translations, rotations and
 scales, restores drawn equipment and hides stowed/throwing equipment. Clearing scale also removes
-decomposition roundoff that previously leaked into the next camera replay. The numerical legacy
-bridge remains for explicit reset/debug compatibility and authored Euler hints until A7; it no
-longer owns action attachment transforms or the death layer.
+decomposition roundoff that previously leaked into the next camera replay. A7 removes the numerical
+legacy bridge, reset/debug compatibility and Euler hints; reset now directly restores semantic poses.
 
 ## Verification and cost
 
