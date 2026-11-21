@@ -8,6 +8,7 @@ use [implementation path](implementation-path.md) for the dependency-ordered del
 | [Game direction](game-direction.md) | Chosen compact, simulation-heavy scenario direction: approachable single-adventurer controls, autonomous agendas, circumstance-driven escalation and provisional playtest candidates. |
 | [Implementation path](implementation-path.md) | Dependency-ordered feature slices and the test-first, verification, review, commit workflow. |
 | [Implementation progress](implementation-progress.md) | Delivery tracker, checks and review. P1–P7 delivered; P7 published at `3934e17`. T2/A0 and A1–A5 independently reviewed READY; A6 is next. |
+| [CPU performance plan](cpu-performance-plan.md) | Measured `3cfb378` CPU bottlenecks and proposed slices for door/obstacle queries, idle collision, route hitches, nearby colliders, scene traversal and animation scheduling, with correctness and hardware acceptance gates. |
 | [Animation roadmap](animation-roadmap.md) | Shared humanoid/tailed rigs, complete animation migration, shield motion and later death physics. A0–A5 independently reviewed READY; A6–A7/P8/P9 planned. |
 | [Animation baseline](animation-baseline.md) | A0 review controls, complete 30-clip inventory, reproducible captures, current foot/grip defects, 25-actor baseline and initial A1/A2 budgets. |
 | [Rig foundation](rig-foundation.md) | Implemented A1 semantic anatomy/profiles, pose and socket APIs, ECS ownership, compatibility/final-writer boundaries and parity/cost verification. |
