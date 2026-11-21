@@ -9,3 +9,5 @@ export const WALL_BASE = [
   { material: 'trim', center: 0.66, height: 0.09, overhang: 0.05, shade: 0.7 },
 ] as const;
 export const WALL_CAP = { overhang: 0.14, height: 0.14 } as const;
+/** Shared by visible door planks, living collision and physical death contacts. */
+export const DOOR_HEIGHT = 2.8;

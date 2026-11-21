@@ -10,6 +10,10 @@ import type { Components } from '../src/ecs.ts';
 import { bindHumanoid } from '../src/rigs/bindings.ts';
 import { profiles } from '../src/rigs/humanoid.ts';
 import { setEuler, worldPoint } from '../src/rigs/pose.ts';
+import { Ragdoll } from '../src/ragdoll.ts';
+import { readCorpseTerrain } from '../src/corpseRendering.ts';
+import { DeathPhysics } from '../src/deathPhysics.ts';
+import type { DeathHandoff } from '../src/deathHandoff.ts';
 
 test('semantic binding preserves neutral geometry and writes independent head/limb poses without new nodes', () => {
   const engine = new NullEngine(),
@@ -59,7 +63,8 @@ test('semantic binding preserves neutral geometry and writes independent head/li
       feet,
       footPlants: [{ anchor: null }, { anchor: null }],
     };
-    const entity = new ECS()
+    const ecs = new ECS();
+    const entity = ecs
       .create('actor')
       .add('rig', rig)
       .add('render', { root, meshes: [head] });
@@ -140,6 +145,81 @@ test('semantic binding preserves neutral geometry and writes independent head/li
       [...binding.pose.world],
       'teleport/reset cannot become velocity',
     );
+    binding.reset({ x: 0, h: 3, z: 0 }, 0);
+    binding.pose.local[0].scale.set(0.8, 1.3, 0.9);
+    setEuler(binding.pose.local[binding.pose.definition.index.leftUpperArm], -0.6, 0.3, 0.4);
+    binding.apply();
+    const physics = new Ragdoll(
+      { tiles: new Map(), blockers: [], entities: [] },
+      binding.history.snapshot(),
+      [1, 0, 0],
+      20,
+    );
+    entity.add('ragdoll', physics);
+    for (let frame = 0; frame < 30; frame++) {
+      physics.advance(1 / 60);
+      binding.applyPhysics(physics.world);
+      forearms[0].computeWorldMatrix(true);
+      const actual = Vector3.TransformCoordinates(
+        new Vector3(0, -0.27, 0),
+        forearms[0].getWorldMatrix(),
+      );
+      const expected = worldPoint(binding.pose, 'leftHand');
+      assert.ok(
+        actual.asArray().every((v, i) => Math.abs(v - expected[i]) < 1e-5),
+        'rigid physics must not introduce parent-scale shear',
+      );
+    }
+    physics.freeze();
+    entity.add('corpse', { age: 1 }).add('transform', { x: 0, h: 0, z: 0, heading: 0 });
+    head.computeWorldMatrix(true);
+    const physicalHead = [...head.getWorldMatrix().m];
+    readCorpseTerrain(ecs);
+    assert.deepEqual(
+      [...head.getWorldMatrix().m],
+      physicalHead,
+      'settled surface reads cannot rewrite frozen physics matrices',
+    );
+    binding.reset();
+    assert.equal(root.isWorldMatrixFrozen, false);
+    assert.equal(entity.has('ragdoll'), false);
+    assert.equal(physics.bodyCount, 0);
+    const handoff: DeathHandoff = {
+      run: ecs,
+      target: entity,
+      source: null,
+      time: 0,
+      kind: 'melee',
+      magnitude: 20,
+      travel: [1, 0, 0],
+      position: [0, 0, 0],
+      heading: 0,
+      velocity: [0, 0, 0],
+      pose: binding.history.snapshot(),
+    };
+    entity.add('deathHandoff', handoff);
+    const owner = new DeathPhysics(ecs, { tiles: new Map(), blockers: [], entities: [] });
+    owner.advance(0);
+    assert.equal(entity.require('ragdoll').bodyCount, 11);
+    const firstIsland = entity.require('ragdoll');
+    entity.remove('ragdoll');
+    owner.advance(0);
+    assert.equal(
+      entity.has('ragdoll'),
+      false,
+      'removing physical ownership cannot replay its lethal handoff',
+    );
+    assert.equal(firstIsland.bodyCount, 0);
+    entity.add('deathHandoff', handoff);
+    owner.advance(0);
+    assert.equal(entity.has('ragdoll'), false, 'consumed handoff identity cannot be resubmitted');
+    entity.add('deathHandoff', { ...handoff, time: 1 });
+    owner.advance(0);
+    assert.equal(entity.require('ragdoll').bodyCount, 11);
+    owner.dispose();
+    owner.advance(1 / 60);
+    assert.equal(entity.has('ragdoll'), false, 'disposed run cannot readmit deaths');
+    assert.equal(root.isWorldMatrixFrozen, false, 'disposing physics restores binding ownership');
     scene.dispose();
     assert.throws(() => binding.apply(), /retired/);
     assert.throws(() => binding.history.snapshot(), /retired/);

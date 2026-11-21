@@ -34,12 +34,13 @@ Execution record for [implementation path](implementation-path.md). Started **20
     **A5 articulated tails is implemented, verified and independently reviewed READY.**
    **A6 shield motion is complete and independently reviewed READY; both review blockers cleared.**
    **A7 rig cutover/handoff is complete, final independent review READY; landing blocker cleared.**
-   Death physics remains planned. See [animation roadmap](animation-roadmap.md)
+   **P8 directional/seed-varied ragdolls are complete, final independent review READY; both contact blockers cleared.**
+   See [ragdoll contract](ragdoll-deaths.md), [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **Effect adoption is planned before the next procedural-feature expansion.** Continue P8/P9
-  after the reviewed A7 delivery. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
+- **Effect adoption is planned before the next procedural-feature expansion.** Continue P9
+  after the reviewed P8 delivery. EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
   The source evaluation/scratch prototype does not constitute production implementation.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
@@ -159,7 +160,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | A5 | Complete; final independent review READY | Initial module/clearance reds; independent corpse, anatomy/equipment and masonry defects; prolonged partial-contact snap reproduced before correction | Full360/final core342 checks, build/affected browsers/production; all-member geometry and prolonged settling/release. Independent review clears all four blockers; investigated CPU band accepted | `688e491`; review fixes in containing delivery |
 | A6 | Complete; final independent review READY | Event/motion/preparation reds; counter-turn, dormant-work, metadata and heading regressions; moving-stair and moving-release geometry reds | Full377/core359, build/production; actual shield/body/contact/lane checks, feasible reversal continuity, interruption/camera replays and affected browsers; 428 A0-identical authority samples. Both blockers independently cleared | Containing delivery |
 | A7 | Complete; final independent review READY | Missing history module, retired-snapshot and lethal-landing reds; Euler-independent geometry assertions retained | Full383/core366, 84 catalog handoffs, real melee/lava landing and stair controls, 428 A0-identical authority samples, cross-system browsers and root/Pages smokes; stable resources. Landing blocker independently cleared | Containing delivery |
-| P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
+| P8 | Complete; final independent review READY | Missing-module, scaled-parent/frozen-contact, door/waist regressions; review's actual upper-plank/base penetration and replay reds | Full389 checkpoint/core373; eleven death sequences, 24 structural-contact cases and 24-death stress, real attacks, lifecycle, affected suites/root/Pages smokes. Independent original door repro, 18 door/16 wall/four all-frame masonry cases and lifecycle probes clear R1/R2/C1 | Containing delivery |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
 | EF0–EF4 | Planned after the animation/death-physics queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |

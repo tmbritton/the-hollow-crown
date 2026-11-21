@@ -50,6 +50,8 @@
     "test:rig:shield:transitions": "node tests/rig-shield-transitions-browser.ts",
     "test:rig:handoff": "node tests/rig-handoff-browser.ts",
     "test:rig:handoff:landing": "node tests/rig-handoff-landing-browser.ts",
+    "test:ragdoll": "node tests/ragdoll-browser.ts",
+    "test:ragdoll:contacts": "node tests/ragdoll-contacts-browser.ts",
     "test:jump": "node tests/jump-browser.ts",
     "test:combat": "node tests/combat-browser.ts",
     "test:defense": "node tests/defense-browser.ts",
@@ -64,6 +66,7 @@
   "dependencies": {
     "@babylonjs/core": "9.37.0",
     "@babylonjs/materials": "9.37.0",
+    "cannon-es": "0.20.0",
     "xstate": "5.33.4"
   },
   "devDependencies": {

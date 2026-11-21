@@ -36,6 +36,23 @@ export function registerWorld(ecs: ECS, world: World): void {
 }
 
 export function registerDungeonRendering(ecs: ECS, dungeon: DungeonScene): void {
+  // Share authored obstacle heights with death physics, including low tables/chests. Door state
+  // remains live and is sampled separately. No meshes enter the pure physics backend.
+  ecs.get('run')?.add(
+    'physicalObstacles',
+    dungeon.obstacles
+      .filter((o) => o.mesh.name !== 'door collider')
+      .map((o, i) => {
+        const b = o.mesh.getBoundingInfo().boundingBox;
+        return {
+          name: `prop:${i}`,
+          position: [o.x, b.centerWorld.y, o.z],
+          size: [o.w, b.maximumWorld.y - b.minimumWorld.y, o.d],
+          yaw: 0,
+          top: b.maximumWorld.y,
+        };
+      }),
+  );
   dungeon.creatures.forEach((creature, i) =>
     ecs
       .create(`ambient-creature:${i}`)

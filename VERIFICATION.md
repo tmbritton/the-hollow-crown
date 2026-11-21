@@ -4,6 +4,122 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### P8 — directional, seed-varied ragdoll deaths — 2026-11-21 (final review READY)
+
+`cannon-es` **0.20.0** consumes the detached A7 handoff once, using 11 anatomical bodies or 15 with
+a tail. Rig bindings publish exact physical world matrices and retain equipment identity; living
+layers cannot overwrite them. Discrete tile/tread contacts, structural walls, shared door collision
+state and existing furniture proxy heights drive impacts. Seeded strength/lift/deflection/spin vary
+deaths while retaining attack direction and reproducibility. Settled remains are relocated and
+passable; hero respawn timing and cargo/discovery ownership remain authoritative.
+See [the P8 contract](docs/ragdoll-deaths.md).
+
+**Observed TDD/iteration evidence:** the new tests first failed on the absent `ragdoll.ts` module.
+Further regressions failed for scaled-parent shear, settled corpse sampling reconstructing frozen
+physics transforms, the undersized door aperture, and a **0.0611-unit waist separation** from using
+the chest center as its physical pivot. Each now passes after its correction. Browser resurrection
+also exposed frozen living bindings; ownership cleanup now resets them. Failures were observed in
+tool output; no saved raw-red log is claimed. Historical tests that required a fixed collapse angle
+or moved only a dead actor's old logical coordinate now exercise physical settling/relocated remains,
+with unchanged movement, discovery and living rank-heading assertions.
+
+**Checks actually run:**
+
+- Full checkpoint `npm run check:full`: **389 tests / 322.28s**, lint and format pass. After the
+  render/contact/waist and lifecycle corrections, `npm run check`: **373 tests / 32.25s**, strict
+  typing, lint and formatting pass. The earlier extended generation/model evidence is reused;
+  this is not a claim of a fresh 391-test full run. Seven new pure tests and expanded actual-binding
+  tests cover reproducible/diverse outcomes, inherited motion, zero-time stability, discrete stairs,
+  doors, constrained waist, bounded lifetime and disposal. Production machine coverage is unchanged.
+- `test:ragdoll`: **eleven sequences** covering moving goblin, skeleton melee, spear thrust/throw,
+  shield recoil, cargo, work, jump, turning, actual perimeter impact and stair fall. Entry snapshot
+  error and repeat drift are **zero**. Worst final drawn-box floor penetration **0.00305 units**
+  (ragdoll tolerance 0.015); worst recorded joint-anchor error **0.03471 units**. Every case settles,
+  exposes actual corpse surfaces, stays frozen, and releases all active bodies/constraints/statics.
+- Actual timed melee, released crossbow and released javelin all kill through ordinary combat and
+  install physics. A simultaneous **24-enemy** death burst uses **312 bodies / 288 constraints**,
+  allocates **zero extra meshes**, and ends with **zero active physical resources**.
+- The dedicated lifecycle check passes menu/inspection/hidden pause, continued enemy physics on
+  visible blur, same-tick hero respawn, in-flight regeneration and disposal. Three fresh regenerations
+  plateau at **2,382 meshes / 495 nodes / 28 materials / four textures / 5,719 entities / 25 actors**.
+- Sequential Chromium animation, combat **15**, discoveries **17**, defense **9**, phalanx **8**,
+  tribute **9**, handoff **84 entries** and lethal-landing/support suites pass. Combat includes actual
+  walk/run crossings of settled physical bodies with flat-ground travel parity and 52% water speed;
+  tribute includes real carrier death/drop/recovery and survivor takeover.
+- Root and Pages builds pass (**709 modules**, root main **1,792.77kB / 465.81kB gzip**, existing
+  chunk-size warning). Both production smokes pass, with locally bundled assets, real input,
+  regeneration, no development hooks and no external/network/page errors.
+
+**Bounded cost:** three 1/180s substeps per gameplay tick, sixteen solver iterations, 24 active
+islands, streamed 9×9 floor patches and an eight-second hard lifetime. The final 24-death/500-update
+stress sample measured **15.47ms mean / 26.70ms p95**, including shared actor presentation; its tail
+contains frozen updates. This intentionally extreme burst is not the A0 living-actor fixture or a
+hardware FPS benchmark. Ordinary single-death fixtures measured approximately **2.65–3.43ms** mean
+for all actor presentation. Frozen islands release Cannon contact/friction pools as well as bodies.
+
+**Visual evidence:** saved **704 captures** (eleven cases, gameplay/side cameras, 10Hz samples through
+three seconds plus final settled views). The 22-sequence viewer was played at normal and quarter
+speed; representative launch/contact/settled views were inspected, including walls, stairs, guard,
+airborne death and the long spear. `test-results/p8-motion.html` and `p8-motion-playback.json` preserve
+the sampled playback. Sampling is not an every-frame perceptual review. The most conspicuous remaining
+style limit is stiff held/stowed equipment: long weapons retain their captured hand relationship
+while the constrained limbs tumble. No new art assets or breakup pieces are introduced.
+
+Headless Chromium initially stalled while creating a WebGL context with inherited desktop display
+variables; the same failure occurred in a minimal independent context probe. Verification ran with
+`DISPLAY= WAYLAND_DISPLAY=` and SwiftShader, without changing application or system configuration.
+Ignored evidence is under `test-results/p8-*`. The containing delivery records reviewed P8.
+
+**Initial independent review: NOT READY (R1/R2).** The reviewer reproduced **0.10859 units** of
+airborne foot penetration through an actual closed door's upper plank: physics used height 2.5
+while artwork/collision use 2.8. It also found settled skeleton/spear penetration of **0.05612 /
+0.05934 units** into the drawn wall base, whose authored overhangs were missing from physics.
+Independent evidence additionally covered 48 action-phase entries, shape containment, 320 seeded
+direction samples, stair/scale cases and lifecycle paths. Its **28 natural-scale entry controls**
+passed. All findings and attributed/reused evidence are in ignored `p8-independent-review.md`.
+
+**Corrections:** shared `DOOR_HEIGHT` now drives visible planks, ordinary collider and death physics;
+streamed masonry includes `WALL_BASE` sections and `WALL_CAP`. New persisted actual-mesh tests
+reproduced the door's **0.10859**, a settled wall-body **0.04948**, spear **0.06004** and corner
+**0.02500** penetration before fixes. Corrective logs retain the door red and the pure door/replay
+reds as `p8-review-contacts-red.log` / `p8-review-pure-red.log`. Run disposal is now terminal, resets
+frozen bindings and clears handoffs; a weak consumed-identity set prevents removal/resubmission
+from launching the same death again.
+
+- Corrective `test:ragdoll:contacts`: **24 cases**, both door axes, two profiles, multiple death keys,
+  straight walls and corners. All start clear; worst transient door overlap **0.00659 units**,
+  final plank/base/corner overlap **zero**. Dedicated ragdoll/lifecycle/stress suite passes again;
+  final stress **15.76ms mean / 27.40ms p95**, same qualification as above. Updated wall captures
+  inspected and the regenerated 22-sequence viewer played at both rates.
+- `npm run check`: **373 / 31.27s**, typing/lint/format **200 files**. Both corrective builds and
+  production paths pass: **709 modules**, root **1,793.35kB / 465.98kB gzip**, Pages **1,793.36kB /
+  465.99kB gzip**. Earlier broad gameplay and extended evidence is reused.
+- Reviewer nonblockers are recorded rather than overstated: manually imposing nonuniform root
+  scale *after* the living solve can expose an existing equipment TRS/affine mismatch at handoff;
+  normal coordinated scale controls passed. One extra stair case inherited overlap already present
+  in its entry pose and resolved before settling. Neither is an all-frame clearance guarantee.
+
+**Final independent follow-up: READY; no current-scope blockers remain.** Attributed evidence in
+`test-results/p8-independent-followup-review.md`:
+
+- Original first-death door repro improves from **0.10859 to zero overlap**. The independent
+  eighteen-case upper-door sweep peaks at **0.00884**, under the unchanged 0.015 tolerance.
+- All sixteen original wall deaths settle clear. Four additional straight/corner probes check
+  actual body corners against individual base/trim/cap sections on all 500 updates: max transient
+  overlap **0.00276**, final overlap **zero**, all resources retired. Cutaway scaling leaves physical
+  terrain identical. Corrected representative close overhead captures were independently inspected.
+- Component removal, corpse removal, binding reset and teleport clear old resources/handoffs and
+  frozen nodes. Same-object handoff replay is rejected; fresh deaths after cleanup are admitted.
+  Repeated direct disposal is terminal, including subsequent updates and scene disposal; zero page errors.
+- One new **nonblocking** low-level edge (C4) is retained for future enemy resurrection: resetting an
+  already admitted corpse, reviving it and killing it again *before cleanup* can discard its new
+  handoff. The game does not resurrect enemies; same-tick hero respawn precedes physics admission
+  and is unaffected. Preserve a distinct fresh handoff before adding such a resurrection path.
+
+The reviewer reused the corrective gates/builds/production, broader gameplay/model evidence and
+sampled playback with their stated qualifications. Original NOT READY and corrective reports are
+both preserved. **P8 is independently cleared for this delivery; P9 remains separate.**
+
 ### A7 — semantic rig cutover and death handoff — 2026-11-21 (final review READY)
 
 Removed the numerical legacy adapter, mesh capture/commit, legacy Euler hints and render-component

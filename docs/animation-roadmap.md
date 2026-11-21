@@ -2,7 +2,7 @@
 
 **Updated 2026-11-21. A0–A7 are implemented, verified and independently reviewed READY.
 A7's final review clears the landing/support-velocity handoff blocker.
-P8/P9 remain planned.** See the [A0 baseline](animation-baseline.md),
+P8 is implemented, verified and independently reviewed READY. P9 remains planned.** See the [A0 baseline](animation-baseline.md),
 [A1 rig foundation](rig-foundation.md), [A2 solver](rig-solver.md), [A3 grounding](rig-grounding.md),
 [A4 actions](rig-actions.md), [A5 tails](rig-tails.md), and [A6 shields](rig-shields.md).
 
@@ -330,6 +330,10 @@ are planned acceptance gates. A7 and its review correction are recorded in the c
 
 ### A7 handoff contract; P8 physics implementation
 
+P8 is now implemented; see [directional ragdolls](ragdoll-deaths.md) for the selected backend,
+seeded variation, actual lifecycle/budgets and current verification. Final independent review is
+READY, clearing both structural-contact blockers. The following acceptance contract was its basis.
+
 Use one pose owner per entity/lifecycle:
 
 ```text
@@ -452,7 +456,7 @@ the existing Pages workflow, with a hosted smoke for meaningful release changes.
     [rig-actions.md](rig-actions.md) and [rig-tails.md](rig-tails.md). A5 is implemented/verified,
     with final independent review READY. A6 shield motion is implemented/verified, with final
     independent review READY. **A7 cutover** is complete and independently reviewed READY.
-    P8/P9 are not implemented. Keep every catalog row in the
+    P8 is complete and independently reviewed READY. P9 is not implemented. Keep every catalog row in the
    migration checklist; a walking hero alone
    is not completion of the rig conversion.
 5. Continue in order through A7 before P8, then P9. Do not start death physics ahead of the shared

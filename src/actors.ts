@@ -177,6 +177,7 @@ export function teleportActor(actor: Actor, world: NavigationWorld, point: Point
     z: destination.z,
     h: heightAt(world, destination.x, destination.z) ?? 0,
   });
+  if (actor.entity.has('ragdoll')) actor.entity.get('rigPose')?.reset(actor.position);
   actor.entity.get('collision')?.sync?.(actor.position);
 }
 

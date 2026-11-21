@@ -1,8 +1,9 @@
 # A7 — rig cutover and death handoff
 
 **2026-11-21. Implemented and verified; final independent review READY.**
-This completes the animation migration after [A6 shields](rig-shields.md). P8 selects and implements
-death physics; the current age-sampled collapse and immediate hero respawn remain active.
+This completed the animation migration after [A6 shields](rig-shields.md). At A7 delivery the
+age-sampled collapse remained active. [P8](ragdoll-deaths.md) now consumes the handoff for physical
+enemy deaths; immediate hero respawn is preserved.
 
 ## Single pose owner
 
@@ -55,8 +56,8 @@ Airborne inheritance uses pre-stop ballistic velocity; grounded vertical inherit
 motor-step support derivative (`movement.supportVelocity`), never the rendered root's jump-inclusive
 history. The motor samples it from actual support change, clears it on locked/stationary steps, and
 stop/teleport clears it. Reset/respawn and disposal retire the component. Later collapse cannot mutate
-the snapshot. P8 must explicitly replace the procedural writer before simulating bodies and provide
-impulse tuning, collision/settling and bounded resource ownership. No physics dependency is added.
+the snapshot. P8 explicitly replaces the procedural writer before simulating bodies and supplies
+impulse tuning, collision/settling and bounded resource ownership. A7 itself added no physics dependency.
 
 ## Verification
 

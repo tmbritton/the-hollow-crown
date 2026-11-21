@@ -312,12 +312,27 @@ export async function captureSkeletonGait(page: Page) {
         body: rig.body.rotation.asArray(),
         anchors: rig.footPlants.map((p) => p.anchor),
         stride: actor.motion.animation.stride,
+        deathEntryError:
+          boundary === 'death'
+            ? Math.max(
+                ...actor.entity
+                  .require('deathHandoff')
+                  .pose!.world.map((v, i) =>
+                    Math.abs(v - actor.entity.require('rigPose').pose.world[i]),
+                  ),
+              )
+            : null,
+        physicalDeath: actor.entity.has('ragdoll'),
       };
     }, boundary);
     assert.ok(result.before.some((v) => Math.abs(v) > 0.01));
     if (boundary !== 'blur') {
-      assert.ok(result.head.every((v) => v === 0));
-      assert.ok(result.body.every((v) => v === 0));
+      if (boundary === 'death') {
+        assert.ok(result.physicalDeath && result.deathEntryError === 0, JSON.stringify(result));
+      } else {
+        assert.ok(result.head.every((v) => v === 0));
+        assert.ok(result.body.every((v) => v === 0));
+      }
       assert.deepEqual(result.anchors, [null, null]);
       assert.equal(result.stride, 0);
     }

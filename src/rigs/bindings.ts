@@ -1,6 +1,7 @@
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import type { Node } from '@babylonjs/core/node.js';
 import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh.js';
+import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import type { Components, Entity } from '../ecs.ts';
 import type { JointName, JointPose, PoseBuffer, RigProfile, XYZ } from './types.ts';
 import { PoseVector } from './types.ts';
@@ -13,7 +14,11 @@ import {
   multiplyAffine as multiply,
   resetLocal,
   setEuler,
+  transformPoint,
 } from './pose.ts';
+import { matrixRotation, orthonormalize } from './ikMath.ts';
+import { bodyOwner } from '../ragdoll.ts';
+import type { RagdollShape } from '../ragdoll.ts';
 import { PoseHistory } from './history.ts';
 import type { Spawn } from '../worldTypes.ts';
 import { GroundedLocomotion } from './grounding.ts';
@@ -53,6 +58,8 @@ export interface RigBinding {
   reset(position?: Spawn, heading?: number): void;
   apply(deferTail?: boolean): void;
   applyTail(): void;
+  applyPhysics(world: Float64Array): void;
+  physicsShapes(): RagdollShape[];
 }
 const bindings = new WeakMap<Components['rig'], RigBinding>();
 export function rigBinding(rig: Components['rig']): RigBinding {
@@ -98,6 +105,7 @@ export function bindHumanoid(
     inverse: Float64Array;
     parent: Entry | null;
     pivot: XYZ;
+    physics: Matrix;
   }
   const entries: Entry[] = [],
     byNode = new Map<Node, Entry>();
@@ -124,6 +132,7 @@ export function bindHumanoid(
       inverse: new Float64Array(16),
       parent: parent ?? null,
       pivot: [pivot.x, pivot.y, pivot.z],
+      physics: Matrix.Identity(),
     };
     composeNode(node, local);
     if (parent) multiply(parent.world, 0, local, 0, entry.world, 0);
@@ -184,6 +193,9 @@ export function bindHumanoid(
   };
   let stepDuration = 0;
   const attached: { binding: FrameAttachment; frame: ActionFrame; visible?: () => boolean }[] = [];
+  let physicsAttachments:
+    | { joint: number; offset: Float64Array; frame: Float64Array; matrix: Matrix }[]
+    | null = null;
   const tailEntries = entries.filter((e) => definition.tail?.some((s) => s.index === e.joint));
   const surfaces: RigSurface[] = [];
   const surfaceSources: {
@@ -359,6 +371,13 @@ export function bindHumanoid(
       stepDuration = 0;
     },
     reset(position, heading = binding.heading) {
+      entity.get('ragdoll')?.dispose();
+      entity.remove('ragdoll');
+      if (physicsAttachments) {
+        for (const e of entries) e.node.unfreezeWorldMatrix();
+        for (const a of attached) a.binding.node.unfreezeWorldMatrix();
+      }
+      physicsAttachments = null;
       entity.remove('deathHandoff');
       const root = pose.local[0];
       const x = position?.x ?? root.position.x,
@@ -375,6 +394,10 @@ export function bindHumanoid(
     },
     apply(deferTail = false) {
       if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
+      if (entity.has('ragdoll')) {
+        binding.applyPhysics(entity.require('ragdoll').world);
+        return;
+      }
       evaluatePose(pose);
       for (const entry of entries)
         if (!deferTail || !tailEntries.includes(entry)) applyEntry(entry);
@@ -391,8 +414,124 @@ export function bindHumanoid(
       if (!deferTail) finishHistory();
     },
     applyTail() {
+      if (entity.has('ragdoll')) return;
       for (const entry of tailEntries) applyEntry(entry);
       finishHistory();
+    },
+    applyPhysics(world) {
+      if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
+      if (!physicsAttachments) {
+        grounding.reset();
+        entity.get('blockFeedback')?.reset();
+        physicsAttachments = attached.map((a) => {
+          const joint =
+            definition.index[
+              a.frame === 'shield' ? 'leftHand' : a.frame === 'back' ? 'chest' : 'rightHand'
+            ];
+          inverse(pose.world, joint * 16, inv);
+          const offset = new Float64Array(16);
+          multiply(inv, 0, actions.frames[a.frame], 0, offset, 0);
+          return { joint, offset, frame: new Float64Array(16), matrix: Matrix.Identity() };
+        });
+      }
+      pose.world.set(world);
+      for (const entry of entries) {
+        applyEntry(entry);
+        // Independent rigid rotations under a nonuniformly scaled animated parent would require
+        // local shear. Publish the exact world affine matrix instead of lossy TRS decomposition.
+        Matrix.FromArrayToRef(entry.world, 0, entry.physics);
+        entry.node.freezeWorldMatrix(entry.physics);
+      }
+      for (let i = 0; i < attached.length; i++) {
+        const a = physicsAttachments[i];
+        multiply(world, a.joint * 16, a.offset, 0, a.frame, 0);
+        attached[i].binding.apply(a.frame, entries[0].inverse);
+        Matrix.FromArrayToRef(attached[i].binding.world, 0, a.matrix);
+        attached[i].binding.node.freezeWorldMatrix(a.matrix);
+      }
+      finishHistory();
+    },
+    physicsShapes() {
+      // One coarse box per anatomical body, plus one per held/stowed attachment. Decorative
+      // voxels contribute bounds, never individual physics bodies. Capture once at ownership transfer.
+      const snapshot = history.snapshot();
+      const bodyFrames = snapshot.bodies.map((b) => {
+        scratch.position.set(...b.position);
+        Object.assign(scratch.rotation, {
+          x: b.rotation[0],
+          y: b.rotation[1],
+          z: b.rotation[2],
+          w: b.rotation[3],
+        });
+        scratch.scale.setAll(1);
+        const frame = new Float64Array(16);
+        compose(scratch, frame);
+        return frame;
+      });
+      const groups = new Map<
+        string,
+        { body: number; frame: Float64Array; min: number[]; max: number[] }
+      >();
+      for (const s of surfaceSources) {
+        if (!s.mesh.isEnabled() || !s.mesh.isVisible) continue;
+        const entry = entries.find((e) => e.world === s.matrix);
+        const attachment = attached.findIndex((a) => a.binding.world === s.matrix);
+        const frameName = attachment >= 0 ? attached[attachment].frame : null;
+        const joint =
+          entry?.joint ??
+          definition.index[
+            frameName === 'shield' ? 'leftHand' : frameName === 'back' ? 'chest' : 'rightHand'
+          ];
+        const body = bodyOwner(snapshot, joint);
+        const key = attachment >= 0 ? `attachment:${attachment}` : `body:${body}`;
+        let group = groups.get(key);
+        if (!group) {
+          const frame = new Float64Array(attachment >= 0 ? s.matrix : bodyFrames[body]);
+          orthonormalize(frame);
+          group = {
+            body,
+            frame,
+            min: [Infinity, Infinity, Infinity],
+            max: [-Infinity, -Infinity, -Infinity],
+          };
+          groups.set(key, group);
+        }
+        inverse(group.frame, 0, inv);
+        multiply(s.matrix, 0, s.local, 0, s.world, 0);
+        multiply(inv, 0, s.world, 0, local, 0);
+        for (let corner = 0; corner < 8; corner++) {
+          const p = transformPoint(local, 0, [
+            s.center[0] + ((corner & 4 ? 1 : -1) * s.size[0]) / 2,
+            s.center[1] + ((corner & 2 ? 1 : -1) * s.size[1]) / 2,
+            s.center[2] + ((corner & 1 ? 1 : -1) * s.size[2]) / 2,
+          ]);
+          for (let i = 0; i < 3; i++) {
+            group.min[i] = Math.min(group.min[i], p[i]);
+            group.max[i] = Math.max(group.max[i], p[i]);
+          }
+        }
+      }
+      return [...groups.values()].map((g) => {
+        inverse(bodyFrames[g.body], 0, inv);
+        multiply(inv, 0, g.frame, 0, local, 0);
+        const center = transformPoint(local, 0, [
+          (g.min[0] + g.max[0]) / 2,
+          (g.min[1] + g.max[1]) / 2,
+          (g.min[2] + g.max[2]) / 2,
+        ]);
+        matrixRotation(local, scratch.rotation);
+        const q = scratch.rotation;
+        return {
+          body: g.body,
+          center,
+          size: [
+            Math.max(0.02, g.max[0] - g.min[0]),
+            Math.max(0.02, g.max[1] - g.min[1]),
+            Math.max(0.02, g.max[2] - g.min[2]),
+          ],
+          rotation: [q.x, q.y, q.z, q.w],
+        };
+      });
     },
   };
   bindings.set(rig, binding);
@@ -402,6 +541,8 @@ export function bindHumanoid(
   if (rig.stowed) binding.attach(rig.stowed, 'back');
   binding.reset();
   rig.root.onDisposeObservable.addOnce(() => {
+    entity.get('ragdoll')?.dispose();
+    entity.remove('ragdoll');
     binding.invalidateHistory();
     history.retire();
     entity.remove('deathHandoff');

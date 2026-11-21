@@ -104,7 +104,8 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
 - `src/locomotion.ts`, `src/jump.ts`, `src/rigs/grounding.ts`, `src/animationCurves.ts`,
   `src/actionPoses.ts`: motion, ballistic jumps, ground contact, and procedural poses.
 - `src/rigs/history.ts`, `src/deathHandoff.ts`: final pose/velocity snapshots and pre-stop lethal
-  metadata. Animation owns the pose until P8 explicitly transfers it; resets must not create velocity.
+  metadata. `src/ragdoll.ts` / `src/deathPhysics.ts` transfer death poses to bounded presentation-only
+  physics, then frozen remains; resets must not create velocity or leave frozen living bindings.
 - `src/machines/`: statecharts grouped into `actors/`, `monsters/`, `navigation/`, `world/`,
   and `ui/`; `statechart.ts` is the synchronous transition adapter.
 - `src/buildDungeon.ts`, `src/geometry.ts`, `src/themedProps.ts`, `src/materials.ts`,

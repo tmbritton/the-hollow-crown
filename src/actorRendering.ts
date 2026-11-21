@@ -15,6 +15,7 @@ import { rigBinding } from './rigs/bindings.ts';
 import { profiles } from './rigs/humanoid.ts';
 import { copyLocal } from './rigs/ikMath.ts';
 import { overlaps } from './rigs/tailClearance.ts';
+import { advanceDeathPhysics } from './deathPhysics.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -62,6 +63,7 @@ export const ACTOR_OBSERVATION_RADIUS = 4.8;
 
 /** Render-only deformation: the motor, collision ellipsoid and attack clock stay authoritative. */
 export function animateActors(ecs: ECS, dt: number, time = 0, world?: NavigationWorld): void {
+  if (world) advanceDeathPhysics(ecs, world, dt);
   const carrying = new Set(
     ecs.query('cargo').flatMap((e) => {
       const c = e.require('cargo');
@@ -71,6 +73,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
   const entities = ecs.query('actor', 'rig', 'movement', 'transform');
   // Finish every fallen pose before sampling contacts; ECS insertion order cannot affect feet.
   for (const entity of entities) {
+    if (entity.has('ragdoll')) continue;
     const actor = new Actor(entity),
       binding = entity.require('rigPose'),
       p = actor.position;
@@ -104,7 +107,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       }
     }
   }
-  const corpses = readCorpseTerrain(ecs);
+  const corpses = readCorpseTerrain(ecs, world);
   for (const entity of entities) {
     if (entity.has('corpse')) continue;
     const actor = new Actor(entity),

@@ -214,6 +214,8 @@ async function capture(name: string, alpha: number) {
         for (const mesh of a.entity.require('render').meshes) mesh.computeWorldMatrix(true);
         return {
           slot: m.slot,
+          alive: a.alive,
+          physicalDeath: a.entity.has('ragdoll'),
           guard: a.defending,
           heading: a.position.heading,
           rootHeading: r.root.rotation.y,
@@ -245,7 +247,10 @@ async function capture(name: string, alpha: number) {
     await style.evaluate((n) => n.parentNode?.removeChild(n));
   }
   captures.push(geometry);
-  for (const a of geometry.geometry) assert.ok(Math.abs(a.heading - a.rootHeading) < 1e-6);
+  for (const a of geometry.geometry) {
+    if (a.alive) assert.ok(Math.abs(a.heading - a.rootHeading) < 1e-6);
+    else assert.ok(a.physicalDeath, 'fallen rank members transfer to physics');
+  }
   const gate = geometry.geometry[1];
   if (name === 'front')
     assert.ok(

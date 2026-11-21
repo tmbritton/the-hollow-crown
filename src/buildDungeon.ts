@@ -1,7 +1,14 @@
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { WALL_OFFSET, WALL_THICKNESS, WALL_LENGTH, WALL_BASE, WALL_CAP } from './wallGeometry.ts';
+import {
+  WALL_OFFSET,
+  WALL_THICKNESS,
+  WALL_LENGTH,
+  WALL_BASE,
+  WALL_CAP,
+  DOOR_HEIGHT,
+} from './wallGeometry.ts';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
@@ -434,8 +441,8 @@ export function buildDungeon(
           scene,
           materials[entity.locked ? 'iron' : 'wood'],
           'door plank',
-          [0.47, 2.8, 0.22],
-          [0.25 + i * 0.48, 1.4, 0],
+          [0.47, DOOR_HEIGHT, 0.22],
+          [0.25 + i * 0.48, DOOR_HEIGHT / 2, 0],
           pivot,
           shadow,
         );
@@ -465,10 +472,10 @@ export function buildDungeon(
       entity.angle = 0;
       entity.collider = collision(
         x,
-        h + 1.4,
+        h + DOOR_HEIGHT / 2,
         z,
         alongX ? 0.35 : 2.95,
-        2.8,
+        DOOR_HEIGHT,
         alongX ? 2.95 : 0.35,
         'door collider',
       );

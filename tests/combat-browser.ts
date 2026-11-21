@@ -276,16 +276,19 @@ try {
       g = d.game,
       dead = g.combat.actor(id)!,
       hero = g.player.actor;
+    // P8 settles a physical pose at its actual resting location. Keep that one corpse identity
+    // across the comparisons; hiding it gives the flat control without replaying its death.
+    for (let i = 0; i < 500 && !dead.entity.get('ragdoll')?.settled; i++) d.step([], 1);
+    if (!dead.entity.get('ragdoll')?.settled) throw new Error('corpse did not settle');
+    const crossingStart = { x: dead.position.x - 2.2, z: dead.position.z };
     const surfaces = [...g.world.tiles.values()].map((tile) => ({ tile, surface: tile.surface }));
     try {
       return [false, true].map((run) =>
         ['flat', 'corpse', 'water-corpse'].map((ground) => {
-          if (ground === 'flat') dead.entity.remove('corpse');
-          else dead.entity.add('corpse', { age: 1 });
           dead.entity.require('rig').root.setEnabled(ground !== 'flat');
           for (const { tile, surface } of surfaces)
             tile.surface = ground === 'water-corpse' ? 'water' : surface;
-          d.teleport(-2, 0);
+          d.teleport(crossingStart.x, crossingStart.z);
           g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
           const samples = [];
           for (let i = 0; i < 48; i++) {
@@ -404,7 +407,9 @@ try {
         lastHealth = target.health.current;
       }
     }
-    d.step([], 40);
+    const handoff = target.entity.require('deathHandoff');
+    for (let i = 0; i < 500 && !target.entity.get('ragdoll')?.settled; i++) d.step([], 1);
+    const ragdoll = target.entity.require('ragdoll');
     return {
       moved,
       attackPose,
@@ -412,7 +417,11 @@ try {
       strikes,
       dead: !target.alive,
       corpse: target.entity.has('corpse'),
-      fallen: target.entity.require('rig').root.rotation.x,
+      fallen: ragdoll.settled && ragdoll.contacts > 0 && ragdoll.bodyCount === 0,
+      travelled: Math.hypot(
+        target.position.x - handoff.position[0],
+        target.position.z - handoff.position[2],
+      ),
       target: g.player.actor.attack.target,
       active: g.player.navigator.active,
     };
@@ -425,7 +434,7 @@ try {
   assert.equal(pursuit.strikes, 2);
   assert.equal(pursuit.target, null);
   assert.equal(pursuit.active, false);
-  assert.ok(pursuit.fallen > 1.5);
+  assert.ok(pursuit.fallen && pursuit.travelled > 0.5, JSON.stringify(pursuit));
   await capture('skeleton-corpse');
   pass(
     'Real held click pursues, blends movement into repeated sword strikes, emits dust, and leaves a corpse',

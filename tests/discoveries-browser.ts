@@ -487,14 +487,24 @@ try {
       g = d.game;
     const victim = g.combat.actor(id)!;
     const killer = g.combat.enemies.find((a) => a.kind !== victim.kind)!;
+    const tile = [...g.world.tiles.values()].find(
+      (t) => t.surface === 'stone' && Math.hypot(t.x, t.z) > 15 && victim.navigator.canStand(t),
+    )!;
+    d.teleport(tile.x, tile.z);
+    Object.assign(victim.position, { x: 3, z: 0, h: 0 });
+    victim.entity.require('rigPose').reset(victim.position);
     g.combat.damage(victim, 1000, killer);
-    d.step([], 1);
+    for (let i = 0; i < 500 && !victim.entity.get('ragdoll')?.settled; i++) d.step([], 1);
   }, unseen.actorId);
   assert.deepEqual((await snapshot()).events, []);
   await page.evaluate((id) => {
     const d = window.__dungeon;
-    Object.assign(d.game.combat.actor(id)!.position, { x: 3, z: 0, h: 0 });
-    d.step([], 1);
+    // Find the physical resting place rather than moving only the old logical death coordinate.
+    const p = d.game.combat.actor(id)!.position;
+    d.teleport(p.x - 1, p.z);
+    d.game.camera.target.set(p.x, p.h + 0.6, p.z);
+    d.game.camera.radius = d.game.desiredRadius = 12;
+    d.step([], 60);
   }, unseen.actorId);
   const aftermath = await snapshot();
   assert.equal(aftermath.events.length, 1);

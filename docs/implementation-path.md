@@ -42,7 +42,7 @@ each slice test-first, independently reviewed and committed:
 | A5 | Humanoid-with-tail kobold rig — final independent review READY | Four tapered segments on all twelve kobolds, drawn anatomy/equipment/masonry clearance and stable fallback/corpse settling. Full360/final core342 gates, dense geometry and prolonged-contact regressions, affected suites and production pass; see [tail contract](rig-tails.md). |
 | A6 | Shield anticipation and reaction — complete, final independent review READY | Actor/run-owned accepted-block batches, supporting preparation, coordinated lowering, constraint-aware reversal, bounded recoil and phalanx counter-motion. Full377/core359, actual browser body/grip/contact/lane checks and production pass; both review blockers cleared. See [shield contract](rig-shields.md). |
 | A7 | Rig cutover and death-physics handoff — complete, final independent review READY | Semantic-only pose/reset ownership; detached world/joint/body velocities, death rebasing and pre-stop lethal metadata. Full383/core366, 84 handoffs, real landing/support regressions, 428 catalog samples and cross-system/root/Pages smoke pass. Landing blocker independently cleared; see [handoff contract](rig-handoff.md). |
-| P8 | Directional ragdoll deaths — after A7, not implemented | Apply an exaggerated death impulse in the killing blow's direction using the shared rig's final pose/velocity. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
+| P8 | Directional ragdoll deaths — complete, final independent review READY | Final-pose transfer, seeded launch/spin variation, constrained anatomy/tails, physical walls/treads and frozen relocated remains. Full389 checkpoint/core373, eleven browser sequences, 24 structural-contact cases, real melee/bolt/javelin, all-24 stress, pause/reset/respawn and root/Pages smokes pass. Both contact blockers independently cleared; see [contract](ragdoll-deaths.md). |
 | P9 | Skeleton breakup and settled bone decoration — queued after P8 | Skeleton deaths launch separated procedural body parts instead of retaining an intact corpse. Parts collide and settle as non-interactive set decoration. Reuse the death-motion foundation; preserve death/discovery semantics, bounded resources, pause and regeneration cleanup, with real-browser visual checks. |
 
 P1's resource-fix slice is committed as **`6378d61`**. **P2 corpse traversal is committed at
@@ -60,7 +60,7 @@ A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration 
 and reviewed READY. A4 action/equipment/work/social migration is also verified and independently
 reviewed READY. A5 articulated tails is implemented, verified and independently reviewed READY.
 A6 shield motion is implemented, verified and independently reviewed READY; both blockers cleared.
-A7 is implemented, verified and independently reviewed READY. P8 is next, then P9.**
+A7 and P8 are implemented, verified and independently reviewed READY. P9 is next.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 

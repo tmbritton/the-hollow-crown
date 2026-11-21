@@ -100,12 +100,15 @@ A4 action/equipment/work/social migration is implemented, verified and independe
 A5 articulated tails is implemented, verified and independently reviewed **READY**.
 A6 shield motion is implemented, verified and independently reviewed **READY**.
 A7 rig cutover/death handoff is implemented, verified and independently reviewed **READY**.
-P8 directional ragdolls and P9 skeleton debris remain next.
+P8 directional, seed-varied ragdolls are implemented, verified and independently reviewed **READY**.
+P9 skeleton debris remains next.
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
 [A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md),
 [A4 action/grip contracts](docs/rig-actions.md), and [A5 articulated tails](docs/rig-tails.md).
 The [A6 shield contract](docs/rig-shields.md) describes anticipation, lowering and confirmed recoil.
 The [A7 handoff contract](docs/rig-handoff.md) documents final pose/velocity snapshots and retirement.
+The [P8 ragdoll contract](docs/ragdoll-deaths.md) documents directional launches, seeded variation,
+physical contacts and bounded settling.
 
 ## Play
 
@@ -201,7 +204,7 @@ The adventurer briefly loads against travel before pushing off, then braces, rec
 
 Characters turn toward measured velocity and lean into acceleration, braking and turns. Articulated knees and two-bone leg solving keep stance feet near sampled ground heights, with short world-space foot plants released at reach limits or action changes. Running bounce follows cadence and gravity. Analytic damped springs absorb landing speed, ease cover crouches, and carry cape motion through interruptions. Sword interpolation carries velocity through contact instead of stopping at every intermediate pose. The overhead camera and ground ring follow the support plane through jumps.
 
-Corpse contact samples the actual oriented voxel boxes after the death pose settles (0.62s).
+Corpse contact samples the actual oriented voxel boxes after the physical body settles.
 The shared rig planner builds stance/swing/flight sole targets, tilts feet to terrain slopes and
 checks final drawn sole corners after coordinated body/limb solving. World plants track the sole
 centre and release explicitly at reach/turn limits. Running flight and real jumps retain their
@@ -223,8 +226,8 @@ Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack
 
 Every kobold has a four-segment tapered tail, with damped turn/gait follow-through, jump tuck,
 attack counter-motion and retreat lift. Tails curl around floors, walls, nearby bodies and carried
-equipment while preserving formation spacing. They pause/reset with presentation and settle with
-the temporary death pose; they do not enlarge collision, selection or attack reach.
+equipment while preserving formation spacing. They pause/reset with presentation and become part
+of the articulated death physics; they do not enlarge living collision, selection or attack reach.
 Clearance uses current drawn anatomy/equipment and physical wall trim. Impossible close contacts
 retain a stable bounded fallback; settled corpse tails never dodge living actors.
 
@@ -286,7 +289,7 @@ at once. Phalanx opening and recovery sample the existing group clocks, with han
 guarded spear lane covered. Repeated rendering cannot replay a hit; menus, focus loss, teleport,
 jump and death clear the appropriate presentation state.
 
-Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths buckle before falling, compress on contact and rebound briefly into their final corpse pose. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These render-only curves keep controls, collision and damage timing authoritative.
+Sword wind-up, contact and follow-through are sampled against that same impact clock. Crossbows have a separate aim/recoil/settle motion. Deaths launch into articulated ragdolls with bounded seeded variation, collide with walls and visible stair treads, then settle into persistent non-blocking remains. Card gestures, pipe puffs and hacky-sack kicks also have preparation and follow-through; the receiver prepares before a pass arrives. These presentation systems keep controls, living collision and damage timing authoritative.
 
 ## What is procedural?
 
@@ -349,6 +352,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/skeletonGait.ts` | Stateless distance-sampled skeleton lurch and shared stance/swing phase mapping |
 | `src/jump.ts` | Frame-rate-independent jump trajectory, preload, airborne elevation and landing impacts |
 | `src/rigs/history.ts`, `src/deathHandoff.ts` | Final pose/velocity snapshots, death rebasing and pre-stop lethal-hit handoff |
+| `src/ragdoll.ts`, `src/deathPhysics.ts` | Bounded directional/seed-varied death physics, physical treads/walls, run-owned transfer and retirement |
 | `src/animationCurves.ts` / `src/actionPoses.ts` | Smooth/velocity-continuous curves, analytic springs, volume-preserving deformation, jump/attack/death/social poses |
 | `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
@@ -482,6 +486,11 @@ See [the handoff contract](docs/rig-handoff.md).
 `npm run test:rig:handoff:landing` adds actual lethal landing boundaries before/after publication,
 full-tick lava/respawn and independent uphill/downhill support-velocity controls.
 
+`npm run test:ragdoll` checks real death entries, launches, wall impacts, stair falls, actual settled
+geometry, all-24-body stress, pause/reset/respawn and regeneration. Reports and two-camera sampled
+motion captures go under `test-results/p8-*`; see [the P8 contract](docs/ragdoll-deaths.md).
+`npm run test:ragdoll:contacts` adds actual upper-door and settled wall-base/corner contact checks.
+
 ### Entity/component architecture
 
 `game.ecs` is the runtime registry. Player, enemies, doors, interactables, props, obstacles, rooms, tiles, render batches, projectiles, and hit particles have entity IDs and attachable components. Generated world data is registered **by reference**, preserving the existing pure generation/validation pipeline and preventing duplicate door or interaction state. A batched mesh can render many logical floor/prop entities efficiently.
@@ -501,14 +510,16 @@ Components describe transform, health, actor capabilities, movement, navigation,
 Every rendered actor now owns a `rigPose` component: a shared immutable humanoid definition,
 independent numerical pose/history buffers, the locomotion/contact planner, and the binding to
 existing geometry. Living motion produces canonical poses, sole targets and required equipment
-grips; action/social/work layers and the temporary death collapse share the pose buffer. The binding
+grips; action/social/work layers share the pose buffer until death physics takes ownership. The binding
 performs final mesh and socket application; legacy pose adapters/blend aliases are removed. Logical hand/head
 joints and grip/sole frames add no scene nodes. Both kobold roles share anatomy.
 Their `humanoid-with-tail` extension adds four pelvis-rooted joints and `rigPose.tail` presentation
 state; the tail layer consumes the final body solve before the binding applies the shared pose.
 `rigPose.history` publishes completed fixed-step transforms and extracts detached joint/body velocity
 snapshots on demand. Accepted lethal damage captures `deathHandoff` before cancellation clears motor
-and jump state. P8 will consume this backend-neutral contract; the current collapse remains active.
+and jump state. P8 consumes this backend-neutral contract once, then writes physical world poses and
+freezes the final remains. The earlier age-sampled collapse remains only for synthetic pose fixtures
+without an accepted lethal handoff.
 
 ```ts
 import { Health } from './src/machines/actors/health.ts';

@@ -6,6 +6,8 @@ import type { Attack } from './machines/actors/attack.ts';
 import type { Defense } from './machines/actors/defense.ts';
 import type { BlockFeedback } from './blockFeedback.ts';
 import type { DeathHandoff } from './deathHandoff.ts';
+import type { Ragdoll, TerrainBox } from './ragdoll.ts';
+import type { DeathPhysics } from './deathPhysics.ts';
 import type { Health } from './machines/actors/health.ts';
 import type { MonsterBehavior, BrainState } from './machines/monsters/index.ts';
 import type { SocialGroup } from './social.ts';
@@ -72,6 +74,9 @@ export interface Components {
   defense: Defense;
   blockFeedback: BlockFeedback;
   deathHandoff: DeathHandoff;
+  ragdoll: Ragdoll;
+  deathPhysics: DeathPhysics;
+  physicalObstacles: readonly TerrainBox[];
   brain: {
     readonly state: BrainState;
     behavior: MonsterBehavior;
