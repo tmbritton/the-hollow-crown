@@ -4,15 +4,17 @@ import type { NavigationWorld } from '../navigation.ts';
 import { heightAt, tileAt } from '../world.ts';
 import type { DoorEntity, Footprint, Tile } from '../worldTypes.ts';
 import type { ActionRig } from './actions.ts';
-import type { PoseBuffer, XYZ } from './types.ts';
+import type { XYZ } from './types.ts';
 import type { TailBounds } from './tail.ts';
+import { WALL_OFFSET, WALL_THICKNESS, WALL_LENGTH, WALL_BASE, WALL_CAP } from '../wallGeometry.ts';
 
-const indexes = new WeakMap<NavigationWorld, Map<string, Footprint[]>>();
-function index(world: NavigationWorld): Map<string, Footprint[]> {
+type StaticBox = Footprint & { minY?: number; maxY?: number };
+const indexes = new WeakMap<NavigationWorld, Map<string, StaticBox[]>>();
+function index(world: NavigationWorld): Map<string, StaticBox[]> {
   const cached = indexes.get(world);
   if (cached) return cached;
-  const cells = new Map<string, Footprint[]>();
-  for (const box of world.blockers)
+  const cells = new Map<string, StaticBox[]>();
+  const insert = (box: StaticBox) => {
     for (let x = Math.floor(box.x - box.w / 2); x <= Math.floor(box.x + box.w / 2); x++)
       for (let z = Math.floor(box.z - box.d / 2); z <= Math.floor(box.z + box.d / 2); z++) {
         const key = `${x},${z}`,
@@ -20,10 +22,44 @@ function index(world: NavigationWorld): Map<string, Footprint[]> {
         list.push(box);
         cells.set(key, list);
       }
+  };
+  for (const box of world.blockers) insert(box);
+  for (const t of world.tiles.values())
+    for (const [dx, dz] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      if (world.tiles.has(`${t.x + dx},${t.z + dz}`)) continue;
+      const x = t.x + dx * WALL_OFFSET,
+        z = t.z + dz * WALL_OFFSET;
+      const w = dx ? WALL_THICKNESS : WALL_LENGTH,
+        d = dz ? WALL_THICKNESS : WALL_LENGTH;
+      for (const s of WALL_BASE)
+        insert({
+          x,
+          z,
+          w: w + s.overhang,
+          d: d + s.overhang,
+          minY: t.h + s.center - s.height / 2,
+          maxY: t.h + s.center + s.height / 2,
+        });
+      const courses = Math.floor((t.room ? 2.3 : 1.5) / 0.46 + 1e-6);
+      insert({ x, z, w, d, minY: t.h + 0.72, maxY: t.h + 0.74 + courses * 0.46 });
+      insert({
+        x,
+        z,
+        w: w + WALL_CAP.overhang,
+        d: d + WALL_CAP.overhang,
+        minY: t.h + 0.74 + courses * 0.46 - WALL_CAP.height / 2,
+        maxY: t.h + 0.74 + courses * 0.46 + WALL_CAP.height / 2,
+      });
+    }
   indexes.set(world, cells);
   return cells;
 }
-function overlaps(a: TailBounds, b: TailBounds): boolean {
+export function overlaps(a: TailBounds, b: TailBounds): boolean {
   if (
     !(
       a.minX < b.maxX &&
@@ -90,7 +126,7 @@ function overlaps(a: TailBounds, b: TailBounds): boolean {
         return false;
   return true;
 }
-const empty = (oriented = false): TailBounds => ({
+export const clearanceBox = (oriented = false): TailBounds => ({
   minX: 0,
   minY: 0,
   minZ: 0,
@@ -99,7 +135,13 @@ const empty = (oriented = false): TailBounds => ({
   maxZ: 0,
   ...(oriented ? { corners: new Float64Array(24) } : {}),
 });
-function box(out: TailBounds, matrix: Float64Array, offset: number, center: XYZ, size: XYZ): void {
+export function setClearanceBox(
+  out: TailBounds,
+  matrix: Float64Array,
+  offset: number,
+  center: XYZ,
+  size: XYZ,
+): void {
   const c = [0, 0, 0],
     extent = [0, 0, 0];
   for (let row = 0; row < 3; row++) {
@@ -127,32 +169,33 @@ function box(out: TailBounds, matrix: Float64Array, offset: number, center: XYZ,
             ((matrix[offset + 8 + row] * size[2]) / 2) * z;
 }
 
+/** Binding-owned snapshots of the final drawn anatomy/equipment. Tail solving only reads them. */
+export interface RigSurface {
+  readonly name: string;
+  readonly bounds: TailBounds;
+  readonly rootJoin: boolean;
+  readonly tail: boolean;
+  enabled: boolean;
+}
+export const RIG_SURFACE_LIMIT = 64;
+
 /** Render-only conservative AABBs. Static obstacles are indexed once per world; doors retain
  * their live collision state. No navigation/occupancy mutation or whole-scene matrix traversal. */
 export class TailClearance {
   private world?: NavigationWorld;
-  private cells?: Map<string, Footprint[]>;
+  private cells?: Map<string, StaticBox[]>;
   private doors: DoorEntity[] = [];
-  private readonly body = empty(true);
-  private readonly equipment = empty(true);
-  private readonly cargo = empty(true);
-  private hasEquipment = false;
+  private own: readonly RigSurface[] = [];
+  private readonly cargo = clearanceBox(true);
   private hasCargo = false;
-  private readonly neighbors = Array.from({ length: 25 }, () => empty());
-  private neighborCount = 0;
+  private readonly neighbors: RigSurface[] = [];
   private support = 0;
   private tileX = NaN;
   private tileZ = NaN;
   private tile?: Tile;
   floorQueries = 0;
   reason = '';
-  prepare(
-    pose: PoseBuffer,
-    actor: Actor,
-    ecs: ECS,
-    actions: ActionRig,
-    world?: NavigationWorld,
-  ): void {
+  prepare(actor: Actor, ecs: ECS, actions: ActionRig, world?: NavigationWorld): void {
     this.floorQueries = 0;
     this.tileX = this.tileZ = NaN;
     if (this.world !== world) {
@@ -161,44 +204,45 @@ export class TailClearance {
       this.doors = world?.entities.filter((e) => e.type === 'door') ?? [];
     }
     this.support = actor.position.h;
-    box(this.body, pose.world, pose.definition.index.spine * 16, [0, 0.27, 0], [0.58, 0.55, 0.36]);
-    this.hasEquipment = actions.stowed && actor.entity.get('squadMember')?.role === 'shieldbearer';
-    if (this.hasEquipment)
-      box(this.equipment, actions.frames.back, 0, [-0.24, -0.02, -0.04], [0.62, 0.72, 0.14]);
+    this.own = actor.entity.get('rigPose')?.surfaces ?? [];
     this.hasCargo = actions.carrying;
-    if (this.hasCargo) box(this.cargo, actions.frames.cargo, 0, [0, 0.26, 0], [0.66, 0.53, 0.53]);
-    this.neighborCount = 0;
+    if (this.hasCargo)
+      setClearanceBox(this.cargo, actions.frames.cargo, 0, [0, 0.26, 0], [0.66, 0.53, 0.53]);
+    this.neighbors.length = 0;
+    // Falling/settled remains never dodge living bodies. This also keeps their contact surface
+    // independent of the actor currently stepping over it.
+    if (actor.entity.has('corpse')) return;
     for (const e of ecs.query('actor', 'transform', 'health')) {
       if (e === actor.entity || e.require('health').current <= 0 || e.has('corpse')) continue;
       const p = e.require('transform');
-      if (Math.hypot(p.x - actor.position.x, p.z - actor.position.z) > 2) continue;
-      if (this.neighborCount === this.neighbors.length) break;
-      const b = this.neighbors[this.neighborCount++];
-      b.minX = p.x - 0.3;
-      b.maxX = p.x + 0.3;
-      b.minZ = p.z - 0.3;
-      b.maxZ = p.z + 0.3;
-      b.minY = p.h;
-      b.maxY = p.h + 1.55;
+      // Include long weapons, not just the living motor footprint.
+      if (Math.hypot(p.x - actor.position.x, p.z - actor.position.z) > 6) continue;
+      for (const surface of e.get('rigPose')?.surfaces ?? []) {
+        // Earlier IDs retain priority over later decorative tails, independent of ECS order.
+        // Every body's anatomy/equipment remains protected regardless of that ordering.
+        if (surface.enabled && (!surface.tail || e.id < actor.id)) this.neighbors.push(surface);
+      }
     }
   }
   readonly clear = (b: TailBounds, segment = 0): boolean => {
     this.reason = '';
     // The proximal link emerges through the pelvis/vest seam. Distal links may never re-enter it.
-    if (segment > 0 && overlaps(b, this.body)) {
-      this.reason = 'body';
-      return false;
-    }
-    if (this.hasEquipment && overlaps(b, this.equipment)) {
-      this.reason = 'equipment';
-      return false;
-    }
+    for (const surface of this.own)
+      if (
+        surface.enabled &&
+        !surface.tail &&
+        !(segment === 0 && surface.rootJoin) &&
+        overlaps(b, surface.bounds)
+      ) {
+        this.reason = 'body/equipment';
+        return false;
+      }
     if (this.hasCargo && overlaps(b, this.cargo)) {
       this.reason = 'cargo';
       return false;
     }
-    for (let i = 0; i < this.neighborCount; i++)
-      if (overlaps(b, this.neighbors[i])) {
+    for (const surface of this.neighbors)
+      if (overlaps(b, surface.bounds)) {
         this.reason = 'neighbor';
         return false;
       }
@@ -209,6 +253,8 @@ export class TailClearance {
       for (let z = Math.floor(b.minZ); z <= Math.floor(b.maxZ); z++)
         for (const obstacle of this.cells?.get(`${x},${z}`) ?? [])
           if (
+            (obstacle.minY === undefined || b.maxY > obstacle.minY) &&
+            (obstacle.maxY === undefined || b.minY < obstacle.maxY) &&
             b.minX < obstacle.x + obstacle.w / 2 &&
             b.maxX > obstacle.x - obstacle.w / 2 &&
             b.minZ < obstacle.z + obstacle.d / 2 &&

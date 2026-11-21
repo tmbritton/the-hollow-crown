@@ -7,7 +7,8 @@ import type { XYZ } from './types.ts';
 export class FrameAttachment {
   readonly node: TransformNode;
   private readonly offset: XYZ;
-  private readonly world = new Float64Array(16);
+  /** Final attachment frame, also read by render-only clearance snapshots. */
+  readonly world = new Float64Array(16);
   private readonly local = new Float64Array(16);
   constructor(node: TransformNode, offset: XYZ = [0, 0, 0]) {
     this.node = node;

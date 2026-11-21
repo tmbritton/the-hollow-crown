@@ -1,6 +1,7 @@
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { WALL_OFFSET, WALL_THICKNESS, WALL_LENGTH, WALL_BASE, WALL_CAP } from './wallGeometry.ts';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
@@ -189,13 +190,21 @@ export function buildDungeon(
       [0, -1],
     ]) {
       if (world.tiles.has(key(t.x + dx, t.z + dz))) continue;
-      const x = t.x + dx * 0.7,
-        z = t.z + dz * 0.7;
-      const w = dx ? 0.4 : 1.05,
-        d = dz ? 0.4 : 1.05;
-      box('dark', x, t.h + 0.12, z, w + 0.12, 0.24, d + 0.12);
-      box('stone', x, t.h + 0.43, z, w, 0.4, d, 0.9);
-      box('trim', x, t.h + 0.66, z, w + 0.05, 0.09, d + 0.05, 0.7);
+      const x = t.x + dx * WALL_OFFSET,
+        z = t.z + dz * WALL_OFFSET;
+      const w = dx ? WALL_THICKNESS : WALL_LENGTH,
+        d = dz ? WALL_THICKNESS : WALL_LENGTH;
+      for (const section of WALL_BASE)
+        box(
+          section.material,
+          x,
+          t.h + section.center,
+          z,
+          w + section.overhang,
+          section.height,
+          d + section.overhang,
+          section.shade,
+        );
       wallColliderBatch.box('collider', x, t.h + 1.7, z, w, 3.4, d);
       const groupId = `${t.room || 'corridor'}:${dx},${dz}:${Math.floor(t.x / 18)},${Math.floor(t.z / 18)}:${t.h.toFixed(2)}`;
       if (!wallGroups.has(groupId))
@@ -235,9 +244,9 @@ export function buildDungeon(
         x,
         t.h + 0.74 + courses * 0.46,
         z,
-        w + 0.14,
-        0.14,
-        d + 0.14,
+        w + WALL_CAP.overhang,
+        WALL_CAP.height,
+        d + WALL_CAP.overhang,
         0.76,
         63,
         groupId,

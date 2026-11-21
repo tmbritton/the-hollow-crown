@@ -52,11 +52,17 @@ export function createSocialRendering(
       [0, 0, 0],
       hand,
     );
-    binding.attach(card, 'card', [0, 0, 0.1]);
-    binding.attach(pipe, 'pipe', [-0.08, 0, 0]);
-    binding.attach(ember, 'pipe', [-0.18, 0.02, 0]);
+    const smoking = () => isSocializing(actor) && actor.brain?.state === 'smoke';
+    binding.attach(
+      card,
+      'card',
+      [0, 0, 0.1],
+      () => isSocializing(actor) && actor.brain?.state === 'cards',
+    );
+    binding.attach(pipe, 'pipe', [-0.08, 0, 0], smoking);
+    binding.attach(ember, 'pipe', [-0.18, 0.02, 0], smoking);
     actor.entity.require('render').meshes.push(card, pipe, ember);
-    return { actor, card, pipe, ember };
+    return { actor, ember };
   });
   const balls: { mesh: Mesh; group: SocialGroup }[] = [];
   for (const group of groups.values()) {
@@ -114,12 +120,9 @@ export function createSocialRendering(
       let activeSmoke = false;
       matrices.fill(0);
       for (let i = 0; i < matrices.length / 16; i++) matrices[i * 16 + 15] = 1;
-      held.forEach(({ actor, card, pipe, ember }, index) => {
+      held.forEach(({ actor, ember }, index) => {
         const active = isSocializing(actor);
-        card.setEnabled(active && actor.brain?.state === 'cards');
         const smoking = active && actor.brain?.state === 'smoke';
-        pipe.setEnabled(smoking);
-        ember.setEnabled(smoking);
         if (!smoking) return;
         ember.computeWorldMatrix(true);
         const origin = ember.getAbsolutePosition();

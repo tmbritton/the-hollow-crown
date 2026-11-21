@@ -182,6 +182,12 @@ run, even from a seeded URL. Use a new navigation or the harness/menu to repeat 
 
 ## Verification and repository hygiene
 
+- Automatically launch an independent review subagent after completing an implementation and its
+  verification, before reporting the feature ready for delivery. Do not wait for the user to ask.
+  The reviewer should inspect the diff and acceptance contracts, reuse trustworthy completed checks,
+  and add targeted independent probes for suspected gaps. Address blocking findings, rerun affected
+  checks, and obtain a follow-up review. Record the verdict and attributed evidence honestly; never
+  label a feature independently reviewed before that review has occurred.
 - For code changes, run `npm run format:check`, `npm run lint`, `npm test`, and `npm run build`,
   plus the targeted browser suite for affected behavior. Everyday pure/model tests already run
   under `npm test`; use the focused model command during statechart iteration. Run the extended/full

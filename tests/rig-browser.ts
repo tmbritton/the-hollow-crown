@@ -401,7 +401,7 @@ try {
     delete window.rigIdentityCheck;
   });
   assert.ok(
-    cost.maxTileQueries <= 25 * 66 + 12 * 76 * 8 * 2,
+    cost.maxTileQueries <= 25 * 66 + 12 * 100 * 8 * 2,
     'bounded grounding and tail clearance queries',
   );
   const resets = [];

@@ -63,7 +63,10 @@ test('semantic binding preserves neutral geometry and writes independent head/li
       socialBlend: 0,
       socialPose: null,
     };
-    const entity = new ECS().create('actor').add('rig', rig);
+    const entity = new ECS()
+      .create('actor')
+      .add('rig', rig)
+      .add('render', { root, meshes: [head] });
     const nodes = scene.transformNodes.length,
       meshes = scene.meshes.length;
     head.computeWorldMatrix(true);
@@ -84,6 +87,21 @@ test('semantic binding preserves neutral geometry and writes independent head/li
     setEuler(binding.pose.local[binding.pose.definition.index.head], 0.4, 0.2, 0);
     binding.apply();
     head.computeWorldMatrix(true);
+    binding.sampleSurfaces();
+    assert.equal(binding.surfaces.length, 2);
+    const corners = binding.surfaces[0].bounds.corners!;
+    const bounds = head.getBoundingInfo().boundingBox;
+    for (let i = 0; i < 8; i++) {
+      const point = Vector3.TransformCoordinates(
+        new Vector3(
+          i & 4 ? bounds.maximum.x : bounds.minimum.x,
+          i & 2 ? bounds.maximum.y : bounds.minimum.y,
+          i & 1 ? bounds.maximum.z : bounds.minimum.z,
+        ),
+        head.getWorldMatrix(),
+      );
+      assert.ok(point.asArray().every((v, axis) => Math.abs(v - corners[i * 3 + axis]) < 1e-6));
+    }
     assert.notDeepEqual(
       [...head.getWorldMatrix().m],
       before,

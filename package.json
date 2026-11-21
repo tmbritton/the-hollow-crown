@@ -45,6 +45,7 @@
     "test:rig:solver": "node tests/rig-solver-browser.ts",
     "test:rig:actions": "node tests/rig-actions-browser.ts",
     "test:rig:tails": "node tests/rig-tail-browser.ts",
+    "test:rig:tails:clearance": "node tests/rig-tail-clearance-browser.ts",
     "test:jump": "node tests/jump-browser.ts",
     "test:combat": "node tests/combat-browser.ts",
     "test:defense": "node tests/defense-browser.ts",

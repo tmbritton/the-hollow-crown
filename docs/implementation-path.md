@@ -26,7 +26,7 @@ each slice test-first, independently reviewed and committed:
 | A2 | Coordinated full-body IK — complete, independent review READY | Four-pass bounded solver, simultaneous contacts/grips, orientation/limits, explicit priorities and residuals. 323 everyday tests; 1,210 actual-mesh browser samples, resource plateau and bounded costs. See [solver contract](rig-solver.md). |
 | A3 | Locomotion and grounding migration — complete, independent review READY | All living actor kinds compose semantic poses and coordinated sole targets. 330 tests; 428 A0-identical authority samples, final sole/plant checks, animation/movement/jump/production passes and bounded cost/resource checks. See [grounding contract](rig-grounding.md). |
 | A4 | Action, equipment, work and social migration — complete, final independent review READY | Shared action layers, coordinated grips, solved sockets and semantic collapse. 336 tests, 428 A0-identical authority samples, actual shaft/cargo/death regressions, affected browsers and production smoke. All three review blockers cleared; see [action contract](rig-actions.md). |
-| A5 | Humanoid-with-tail kobold rig — implemented and locally verified; independent review pending | Four tapered segments on all twelve kobolds; bounded secondary motion/clearance and collapse/reset. 342 tests, 4,488 browser frames, affected suites/production and bounded cost/resource checks; see [tail contract](rig-tails.md). |
+| A5 | Humanoid-with-tail kobold rig — final independent review READY | Four tapered segments on all twelve kobolds, drawn anatomy/equipment/masonry clearance and stable fallback/corpse settling. Full360/final core342 gates, dense geometry and prolonged-contact regressions, affected suites and production pass; see [tail contract](rig-tails.md). |
 | A6 | Shield anticipation and reaction | Body/arm preparation, decisive guarding and controlled lowering; confirmed once-only directional block recoil and recovery. Preserve instant F defense and the phalanx's authoritative vulnerability windows. |
 | A7 | Rig cutover and death-physics handoff | Remove legacy pose writers after every animation migrates; validate solved pose/velocity snapshots, resets, resources and production delivery before physics takes over. |
 | P8 | Directional ragdoll deaths — after A7, not implemented | Apply an exaggerated death impulse in the killing blow's direction using the shared rig's final pose/velocity. Bodies should travel several feet, collide with walls and tumble down stairs. Keep live-actor collision and corpse traversal unaffected; bound simulation work, settle/sleep bodies, and clean up on regeneration. Verify actual melee/projectile death paths and inspect motion captures. |
@@ -45,8 +45,8 @@ the actual hosted production game. **T2 test-feedback work is implemented and in
 reviewed READY. A0 motion review is also implemented and independently reviewed READY.
 A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration are also complete
 and reviewed READY. A4 action/equipment/work/social migration is also verified and independently
-reviewed READY. A5 articulated tails is implemented and locally verified, awaiting independent
-review. A6 shield motion is next; A6–A7 remain planned before P8/P9.**
+reviewed READY. A5 articulated tails is implemented, verified and independently reviewed READY.
+A6 shield motion is next; A6–A7 remain planned before P8/P9.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -136,8 +136,9 @@ inventory, campaign persistence and alternative victory modes retain their roadm
    During iteration, use focused failing regressions. Run one appropriate browser verification
    pass per feature; reserve full gameplay/cross-browser expansion for cross-cutting changes or
    unresolved concerns. Run rendering-heavy checks sequentially and close their browsers.
-5. Request an independent sub-agent code review of the feature diff. Address findings and
-   rerun the checks affected by any fixes. Record the review outcome.
+5. Automatically request an independent sub-agent code review after implementation and verification,
+   before reporting it ready for delivery; do not wait for a user prompt. Address blocking findings,
+   rerun affected checks and obtain a follow-up review. Record the attributed review outcome.
    Reviewers reuse recorded verification and prioritize diff inspection and independent targeted
    failure probes. Repeat broad suites only when findings, fixes or uncertain evidence justify it.
 6. Update documentation and verification records with only checks actually run. Inspect

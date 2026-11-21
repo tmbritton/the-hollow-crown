@@ -94,7 +94,7 @@ test('infeasible tail contacts report a bounded fallback with hard limits and fi
     () => false,
   );
   assert.equal(tail.blocked, true);
-  assert.equal(tail.queries, 60);
+  assert.equal(tail.queries, 76);
   assert.ok(tail.evaluations <= TAIL_BUDGET.evaluations);
   for (const [i, s] of definition.tail!.entries())
     for (let axis = 0; axis < 2; axis++) {
@@ -145,6 +145,18 @@ test('tail death handoff retains entry pose, samples age independently and retir
   assert.deepEqual([...progressive.pose.world], [...direct.pose.world]);
   assert.ok(direct.tail.velocities.every((v) => v === 0));
   assert.equal(direct.tail.blocked, false);
+  const settled = [...direct.pose.world];
+  let queries = 0;
+  direct.tail.sample(
+    direct.pose,
+    { dt: 1 / 60, speed: 0, stride: 0, forward: 0, airborne: false, attack: 0, age: 2 },
+    () => {
+      queries++;
+      return false;
+    },
+  );
+  assert.equal(queries, 0, 'settled remains never reactivate clearance against a new visitor');
+  assert.deepEqual([...direct.pose.world], settled);
 });
 
 test('tail clearance reads only nearby live door state and ignores inflated prop navigation cells', () => {
@@ -188,7 +200,7 @@ test('tail clearance reads only nearby live door state and ignores inflated prop
   evaluatePose(pose);
   tail.apply(pose);
   actions.finish(pose);
-  clearance.prepare(pose, actor, ecs, actions, world);
+  clearance.prepare(actor, ecs, actions, world);
   for (let i = 0; i < 4; i++) assert.ok(clearance.clear(tail.segmentBounds(pose, i), i));
   assert.equal(reads, 0, 'distant chart-backed doors need no snapshot reads');
   door.x = 0;

@@ -327,7 +327,7 @@ try {
     assert.ok(s.minFloor >= -0.001, `${s.profile}/${s.clip}: floor ${s.minFloor}`);
     assert.equal(s.blocked.length, 0, `${s.profile}/${s.clip}: blocked ${s.blocked}`);
     assert.equal(s.equipmentIntersections, 0, `${s.profile}/${s.clip}: equipment intersections`);
-    assert.ok(s.maxQueries <= 76 && s.maxEvaluations <= 80);
+    assert.ok(s.maxQueries <= 100 && s.maxEvaluations <= 104);
   }
   for (const h of edges.handoffs) assert.equal(h.blocked, 0, `${h.profile}: slung cargo conflict`);
   console.log(

@@ -85,7 +85,7 @@ workflow URL and hosted smoke result in `VERIFICATION.md`. P7 is complete. The p
 independently reviewed READY**, and **A1's shared rig foundation is implemented and reviewed READY**.
 **A2's coordinated solver and A3's locomotion/contact migration are also implemented and independently reviewed READY.**
 A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.
-A5 articulated tails is implemented and locally verified; independent review is pending.
+A5 articulated tails is implemented, verified and independently reviewed **READY**.
 A6 shield motion is next, then A7, P8 directional ragdolls and P9 skeleton debris.
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
 [A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md),
@@ -209,6 +209,8 @@ Every kobold has a four-segment tapered tail, with damped turn/gait follow-throu
 attack counter-motion and retreat lift. Tails curl around floors, walls, nearby bodies and carried
 equipment while preserving formation spacing. They pause/reset with presentation and settle with
 the temporary death pose; they do not enlarge collision, selection or attack reach.
+Clearance uses current drawn anatomy/equipment and physical wall trim. Impossible close contacts
+retain a stable bounded fallback; settled corpse tails never dodge living actors.
 
 Skeletons load the left leg through a longer forward/sideways sag, then take a shorter, quicker
 catch-up step. The ribs twist and the skull trails their recovery. This procedural lurch follows
@@ -297,6 +299,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/actorRendering.ts` | Shared ellipsoid collision adapter and locomotion/attack/death rig animation |
 | `src/rigs/` | Shared humanoid definitions/profiles, quaternion pose/FK, live locomotion/grounding and action/grip planners, bounded solver/residuals, socket attachments, temporary collapse, compatibility bridge and final mesh bindings |
 | `src/rigs/tail.ts` / `src/rigs/tailClearance.ts` | Shared tailed-humanoid extension, bounded angular follow-through, clearance projection and age-sampled tail collapse |
+| `src/wallGeometry.ts` | Shared physical masonry profile for procedural wall construction and render-only clearance |
 | `src/combat.ts` | Seeded encounters, enemy decisions, pursuit, attack timing, health/death, projectiles and particle simulation |
 | `src/koboldSquads.ts` / `src/machines/monsters/koboldSquad.ts` | Original role/slot references, bounded physical rank assembly, shared attack/opening phases and unit withdrawal |
 | `src/attackKinds.ts` / `src/phalanxPoses.ts` | Shared action geometry/timing contracts and simulation-clock-sampled spear/throw presentation |
@@ -435,6 +438,10 @@ observation bounds and pose continuity, including every throw start/release/reco
 actual mesh/FK agreement, floor/equipment clearance, bounds, zero-time reads, wall/door tuck and
 release, teleports and cargo handoffs. `TAIL_CLIPS=travel,stairs-down,hackysack` selects focused
 sequences. See [the tail contract](docs/rig-tails.md).
+
+`npm run test:rig:tails:clearance` adds independent actual-mesh checks for every active group member,
+neighboring limbs/equipment/tails, generated masonry and stable settled corpses. It also tests
+reversed ECS order, first-frame prop visibility and prolonged partial-contact settling/release.
 
 ### Entity/component architecture
 

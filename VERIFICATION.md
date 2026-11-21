@@ -4,7 +4,103 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
-### A5 — articulated kobold tails — 2026-11-20 (locally verified; independent review pending)
+### A5 — independent review corrections — 2026-11-20 (final review READY)
+
+The independent reviewer inspected initial delivery **`688e491`**, reproduced three blockers, then
+found a fourth during corrective follow-up. All four are now cleared by a final **READY** review
+of the corrections recorded in this delivery. `AGENTS.md` and the delivery workflow now explicitly
+require automatic review after implementation/verification, fixes and follow-up review before delivery.
+
+**Reproduced blockers and corrections:**
+
+1. A living visitor made a settled corpse tail jump **0.779495 units**. Corpses now exclude living
+   avoidance, and settled tails retain their final angles without further clearance queries.
+2. “Clear” tails intersected their own posed shins/feet and neighboring shields. Bindings now
+   publish bounded actual-geometry surface snapshots after all body/equipment poses finish; tails
+   solve in stable entity-ID order. This includes limbs, weapons/shields, social props, nearby tails
+   and cargo. Remaining infeasible tail-pair overlaps flag both participants. The proximal attachment
+   exception explicitly covers only vest/haunches/fitted sash; other decorations remain protected.
+3. The floor-tile boundary missed inward masonry trim by **0.022095 units**. The builder and contact
+   index now share `wallGeometry.ts` profiles for plinths, courses, trim and caps. A slightly tucked
+   root, stronger middle/end taper, compact upright preset and adjusted sash placement retain room
+   for the chain beside real walls. Geometry construction keeps its previous RNG consumption.
+4. Correctly reported infeasible contacts still oscillated: independent follow-up measured a
+   **1.970607-radian / 0.981389-unit** late snap and continued movement against frozen contacts.
+   Failed driven poses now check the held pose first; blocked poses do not chase other partially
+   failing presets. Conflicting spring velocities clear. Entry/release changes sum to at most
+   **six radians/second**, and the actual limited pose is checked again before reporting success.
+
+The persisted review regression failed before fixes (`a5-review-red.log`); a later prolonged-contact
+red is retained in `a5-review-settling-red.log`. Social visibility is now applied by bindings before
+surface publication, removing the reviewer's non-blocking first-frame delay.
+
+**Parent verification actually run:**
+
+- Cross-system corrective gate: `npm run check:full`, **360 pass / 295.87s**, typecheck/lint/format.
+  After the final render-only stability/visibility changes, `npm run check` passes **342 / 29.17s**,
+  including typing, lint and **185 formatted files**. Unchanged extended generation/model evidence
+  is reused from the full gate. Final build: **703 modules**, **1,686.58kB / 434.17kB gzip** main
+  bundle; existing chunk-size warning. Root production smoke passes five checks with zero errors.
+- `test:rig:tails:clearance`: **840 fixture steps / 2,640 live tail-actor frames**, inspecting every
+  active member with independent actual-mesh SAT. Ordinary fixtures have zero own/neighbor geometry
+  overlaps and unresolved contacts; first-frame visibility mismatches and reversed-ECS pose error
+  are **zero**. Five generated masonry offsets pass. Both actors in **128 neighbor placements** are
+  checked: **seven primary-actor blocked / eight placements with either actor blocked**, with no
+  intersecting tail reported clear. These deliberate tight placements can cover the fixed root.
+- Four prolonged arrangements each run **600 animation steps**, **600 frozen-contact tail steps**,
+  and **180 release steps**. All late angle changes are **zero**, all release successfully. After
+  final review's optional test suggestion, the historical failing neighbor is pinned when all late
+  steps are zero; the targeted suite, typing/lint/format were rerun. Maximum release joint step is
+  **0.078131 radians**. The reviewer separately tested both frozen subjects, as attributed below.
+- The dense **34 sequences / 4,488 frames** suite passes; minimum tail floor clearance **0.002919**,
+  maximum normalized radius **1.222845** within the unchanged 4.8 envelope. Rig catalog **428 samples**
+  retains exact A0 authority parity, grip/sole/plant tolerances and the three-regeneration resource
+  plateau: **2,382 meshes / 495 nodes / 28 materials / 4 textures / 5,719 entities**.
+- Final animation, rig-actions, phalanx8, social15 and production5 pass; earlier corrective defense9
+  and discoveries17 passes are reused. Fresh controls plus **13 clips / 26 views / 380 samples** pass
+  camera equality. Normal/quarter-speed playback exercised; five temporal sheets and relevant
+  captures inspected. This remains sampled capture review, not every-frame perceptual review.
+
+**Cost:** final catalog **3.2383ms mean / 4.10ms p95** exceeds the 3.2ms mean investigation trigger
+by about 1.2%. One bounded trace measured **3.945/5.30ms instrumented**, followed by the same workload
+with CDP heap sampling at **3.1629/3.90ms**, with no intervening code change. Ranking identifies
+binding/surface construction and grounding, not the old repeated distant-door getter issue. Final
+maximum/mean tile reads are **899 / 553.72**. Catalog allocation estimate **335,288,604 bytes** at
+32KiB sampling includes setup/warmup/yields/instrumentation and collected objects, not retained heap.
+The reviewer accepts this investigated timing band with limited headroom; no causal speedup or
+portable sub-3.2ms guarantee is claimed. Chromium/SwiftShader CPU fixture, not hardware FPS.
+
+The tail's declared ceiling is now **25 candidate/check chains / 104 tail-joint evaluations /
+100 clearance calls**, including held-pose and limited-final checks. Bindings cap surfaces at **64**;
+fixed actor/link counts separately bound snapshot and pair work. Full-body limits remain unchanged.
+
+**Final independent review: READY.** Attributed evidence from the separate reviewer:
+
+- Initial and first-follow-up probes established the original geometry/death defects, checked
+  128 neighbor placements in both directions, and compared **20,465 enabled surface corners** over
+  726 fixture frames (maximum adapter/drawn error **5.6223e−6**, at most 41 registered surfaces).
+- Final focused pure tests **7/7** pass. Independent browser stress: **2,400 full-animation steps**
+  observing both actors, **4,800 frozen-contact tail steps** covering both subjects, and **720 release
+  steps** for historical worst subjects. Late motion/velocity is exactly zero in all four cases.
+  Max release joint/summed changes **0.078131 / 0.091153 radians**, below the 0.1 summed step bound.
+  No limit, finite-value, conditional rate, work-cap or reported-clear intersection violations.
+- Eight regular real-damage deaths and one blocked-to-death case have **zero** entry, repeated,
+  settled, direct/progressive and rewind/resettle errors. Settled visitor changes have zero effect;
+  unchanged zero-time reads have zero drift and zero tail-clearance calls. First-frame social
+  visibility and death-hide checks pass. Zero browser page errors. Final stable before/after captures
+  and the refreshed motion sheet were inspected. Broad gates/resource/cost evidence were reused.
+
+**Remaining visual limitation:** genuinely infeasible close-neighbor arrangements may retain stable,
+explicitly reported overlap rather than moving the gameplay root. The former repeated snapping is
+gone. Ordinary reviewed poses are coherent; instant guard/equipment swaps remain A6's next work.
+Independent reports/captures are under ignored `test-results/a5-independent-{review,followup-*,final-*}`.
+The initial A5 commit is `688e491`; this containing commit records the reviewed corrections and
+automatic-review workflow update.
+
+### A5 — initial articulated-tail checkpoint — 2026-11-20 (historical, before independent review)
+
+The following records the selected checks at initial delivery `688e491`. The review above exposed
+gaps outside those fixtures and supersedes its pending-review status, clearance policy and budgets.
 
 All twelve kobolds now share the 24-joint `humanoid-with-tail` extension. Four tapered links replace
 each rigid stub; pelvis-bound haunches join them visibly to the body. Numerical tail springs and

@@ -14,7 +14,7 @@ import { skeletonLurch } from './skeletonGait.ts';
 import { rigBinding } from './rigs/bindings.ts';
 import { profiles } from './rigs/humanoid.ts';
 import { copyLocal } from './rigs/ikMath.ts';
-import { evaluatePose } from './rigs/pose.ts';
+import { overlaps } from './rigs/tailClearance.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -120,16 +120,20 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       binding.grounding.reset();
       binding.tail?.captureDeath(binding.pose);
       binding.actions.collapse(binding.pose, actor, corpse.age);
+      if (rig.cape) rig.cape.rotation.x = -0.16;
+      binding.apply(!!binding.tail);
       if (binding.tail && binding.tailClearance) {
-        binding.tailClearance.prepare(binding.pose, actor, ecs, binding.actions, world);
+        if (!binding.tail.reuses(dt, corpse.age)) {
+          binding.sampleSurfaces();
+          binding.tailClearance.prepare(actor, ecs, binding.actions, world);
+        }
         binding.tail.sample(
           binding.pose,
           { dt, speed: 0, stride: 0, forward: 0, airborne: false, attack: 0, age: corpse.age },
           binding.tailClearance.clear,
         );
+        binding.applyTail();
       }
-      if (rig.cape) rig.cape.rotation.x = -0.16;
-      binding.apply();
     }
   }
   const corpses = readCorpseTerrain(ecs);
@@ -225,23 +229,55 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     const solved = grounding.sample(actor, pose, rig.root.rotation.y, world, corpses, actions);
     rig.root.scaling.copyFrom(solved.pose.local[0].scale);
     copyLocal(solved.pose.local, binding.pose.local);
+    binding.apply(!!binding.tail);
+  }
+  // Publish every final body/equipment pose before any living tail queries another actor.
+  // No ECS insertion-order dependency and no previous-frame limb/shield proxies.
+  const needsTailSurfaces = entities.some(
+    (e) => !e.has('corpse') && e.require('rigPose').tail && !e.require('rigPose').tail!.reuses(dt),
+  );
+  if (needsTailSurfaces)
+    for (const entity of entities)
+      if (!entity.has('corpse')) entity.require('rigPose').sampleSurfaces();
+  const tailed = entities
+    .filter((e) => !e.has('corpse') && e.require('rigPose').tail)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const entity of tailed) {
+    const actor = new Actor(entity),
+      binding = entity.require('rigPose');
     if (binding.tail && binding.tailClearance) {
-      evaluatePose(binding.pose);
-      actions.finish(binding.pose);
-      binding.tailClearance.prepare(binding.pose, actor, ecs, actions, world);
+      const heading = binding.legacy.root.rotation.y;
+      if (!binding.tail.reuses(dt))
+        binding.tailClearance.prepare(actor, ecs, binding.actions, world);
       binding.tail.sample(
         binding.pose,
         {
           dt,
           speed: actor.motion.actualSpeed,
-          stride: dynamics.stride,
-          forward: actor.motion.velocity.x * sin + actor.motion.velocity.z * cos,
+          stride: actor.motion.animation.stride,
+          forward:
+            actor.motion.velocity.x * Math.sin(heading) +
+            actor.motion.velocity.z * Math.cos(heading),
           airborne: actor.jump.airborne,
-          attack: rig.attackBlend,
+          attack: binding.actions.attackBlend,
         },
         binding.tailClearance.clear,
       );
+      binding.applyTail();
+      binding.sampleSurfaces(true);
     }
-    binding.apply();
   }
+  // An infeasible late-priority tail can still touch an earlier one. Flag BOTH participants;
+  // never report a successful clearance while the final published chains intersect.
+  for (let i = 0; i < tailed.length; i++)
+    for (let j = i + 1; j < tailed.length; j++) {
+      const a = tailed[i].require('rigPose'),
+        b = tailed[j].require('rigPose');
+      for (const x of a.tailSurfaces)
+        if (x.enabled)
+          for (const y of b.tailSurfaces)
+            if (y.enabled && overlaps(x.bounds, y.bounds)) {
+              a.tail!.blocked = b.tail!.blocked = true;
+            }
+    }
 }

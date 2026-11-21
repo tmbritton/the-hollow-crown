@@ -31,7 +31,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
    simultaneous feet/grips, body correction, orientation, limits and explicit infeasibility.
    A3 now supplies live semantic poses, slope-aware sole targets and bounded final-contact checks.
     **A4 action/equipment/work/social migration is implemented, verified and independently reviewed READY.**
-    **A5 articulated tails is implemented and locally verified; independent review pending.**
+    **A5 articulated tails is implemented, verified and independently reviewed READY.**
    A6 shield motion is next. Shield reaction and death physics remain planned. See [animation roadmap](animation-roadmap.md)
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
@@ -154,7 +154,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | A2 | Complete; independent review READY | Missing solver module, then persisted scale/reporting/limit/pole/fold review reds | 323 core tests; typecheck/lint/format/build; 968 FK, 300 scaled-binding and 1,210 browser samples; animation pass, captures reviewed, resource plateau; independent continuity probes clear blockers | `279bec5` |
 | A3 | Complete; independent review READY | Missing grounding module; high stacked corpse/swing lift; preserved release-frame and hip reset/death regressions failed before fixes | 330 tests; format/lint/build; 428 A0-identical authority samples, bounded final contacts; animation/movement16/jump8/production5; 1.863/2.50ms integrated CPU; independent lifecycle/geometry review READY | `279bec5` |
 | A4 | Complete; final independent review READY | Missing module, scale/envelope/reset regressions; persisted review reds for torso intersection, slung cargo shear and spear death bounds/clearance | 336 tests/check/build; 428 A0-identical authority samples; 252 actual shaft/torso, 144 cargo-handoff and 2,714 corpse-age samples; affected browsers/production5. Independent follow-up clears all blockers | `c353fef` |
-| A5 | Implemented and locally verified; independent review pending | Missing tail-module red; browser clearance failures at social/root/stair boundaries; CPU trace exposed distant door chart reads | 342 tests/check/build; 4,488 tail frames and 428 A0-identical authority samples; affected browsers, production and 13 two-camera motion replays; 2.905/3.70ms CPU, stable resources | Containing delivery |
+| A5 | Complete; final independent review READY | Initial module/clearance reds; independent corpse, anatomy/equipment and masonry defects; prolonged partial-contact snap reproduced before correction | Full360/final core342 checks, build/affected browsers/production; all-member geometry and prolonged settling/release. Independent review clears all four blockers; investigated CPU band accepted | `688e491`; review fixes in containing delivery |
 | A6–A7 | Planned after A5 | Shield motion and physics handoff | Per-slice acceptance gates in animation-roadmap.md; not implemented | — |
 | P8 | Queued after A7; not implemented | Directional ragdoll deaths from the shared rig, wall collisions and stair falls | New user note; implementation pending | — |
 | P9 | Queued after P8 | Skeleton breakup into non-interactive settled bone decoration | New user note; not implemented | — |
@@ -163,7 +163,34 @@ Execution record for [implementation path](implementation-path.md). Started **20
 
 ## Work log
 
-### A5 — articulated kobold tails — 2026-11-20
+### A5 — independent review corrections — 2026-11-20
+
+- Automatically reviewed at the user's request; `AGENTS.md` now mandates this after future
+  implementations and verification, without another prompt. The reviewer initially returned
+  NOT READY for settled corpse reactivation, missing posed anatomy/equipment, and inward wall trim.
+  A follow-up caught prolonged oscillation in partially blocked contacts. All four are corrected.
+- Bound numerical surface snapshots now cover actual limbs/equipment/cargo; complete body poses
+  precede stable-ID tail solving. Shared masonry profiles cover physical overhangs. Settled tails
+  never dodge visitors. Infeasible poses retain stable contact state, clear spring drive, and release
+  within a revalidated summed angular-rate cap. Proximal seam exemptions are explicit; prop visibility
+  is published on the first frame. See [updated contract](rig-tails.md).
+- Full corrective gate **360 pass / 295.87s**; final render follow-up **342 pass / 29.17s**, typing,
+  lint/format185 and build pass. Final tail catalog4488, A0-authority428, all-member geometry2640,
+  neighbor128 and five real wall offsets pass. Four prolonged cases settle exactly and release;
+  reversed ECS order and first-frame visibility have zero mismatches. Final affected browsers and
+  production pass; unchanged defense/discovery/extended evidence reused where appropriate.
+- **Final independent review READY.** Attributed final probes: pure7, full-animation2400 steps,
+  frozen-contact4800 steps across both subjects, release720 steps; zero late movement/velocity,
+  bounded release and no reported-clear intersections. Nine real-death cases retain exact entry,
+  sampling, settled and rewind behavior. The optional regression pin was applied and rechecked.
+- Resource plateau remains 2382 meshes /495 nodes /28 materials /4 textures /5719 entities. Final
+  CPU3.238/4.10ms prompted one trace/recheck; 3.163/3.90ms comparable result. Reviewer accepts the
+  investigated band with limited headroom, without a portable timing guarantee. Full attribution,
+  bounds and remaining stable-infeasibility limitation are recorded in `VERIFICATION.md`.
+- Initial implementation is `688e491`; this containing commit records the reviewed corrections
+  and automatic-review workflow. A6 shield anticipation/reaction is next.
+
+### A5 — articulated kobold tails — 2026-11-20 (initial delivery checkpoint at `688e491`)
 
 - Shared immutable humanoid-with-tail extension adds four pelvis-rooted tapered links to all
   twelve kobolds. Semantic pose/history, final bindings, shadows, observation and corpse surfaces

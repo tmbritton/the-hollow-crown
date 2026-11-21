@@ -46,6 +46,7 @@ export function createEnemyRendering(
       part(scene, materials[mat], `${actor.id}:${name}`, size, pos, parent, shadow);
     const headMeshes: TransformNode[] = [];
     const pelvisMeshes: TransformNode[] = [];
+    const tailJoinMeshes: TransformNode[] = [];
     const tail: TransformNode[] | undefined = actor.kind === 'kobold' ? [] : undefined;
     const hp = (mat: MaterialName, name: string, size: Triple, pos: Triple) => {
       const mesh = p(mat, name, size, pos);
@@ -61,7 +62,8 @@ export function createEnemyRendering(
       for (const x of [-0.13, 0.13])
         p('dark', 'eye socket', [0.13, 0.13, 0.03], [x, 1.65, 0.215], head);
     } else {
-      p(goblin ? 'moss' : 'dark', 'leather vest', [0.58, 0.55, 0.36], [0, 0.82, 0]);
+      const torso = p(goblin ? 'moss' : 'dark', 'leather vest', [0.58, 0.55, 0.36], [0, 0.82, 0]);
+      if (!goblin) tailJoinMeshes.push(torso);
       hp(skin, 'head', [0.5, 0.4, 0.4], [0, 1.32, 0.06]);
       hp(skin, goblin ? 'long nose' : 'snout', [goblin ? 0.17 : 0.34, 0.16, 0.28], [0, 1.26, 0.34]);
       for (const sign of [-1, 1]) {
@@ -72,12 +74,16 @@ export function createEnemyRendering(
       }
       if (goblin) hp('dark', 'hood', [0.54, 0.16, 0.47], [0, 1.57, -0.02]);
       else {
-        pelvisMeshes.push(p('brick', 'haunches', [0.36, 0.22, 0.36], [0, 0.5, -0.09], root));
-        let z = -0.26;
-        for (const segment of withTail(humanoid(profiles.kobold)).tail!) {
+        const haunches = p('brick', 'haunches', [0.36, 0.22, 0.36], [0, 0.5, -0.09], root);
+        pelvisMeshes.push(haunches);
+        tailJoinMeshes.push(haunches);
+        const anatomy = withTail(humanoid(profiles.kobold));
+        const base = anatomy.joints[anatomy.tail![0].index].rest;
+        let z = base[2];
+        for (const segment of anatomy.tail!) {
           const node = new TransformNode(`${actor.id}:${segment.name}`, scene);
           node.parent = root;
-          node.position.set(0, 0.43, z);
+          node.position.set(base[0], 0.55 + base[1], z);
           p(
             'brick',
             `${segment.name} scales`,
@@ -88,7 +94,9 @@ export function createEnemyRendering(
           tail!.push(node);
           z -= segment.length;
         }
-        p('cloth', 'pack sash', [0.13, 0.55, 0.39], [0.1, 0.84, 0]);
+        // This fitted strip covers the same proximal waist seam as the vest/haunches. Other
+        // decorations and every limb/equipment surface remain solid to the entire tail.
+        tailJoinMeshes.push(p('cloth', 'pack sash', [0.13, 0.55, 0.39], [0.16, 0.84, 0]));
       }
     }
     const identity = actor.entity.get('inhabitant');
@@ -224,7 +232,7 @@ export function createEnemyRendering(
       socialBlend: 0,
       socialPose: null,
     });
-    bindHumanoid(actor.entity, profiles[actor.kind], headMeshes, pelvisMeshes);
+    bindHumanoid(actor.entity, profiles[actor.kind], headMeshes, pelvisMeshes, tailJoinMeshes);
     bindActorCollision(actor, scene, combat.world);
     const pick = MeshBuilder.CreateBox(
       `${actor.id}:selection`,

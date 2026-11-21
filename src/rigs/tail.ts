@@ -17,7 +17,7 @@ export function withTail(core: RigDefinition): RigDefinition {
         index: core.joints.length + i,
         length: [0.22, 0.2, 0.18, 0.15][i],
         width: [0.15, 0.12, 0.09, 0.055][i],
-        height: [0.12, 0.1, 0.075, 0.045][i],
+        height: [0.12, 0.08, 0.06, 0.045][i],
       }),
     ),
   );
@@ -25,10 +25,10 @@ export function withTail(core: RigDefinition): RigDefinition {
     Object.freeze({
       name: s.name,
       parent: i ? tail[i - 1].index : core.index.pelvis,
-      rest: Object.freeze(i ? [0, 0, -tail[i - 1].length] : [0, -0.12, -0.26]) as XYZ,
+      rest: Object.freeze(i ? [0, 0, -tail[i - 1].length] : [0, -0.12, -0.22]) as XYZ,
       axis: Object.freeze([1, 0, 0]) as XYZ,
       limits: Object.freeze([
-        Object.freeze(i ? [-0.8, 1.1] : [-2, 1.5]),
+        Object.freeze(i ? [-0.8, 1.1] : [-2, 1.55]),
         Object.freeze(i ? [-0.65, 0.65] : [-1.2, 1.2]),
         Object.freeze([0, 0]),
       ]) as JointDefinition['limits'],
@@ -74,27 +74,32 @@ export interface TailInput {
   /** Temporary collapse is age-sampled, never a live spring after death. */
   age?: number;
 }
-export const TAIL_BUDGET = Object.freeze({ candidates: 19, evaluations: 80, queries: 76 });
+export const TAIL_BUDGET = Object.freeze({ candidates: 25, evaluations: 104, queries: 100 });
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const pitch = [-0.12, 0.12, 0.28, 0.36];
 const yaw = [0.22, 0.06, -0.13, -0.17];
 // Fixed candidate order. Closest-to-authored first, then a compact upward curl, then side tucks.
-const tucks = [
+const tucks: readonly (readonly [number, number, boolean?])[] = [
   [0, 0],
   [0.25, 0],
+  [0.2, 0.7],
+  [0.2, -0.7],
+  [0.75, 0.6],
+  [0.75, -0.6],
   [0.55, 0],
   [0.85, 0],
   [1.2, 0],
-  [1.5, 0],
+  [1.55, 0],
   [-0.3, 0],
   [-0.9, 0],
-  [0.65, -0.65],
-  [0.65, 0.65],
-  [1.25, -0.65],
-  [1.25, 0.65],
-  [0.2, -1.1],
-  [0.2, 1.1],
-  [1.5, -1.1],
+  [-0.25, -1],
+  [-0.25, 1],
+  [1.2, -1],
+  [1.2, 1],
+  [1.4, -1.2],
+  [1.4, 1.2],
+  // A straight upright chain fits the physical gap between the vest and wall trim.
+  [1.55, 0, true],
 ] as const;
 
 /** Four-link angular follow-through, then a bounded whole-chain clearance projection.
@@ -123,6 +128,7 @@ export class TailRig {
   private readonly segments: readonly TailSegment[];
   private ready = false;
   private dying = false;
+  private settled = false;
   private x = 0;
   private z = 0;
   private vx = 0;
@@ -135,7 +141,7 @@ export class TailRig {
     this.reset();
   }
   reset(): void {
-    this.ready = this.dying = this.tucked = this.blocked = false;
+    this.ready = this.dying = this.settled = this.tucked = this.blocked = false;
     this.queries = this.evaluations = this.vx = this.vz = 0;
     for (let i = 0; i < 8; i++) {
       this.angles[i] = i % 2 ? yaw[i >> 1] : pitch[i >> 1];
@@ -165,16 +171,21 @@ export class TailRig {
     }
   }
   /** Consumes the already evaluated final body pose. FK here touches only the four tail joints. */
+  reuses(dt: number, age?: number): boolean {
+    return age === undefined ? dt === 0 && this.ready : age >= 0.62 && this.settled;
+  }
   sample(
     pose: PoseBuffer,
     input: TailInput,
     clear?: (bounds: TailBounds, segment: number) => boolean,
   ): void {
     this.queries = this.evaluations = 0;
-    if (input.dt === 0 && this.ready && input.age === undefined) {
+    if (this.reuses(input.dt, input.age)) {
       this.apply(pose);
       return;
     }
+    const hadPose = this.ready,
+      wasBlocked = this.blocked;
     const o = pose.definition.index.pelvis * 16,
       m = pose.world;
     const heading = Math.atan2(m[o + 8], m[o + 10]);
@@ -240,9 +251,20 @@ export class TailRig {
       for (const [i, s] of this.segments.entries()) {
         const joint = pose.local[s.index],
           limits = pose.definition.joints[s.index].limits;
-        const p = clamp(this.candidate[i * 2] + (i === 0 ? tucks[attempt][0] : 0), ...limits[0]);
+        const p = clamp(
+          i === 0 && attempt
+            ? tucks[attempt][0]
+            : i > 0 && tucks[attempt][2]
+              ? 0
+              : this.candidate[i * 2],
+          ...limits[0],
+        );
         const y = clamp(
-          this.candidate[i * 2 + 1] + (i === 0 ? tucks[attempt][1] : 0),
+          i === 0 && attempt
+            ? tucks[attempt][1]
+            : i > 0 && tucks[attempt][2]
+              ? 0
+              : this.candidate[i * 2 + 1],
           ...limits[1],
         );
         setEuler(joint, p, y, 0);
@@ -251,22 +273,50 @@ export class TailRig {
         this.queries++;
         if (clear && !clear(this.bounds, i)) failures++;
       }
-      if (failures < bestFailures) {
+      if (
+        failures < bestFailures &&
+        (!wasBlocked || input.age !== undefined || attempt === 0 || failures === 0)
+      ) {
         bestFailures = failures;
         for (const [i, s] of this.segments.entries()) {
           const limits = pose.definition.joints[s.index].limits;
           this.best[i * 2] = clamp(
-            this.candidate[i * 2] + (i === 0 ? tucks[attempt][0] : 0),
+            i === 0 && attempt
+              ? tucks[attempt][0]
+              : i > 0 && tucks[attempt][2]
+                ? 0
+                : this.candidate[i * 2],
             ...limits[0],
           );
           this.best[i * 2 + 1] = clamp(
-            this.candidate[i * 2 + 1] + (i === 0 ? tucks[attempt][1] : 0),
+            i === 0 && attempt
+              ? tucks[attempt][1]
+              : i > 0 && tucks[attempt][2]
+                ? 0
+                : this.candidate[i * 2 + 1],
             ...limits[1],
           );
         }
         this.tucked = attempt > 0;
       }
       if (!failures) break;
+      if (attempt === 0 && hadPose && input.age === undefined) {
+        // Prefer the published contact pose over a different partially blocked preset. A count
+        // of failing links is not an energy function: chasing its ties caused perpetual flips.
+        let heldFailures = 0;
+        for (const [i, s] of this.segments.entries()) {
+          setEuler(pose.local[s.index], this.angles[i * 2], this.angles[i * 2 + 1], 0);
+          this.fk(pose, s.index);
+          this.queries++;
+          if (clear && !clear(this.segmentBounds(pose, i), i)) heldFailures++;
+        }
+        if (wasBlocked || heldFailures <= bestFailures) {
+          bestFailures = heldFailures;
+          this.best.set(this.angles);
+          this.tucked = true;
+        }
+        if (!heldFailures) break;
+      }
     }
     this.blocked = bestFailures > 0;
     // Retain a known-clear endpoint while finding the nearest safe curl on the selected ray.
@@ -300,14 +350,36 @@ export class TailRig {
         } else low = t;
       }
     }
+    if (input.age === undefined && hadPose && dt > 0 && (wasBlocked || this.blocked)) {
+      // Enter/release an infeasible fallback continuously. The sum of joint-angle changes is
+      // capped, bounding tip travel as well as each individual angle. Recheck the actual limited
+      // pose: an intermediate point on the path to a clear endpoint can still be infeasible.
+      let change = 0;
+      for (let i = 0; i < 8; i++) change += Math.abs(this.best[i] - this.angles[i]);
+      const amount = Math.min(1, (6 * dt) / Math.max(1e-12, change));
+      if (amount < 1) {
+        for (let i = 0; i < 8; i++)
+          this.best[i] = this.angles[i] + (this.best[i] - this.angles[i]) * amount;
+        let failures = 0;
+        for (const [i, s] of this.segments.entries()) {
+          setEuler(pose.local[s.index], this.best[i * 2], this.best[i * 2 + 1], 0);
+          this.fk(pose, s.index);
+          this.queries++;
+          if (clear && !clear(this.segmentBounds(pose, i), i)) failures++;
+        }
+        this.blocked = failures > 0;
+      }
+    }
     this.angles.set(this.best);
     for (let i = 0; i < 8; i++) {
       // Contact projection cannot accumulate spring energy against an immovable surface.
-      if (Math.abs(this.angles[i] - this.candidate[i]) > 1e-9) this.springs[i].velocity = 0;
+      if (this.blocked || Math.abs(this.angles[i] - this.candidate[i]) > 1e-9)
+        this.springs[i].velocity = 0;
       this.springs[i].value = this.angles[i];
       this.velocities[i] = input.age === undefined ? this.springs[i].velocity : 0;
     }
     this.apply(pose);
+    this.settled = input.age !== undefined && input.age >= 0.62;
   }
   private fk(pose: PoseBuffer, index: number): void {
     this.evaluations++;
