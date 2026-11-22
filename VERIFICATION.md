@@ -4,6 +4,18 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### CPU1 — local door and blocker queries (independent review READY)
+
+Remote-door regressions initially observed 606 living and four active-physics getter reads;
+both now observe zero. Full 402 tests, type/lint/format, build, Chromium movement (16), combat
+(15) and structural contacts (24) passed. The independent reviewer also ran the root production
+smoke, 22,176 old/new queries, animation threshold and off-root separated-piece probes. All 428
+controlled checkpoints matched across 16 windows (`CPU_CASES=entrance,stable,hitch,burst`,
+coarse/detailed, two repeats, `CPU_LABEL=cpu1-accepted`). Coarse entrance/stable/late mean tick
+times (ms) went from 12.62/14.86/16.71 to 8.92/11.23/10.62; detailed door reads per tick fell
+from 3,569/5,303/7,849 to 20/20/21. The pinned request still takes 54–57 ms. These are software
+fixed-step diagnostics. Locality is computed per query; no persistent door-state cache was needed.
+
 ### CPU0 — profiling tooling and refreshed baseline — 2026-11-21/22 (independent follow-up READY)
 
 The requested planning update was committed as **`013079c`** with normal hooks (**377 tests**,

@@ -1,7 +1,7 @@
 # CPU performance plan — queries, collision, rendering and animation
 
-**Status:** CPU0 is implemented, verified and independently reviewed **READY**. **CPU1 is next**;
-CPU1–CPU7 remain unimplemented. See the [fresh CPU0 baseline/tooling](cpu-baseline.md). This plan retains the completed CPU investigation at
+**Status:** CPU0 and CPU1 are independently reviewed **READY**. **CPU2 is next**.
+See [delivery evidence](../VERIFICATION.md) and the [CPU0 baseline/tooling](cpu-baseline.md). This plan retains the completed CPU investigation at
 **`3cfb378`**; its historical measurements excluded concurrent shield-animation work. CPU0 must
 refresh them against the reviewed A0–A7/P8/P9 integration before accepting optimization results.
 

@@ -32,6 +32,29 @@ function run(r: Ragdoll, frames: number) {
   for (let i = 0; i < frames; i++) r.advance(1 / 60);
 }
 
+test('active physics checks door state only in streamed patches', () => {
+  const w = terrain();
+  let reads = 0;
+  w.entities.push({
+    type: 'door',
+    id: 'far',
+    axis: 'z',
+    x: 30,
+    z: -30,
+    h: 0,
+    locked: false,
+    requiresAltar: false,
+    get open() {
+      reads++;
+      return false;
+    },
+  });
+  const r = new Ragdoll(w, snapshot(), null, 0);
+  run(r, 2);
+  r.dispose();
+  assert.equal(reads, 0);
+});
+
 test('death impulse follows 3D travel, is bounded, and hazards invent no horizontal blow', () => {
   assert.deepEqual(deathImpulse(null, 1000), [0, 0, 0]);
   for (const direction of [

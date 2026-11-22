@@ -60,6 +60,8 @@ export interface TerrainBox {
 /** Actual tile-height treads, not the living motor's smooth ramp. Stream a bounded local patch.
  * Physical walls persist when their upper artwork is cut away by the camera. */
 export type RagdollTerrain = NavigationWorld & { physicalObstacles?: readonly TerrainBox[] };
+const doorInPatch = (door: { x: number; z: number }, cx: number, cz: number) =>
+  Math.abs(door.x - cx) <= 5 && Math.abs(door.z - cz) <= 5;
 export function physicalTerrain(world: RagdollTerrain, point: XYZ, radius = 4): TerrainBox[] {
   if (import.meta.env?.DEV) cpuTrace?.count('physics.terrainCells', (radius * 2 + 1) ** 2);
   const boxes: TerrainBox[] = [];
@@ -134,9 +136,8 @@ export function physicalTerrain(world: RagdollTerrain, point: XYZ, radius = 4): 
   for (const door of world.entities) {
     if (
       door.type !== 'door' ||
-      (door.open && !door.collider?.checkCollisions) ||
-      Math.abs(door.x - cx) > 5 ||
-      Math.abs(door.z - cz) > 5
+      !doorInPatch(door, cx, cz) ||
+      (door.open && !door.collider?.checkCollisions)
     )
       continue;
     add(
@@ -323,10 +324,16 @@ export class Ragdoll {
       const p = body.position;
       centers.set(`${Math.round(p.x)},${Math.round(p.z)}`, [p.x, p.y, p.z]);
     }
-    const terrainKey = `${[...centers.keys()].join(';')}:${this.terrain.entities
-      .filter((e) => e.type === 'door')
-      .map((e) => (e.type === 'door' && e.open && !e.collider?.checkCollisions ? '1' : '0'))
-      .join('')}`;
+    let terrainKey = [...centers.keys()].join(';');
+    for (const door of this.terrain.entities) {
+      if (door.type !== 'door') continue;
+      for (const p of centers.values()) {
+        if (!doorInPatch(door, Math.round(p[0]), Math.round(p[2]))) continue;
+        if (!door.open || door.collider?.checkCollisions)
+          terrainKey += `:${door.id.length}:${door.id}`;
+        break;
+      }
+    }
     if (terrainKey === this.terrainKey) return;
     if (import.meta.env?.DEV) cpuTrace?.count('physics.terrainRebuilds');
     this.terrainKey = terrainKey;

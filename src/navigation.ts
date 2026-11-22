@@ -1,11 +1,12 @@
 import { heightAt, key, tileAt } from './world.ts';
-import type { DoorEntity, Point, World } from './worldTypes.ts';
+import type { DoorEntity, Footprint, Point, World } from './worldTypes.ts';
 import { segmentIntersectsBox } from './generation/placement.ts';
 export { segmentIntersectsBox } from './generation/placement.ts';
 import { Statechart } from './machines/statechart.ts';
 import { navigationMachine } from './machines/navigation/travel.ts';
 import type { CollisionBody, Occupancy } from './occupancy.ts';
 import { cpuTrace } from './cpuMetrics.ts';
+import { nearSegment, segmentBounds } from './queryBounds.ts';
 
 export type NavigationWorld = Pick<World, 'tiles' | 'blockers' | 'entities'>;
 interface Point3 extends Point {
@@ -217,7 +218,7 @@ export class Navigator {
     return accepted;
   }
 
-  private staticClear(point: Point): boolean {
+  private staticClear(point: Point, blockers: readonly Footprint[] = this.world.blockers): boolean {
     if (import.meta.env?.DEV) cpuTrace?.count('route.staticClear');
     const tile = tileAt(this.world, point.x, point.z);
     if (!tile || tile.blocked || tile.surface === 'lava') return false;
@@ -227,7 +228,7 @@ export class Navigator {
         if (!support || support.surface === 'lava' || Math.abs(support.h - tile.h) > 0.65)
           return false;
       }
-    return !this.world.blockers.some(
+    return !blockers.some(
       (blocker) =>
         Math.abs(point.x - blocker.x) < blocker.w / 2 + CLEARANCE &&
         Math.abs(point.z - blocker.z) < blocker.d / 2 + CLEARANCE,
@@ -236,30 +237,37 @@ export class Navigator {
 
   private doorsClear(point: Point, planning = false): boolean {
     return !this.doors.some((door) => {
-      // An opening door remains solid until its physical collider is released.
-      if (!door.locked && door.open && !door.collider?.checkCollisions) return false;
-      if (planning && this.opensDoors && !door.locked) return false;
       const w = door.axis === 'x' ? 0.35 : 2.95;
       const d = door.axis === 'x' ? 2.95 : 0.35;
       return (
         Math.abs(point.x - door.x) < w / 2 + CLEARANCE &&
-        Math.abs(point.z - door.z) < d / 2 + CLEARANCE
+        Math.abs(point.z - door.z) < d / 2 + CLEARANCE &&
+        this.doorBlocks(door, planning)
       );
     });
   }
 
+  private doorBlocks(door: DoorEntity, planning: boolean): boolean {
+    return (
+      door.locked ||
+      (!(planning && this.opensDoors) && (!door.open || !!door.collider?.checkCollisions))
+    );
+  }
+
   private doorsSegmentClear(from: Point, to: Point, planning: boolean): boolean {
     return !this.doors.some((door) => {
-      if (
-        !door.locked &&
-        ((door.open && !door.collider?.checkCollisions) || (planning && this.opensDoors))
-      )
-        return false;
-      return segmentIntersectsBox(
-        from,
-        to,
-        { ...door, w: door.axis === 'x' ? 0.35 : 2.95, d: door.axis === 'x' ? 2.95 : 0.35 },
-        CLEARANCE,
+      return (
+        segmentIntersectsBox(
+          from,
+          to,
+          {
+            x: door.x,
+            z: door.z,
+            w: door.axis === 'x' ? 0.35 : 2.95,
+            d: door.axis === 'x' ? 2.95 : 0.35,
+          },
+          CLEARANCE,
+        ) && this.doorBlocks(door, planning)
       );
     });
   }
@@ -311,8 +319,9 @@ export class Navigator {
     terrainOnly = false,
   ): boolean {
     if (import.meta.env?.DEV) cpuTrace?.count('route.segmentClear');
-    if (this.world.blockers.some((box) => segmentIntersectsBox(from, to, box, CLEARANCE)))
-      return false;
+    const bounds = segmentBounds(from, to);
+    const nearby = this.world.blockers.filter((box) => nearSegment(bounds, box, CLEARANCE));
+    if (nearby.some((box) => segmentIntersectsBox(from, to, box, CLEARANCE))) return false;
     if (!terrainOnly && !this.doorsSegmentClear(from, to, planning)) return false;
     // Uniform samples can miss a very short unsupported interval at a room corner.
     // Partition at every center/corner tile crossing; support is constant between
@@ -333,7 +342,12 @@ export class Navigator {
     crossings.sort((a, b) => a - b);
     for (let i = 1; i < crossings.length; i++) {
       const t = (crossings[i - 1] + crossings[i]) / 2;
-      if (!this.staticClear({ x: from.x + (to.x - from.x) * t, z: from.z + (to.z - from.z) * t }))
+      if (
+        !this.staticClear(
+          { x: from.x + (to.x - from.x) * t, z: from.z + (to.z - from.z) * t },
+          nearby,
+        )
+      )
         return false;
     }
     const steps = Math.max(1, Math.ceil(distance(from, to) / SAMPLE_SPACING));
@@ -349,7 +363,8 @@ export class Navigator {
       };
       const height = heightAt(this.world, point.x, point.z);
       if (
-        !(terrainOnly ? this.staticClear(point) : this.canStand(point, planning)) ||
+        !this.staticClear(point, nearby) ||
+        (!terrainOnly && !this.doorsClear(point, planning)) ||
         height === null ||
         Math.abs(height - previous) > 0.65
       )
@@ -679,7 +694,7 @@ export class Navigator {
       });
     if (this.waitingForDoor) {
       for (const door of this.doors) {
-        if (!door.locked && distance(position, door) < 2.2) door.open = true;
+        if (distance(position, door) < 2.2 && !door.locked) door.open = true;
       }
       return null;
     }

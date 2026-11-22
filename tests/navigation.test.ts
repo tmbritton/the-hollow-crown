@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Navigator, pickGround } from '../src/navigation.ts';
+import { clearSight } from '../src/combat.ts';
 import type { NavigationWorld } from '../src/navigation.ts';
 import { generateDungeon, key } from '../src/world.ts';
 import type { DoorEntity, Point, Tile } from '../src/worldTypes.ts';
@@ -26,6 +27,52 @@ function samples(from: Point, path: readonly Point[]): Point[] {
   }
   return result;
 }
+
+test('local point, sweep and sight queries read only intersecting doors and see same-tick changes', () => {
+  const world = grid();
+  const near: DoorEntity = {
+    type: 'door',
+    id: 'local',
+    x: 0,
+    z: 0,
+    h: 0,
+    axis: 'z',
+    open: true,
+    locked: false,
+    requiresAltar: false,
+  };
+  let reads = 0;
+  const far: DoorEntity = {
+    ...near,
+    id: 'remote',
+    x: -4,
+    z: 4,
+    get locked() {
+      reads++;
+      return false;
+    },
+    get open() {
+      reads++;
+      return true;
+    },
+  };
+  world.entities.push(far, near);
+  const nav = new Navigator(world);
+  const a = { x: 0, z: -3, h: 0 },
+    b = { x: 0, z: 3, h: 0 };
+  for (const open of [true, false, true]) {
+    near.open = open;
+    assert.equal(nav.canStand(near), open);
+    for (const [start, end] of [
+      [a, b],
+      [b, a],
+    ]) {
+      assert.equal(nav.segmentClear(start, end), open);
+      assert.equal(clearSight(world, start, end), open);
+    }
+  }
+  assert.equal(reads, 0);
+});
 
 test('open-floor clicks produce a direct route to the precise destination', () => {
   const navigator = new Navigator(grid());

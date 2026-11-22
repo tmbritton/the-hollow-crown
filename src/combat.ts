@@ -11,6 +11,7 @@ import { ECS } from './ecs.ts';
 import type { EnemyKind } from './ecs.ts';
 import type { NavigationWorld } from './navigation.ts';
 import { segmentIntersectsBox } from './navigation.ts';
+import { nearSegment, segmentBounds } from './queryBounds.ts';
 import { heightAt, randomFrom, tileAt } from './world.ts';
 import type { Point, Random, Spawn, World } from './worldTypes.ts';
 import { seedSocialGroups } from './social.ts';
@@ -76,37 +77,30 @@ export const GOBLIN_FLEE_SPEED = 5.2;
 /** Conservative cover/weapon visibility: void, cliffs, furniture and solid doors occlude. */
 export function clearSight(world: NavigationWorld, from: Spawn, to: Spawn): boolean {
   if (Math.abs(from.h - to.h) > 1.2) return false;
-  if (world.blockers.some((box) => segmentIntersectsBox(from, to, box))) return false;
-  if (
-    world.entities.some(
-      (e) =>
-        e.type === 'door' &&
-        (e.locked || !e.open || e.collider?.checkCollisions) &&
-        segmentIntersectsBox(from, to, {
-          ...e,
-          w: e.axis === 'x' ? 0.4 : 2.96,
-          d: e.axis === 'x' ? 2.96 : 0.4,
-        }),
-    )
-  )
-    return false;
+  const bounds = segmentBounds(from, to);
+  const nearby = world.blockers.filter((box) => nearSegment(bounds, box));
+  if (nearby.some((box) => segmentIntersectsBox(from, to, box))) return false;
+  for (const door of world.entities) {
+    if (door.type !== 'door') continue;
+    const box = {
+      id: door.id,
+      x: door.x,
+      z: door.z,
+      w: door.axis === 'x' ? 0.4 : 2.96,
+      d: door.axis === 'x' ? 2.96 : 0.4,
+    };
+    if (!nearSegment(bounds, box) || !(door.locked || !door.open || door.collider?.checkCollisions))
+      continue;
+    if (segmentIntersectsBox(from, to, box)) return false;
+    nearby.push(box);
+  }
   const count = Math.max(1, Math.ceil(distance(from, to) / 0.16));
   for (let i = 1; i <= count; i++) {
     const x = from.x + ((to.x - from.x) * i) / count;
     const z = from.z + ((to.z - from.z) * i) / count;
     const tile = tileAt(world, x, z);
     if (!tile || tile.h > from.h + 1.2 || tile.blocked) return false;
-    if (world.blockers.some((b) => Math.abs(x - b.x) < b.w / 2 && Math.abs(z - b.z) < b.d / 2))
-      return false;
-    if (
-      world.entities.some(
-        (e) =>
-          e.type === 'door' &&
-          (e.locked || !e.open || e.collider?.checkCollisions) &&
-          Math.abs(x - e.x) < (e.axis === 'x' ? 0.2 : 1.48) &&
-          Math.abs(z - e.z) < (e.axis === 'x' ? 1.48 : 0.2),
-      )
-    )
+    if (nearby.some((b) => Math.abs(x - b.x) < b.w / 2 && Math.abs(z - b.z) < b.d / 2))
       return false;
   }
   return true;
