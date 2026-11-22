@@ -22,6 +22,7 @@ import type { GenerationReport } from './generation/report.ts';
 import { createMaterials } from './materials.ts';
 import { buildDungeon } from './buildDungeon.ts';
 import { createPlayer, movePlayer, stopPlayer } from './player.ts';
+import { RouteBudget } from './routeBudget.ts';
 import { pickGround } from './navigation.ts';
 import { MOVEMENT_KEYS } from './locomotion.ts';
 import { ECS } from './ecs.ts';
@@ -141,7 +142,7 @@ function navigatePointer(clientX: number, clientY: number, initialPress = false)
   const point = pickGround(game.world, ray);
   if (point) {
     if (initialPress)
-      game.player.navigator.goTo(game.player.actor.position, point, { partial: true });
+      game.player.navigator.request(game.player.actor.position, point, { partial: true });
     else game.player.navigator.followFloor(game.player.actor.position, point, performance.now());
   } else game.player.navigator.cancel();
   lastPointerRoute = performance.now();
@@ -327,6 +328,14 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     { onDeath: observeDeath },
   );
   const emberPlan = prepareLastEmber(ecs, world, player.actor);
+  const routeBudget = new RouteBudget();
+  for (const actor of combat.actors)
+    actor.navigator.scheduleWith(routeBudget, () =>
+      ecs.get(actor.id) === actor.entity && actor.alive && !actor.entity.has('corpse')
+        ? actor.position
+        : null,
+    );
+  scene.onDisposeObservable.addOnce(() => routeBudget.dispose());
   const tributePlan = prepareTribute(ecs, world, player.actor);
   installObjectiveWork(
     ecs,
@@ -396,6 +405,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
         get: () => !progression.snapshot.matches('seekingAltar'),
       });
   game = {
+    routeBudget,
     scene,
     world,
     camera,
@@ -638,6 +648,7 @@ function tick(dt: number): void {
     cancelAttack(game.player.actor);
   }
   updateDoors(game.ecs, dt);
+  game.routeBudget.tick();
   const ember = game.ecs.get('run')?.get('lastEmber');
   const tribute = game.ecs.get('run')?.get('tribute');
   const emberWarning = ember?.approachActivation(),

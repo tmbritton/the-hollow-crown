@@ -4,6 +4,69 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### CPU3 — shared fixed-tick planning (option 2 independently reviewed READY)
+
+Player and AI requests share one 24-credit allowance. Admission and late publication reserve six
+credits; resumable search, frontier selection, refinement, reconstruction, long sweeps, smoothing
+and validation progress in round-robin order. The queue admits up to 32 jobs, one per navigator.
+Checks use fixed work counts, never wall time. Replacements/cancellation retire pending work.
+After four unsuccessful attempts to establish current inputs the result is `invalidated`, distinct
+from `unreachable`. Pursuit retains the next approach to try across pending results. Generation
+and offline tests use the synchronous oracle. Development `route.total` measures request submission;
+`route.work` measures job execution, `route.outcome.*` and `route.latencyTicks` record terminal work.
+
+`node tests/route-budget-profile.ts` compares full waypoint lists in a minified Chromium fixture
+with 25 actors, frozen positions, three simultaneous commands, five repeats per seed. Final runs:
+
+| Seed | Synchronous burst range (ms) | Shared planning p95 / max per tick (ms) | Three completion latencies (ticks) |
+| --- | ---: | ---: | --- |
+| MOURNING-731 | 19.0–43.8 | 2.0 / 3.1 | 37, 27, 40 |
+| CINDER-42 | 18.3–23.7 | 1.7 / 2.9 | 45, 27, 47 |
+| VIOLET-7 | 19.1–29.6 | 1.5 / 2.5 | 28, 28, 43 |
+
+The 24-clear-command burst completed four immediately and peaked at 1.6 ms/tick in this run.
+The latency trade-off is explicit: difficult commands in the long burst waited 0.45–0.78 s at
+60 Hz; the review's lone direct click was immediate and nearby blocked clicks took 6–7 ticks.
+These are planning-only measurements, not an FPS or hard wall-clock guarantee.
+
+Review initially blocked on short admissions, unreachable pursuit, irrelevant motion and live
+traversal capabilities. Persisted reds preceded corrections. Follow-up found a temporary radius
+change during replay, a disconnected moving body and capability grant. The final reviewer
+verified the size sweep, disconnected/overhead motion, live grant/revocation and all 29 focused
+tests, returning READY. Full 419 and type/lint/format passed; root build, isolation/smoke and
+Chromium movement16/combat15/phalanx8/tribute9 passed. Twelve controlled CPU0-tool windows
+matched between modes/repeats on the new activation contract; their timing-dependent gameplay
+milestones are not claimed identical to CPU2. CPU diagnostic regressions passed.
+
+### CPU3 checkpoint follow-up — local blocked-click approaches (option 1 READY at this checkpoint)
+
+Against `fa19185`, with 25 living actors and as-generated doors, eight fresh requests per
+seed to the nearest entrance prop gave these median planning times in a minified Chromium
+fixture (ms; midpoint of the two middle samples). These are planning times, not rendered FPS.
+
+| Seed | Checkpoint | Local proof | Graph expansions before → after |
+| --- | ---: | ---: | ---: |
+| MOURNING-731 | 8.90 | 4.10 | 1,275 → 189 |
+| CINDER-42 | 5.60 | 3.50 | 321 → 211 |
+| VIOLET-7 | 6.85 | 3.80 | 1,843 → 274 |
+
+For a near partial click, finish early only after the normal search has established costs for
+every cell that can compete under the existing refinement radius and tie rule, and the chosen
+point has a clear direct approach. Otherwise the same search continues. A partial prefix is
+never published as a complete connectivity cache. A remote-work regression failed at 2,942
+probes before the change. Independent review caught an incorrect door-point exclusion on a
+tangent; the new regression failed at x=8.49959 before restoring the exhaustive x=9.7 endpoint.
+Independent follow-up **READY for option 1**, with 374 differential comparisons matching and
+21 focused tests passing. Full 411, type/lint/format, build and root production smoke passed
+after the correction; movement16 passed before that final conservative fix.
+
+The three-call stress batch (reachable AI goal, unreachable AI goal, partial player goal;
+ordinary doors open, same three seeds, five repeats each) still consumed **17.1–30.7 ms** with
+fresh navigators and **13.5–17.7 ms** warm, excluding construction and rendering. All 15 fresh
+batches exceeded a 60 Hz frame budget. A shared deterministic planning budget for expensive
+requests remains recommended. Local evidence: `test-results/cpu3-option1-{before,final-click,
+final-work,final-batch}.log`; production samples exclude development instrumentation.
+
 ### CPU2 — exact-zero movement (independent review READY)
 
 Stationary motor test failed with 90 redundant sweeps, then passed with zero and retained a tiny

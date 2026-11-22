@@ -1,14 +1,24 @@
 import { heightAt, key, tileAt } from './world.ts';
-import type { DoorEntity, Footprint, Point, World } from './worldTypes.ts';
+import type { DoorEntity, Footprint, Point, Spawn, World } from './worldTypes.ts';
 import { segmentIntersectsBox } from './generation/placement.ts';
 export { segmentIntersectsBox } from './generation/placement.ts';
 import { Statechart } from './machines/statechart.ts';
 import { navigationMachine } from './machines/navigation/travel.ts';
-import type { CollisionBody, Occupancy } from './occupancy.ts';
-import { cpuTrace } from './cpuMetrics.ts';
+import { Occupancy, type CollisionBody } from './occupancy.ts';
+import { cpuTrace, cpuTiming } from './cpuMetrics.ts';
 import { nearSegment, segmentBounds } from './queryBounds.ts';
 import { CARDINALS, CLEARANCE, routeGrid } from './routeGrid.ts';
 import type { RouteCell } from './routeGrid.ts';
+import type { RouteBudget, RouteJob } from './routeBudget.ts';
+import { RouteProof } from './routeProof.ts';
+type Options = { openDoors?: boolean; partial?: boolean };
+export type RouteResult = 'ready' | 'pending' | 'unreachable' | 'invalidated';
+function finish<T>(g: Generator<void, T>): T {
+  for (;;) {
+    const r = g.next();
+    if (r.done) return r.value;
+  }
+}
 
 export type NavigationWorld = Pick<World, 'tiles' | 'blockers' | 'entities'>;
 interface Point3 extends Point {
@@ -26,6 +36,8 @@ export interface SteeringTarget {
 }
 
 const SAMPLE_SPACING = 0.18;
+const FRONTIER_REACH = 1.5;
+const FRONTIER_TIE = 0.001;
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 type Search = {
   from: Point;
@@ -70,6 +82,29 @@ export function pickGround(world: Pick<World, 'tiles'>, ray: GroundRay): Point |
 
 /** Tile graph routing followed by clearance-checked line-of-sight smoothing. */
 export class Navigator {
+  private budget?: RouteBudget;
+  private readonly capability: () => boolean;
+  private sequence = 0;
+  get requestSequence() {
+    return this.sequence;
+  }
+  private owner?: () => Point | null;
+  private work?: { key: string; job: RouteJob; floor: Point | null };
+  private outcome: RouteResult | null = null;
+  get planningResult() {
+    return this.pending ? 'pending' : this.outcome;
+  }
+  private failure?: { key: string; stamp: string };
+  private proof?: RouteProof;
+  private gates?: Map<DoorEntity, boolean>;
+  get pending() {
+    return !!this.work;
+  }
+  scheduleWith(budget: RouteBudget, owner: () => Point | null) {
+    this.cancel();
+    this.budget = budget;
+    this.owner = owner;
+  }
   private readonly world: NavigationWorld;
   readonly occupancy?: Occupancy;
   private readonly staticCells = new Map<string, boolean>();
@@ -94,7 +129,12 @@ export class Navigator {
     return this.chart.snapshot.matches('waitingForDoor');
   }
 
-  constructor(world: NavigationWorld, occupancy?: Occupancy) {
+  constructor(
+    world: NavigationWorld,
+    occupancy?: Occupancy,
+    capability: () => boolean = () => true,
+  ) {
+    this.capability = capability;
     this.world = world;
     this.occupancy = occupancy;
     this.doors = world.entities.filter((entity) => entity.type === 'door');
@@ -120,6 +160,13 @@ export class Navigator {
   }
 
   cancel(): void {
+    this.sequence++;
+    if (this.work) {
+      this.budget?.remove(this.work.job);
+      this.work = undefined;
+    }
+    this.failure = undefined;
+    this.outcome = null;
     this.chart.send({ type: 'CANCEL' });
     this.floorCommand = null;
     this.floorBounds = null;
@@ -215,6 +262,7 @@ export class Navigator {
   /** Held-floor input reuses an unchanged command, including arrival/failure. Small cursor
    * drift on partial routes retries at most twice/second; explicit clicks are immediate. */
   followFloor(from: Point, requested: Point, now: number): boolean {
+    if (this.work?.floor && distance(this.work.floor, requested) < 0.08) return true;
     if (this.floorCommand) this.refreshGrid();
     const cached = this.floorCommand;
     if (cached) {
@@ -230,7 +278,7 @@ export class Navigator {
       )
         return cached.accepted;
     }
-    const accepted = this.goTo(from, requested, { partial: true });
+    const accepted = this.intent(from, requested, { partial: true });
     this.floorSearchTime = now;
     return accepted;
   }
@@ -252,8 +300,8 @@ export class Navigator {
     );
   }
 
-  private doorsClear(point: Point, planning = false): boolean {
-    return !this.doors.some((door) => {
+  private doorsClear(point: Point, planning = false, doors = this.doors): boolean {
+    return !doors.some((door) => {
       const w = door.axis === 'x' ? 0.35 : 2.95;
       const d = door.axis === 'x' ? 2.95 : 0.35;
       return (
@@ -265,14 +313,24 @@ export class Navigator {
   }
 
   private doorBlocks(door: DoorEntity, planning: boolean): boolean {
-    return (
+    if (this.gates && planning) {
+      const saved = this.gates.get(door);
+      if (saved !== undefined) return saved;
+    }
+    const blocks =
       door.locked ||
-      (!(planning && this.opensDoors) && (!door.open || !!door.collider?.checkCollisions))
-    );
+      (!(planning && this.opensDoors) && (!door.open || !!door.collider?.checkCollisions));
+    if (planning) this.gates?.set(door, blocks);
+    return blocks;
   }
 
-  private doorsSegmentClear(from: Point, to: Point, planning: boolean): boolean {
-    return !this.doors.some((door) => {
+  private doorsSegmentClear(
+    from: Point,
+    to: Point,
+    planning: boolean,
+    doors = this.doors,
+  ): boolean {
+    return !doors.some((door) => {
       return (
         segmentIntersectsBox(
           from,
@@ -302,8 +360,16 @@ export class Navigator {
     return (
       !this.occupancy ||
       !bodies ||
-      (h !== null && this.occupancy.canStand({ x: point.x, z: point.z, h }, bodies))
+      (h !== null && this.standBody({ x: point.x, z: point.z, h }, bodies))
     );
+  }
+  private standBody(p: Spawn, bodies: readonly CollisionBody[]) {
+    const ok = this.occupancy!.canStand(p, bodies);
+    return this.proof?.watch(p, undefined, ok) ?? ok;
+  }
+  private sweepBody(a: Spawn, b: Spawn, bodies: readonly CollisionBody[]) {
+    const ok = this.occupancy!.segmentClear(a, b, bodies);
+    return this.proof?.watch(a, b, ok) ?? ok;
   }
 
   /** Respawns use nearby reachable floor when a living actor occupies the checkpoint. */
@@ -363,9 +429,7 @@ export class Navigator {
           ph === null ||
           Math.abs(h - ph) > 0.65 ||
           !this.doorsSegmentClear(prev, p, true) ||
-          (this.occupancy &&
-            bodies &&
-            !this.occupancy.segmentClear({ ...prev, h: ph }, { ...p, h }, bodies))
+          (this.occupancy && bodies && !this.sweepBody({ ...prev, h: ph }, { ...p, h }, bodies))
         )
           continue;
         const cell = this.grid.cells.get(id);
@@ -410,11 +474,51 @@ export class Navigator {
     bodies?: readonly CollisionBody[],
     terrainOnly = false,
   ): boolean {
+    return this.sweptClear(
+      from,
+      to,
+      planning,
+      bodies,
+      terrainOnly,
+      this.world.blockers,
+      this.doors,
+    );
+  }
+
+  private sweptClear(
+    from: Point,
+    to: Point,
+    planning: boolean,
+    bodies: readonly CollisionBody[] | undefined,
+    terrainOnly: boolean,
+    blockers: readonly Footprint[],
+    doors: DoorEntity[],
+  ): boolean {
+    return finish(this.sweep(from, to, planning, bodies, terrainOnly, blockers, doors, false));
+  }
+  private *checkedSegment(
+    a: Point,
+    b: Point,
+    bodies?: readonly CollisionBody[],
+  ): Generator<void, boolean> {
+    if (!this.proof || distance(a, b) <= 2) return this.segmentClear(a, b, true, bodies);
+    return yield* this.sweep(a, b, true, bodies, false, this.world.blockers, this.doors, true);
+  }
+  private *sweep(
+    from: Point,
+    to: Point,
+    planning: boolean,
+    bodies: readonly CollisionBody[] | undefined,
+    terrainOnly: boolean,
+    blockers: readonly Footprint[],
+    doors: DoorEntity[],
+    paced: boolean,
+  ): Generator<void, boolean> {
     if (import.meta.env?.DEV) cpuTrace?.count('route.segmentClear');
     const bounds = segmentBounds(from, to);
-    const nearby = this.world.blockers.filter((box) => nearSegment(bounds, box, CLEARANCE));
+    const nearby = blockers.filter((box) => nearSegment(bounds, box, CLEARANCE));
     if (nearby.some((box) => segmentIntersectsBox(from, to, box, CLEARANCE))) return false;
-    if (!terrainOnly && !this.doorsSegmentClear(from, to, planning)) return false;
+    if (!terrainOnly && !this.doorsSegmentClear(from, to, planning, doors)) return false;
     // Uniform samples can miss a very short unsupported interval at a room corner.
     // Partition at every center/corner tile crossing; support is constant between
     // these boundaries. A long smoothed route and its short steering probes agree.
@@ -428,11 +532,13 @@ export class Navigator {
         for (let edge = Math.floor(Math.min(a, b) + 0.5) + 0.5; edge < Math.max(a, b); edge++) {
           const t = (edge - a) / delta;
           if (t > 0 && t < 1) crossings.push(t);
+          if (paced && crossings.length % 64 === 0) yield;
         }
       }
     }
     crossings.sort((a, b) => a - b);
     for (let i = 1; i < crossings.length; i++) {
+      if (paced && i % 32 === 0) yield;
       const t = (crossings[i - 1] + crossings[i]) / 2;
       if (
         !this.staticClear(
@@ -448,6 +554,7 @@ export class Navigator {
     // Point-compatible vectors may expose coordinates through prototype accessors.
     let previousPoint = { x: from.x, z: from.z, h: previous };
     for (let i = 1; i <= steps; i++) {
+      if (paced && i % 16 === 0) yield;
       if (import.meta.env?.DEV) cpuTrace?.count('route.segmentSamples');
       const point = {
         x: from.x + ((to.x - from.x) * i) / steps,
@@ -456,7 +563,7 @@ export class Navigator {
       const height = heightAt(this.world, point.x, point.z);
       if (
         !this.staticClear(point, nearby) ||
-        (!terrainOnly && !this.doorsClear(point, planning)) ||
+        (!terrainOnly && !this.doorsClear(point, planning, doors)) ||
         height === null ||
         Math.abs(height - previous) > 0.65
       )
@@ -464,7 +571,7 @@ export class Navigator {
       if (
         bodies &&
         this.occupancy &&
-        !this.occupancy.segmentClear(previousPoint, { ...point, h: height }, bodies)
+        !this.sweepBody(previousPoint, { ...point, h: height }, bodies)
       )
         return false;
       previousPoint = { ...point, h: height };
@@ -481,13 +588,22 @@ export class Navigator {
     options: { openDoors?: boolean; partial?: boolean } = {},
   ): boolean {
     const bodies = this.occupancy?.bodies();
+    if (this.work) this.cancel();
+    return finish(this.steps(from, requested, options, bodies));
+  }
+  private *steps(
+    from: Point,
+    requested: Point,
+    options: Options,
+    bodies?: readonly CollisionBody[],
+  ): Generator<void, boolean> {
     this.refreshGrid();
     this.floorBounds = null;
     if (!options.partial) this.cancel();
     else this.chart.send({ type: 'CANCEL' });
     this.chart.send({ type: 'CONFIGURE', opensDoors: options.openDoors ?? false });
-    const environment = options.partial ? this.environment(bodies) : '';
-    const accepted = this.plan(from, requested, !!options.partial, bodies, environment);
+    const environment = options.partial && this.floorSearch ? this.environment(bodies) : null;
+    const accepted = yield* this.plan(from, requested, !!options.partial, bodies, environment);
     if (import.meta.env?.DEV) cpuTrace?.phase('publication');
     this.floorCommand = options.partial
       ? {
@@ -495,7 +611,7 @@ export class Navigator {
           from: { x: from.x, z: from.z },
           endpoint: this.destination,
           route: this.route,
-          environment,
+          environment: '',
           accepted,
           partial: !this.destination || distance(this.destination, requested) > 0.025,
         }
@@ -505,13 +621,175 @@ export class Navigator {
     return accepted;
   }
 
-  private plan(
+  /** Intent accepted into planning, or a route installed immediately. Neither pending
+   * nor an invalidated attempt is evidence that a goal is unreachable. */
+  intent(from: Point, goal: Point, options: Options = {}): boolean {
+    const state = this.request(from, goal, options);
+    return state === 'ready' || state === 'pending';
+  }
+  request(from: Point, requested: Point, options: Options = {}): RouteResult {
+    const budget = this.budget,
+      owner = this.owner;
+    if (!budget || !owner)
+      return this.goTo(from, requested, {
+        ...options,
+        openDoors: !!options.openDoors && this.capability(),
+      })
+        ? 'ready'
+        : 'unreachable';
+    const goal = { x: requested.x, z: requested.z };
+    options = { ...options };
+    const id = JSON.stringify([goal.x, goal.z, !!options.partial, !!options.openDoors]);
+    if (this.work?.key === id) return 'pending';
+    const stamp = () =>
+      JSON.stringify([
+        from.x,
+        from.z,
+        this.capability(),
+        this.occupancy?.size.radius,
+        this.occupancy?.size.height,
+        this.bodyGeometry(this.occupancy?.bodies()),
+        this.doors.map((d) => [d.locked, d.open, !!d.collider?.checkCollisions]),
+      ]);
+    if (
+      this.failure?.key === id &&
+      this.failure.stamp === stamp() &&
+      this.grid.matches(this.world, this.doors)
+    ) {
+      this.failure = undefined;
+      return 'unreachable';
+    }
+    this.cancel();
+    this.chart.send({ type: 'CONFIGURE', opensDoors: !!options.openDoors });
+    let state: RouteResult = 'pending';
+    const load = { cost: 6 };
+    const submitted = budget.ticks;
+    const run = this.scheduledPlan(goal, options, budget, owner, load);
+    const job: RouteJob = {
+      cost: () => load.cost,
+      advance: () => {
+        load.cost = 1;
+        const result = run.next();
+        if (!result.done) return false;
+        this.outcome = state = result.value;
+        if (import.meta.env?.DEV) {
+          cpuTiming?.count(`route.outcome.${state}`);
+          cpuTiming?.count('route.latencyTicks', budget.ticks - submitted);
+        }
+        this.work = undefined;
+        if (state === 'unreachable') this.failure = { key: id, stamp: stamp() };
+        return true;
+      },
+      retire: () => {
+        this.outcome = state = 'invalidated';
+        this.work = undefined;
+        run.return('invalidated');
+      },
+    };
+    this.work = { key: id, job, floor: options.partial ? goal : null };
+    budget.submit(job);
+    return state;
+  }
+  private *scheduledPlan(
+    goal: Point,
+    options: Options,
+    budget: RouteBudget,
+    owner: () => Point | null,
+    load: { cost: number },
+  ): Generator<void, RouteResult> {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const admitted = budget.ticks;
+      const live = owner();
+      if (!live) return 'invalidated';
+      const start = { x: live.x, z: live.z };
+      const opens = !!options.openDoors && this.capability();
+      this.chart.send({ type: 'CONFIGURE', opensDoors: opens });
+      const bodies = this.occupancy?.bodies().map((b) => ({ ...b }));
+      // An exact direct command needs only current continuous geometry, not a new
+      // search chart or a whole-grid compatibility walk. Admission is still charged.
+      if (
+        !options.partial &&
+        distance(start, goal) <= 4 &&
+        this.canOccupy(goal, true, bodies) &&
+        (distance(start, goal) < 0.025 || this.segmentClear(start, goal, true, bodies))
+      ) {
+        if (distance(start, goal) >= 0.025) this.chart.send({ type: 'PLAN', route: [goal] });
+        return 'ready';
+      }
+      const radius = this.occupancy?.size.radius,
+        height = this.occupancy?.size.height;
+      const footprint = this.occupancy
+        ? new Occupancy({ ...this.occupancy.size }, () => bodies ?? [])
+        : undefined;
+      const draft = new Navigator(this.world, footprint);
+      draft.proof = new RouteProof();
+      draft.gates = new Map();
+      const work = draft.steps(start, goal, { ...options, openDoors: opens }, bodies);
+      let tick = budget.ticks;
+      const current = () => {
+        const p = owner();
+        return (
+          p &&
+          opens === (!!options.openDoors && this.capability()) &&
+          p.x === start.x &&
+          p.z === start.z &&
+          radius === this.occupancy?.size.radius &&
+          height === this.occupancy?.size.height &&
+          draft.grid.matches(this.world, this.doors)
+        );
+      };
+      let result = work.next();
+      while (!result.done) {
+        yield;
+        if (tick !== budget.ticks && !current()) break;
+        tick = budget.ticks;
+        result = work.next();
+      }
+      if (result.done) {
+        if (budget.ticks !== admitted) {
+          load.cost = 6;
+          yield;
+        }
+        let checked = bodies;
+        for (let pass = 0; pass < 8; pass++) {
+          const now = this.occupancy?.bodies().map((b) => ({ ...b }));
+          if (this.bodyGeometry(checked) === this.bodyGeometry(now)) {
+            if (
+              !current() ||
+              [...draft.gates].some(([d, blocked]) => this.doorBlocks(d, true) !== blocked)
+            )
+              break;
+            this.grid = draft.grid;
+            this.staticCells.clear();
+            this.floorBounds = draft.floorBounds;
+            this.floorSearch = null;
+            if (draft.active)
+              this.chart.send({ type: 'PLAN', route: draft.path.map((p) => ({ ...p })) });
+            this.floorCommand = draft.floorCommand
+              ? { ...draft.floorCommand, route: this.route }
+              : null;
+            if (this.floorCommand)
+              this.floorCommand.environment = this.environment(now, this.floorCommand);
+            return result.value ? 'ready' : 'unreachable';
+          }
+          if (!footprint || !(yield* draft.proof.validate(footprint, checked ?? [], now ?? [])))
+            break;
+          checked = now;
+        }
+      }
+      load.cost = 6;
+      yield;
+    }
+    return 'invalidated';
+  }
+
+  private *plan(
     from: Point,
     requested: Point,
     partial: boolean,
     bodies: readonly CollisionBody[] | undefined,
-    environment: string,
-  ): boolean {
+    environment: string | null,
+  ): Generator<void, boolean> {
     if (import.meta.env?.DEV) cpuTrace?.phase('goal');
     const tile = tileAt(this.world, requested.x, requested.z);
     if (!tile) return false;
@@ -524,13 +802,15 @@ export class Navigator {
     const exact = this.canOccupy(goal, true, bodies);
     if (!exact && !partial) return false;
     if (exact && distance(from, goal) < 0.025) return true;
-    if (exact && this.segmentClear(from, goal, true, bodies)) {
+    if (this.proof && distance(from, goal) > 4) yield;
+    if (exact && (yield* this.checkedSegment(from, goal, bodies))) {
       this.chart.send({ type: 'PLAN', route: [goal] });
       return true;
     }
     // Near another body the rounded starting cell can be occupied. Connect to nearby
     // free cells instead of abandoning a valid route around the creature.
     if (import.meta.env?.DEV) cpuTrace?.phase('connectors');
+    if (this.proof) yield;
     const cached =
       partial && this.floorSearch?.environment === environment ? this.floorSearch : null;
     const geometry = this.bodyGeometry(bodies);
@@ -564,9 +844,29 @@ export class Navigator {
           }
         }
     if (!sameOrigin) queue.sort((a, b) => distance(a, from) - distance(b, from));
+    // A blocked near click can finish as soon as all potentially winning anchors
+    // have their ordinary FIFO costs. Never cache this prefix as an exhausted tree.
+    let pending =
+      partial && !exact && !sameOrigin && distance(from, goal) <= 8
+        ? this.localFrontier(from, goal, bodies)
+        : null;
+    if (pending) for (const cell of queue) pending.delete(cell.index);
     let goalKey: number | null = null;
     if (import.meta.env?.DEV) cpuTrace?.phase('search');
     for (let i = 0; i < queue.length; i++) {
+      if (this.proof && i % 16 === 0) yield;
+      if (pending && pending.size === 0) {
+        const local = yield* this.closestReachable(from, requested, search, bodies, true);
+        if (local && (yield* this.checkedSegment(from, local.point, bodies))) {
+          if (import.meta.env?.DEV) cpuTrace?.count('route.localApproaches');
+          this.floorSearch = null;
+          this.floorBounds = this.searchBounds(from, requested, queue);
+          this.chart.send({ type: 'PLAN', route: [{ x: local.point.x, z: local.point.z }] });
+          return true;
+        }
+        pending = null;
+      }
+      if (i === 384) pending = null;
       // Let short successful routes finish before paying for a reverse probe. Its
       // fixed cap is independent of time and it never changes successful BFS ordering.
       if (i === 12 && !partial) {
@@ -600,58 +900,53 @@ export class Navigator {
           })
         )
           continue;
-        if (this.occupancy && bodies?.length) {
-          if (
-            !this.occupancy.canStand(next, bodies) ||
-            !this.occupancy.segmentClear(cell, next, bodies)
-          )
-            continue;
+        if (this.occupancy && bodies && (bodies.length || this.proof)) {
+          if (!this.standBody(next, bodies) || !this.sweepBody(cell, next, bodies)) continue;
         }
         parents[id] = current.index + 1;
         costs[id] = costs[current.index] + 1;
         queue.push(next);
+        pending?.delete(id);
       }
     }
     if (goalKey === null) {
       if (!partial) return false;
       // Only an exhausted component can be reused for a different cursor request. The
       // finite tile graph visits each cell once; terrain caches are world-local/immutable.
-      this.floorSearch = { ...search, environment, geometry };
-      const bounds = segmentBounds(from, requested);
-      for (const p of queue) {
-        bounds.minX = Math.min(bounds.minX, p.x);
-        bounds.maxX = Math.max(bounds.maxX, p.x);
-        bounds.minZ = Math.min(bounds.minZ, p.z);
-        bounds.maxZ = Math.max(bounds.maxZ, p.z);
-      }
-      this.floorBounds = bounds;
-      const fallback = this.closestReachable(from, requested, search, bodies);
+      this.floorSearch = {
+        ...search,
+        environment: environment ?? this.environment(bodies),
+        geometry,
+      };
+      this.floorBounds = this.searchBounds(from, requested, queue);
+      const fallback = yield* this.closestReachable(from, requested, search, bodies);
       if (!fallback) return false;
       goal = { x: fallback.point.x, z: fallback.point.z };
       goalKey = fallback.anchor === from ? null : grid.get(fallback.anchor)!.index;
     }
     if (import.meta.env?.DEV) cpuTrace?.phase('reconstruction');
-    const chain = (end: number | null) => {
-      const points: Point[] = [];
-      for (let id = end ?? -1; id >= 0; id = parents[id] - 1) {
-        if (import.meta.env?.DEV) cpuTrace?.count('route.chainNodes');
-        const { x, z } = grid.byIndex[id];
-        points.push({ x, z });
-      }
-      return points.reverse();
-    };
-    const points = [...chain(goalKey), goal];
+    const points: Point[] = [];
+    for (let id = goalKey ?? -1; id >= 0; id = parents[id] - 1) {
+      if (this.proof && points.length % 64 === 0) yield;
+      if (import.meta.env?.DEV) cpuTrace?.count('route.chainNodes');
+      const { x, z } = grid.byIndex[id];
+      points.push({ x, z });
+    }
+    points.reverse().push(goal);
     let anchor = from;
     const route: Point[] = [];
     if (import.meta.env?.DEV) cpuTrace?.phase('smoothing');
     for (let i = 0; i < points.length;) {
       let farthest = points.length - 1;
-      while (
-        farthest >= i &&
-        (this.crossesVoid(anchor, points[farthest]) ||
-          !this.segmentClear(anchor, points[farthest], true, bodies))
-      )
-        farthest--;
+      let rejects = 0;
+      for (; farthest >= i; farthest--) {
+        if (this.crossesVoid(anchor, points[farthest])) {
+          if (this.proof && ++rejects % 16 === 0) yield;
+          continue;
+        }
+        if (this.proof) yield;
+        if (yield* this.checkedSegment(anchor, points[farthest], bodies)) break;
+      }
       if (farthest < i) {
         this.cancel();
         return false;
@@ -664,14 +959,53 @@ export class Navigator {
     return true;
   }
 
+  private searchBounds(from: Point, goal: Point, queue: readonly Point[]) {
+    const bounds = segmentBounds(from, goal);
+    for (const p of queue) {
+      bounds.minX = Math.min(bounds.minX, p.x);
+      bounds.maxX = Math.max(bounds.maxX, p.x);
+      bounds.minZ = Math.min(bounds.minZ, p.z);
+      bounds.maxZ = Math.max(bounds.maxZ, p.z);
+    }
+    return bounds;
+  }
+
+  private localFrontier(
+    from: Point,
+    goal: Point,
+    bodies?: readonly CollisionBody[],
+  ): Set<number> | null {
+    // The closest reached center gives an upper bound on target distance. Every
+    // refinement stays within FRONTIER_REACH of its anchor. Enumerate a superset
+    // of the anchors exhaustive selection could sort, including distance ties.
+    const cells: RouteCell[] = [];
+    let closest = distance(from, goal);
+    for (let x = Math.floor(goal.x - 5); x <= Math.ceil(goal.x + 5); x++)
+      for (let z = Math.floor(goal.z - 5); z <= Math.ceil(goal.z + 5); z++) {
+        const cell = this.grid.cells.get(key(x, z));
+        // Door traversal uses directed edge slabs. A point test on a tangent can
+        // disagree at floating-point boundaries, so keep it as a possible contender.
+        if (!cell || !this.bodyClear(cell, bodies)) continue;
+        closest = Math.min(closest, distance(cell, goal));
+        cells.push(cell);
+      }
+    if (closest + FRONTIER_REACH + FRONTIER_TIE >= 5) return null;
+    return new Set(
+      cells
+        .filter((p) => distance(p, goal) - FRONTIER_REACH <= closest + FRONTIER_TIE)
+        .map((p) => p.index),
+    );
+  }
+
   /** Search the reachable component first, then refine its closest frontier. Every candidate
    * has a swept connection to a reached anchor; no world-nearest or through-gate projection.
    * Local refinement is bounded (1.5 units, 12 bisections, then ten eight-way passes). */
-  private closestReachable(
+  private *closestReachable(
     from: Point,
     requested: Point,
     search: Search,
     bodies?: readonly CollisionBody[],
+    local = false,
   ) {
     if (import.meta.env?.DEV) cpuTrace?.phase('frontierSort');
     let best = { point: { x: from.x, z: from.z }, anchor: from };
@@ -679,30 +1013,63 @@ export class Navigator {
     let travel = 0;
     // Bisection/refinement precision must not choose the opposite face on roundoff.
     // Within 0.001 units of the best target distance, prefer shorter routed travel.
-    const tie = 0.001;
+    const tie = FRONTIER_TIE;
     const cost = (anchor: Point) =>
       anchor === from ? 0 : search.costs[this.grid.get(anchor)!.index];
     // Every reached cell is itself a feasible candidate, and refinements stay within
     // 1.5 units of their anchor. Only this band can beat the closest cell (or origin).
     let cutoff = score;
-    for (const p of search.queue) cutoff = Math.min(cutoff, distance(p, requested));
-    const anchors = [from, ...search.queue]
-      .filter((p) => distance(p, requested) - 1.5 <= cutoff + tie)
-      .sort(
-        (a, b) =>
-          distance(a, requested) - distance(b, requested) ||
-          cost(a) - cost(b) ||
-          a.x - b.x ||
-          a.z - b.z,
-      );
+    let count = 0;
+    for (const p of search.queue) {
+      if (this.proof && ++count % 128 === 0) yield;
+      cutoff = Math.min(cutoff, distance(p, requested));
+    }
+    const anchors: Point[] = [];
+    for (const p of [from, ...search.queue]) {
+      if (this.proof && ++count % 128 === 0) yield;
+      if (distance(p, requested) - FRONTIER_REACH <= cutoff + tie) anchors.push(p);
+    }
+    anchors.sort(
+      (a, b) =>
+        distance(a, requested) - distance(b, requested) ||
+        cost(a) - cost(b) ||
+        a.x - b.x ||
+        a.z - b.z,
+    );
+    // Every candidate and its connecting segment lie within reach of one of these
+    // anchors. Filter once for the whole local refinement, retaining exact narrow tests.
+    const region = local ? this.searchBounds(from, requested, anchors) : null;
+    const blockers = region
+      ? this.world.blockers.filter((b) => nearSegment(region, b, FRONTIER_REACH + CLEARANCE))
+      : this.world.blockers;
+    const doors = region
+      ? this.doors.filter((d) =>
+          nearSegment(region, { x: d.x, z: d.z, w: 2.95, d: 2.95 }, FRONTIER_REACH + CLEARANCE),
+        )
+      : this.doors;
+    const relevant = region
+      ? bodies?.filter((b) =>
+          nearSegment(
+            region,
+            { x: b.x, z: b.z, w: b.radius * 2, d: b.radius * 2 },
+            FRONTIER_REACH + (this.occupancy?.size.radius ?? 0),
+          ),
+        )
+      : bodies;
+    const occupiable = (p: Point) =>
+      local
+        ? this.staticClear(p, blockers) &&
+          this.doorsClear(p, true, doors) &&
+          this.bodyClear(p, relevant)
+        : this.canOccupy(p, true, bodies);
+    const clear = (a: Point, b: Point) =>
+      local
+        ? this.sweptClear(a, b, true, relevant, false, blockers, doors)
+        : this.segmentClear(a, b, true, bodies);
     const consider = (point: Point, anchor: Point, refining = false) => {
       if (import.meta.env?.DEV) cpuTrace?.count('route.candidates');
       const d = distance(point, requested);
-      if (
-        d <= score + tie &&
-        this.canOccupy(point, true, bodies) &&
-        this.segmentClear(anchor, point, true, bodies)
-      ) {
+      if (d <= score + tie && occupiable(point) && clear(anchor, point)) {
         score = Math.min(score, d);
         const nextTravel = cost(anchor) + distance(anchor, point);
         if (
@@ -719,6 +1086,7 @@ export class Navigator {
     };
     if (import.meta.env?.DEV) cpuTrace?.phase('frontier');
     for (const anchor of anchors) {
+      if (this.proof) yield;
       if (distance(anchor, requested) - 1.5 > score + tie) continue;
       consider(anchor, anchor);
       for (const start of [
@@ -726,26 +1094,17 @@ export class Navigator {
         { x: anchor.x, z: requested.z },
         { x: requested.x, z: anchor.z },
       ]) {
-        if (
-          distance(start, anchor) > 1.5 ||
-          !this.canOccupy(start, true, bodies) ||
-          !this.segmentClear(anchor, start, true, bodies)
-        )
-          continue;
+        if (distance(start, anchor) > 1.5 || !occupiable(start) || !clear(anchor, start)) continue;
         let low = 0,
           high = Math.min(1, 1.5 / Math.max(distance(start, requested), 0.001));
         for (let i = 0; i < 12; i++) {
+          if (this.proof && i % 4 === 0) yield;
           const t = (low + high) / 2;
           const point = {
             x: start.x + (requested.x - start.x) * t,
             z: start.z + (requested.z - start.z) * t,
           };
-          if (
-            distance(anchor, point) <= 1.5 &&
-            this.canOccupy(point, true, bodies) &&
-            this.segmentClear(anchor, point, true, bodies)
-          )
-            low = t;
+          if (distance(anchor, point) <= 1.5 && occupiable(point) && clear(anchor, point)) low = t;
           else high = t;
         }
         consider(
@@ -760,6 +1119,7 @@ export class Navigator {
     // Sub-cell alignment, including off-centre clicks and curved living-body boundaries.
     if (import.meta.env?.DEV) cpuTrace?.phase('refinement');
     for (let step = 0.25; step >= 0.00048; step /= 2) {
+      if (this.proof) yield;
       const origin = best.point;
       for (const dx of [-step, 0, step])
         for (const dz of [-step, 0, step]) {
@@ -790,7 +1150,7 @@ export class Navigator {
     // Preserve exact-goal/door-capable callers' existing PROBE and waiting semantics.
     const floor = this.floorCommand?.route === this.route ? this.floorCommand : null;
     if (!clear && floor && replan) {
-      if (this.goTo(position, floor.requested, { partial: true }))
+      if (this.intent(position, floor.requested, { partial: true }))
         return this.steer(position, false);
       return null;
     }
@@ -811,7 +1171,7 @@ export class Navigator {
     if (this.occupancy && !this.segmentClear(position, ahead, true, this.occupancy.bodies())) {
       const destination = floor?.requested ?? this.destination!;
       const openDoors = this.opensDoors;
-      if (replan && this.goTo(position, destination, { openDoors, partial: !!floor }))
+      if (replan && this.intent(position, destination, { openDoors, partial: !!floor }))
         return this.steer(position, false);
       this.chart.send({ type: 'CANCEL' });
       return null;

@@ -126,7 +126,7 @@ export class LastEmber {
     this.work.discover(id);
     const p = this.player.position,
       at = this.sites.shrine.approach;
-    if (Math.hypot(p.x - at.x, p.z - at.z) > 0.4) this.player.navigator.goTo(p, at);
+    if (Math.hypot(p.x - at.x, p.z - at.z) > 0.4) this.player.navigator.request(p, at);
     this.player.position.heading = Math.atan2(this.sites.shrine.x - p.x, this.sites.shrine.z - p.z);
     return this.work.assign(this.player, id);
   }

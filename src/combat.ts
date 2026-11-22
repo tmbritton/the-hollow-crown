@@ -224,8 +224,8 @@ export class CombatSystem {
   }
 
   route(actor: Actor, goal: Point): boolean {
-    return actor.navigator.goTo(actor.position, goal, {
-      openDoors: actor.entity.require('actor').opensDoors,
+    return actor.navigator.intent(actor.position, goal, {
+      openDoors: true,
     });
   }
 
@@ -252,7 +252,8 @@ export class CombatSystem {
       actor.navigator.cancel();
       return;
     }
-    if (!actor.navigator.active && !this.route(actor, door)) actor.attack.releaseInteraction();
+    if (!actor.navigator.active && !actor.navigator.pending && !this.route(actor, door))
+      actor.attack.releaseInteraction();
   }
 
   inMelee(actor: Actor, target: Actor): boolean {
@@ -414,8 +415,26 @@ export class CombatSystem {
         return false;
       }
     }
+    let resume = actor.attack.approach;
+    if (
+      resume &&
+      (target.id !== resume.target ||
+        Math.hypot(target.position.x - resume.x, target.position.z - resume.z) > 0.35 ||
+        actor.navigator.requestSequence !== resume.sequence)
+    )
+      actor.attack.approach = resume = null;
+    if (resume) {
+      if (actor.navigator.pending) return false;
+      actor.attack.approach = null;
+      if (actor.navigator.planningResult === 'ready') {
+        actor.attack.blocked = 0;
+        actor.attack.repath = 0.3;
+        return false;
+      }
+      if (actor.navigator.planningResult !== 'unreachable') resume = null;
+    }
     actor.attack.repath -= dt;
-    if (actor.attack.repath <= 0) {
+    if (resume || actor.attack.repath <= 0) {
       actor.attack.repath = 0.3;
       if (
         actor.navigator.destination &&
@@ -427,16 +446,32 @@ export class CombatSystem {
         actor.position.z - target.position.z,
         actor.position.x - target.position.x,
       );
-      const goals = Array.from({ length: 8 }, (_, i) => {
-        const a = angle + (i * Math.PI) / 4;
-        return {
-          x: target.position.x + Math.cos(a) * 1.05,
-          z: target.position.z + Math.sin(a) * 1.05,
-        };
-      });
-      const routed = goals.some(
-        (goal) => actor.navigator.canOccupy(goal) && this.route(actor, goal),
-      );
+      const goals =
+        resume?.goals ??
+        Array.from({ length: 8 }, (_, i) => {
+          const a = angle + (i * Math.PI) / 4;
+          return {
+            x: target.position.x + Math.cos(a) * 1.05,
+            z: target.position.z + Math.sin(a) * 1.05,
+          };
+        });
+      let routed = false;
+      for (let i = resume?.next ?? 0; i < goals.length; i++) {
+        if (!actor.navigator.canOccupy(goals[i]) || !this.route(actor, goals[i])) continue;
+        if (actor.navigator.pending) {
+          actor.attack.approach = {
+            target: target.id,
+            x: target.position.x,
+            z: target.position.z,
+            goals,
+            next: i + 1,
+            sequence: actor.navigator.requestSequence,
+          };
+          return false;
+        }
+        routed = true;
+        break;
+      }
       actor.attack.blocked = routed ? 0 : actor.attack.blocked + 0.3;
       if (actor.attack.blocked > 1.5) cancelAttack(actor);
     }
@@ -569,7 +604,7 @@ export class CombatSystem {
     const effects = brain.behavior.send({
       type: 'THINK',
       hasTarget: !!target,
-      navigating: actor.navigator.active,
+      navigating: actor.navigator.active || actor.navigator.pending,
       threatened: this.actors.some(
         (a) => hostile(actor, a) && distance(actor.position, a.position) < 3.8,
       ),

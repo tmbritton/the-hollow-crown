@@ -25,6 +25,7 @@ import type { AnimationReview } from './animationReview.ts';
 import type { CpuProfile } from './cpuProfile.ts';
 
 export interface Game {
+  routeBudget: import('./routeBudget.ts').RouteBudget;
   scene: Scene;
   world: World;
   camera: ArcRotateCamera;

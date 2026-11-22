@@ -16,6 +16,57 @@ function grid(width = 6, depth = 4): NavigationWorld {
 }
 const partial = { partial: true };
 
+test('a fresh click on nearby furniture selects the exhaustive endpoint without visiting remote actors', () => {
+  const w = grid(40, 25),
+    ecs = new ECS();
+  for (const t of w.tiles.values()) if (Math.abs(t.x) <= 1 && Math.abs(t.z) <= 1) t.blocked = true;
+  const p = createActor(ecs, w, 'player', 'player', { x: -5, z: 0, h: 0 });
+  createActor(ecs, w, 'remote', 'kobold', { x: 30, z: 6, h: 0 });
+  const occ = p.navigator.occupancy!,
+    move = occ.segmentClear.bind(occ);
+  let beyondLocal = 0;
+  occ.segmentClear = (from, to, ...rest) => {
+    if (Math.abs(from.x) > 17 || Math.abs(from.z) > 17) beyondLocal++;
+    return move(from, to, ...rest);
+  };
+  assert.ok(p.navigator.goTo(p.position, { x: 0, z: 0 }, partial));
+  assert.deepEqual(p.navigator.path, [{ x: -1.5003662109375, z: 0 }]);
+  assert.equal(beyondLocal, 0);
+});
+
+test('a door-edge detour retains the closer exhaustive approach on a blocked click and hold', () => {
+  const w: NavigationWorld = {
+    tiles: new Map(),
+    entities: [],
+    blockers: [{ id: 'prop', x: 9.7, z: 0, w: 0.1, d: 0.1 }],
+  };
+  for (let x = 4; x <= 10; x++)
+    for (let z = -2; z <= 7; z++) {
+      if (x === 10 && z < 0) continue;
+      w.tiles.set(key(x, z), { x, z, h: 0, surface: 'stone', blocked: x === 9 && z < 6 });
+    }
+  w.entities.push({
+    type: 'door',
+    id: 'gate',
+    x: 10.495,
+    z: 0.6,
+    h: 0,
+    axis: 'x',
+    open: false,
+    locked: true,
+    requiresAltar: true,
+  });
+  const n = new Navigator(w),
+    from = { x: 6, z: 0 },
+    g = { x: 9.7, z: 0.02 };
+  for (const now of [0, 1000]) {
+    assert.ok(n.followFloor(from, g, now));
+    assert.equal(n.destination!.x, g.x);
+    assert.ok(Math.abs(n.destination!.z - 0.370034) < 0.000001);
+    safeRoute(n, from);
+  }
+});
+
 test('removing a solid footprint retires a held partial tree and its cached cells', () => {
   const w = grid(15, 6),
     from = { x: -12, z: 0 },

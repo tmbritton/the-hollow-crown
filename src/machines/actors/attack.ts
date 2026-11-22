@@ -108,6 +108,14 @@ export class Attack {
   readonly command = new Statechart(commandMachine);
   repath = 0;
   blocked = 0;
+  approach: {
+    target: string;
+    x: number;
+    z: number;
+    goals: { x: number; z: number }[];
+    next: number;
+    sequence: number;
+  } | null = null;
   get target() {
     return this.command.snapshot.matches('pursuing') ? this.command.snapshot.context.target : null;
   }
@@ -149,6 +157,7 @@ export class Attack {
     return this.chart.snapshot.context.impacts > impacts ? swing : null;
   }
   cancel(): void {
+    this.approach = null;
     this.chart.send({ type: 'CANCEL' });
     this.command.send({ type: 'CANCEL' });
     this.repath = this.blocked = 0;
@@ -162,6 +171,7 @@ export class Attack {
     this.command.send({ type: 'DIE' });
   }
   reset(): void {
+    this.approach = null;
     this.chart.send({ type: 'RESET' });
     this.command.send({ type: 'RESET' });
     this.repath = this.blocked = 0;

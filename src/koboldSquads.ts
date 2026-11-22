@@ -269,7 +269,10 @@ export class KoboldSquad {
   }
   private routeToSlot(a: Actor, goal: Point): boolean {
     if (a.navigator.active) return true;
-    if (a.navigator.goTo(a.position, goal, { openDoors: true })) {
+    if (a.navigator.pending) return false;
+    const status = a.navigator.request(a.position, goal, { openDoors: true });
+    if (status === 'pending') return false;
+    if (status === 'ready') {
       if (this.routeLength(a) <= PHALANX.routeLimit) return true;
       // Assembly is local: do not send one rank on a whole-keep tour around a choke.
       a.navigator.cancel();
@@ -289,7 +292,9 @@ export class KoboldSquad {
           a.navigator.segmentClear(a.position, p, false, a.navigator.occupancy?.bodies()),
       )
       .sort((p, q) => this.distance(p, goal) - this.distance(q, goal));
-    return !!yields[0] && a.navigator.goTo(a.position, yields[0], { openDoors: true });
+    return (
+      !!yields[0] && a.navigator.request(a.position, yields[0], { openDoors: true }) === 'ready'
+    );
   }
   private routeLength(a: Actor): number {
     let from: Point = a.position,

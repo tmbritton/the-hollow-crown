@@ -202,7 +202,7 @@ export function createCpuProfile(
           let request = 0;
           patch(
             Navigator.prototype,
-            'goTo',
+            'request',
             (old) =>
               function (from, to, options = {}) {
                 m.startRoute({
@@ -213,13 +213,13 @@ export function createCpuProfile(
                   options,
                   reason: 'coarse-unpartitioned',
                 });
-                let accepted = false;
+                let status: ReturnType<Navigator['request']> = 'invalidated';
                 try {
-                  return (accepted = m.measure('route.total', () =>
+                  return (status = m.measure('route.total', () =>
                     old.call(this, from, to, options),
                   ));
                 } finally {
-                  m.finishRoute({ accepted, destination: this.destination, path: this.path });
+                  m.finishRoute({ status, destination: this.destination, path: this.path });
                 }
               },
           );
@@ -450,7 +450,7 @@ export function createCpuProfile(
         );
         patch(
           Navigator.prototype,
-          'goTo',
+          'request',
           (old) =>
             function (from, to, options = {}) {
               const a = actorByNav.get(this);
@@ -474,13 +474,11 @@ export function createCpuProfile(
                 occupancy: fingerprint(g.combat.actors.map((a) => [a.id, a.alive, a.position])),
               }));
               m.startRoute(input);
-              let accepted = false;
+              let status: ReturnType<Navigator['request']> = 'invalidated';
               try {
-                return (accepted = m.measure('route.total', () =>
-                  old.call(this, from, to, options),
-                ));
+                return (status = m.measure('route.total', () => old.call(this, from, to, options)));
               } finally {
-                m.finishRoute({ accepted, destination: this.destination, path: this.path });
+                m.finishRoute({ status, destination: this.destination, path: this.path });
               }
             },
         );

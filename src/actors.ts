@@ -83,7 +83,7 @@ export function createActor(
       )
       .map((entity) => ({ ...entity.require('transform'), ...entity.require('body') })),
   );
-  const actor = new Actor(
+  const actor: Actor = new Actor(
     ecs
       .create(id)
       .add('actor', {
@@ -105,7 +105,10 @@ export function createActor(
         acceleration: { x: 0, z: 0 },
       })
       .add('jump', new Jump())
-      .add('navigation', new Navigator(world, occupancy))
+      .add(
+        'navigation',
+        new Navigator(world, occupancy, () => actor.entity.require('actor').opensDoors),
+      )
       .add('attack', new Attack()),
   );
   if (kind === 'player') actor.entity.add('defense', new Defense());
@@ -214,7 +217,7 @@ export function moveActor(
     actor.entity.get('collision')?.sync?.(p);
     return;
   }
-  const navigating = actor.navigator.active;
+  const navigating = actor.navigator.active || actor.navigator.pending;
   const steering = actor.navigator.steer(p);
   const direction =
     intent.direction ??

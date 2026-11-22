@@ -503,6 +503,12 @@ scattered bounds/tread contacts, reset and once-only named discovery from a visi
 
 ### CPU profiling (development)
 
+Runtime navigation shares 24 deterministic work credits per fixed tick. Clear local commands can
+start immediately; costly routes stay pending until a validated result is available. New commands
+replace old ones. Generation and offline checks retain synchronous routing. Run
+`node tests/route-budget-profile.ts` for the production Chromium three-request and 24-short-request
+benchmarks (planning cost and ticks to activation; no rendering). See [verification](VERIFICATION.md).
+
 `npm run profile:cpu` starts/reuses a local dev server and compares fresh seeded entrance, stable
 and late-hitch workloads in outer-timed, coarse and detailed modes. It writes source-identified
 raw/summary reports and a replayable slow-request pin under ignored `test-results/`.

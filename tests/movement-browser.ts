@@ -90,6 +90,13 @@ async function screenPoint(point: Point) {
 async function click(point: Point) {
   const screen = await screenPoint(point);
   await page.mouse.click(screen.x, screen.y);
+  // An expensive command may be pending. It must publish within a bounded number
+  // of actual simulation ticks; never drive the scheduler outside the game loop.
+  await page.evaluate(() => {
+    const d = window.__dungeon;
+    for (let i = 0; i < 120 && d.game.player.navigator.pending; i++) d.step([], 1);
+    if (d.game.player.navigator.pending) throw Error('floor click still pending after two seconds');
+  });
 }
 async function arrive(target: Point, frames = 600) {
   const result = await page.evaluate(
