@@ -34,11 +34,11 @@ jobs:
       - name: Install smoke-test browser
         run: npx playwright install --with-deps chromium
       - name: Build and smoke-test root deployment
-        run: npm run build && npm run test:production
+        run: npm run build && npm run test:cpu:production && npm run test:production
       - name: Build Pages artifact
         run: npm run build:pages
       - name: Smoke-test Pages deployment path
-        run: npm run test:production
+        run: npm run test:cpu:production && npm run test:production
         env:
           DEMO_URL: http://localhost:4187/the-hollow-crown/
       - name: Upload site only

@@ -1,7 +1,7 @@
 # CPU performance plan — queries, collision, rendering and animation
 
-**Status:** queued next after P9 by the user's **2026-11-21** scheduling decision; **CPU0 is next**.
-The slices below remain unimplemented. This plan is grounded in a completed CPU investigation at
+**Status:** CPU0 is implemented, verified and independently reviewed **READY**. **CPU1 is next**;
+CPU1–CPU7 remain unimplemented. See the [fresh CPU0 baseline/tooling](cpu-baseline.md). This plan retains the completed CPU investigation at
 **`3cfb378`**; its historical measurements excluded concurrent shield-animation work. CPU0 must
 refresh them against the reviewed A0–A7/P8/P9 integration before accepting optimization results.
 
@@ -150,7 +150,7 @@ CPU5–CPU6 must preserve the completed rig, ragdoll and separated-remains owner
 
 | Slice | Scope | Depends on |
 | --- | --- | --- |
-| **CPU0** | Reproducible subsystem timing and correctness baseline | Current integration revision |
+| **CPU0** | Complete; independent review READY — [baseline and tooling](cpu-baseline.md) | `013079c` plus recorded implementation source hash; software diagnostics and desktop hardware baseline |
 | **CPU1** | Spatially relevant door/blocker queries and cheap geometry records | CPU0 |
 | **CPU2** | Zero-displacement movement fast path | CPU0; measure independently of CPU1 |
 | **CPU3** | Reproduce and bound expensive route replans | CPU1; CPU2 integrated for comparison |
@@ -324,8 +324,8 @@ contract explicitly; do not present changed gameplay timing as an invisible opti
 
 ### CPU4 — limit collision candidates to relevant geometry
 
-**Touchpoints:** `src/actorRendering.ts`, `src/buildDungeon.ts`, `src/worldEntities.ts` and collision
-adapter contracts. Evaluate a world-owned spatial index or the engine's candidate-list mechanism
+**Touchpoints:** `src/actors.ts`, `src/occupancy.ts`, `src/actorRendering.ts`, `src/buildDungeon.ts`,
+`src/worldEntities.ts` and collision adapter contracts. Evaluate a world-owned spatial index or the engine's candidate-list mechanism
 against the refreshed installed library version during implementation.
 
 Index collision geometry separately from decorative render meshes. Query a conservative swept
@@ -333,6 +333,24 @@ actor volume, including ellipsoid size, movement direction, elevation and clip/s
 Account for doors, stairs, large footprints, chunk boundaries and multi-step movement. Refresh
 candidates for every actual sweep/slide where necessary; a camera-frustum list is insufficient.
 Use the current full scan as a test oracle and explicit fallback for unsupported arrangements.
+
+For living actor-to-actor queries, prioritize shared prepared body records and a run-owned spatial
+index over repeated whole-registry scans and per-actor body-list allocation. Give each synchronous
+query a stable view, then publish accepted movement before later actors query in the same tick.
+Preserve the existing sequential movement semantics. Update relevant bounds/membership after movement,
+height or body-size changes, death, removal and teleport; replacing the run retires its index.
+
+Reuse genuinely symmetric overlap work by canonical unordered pair when both entities' geometry
+versions match; orient any contact normal appropriately for the caller. Swept movement results also
+depend on mover, origin, displacement, support and query policy. Checking A's proposed move against B
+does not establish the result for B's different move against A. Cache identity must include run/entity
+identity and relevant transform/shape revisions; a pair of IDs plus a tick number is insufficient
+because movement and sliding can change geometry within that tick. Repeated-ID replacement cannot
+inherit an old result.
+
+Measure body-record builds, candidate counts, repeated identical queries, cache hit rate and lookup/
+invalidation overhead before adding narrow-phase result memoization. For cheap cylinder tests, use
+the shared data/index improvements first and retain result caching only when it shows a net benefit.
 
 Keep the living motor's collision candidates distinct from P8/P9 terrain streaming. Rendered bones
 remain passable; they must not enter the living obstacle index. A shared spatial lookup may reuse
@@ -344,6 +362,9 @@ patch participates; a root-only query or rectangle spanning the entire scatter i
 meshes. Full-scan and indexed adapters agree on displacement across seeded paths, high-speed/diagonal
 motion, walls, gates, ramps and live occupancy. Opening/closing or regenerating a door cannot leave
 a stale candidate set. Bounds and resource ownership are measured and tested.
+Compare cached/indexed and uncached actor queries through both movement directions, blocked/escaping
+overlaps, sliding and same-tick A-then-B updates, including death/teleport/body changes and entity
+replacement. A reused result must remain valid for the exact current query.
 
 ### CPU5 — reduce scene traversal and transform overhead
 
@@ -402,6 +423,11 @@ root coordinates. Active → settled publication must make the final surfaces av
 foot queries; removal/reset must withdraw them. Neighborhood bounds must include scattered pieces.
 Shield movement, stow/throw visibility and cargo handoff can invalidate geometry without root travel.
 Preserve immutable sampled snapshots for zero-time inspection and avoid full-scene preparation.
+
+Keep this prepared-geometry reuse distinct from collision-result reuse in CPU4. Tail clearance tests
+can change their candidate pose while the neighboring body stays still; any memoized detailed test
+needs the actual shape/snapshot revisions and candidate inputs. Retain the existing once-per-unordered-
+pair final tail validation and stable-ID solve priority.
 
 **Gate:** distant actors outside every relevant contact neighborhood incur no unnecessary surface
 rebuilds. Nearby participants retain same-frame anatomy/equipment clearance, no falsely clear tail

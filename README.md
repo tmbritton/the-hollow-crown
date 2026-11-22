@@ -69,7 +69,8 @@ Reports/captures use `test-results/production-{root,the-hollow-crown}*` for thes
 
 `.github/workflows/pages.yml` runs on `main` pushes and manual dispatches on `main`. Node **24**
 installs the existing lockfile with `npm ci`, runs `npm run check:full`, and builds/smokes both paths
-sequentially. Only the final Pages **`dist/`** is uploaded. The build job has `contents: read`;
+sequentially. Each build also checks that CPU profiling diagnostics were erased before its browser
+smoke. Only the final Pages **`dist/`** is uploaded. The build job has `contents: read`;
 the deployment job alone has `pages: write` and `id-token: write`. Official SHA-pinned Pages
 actions deploy through the `github-pages` environment and expose its URL. Deployments are serialized
 without cancelling an in-progress run. The built-in token/OIDC needs no deployment secret.
@@ -102,8 +103,9 @@ A6 shield motion is implemented, verified and independently reviewed **READY**.
 A7 rig cutover/death handoff is implemented, verified and independently reviewed **READY**.
 P8 directional, seed-varied ragdolls are implemented, verified and independently reviewed **READY**.
 P9 skeleton breakup is implemented, verified and independently reviewed **READY**.
-**CPU0 (reproducible performance baseline) is next**, followed by CPU1–CPU7 in the
-[CPU performance plan](docs/cpu-performance-plan.md). EF0–EF4 follow the CPU pass before further
+**CPU0 (reproducible performance baseline) is implemented, verified and independently reviewed READY.**
+CPU1 is next in the [CPU performance plan](docs/cpu-performance-plan.md).
+See the [CPU0 baseline and profiling commands](docs/cpu-baseline.md). EF0–EF4 follow the CPU pass before further
 procedural-feature expansion; see the [delivery sequence](docs/implementation-path.md).
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
 [A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md),
@@ -360,6 +362,7 @@ Ordinary page loads and every browser refresh generate a fresh random seed. Rand
 | `src/animationCurves.ts` / `src/actionPoses.ts` | Smooth/velocity-continuous curves, analytic springs, volume-preserving deformation, jump/attack/death/social poses |
 | `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
+| `src/cpuMetrics.ts` / `src/cpuProfile.ts` | Development-only bounded CPU samples, operation counts, request replay metadata and scene-owned profiling sessions |
 | `src/engine.ts` | Babylon engine with a typed effect-cache diagnostic |
 | `src/ui.ts` / `src/dom.ts` / `src/style.css` | HUD, minimap, typed DOM access, menus, responsive layout |
 
@@ -497,6 +500,21 @@ motion captures go under `test-results/p8-*`; see [the P8 contract](docs/ragdoll
 `npm run test:skeleton:breakup` checks seven skeleton breakup sequences, skull-detail rigidity,
 scattered bounds/tread contacts, reset and once-only named discovery from a visible skull.
 `P9_CLIPS=stairs-down,wall` selects motion cases; reports/captures use `test-results/p9-*`.
+
+### CPU profiling (development)
+
+`npm run profile:cpu` starts/reuses a local dev server and compares fresh seeded entrance, stable
+and late-hitch workloads in outer-timed, coarse and detailed modes. It writes source-identified
+raw/summary reports and a replayable slow-request pin under ignored `test-results/`.
+`CPU_CASES=all CPU_REPEATS=2 CPU_LABEL=matrix npm run profile:cpu` exercises all 22 recipes,
+including shield/cargo transitions, real deaths, settled bones and controlled/native render loops.
+`CPU_GPU=hardware` requests headed hardware profiling; software results are diagnostic, not FPS claims.
+
+`npm run test:cpu` checks bounds, restoration, native-loop cancellation and regeneration.
+`npm run test:cpu:regressions` covers callback iteration/rollback and real phalanx transitions.
+After either production build, `npm run test:cpu:production` checks that diagnostic code was erased.
+The opt-in `window.__dungeon.cpu` API exists only in debug development pages; see the
+[CPU0 contract, baseline, caveats and replay commands](docs/cpu-baseline.md).
 
 ### Entity/component architecture
 

@@ -16,6 +16,7 @@ import { profiles } from './rigs/humanoid.ts';
 import { copyLocal } from './rigs/ikMath.ts';
 import { overlaps } from './rigs/tailClearance.ts';
 import { advanceDeathPhysics } from './deathPhysics.ts';
+import { cpuTiming } from './cpuMetrics.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -63,7 +64,10 @@ export const ACTOR_OBSERVATION_RADIUS = 4.8;
 
 /** Render-only deformation: the motor, collision ellipsoid and attack clock stay authoritative. */
 export function animateActors(ecs: ECS, dt: number, time = 0, world?: NavigationWorld): void {
+  const cpu = import.meta.env?.DEV ? cpuTiming : null;
+  const started = cpu?.clock() ?? 0;
   if (world) advanceDeathPhysics(ecs, world, dt);
+  cpu?.finish('death.owner', started);
   const carrying = new Set(
     ecs.query('cargo').flatMap((e) => {
       const c = e.require('cargo');
@@ -107,7 +111,9 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       }
     }
   }
+  const contactStart = cpu?.clock() ?? 0;
   const corpses = readCorpseTerrain(ecs, world);
+  cpu?.finish('corpse.surfaces', contactStart);
   for (const entity of entities) {
     if (entity.has('corpse')) continue;
     const actor = new Actor(entity),
@@ -238,4 +244,5 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
               a.tail!.blocked = b.tail!.blocked = true;
             }
     }
+  cpu?.finish('animation', started);
 }

@@ -6,6 +6,7 @@ import type { ECS } from './ecs.ts';
 import type { CorpseBox } from './corpseTerrain.ts';
 import type { NavigationWorld } from './navigation.ts';
 import { heightAt } from './world.ts';
+import { cpuTrace } from './cpuMetrics.ts';
 
 // Weak keys release disposed scenes. Only changed part matrices require a new inverse.
 const boxes = new WeakMap<AbstractMesh, { matrix: Matrix; floor: number; box: CorpseBox }>();
@@ -13,6 +14,7 @@ const boxes = new WeakMap<AbstractMesh, { matrix: Matrix; floor: number; box: Co
 /** Read after death poses, once per render update, shared by every actor's feet.
  * No live actors, selection proxies, standing death anticipation or hidden equipment. */
 export function readCorpseTerrain(ecs: ECS, world?: NavigationWorld): readonly CorpseBox[] {
+  if (import.meta.env?.DEV) cpuTrace?.count('alloc.corpseLists');
   const result: CorpseBox[] = [],
     synced = new Set<Node>();
   const sync = (node: Node): void => {
@@ -32,6 +34,7 @@ export function readCorpseTerrain(ecs: ECS, world?: NavigationWorld): readonly C
     const ragdoll = entity.get('ragdoll');
     if (ragdoll ? !ragdoll.settled : entity.require('corpse').age < 0.62) continue;
     for (const mesh of entity.require('render').meshes) {
+      if (import.meta.env?.DEV) cpuTrace?.count('corpse.meshVisits');
       if (mesh.isDisposed() || !mesh.isEnabled() || !mesh.isVisible || mesh.visibility <= 0)
         continue;
       sync(mesh);
@@ -41,6 +44,7 @@ export function readCorpseTerrain(ecs: ECS, world?: NavigationWorld): readonly C
         entity.require('transform').h;
       let entry = boxes.get(mesh);
       if (!entry || !entry.matrix.equals(matrix) || entry.floor !== floor) {
+        if (import.meta.env?.DEV) cpuTrace?.count('alloc.corpseBoxes');
         const bounds = mesh.getBoundingInfo().boundingBox;
         entry = {
           matrix: matrix.clone(),

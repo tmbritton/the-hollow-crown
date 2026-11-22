@@ -60,7 +60,7 @@ A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration 
 and reviewed READY. A4 action/equipment/work/social migration is also verified and independently
 reviewed READY. A5 articulated tails is implemented, verified and independently reviewed READY.
 A6 shield motion is implemented, verified and independently reviewed READY; both blockers cleared.
-A7 and P8–P9 are implemented, verified and independently reviewed READY. CPU0 is next.**
+A7, P8–P9 and CPU0 are implemented, verified and independently reviewed READY. CPU1 is next.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -79,19 +79,20 @@ inventory and compaction handoff. Preserve the raw notes as the source of intent
 The user promoted the [CPU performance plan](cpu-performance-plan.md) on **2026-11-21**, after
 P9's independent READY review. Implement these slices in order, with test-first correctness,
 before/after evidence, independent review and normal-hook delivery for each. The old measurements
-at `3cfb378` are diagnostic history; **CPU0 must establish the post-P9 baseline** before optimization.
+at `3cfb378` are diagnostic history; [CPU0's post-P9 baseline](cpu-baseline.md) now supplies current
+measurements and request replay before optimization.
 The CPU plan's source audit at `3bf6bb4` adds A6 feedback consumption, A7 adjacent-step death history,
 P8 fixed-step physics and P9 scattered geometry as explicit profiling and acceptance requirements.
 
 | ID | Slice | Acceptance / verification |
 | --- | --- | --- |
-| CPU0 | Reproducible subsystem timing and correctness baseline — **next** | Bounded development-only tooling; exact revision/source and workload identity; repeatable authoritative state, counts and timing distributions; separate simulation, animation/death physics, presentation and scene costs. Include the later hitch window, active/settled deaths and regeneration; pin the expensive request and set budgets. |
+| CPU0 | Complete; independent review READY | Bounded dev tooling, source-qualified 22-case coverage, refreshed recipe-2 baseline/phalanx/native runs, pinned 3,207-node replay and production isolation. Callback/fixture/rollback findings independently cleared; full400 checkpoint/final core382. See [baseline](cpu-baseline.md) for desktop hardware measurements. |
 | CPU1 | Relevant door/blocker queries and cheap geometry records | Query equivalence across door/collider transitions, swept paths and terrain; distant doors incur no state reads; demonstrate whole-tick improvement against CPU0. |
 | CPU2 | Exact-zero displacement fast path | Stationary actors avoid collision sweeps while support, jump/landing, facing, route progress and resets remain correct. Measure independently of CPU1; preserve tiny real movement. |
 | CPU3 | Bound expensive route replans | Reproduce CPU0's request after CPU1/CPU2; preserve route quality and dynamic invalidation. If work spans ticks, budget all phases/requests and prove current-world publication, fairness and cancellation. |
-| CPU4 | Bounded nearby collision candidates | Conservative swept volumes match the full-scan oracle across doors, stairs, occupancy and slide responses; cache/resource lifecycle remains bounded. |
+| CPU4 | Nearby collision candidates and shared living-body data | Spatial indexes and prepared body records match the full-scan oracle; preserve fresh same-tick movement/slide results. Reuse symmetric pair work where valid; memoize swept results only for matching inputs/revisions and measured benefit. Bound ownership and invalidation. |
 | CPU5 | Reduce scene traversal, transforms and repeated frozen publication | Equal camera/state measurements; exact affine remains, separate death-chunk merge groups, picking, dynamic observation envelopes, shadows and cutaways survive consolidation; resources plateau. |
-| CPU6a | Demand-driven/cached animation and settled-contact geometry | Extend existing caches; rebuild only relevant surfaces with explicit pose/visibility/support invalidation. Preserve shield/tail/equipment clearance, per-piece corpse sampling and deterministic ordering. |
+| CPU6a | Demand-driven/cached animation and settled-contact geometry | Share prepared geometry and rebuild only relevant surfaces with pose/visibility/support invalidation. Candidate-pose checks retain exact snapshot inputs; preserve shield/tail/equipment clearance, once-per-pair final tail checks, corpse sampling and deterministic ordering. |
 | CPU6b | Separate presentation solving from catch-up; animation detail tiers | Prove fixed-step physics, block-feedback consumption and adjacent-step lethal history before throttling. Compare event-time observation, per-batch-position deaths and seeded physical motion across render cadences. |
 | CPU7 | Integrated performance, resource and visual acceptance | Equivalent seeded workloads and camera paths, p95/max hitch and resource checks. Hardware FPS claims require real hardware evidence; report remaining goals explicitly. |
 

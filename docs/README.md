@@ -8,7 +8,8 @@ use [implementation path](implementation-path.md) for the dependency-ordered del
 | [Game direction](game-direction.md) | Chosen compact, simulation-heavy scenario direction: approachable single-adventurer controls, autonomous agendas, circumstance-driven escalation and provisional playtest candidates. |
 | [Implementation path](implementation-path.md) | Dependency-ordered feature slices and the test-first, verification, review, commit workflow. |
 | [Implementation progress](implementation-progress.md) | Delivery tracker, checks and review. P1–P7 delivered; P7 published at `3934e17`. T2/A0, A1–A7 and P8–P9 independently reviewed READY. |
-| [CPU performance plan](cpu-performance-plan.md) | Next delivery queue after P9. Source-audited at `3bf6bb4` for shield feedback, lethal history, active/frozen physics and scattered bones; CPU0 refreshes the historical `3cfb378` timings before query/collision/render/scheduling improvements. |
+| [CPU performance plan](cpu-performance-plan.md) | CPU0 independently reviewed READY; CPU1–CPU7 follow. Source-audited for shield feedback, lethal history, active/frozen physics and scattered bones. |
+| [CPU baseline](cpu-baseline.md) | Reviewed CPU0 tooling, source-identified timing/count/parity reports, 22 workloads, pinned route replay, corrected lifecycle/phalanx gates, reference budgets and RTX 2070 frame intervals. |
 | [Animation roadmap](animation-roadmap.md) | Shared humanoid/tailed rigs, complete animation migration, shield motion and death physics. A0–A7 and P8–P9 independently reviewed READY. |
 | [Animation baseline](animation-baseline.md) | A0 review controls, complete 30-clip inventory, reproducible captures, current foot/grip defects, 25-actor baseline and initial A1/A2 budgets. |
 | [Rig foundation](rig-foundation.md) | Implemented A1 semantic anatomy/profiles, pose and socket APIs, ECS ownership, compatibility/final-writer boundaries and parity/cost verification. |

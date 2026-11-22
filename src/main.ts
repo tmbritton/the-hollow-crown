@@ -38,6 +38,7 @@ import type { ObservedEvent } from './discoveries.ts';
 import { generationIdentity } from './generation/identity.ts';
 import { CameraObservation, updateInstanceMatrices } from './observation.ts';
 import { animateActors, ACTOR_OBSERVATION_RADIUS } from './actorRendering.ts';
+import { cpuTiming } from './cpuMetrics.ts';
 import { createEnemyRendering } from './enemyRendering.ts';
 import { registerWorld, registerDungeonRendering, updateDoors } from './worldEntities.ts';
 import { UI } from './ui.ts';
@@ -623,6 +624,8 @@ function interact() {
 
 function tick(dt: number): void {
   if (!ui.ready || paused() || game.inspection.active) return;
+  const cpu = import.meta.env.DEV ? cpuTiming : null;
+  const cpuStart = cpu?.clock() ?? 0;
   game.time += dt;
   game.playTime += dt;
   game.steps++;
@@ -699,9 +702,12 @@ function tick(dt: number): void {
     const e = entity.require('interaction');
     if (e.type === 'chest') animateChest(e, dt);
   }
+  cpu?.finish('main.tick', cpuStart);
 }
 
 function renderUpdate(dt: number): void {
+  const cpu = import.meta.env.DEV ? cpuTiming : null;
+  const cpuStart = cpu?.clock() ?? 0;
   const { player, camera, sun, materials, dungeon } = game;
   if (game.inspection.active) game.inspection.update(dt);
   else {
@@ -810,6 +816,7 @@ function renderUpdate(dt: number): void {
         true,
       );
   }
+  cpu?.finish('main.presentation', cpuStart);
 }
 
 function toggleMenu() {
@@ -1067,6 +1074,7 @@ try {
 // Opt-in diagnostics for reproducible browser checks, never enabled in normal play.
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
   const { createAnimationReview } = await import('./animationReview.ts');
+  const { createCpuProfile } = await import('./cpuProfile.ts');
   animationReview = createAnimationReview(
     () => game,
     () => {
@@ -1078,6 +1086,23 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
     },
   );
   window.__dungeon = {
+    cpu: createCpuProfile(
+      () => game,
+      (codes) => {
+        keys.clear();
+        for (const code of codes) keys.add(code);
+        try {
+          tick(1 / 60);
+        } finally {
+          keys.clear();
+        }
+      },
+      renderUpdate,
+      () => {
+        last = performance.now();
+        accumulator = 0;
+      },
+    ),
     animation: animationReview,
     get game() {
       return game;

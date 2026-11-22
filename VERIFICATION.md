@@ -4,6 +4,144 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### CPU0 — profiling tooling and refreshed baseline — 2026-11-21/22 (independent follow-up READY)
+
+The requested planning update was committed as **`013079c`** with normal hooks (**377 tests**,
+lint/format). CPU0 follows in a separate commit. It provides bounded DEV-only
+timing/count sessions, source/recipe/environment fingerprints, controlled parity comparisons,
+original-render-loop capture and exact slow-request replay. See [the baseline contract](docs/cpu-baseline.md)
+for APIs, measurement semantics, scope qualifications and subsequent budgets.
+
+**TDD and iteration:** `cpu0-initial-red.log` records the native test failing on the absent
+`cpuMetrics.ts` module. Five pure tests now cover finite/empty distributions, storage bounds,
+detached reports, exception-safe exact method restoration, route-phase/top-eight/pinned retention,
+muted diagnostic reads and renderer evidence classification. Authored fixture validation caught
+NPC jump cancellation and a latched shield press; the landing case now uses the real hero motor/
+respawn, airborne enemy entry is separate, and the shield explicitly releases before pressing.
+These were fixture corrections, not gameplay fixes. Final measurements install hooks before warmup;
+earlier `smoke`, `matrix-*` and unsuffixed baseline/workload artifacts are iteration checkpoints.
+
+**Pre-review measured checkpoint:** `013079c` plus SHA-256
+`1d66e60d9c9940dcf99ab1eb824711c8d796cdef77c9fab56581530ceaa9d06a` over runtime/tooling source and
+build/dependency configuration. Reports include the dirty working-tree identity and exact UTC
+timestamps. The measurement files are `cpu0-baseline-final{,-summary,-hitch}.json`,
+`cpu0-workloads-{a,b}-final{,-summary}.json`, and `cpu0-replay.json` under ignored `test-results/`.
+
+- **141 windows / 42,948 samples / 22 cases**. Entrance/stable/hitch each have three repetitions
+  of off/coarse/detailed modes; the other nineteen cases have two. All **129 controlled windows**
+  match gameplay and final/previous-pose fingerprints at checkpoints; detailed work counts repeat
+  exactly. Low/High controlled cadence also matches state. Twelve native-loop windows record actual
+  catch-up/timing; their wall-clock-dependent outcomes are explicitly not a parity comparison.
+- Coarse pooled combined tick/presentation mean/p50/p95/max (ms): entrance **13.22/12.80/18.00/40.50**;
+  stable **16.01/15.10/23.00/42.50**; late window **17.02/14.40/21.00/245.70**. Children are inclusive,
+  not additive. Host-load variation and trace overhead are recorded; these are software development
+  measurements, not hardware FPS or an optimization improvement over the old investigation.
+- Door reads/tick are **3,569 / 5,303 / 7,849**. Per entrance run, **3,301 of 5,233** adapter calls
+  request exactly zero displacement; stable **2,231 of 4,589**. No tiny-nonzero calls occur in these
+  windows. Collision-scope mesh checks average **51,938 / 45,546 / 45,298** per tick.
+- The pinned failed `kobold:treasury:3` replan is request **47**, frame-entry step **476** (actual
+  request during the following tick), from **(−19.0113935, 0.0056548)** toward
+  **(−19.0384212, −2.6751948)**. It visits/expands **3,207 nodes**, probes **12,828 neighbors** and
+  samples **18,728** segment points. Coarse request cost **196.6–211.6ms**; detailed capture
+  **257.4ms**, primarily search. `CPU_REPLAY` reran the seeded recipe and passed exact input/result
+  fingerprints, including door/occupancy state; no route is published for the failed request.
+- Accepted melee/bolt/javelin/hazard, airborne/stair entries, shield batches and cargo handoffs are
+  covered. The natural all-24 burst peaks at **312 bodies / 208 constraints / 2,972 statics** and
+  retires to zero active physics. Active-owner mean **13.19–14.27ms**, p95 **31.60–33.70ms** is
+  separated from the frozen portion. Authored single-death fixtures retain inactive rigs and are
+  labelled accordingly. A settled skeleton receives 180 physical binding writes / 3,960 mesh visits
+  in 180 ticks, with **zero newly allocated corpse boxes**.
+- `npm run check:full`: **400 tests / 309.71s**, typing/lint/format pass. Final `npm test`:
+  **382 / 32.03s**, including typing. No new production machine or changed transition partitions.
+- `test:cpu` passes bounded/nested sessions, zero-time and throwing-event restoration, original
+  getters/methods, scene retirement, native-loop tick accounting/cancellation and actual pause
+  (three requested ticks, zero executed). Three instrumented regeneration cycles plateau at
+  **25 actors / 5,719 entities / 2,382 meshes / 495 nodes / 28 materials / four textures**.
+- Ordinary Chromium movement **16**, combat **15** and physical structural contacts **24** pass
+  sequentially with profiling inactive. Final formatting (**210 files**), lint and diff checks pass.
+- Root and Pages builds pass (**710 transformed modules**, CPU diagnostics tree-shaken). Explicit
+  bundle checks pass on **82 JavaScript chunks** for each base. Root/Pages production browser smokes
+  pass with local assets, input/regeneration/quality and no debug global or browser/network errors.
+  Pages main **1,794.62kB / 466.44kB gzip**; existing chunk-size warning retained. CI is configured
+  to run the same isolation check before both production smokes; no uncommitted CI run is claimed.
+- Representative final entrance/stable, bones, burst and controlled-render captures were inspected.
+  Diagnostics add no artwork or visible panel. A bounded headed hardware attempt timed out at
+  **15 seconds** before measurement; **hardware timing remains pending**. Headless verification used
+  `DISPLAY= WAYLAND_DISPLAY=` with SwiftShader, without system configuration changes.
+
+The source guards are observational; CPU1–CPU7 optimizations have not started. The checkpoint above
+is retained for its actual source/recipe, with the phalanx coverage qualification below.
+
+**Initial independent review: NOT READY (R1–R3).** The attributed report is
+`test-results/cpu0-independent-review.md`, with separate probe/follow-up artifacts. The reviewer
+confirmed the retained report counts, controlled observations, operation counts and deep-equal
+replay inputs/output, audited 7,895 descriptors on rollback paths, and reused the broad gates.
+It found:
+
+1. Restoring two callbacks inside Babylon's live-array iteration repeats the second callback. With
+   the application callback second, three samples reported **5 ticks while gameplay advanced 9**.
+2. The phalanx recipe removed its members' brains, disabling their motors. It aborted opening on
+   frame0, stayed in assembly, never moved/swung and nevertheless passed validation.
+3. Throwing during the second active-mesh observer registration leaked the first registration,
+   even though the failed session became inactive.
+
+**Persisted red and correction:** `cpu0-review-red.log` / `cpu0-review-red.json` reproduce all three
+before production/fixture fixes. `test:cpu:regressions` now verifies both positions of the real
+application callback, exact invocation/tick counts, completion, callback throw, in-frame and immediate
+cancellation, partial observer failure and session restart. Restoration is deferred to a microtask
+after the current engine iteration; its promise settles afterwards. Cancellation stops remaining
+callbacks, and rollback is registered immediately after each observer acquisition.
+
+The new **recipe 2** phalanx uses a real unobstructed rectangle, retains participant brains/motors,
+recovers a small physical rank offset and validates actual opening → thrust/impact → recovery.
+All six corrected mode/repetition cells show movement, `LONG_THRUST`, one impact and health
+**100 → 88**, with identical observations/counts. Opening/attack/recovery captures were inspected.
+The six original phalanx windows are **not accepted behavioral coverage**.
+
+**Corrective evidence actually run:**
+
+- Source SHA-256 **`e8b4bc7a5adc9fcb2e00444fec19a0b527caa59a370f7da348b1edf5076d1307`**, still based
+  on `013079c` plus uncommitted implementation. `cpu0-review-baseline{,-summary,-hitch}.json`,
+  `cpu0-review{,-summary}.json` and `cpu0-review-replay.json` record current recipes/source.
+- **45 windows / 10,044 samples**, plus exact pin replay: 27 refreshed baseline windows, six
+  corrected phalanx and twelve native windows. All 33 controlled cells match observations and
+  repeatable detailed counts. Reuse 96 earlier controlled windows for the sixteen unchanged
+  workloads with their old-source attribution; this is not a freshly repeated whole matrix.
+- Updated coarse combined mean/p50/p95/max: entrance **13.04/12.20/18.40/50.60**, stable
+  **15.28/14.70/20.20/42.30**, late window **17.13/14.80/20.00/249.50** ms. The same treasury
+  request47/step476 reproduces **3,207 nodes**; coarse **197.2–216.6ms**, detailed max **275.4ms**.
+  Recipe-2 replay again matches its exact inputs/result. Hardware evidence remains pending.
+- `npm run check`: **382 / 31.41s**, typing, lint and format **211 files**. CPU lifecycle and
+  new regression suites pass with zero page errors. Both root/Pages builds, 82-chunk isolation
+  checks and production browser smokes pass again (`cpu0-review-*` logs). Earlier full400,
+  movement16/combat15/contacts24 evidence is explicitly reused.
+
+**Independent follow-up: READY; R1–R3 resolved, no current-scope blockers.** Attributed evidence is
+in `test-results/cpu0-independent-followup-review.md` and `cpu0-independent-recheck.{mjs,json}`;
+the original NOT READY report is preserved unchanged.
+
+- Fresh three-callback native probes place the application first/middle/last. Every callback runs
+  exactly three times; reported/actual ticks match **9/9**, **7/7**, **7/7**. Throws and cancellation
+  at each position produce only the expected invocation prefix. Pending-restoration admission,
+  restoration-error rejection, repeated stop and regeneration cleanup also pass.
+- A fresh detailed phalanx run retains all four original brains, moves every member, and observes
+  engagement at frame3, opening78, attack114, actual thrust/health loss134 and recovery165.
+  `LONG_THRUST`, impact count1, health100→88. Validation rejects an unexercised fixture and passes
+  twice after completion without changing observed gameplay or metric data. Three corrected
+  captures were independently inspected.
+- Fault injection at either active-mesh registration in coarse and detailed modes preserves
+  observer counts exactly, restores method/getter identities, clears trace globals and permits
+  restart: **zero leaks across all four cases**. Independent page errors are empty.
+- The reviewer recomputes the current source hash, audits all **45 windows / 10,044 samples** and
+  controlled comparison/count objects, and deep-compares current replay inputs/results. Old
+  recipe-1 pins remain rejected even with source-change override. Fresh Pages isolation passes
+  across **82 chunks**. Corrective parent gates/builds/smokes and earlier unaffected evidence are
+  explicitly reused, not relabeled as independently rerun.
+
+After review, the desktop hardware run completed all 12 live windows on an RTX 2070. Low/High
+mean frame intervals were **40.9/46.6 ms** with instrumentation off; p95 was **66.2/67.3 ms**.
+See the [hardware baseline](docs/cpu-baseline.md) for scope and reproduction. CPU1 is next.
+
 ### P9 — skeleton breakup — 2026-11-21 (independent review READY)
 
 Baseline **`14f441c`** was clean and pushed. Skeletons now release eleven anatomical body groups

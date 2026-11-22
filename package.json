@@ -58,7 +58,11 @@
     "test:defense": "node tests/defense-browser.ts",
     "test:phalanx": "node tests/phalanx-browser.ts",
     "test:social": "node tests/social-browser.ts",
-    "profile": "node tests/profile.ts"
+    "profile": "node tests/profile.ts",
+    "profile:cpu": "node tests/cpu-profile.ts",
+    "test:cpu": "node tests/cpu-browser.ts",
+    "test:cpu:regressions": "node tests/cpu-regressions-browser.ts",
+    "test:cpu:production": "node tests/cpu-production.ts"
   },
   "simple-git-hooks": {
     "pre-commit": "npm run check",

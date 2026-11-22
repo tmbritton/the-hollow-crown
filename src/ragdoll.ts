@@ -14,6 +14,7 @@ import type { XYZ } from './rigs/types.ts';
 import { PoseVector } from './rigs/types.ts';
 import { compose, inverse, multiplyAffine } from './rigs/pose.ts';
 import { Quaternion } from 'cannon-es';
+import { cpuTrace } from './cpuMetrics.ts';
 
 export const RAGDOLL_LIFETIME = 8;
 export const RAGDOLL_LIMIT = 24;
@@ -60,6 +61,7 @@ export interface TerrainBox {
  * Physical walls persist when their upper artwork is cut away by the camera. */
 export type RagdollTerrain = NavigationWorld & { physicalObstacles?: readonly TerrainBox[] };
 export function physicalTerrain(world: RagdollTerrain, point: XYZ, radius = 4): TerrainBox[] {
+  if (import.meta.env?.DEV) cpuTrace?.count('physics.terrainCells', (radius * 2 + 1) ** 2);
   const boxes: TerrainBox[] = [];
   const add = (
     name: string,
@@ -313,6 +315,7 @@ export class Ragdoll {
   private syncTerrain(): void {
     const simulation = this.simulation;
     if (!simulation) return;
+    if (import.meta.env?.DEV) cpuTrace?.count('physics.terrainChecks');
     // Released pieces can leave the pelvis patch. Union at most eleven 5×5 patches rather than
     // filling an arbitrarily large rectangle between distant pieces. Duplicate cells share boxes.
     const centers = new Map<string, XYZ>();
@@ -325,6 +328,7 @@ export class Ragdoll {
       .map((e) => (e.type === 'door' && e.open && !e.collider?.checkCollisions ? '1' : '0'))
       .join('')}`;
     if (terrainKey === this.terrainKey) return;
+    if (import.meta.env?.DEV) cpuTrace?.count('physics.terrainRebuilds');
     this.terrainKey = terrainKey;
     const boxes = new Map<string, TerrainBox>();
     for (const p of centers.values())

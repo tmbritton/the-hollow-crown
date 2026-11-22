@@ -22,6 +22,7 @@ import type { progressionMachine } from './machines/world/interactions.ts';
 import type { GenerationReport } from './generation/report.ts';
 import type { CameraObservation } from './observation.ts';
 import type { AnimationReview } from './animationReview.ts';
+import type { CpuProfile } from './cpuProfile.ts';
 
 export interface Game {
   scene: Scene;
@@ -78,6 +79,7 @@ export interface Snapshot {
   errors: string[];
 }
 export interface DungeonDebug {
+  readonly cpu: CpuProfile;
   readonly animation: AnimationReview;
   readonly game: Game;
   readonly ready: boolean;

@@ -40,9 +40,11 @@ Execution record for [implementation path](implementation-path.md). Started **20
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **CPU performance is next**, per the user's **2026-11-21** decision. Start CPU0 on the delivered
-  P9 revision, then CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7. The historical
-  `3cfb378` measurements need a fresh integration baseline; no CPU slice is implemented yet.
+- **CPU performance is the current workstream**, per the user's **2026-11-21** decision. CPU0
+  precedes CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7. The historical
+  `3cfb378` measurements remain historical. **CPU0 is complete and independently reviewed READY**.
+  Its source-identified baseline pins the expensive replan and confirms instrumentation parity.
+  CPU1 is next; the [desktop hardware baseline](cpu-baseline.md) is recorded for comparison.
 - **Effect adoption remains before the next procedural-feature expansion, after CPU7.**
   EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
@@ -166,12 +168,43 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | A7 | Complete; final independent review READY | Missing history module, retired-snapshot and lethal-landing reds; Euler-independent geometry assertions retained | Full383/core366, 84 catalog handoffs, real melee/lava landing and stair controls, 428 A0-identical authority samples, cross-system browsers and root/Pages smokes; stable resources. Landing blocker independently cleared | Containing delivery |
 | P8 | Complete; final independent review READY | Missing-module, scaled-parent/frozen-contact, door/waist regressions; review's actual upper-plank/base penetration and replay reds | Full389 checkpoint/core373; eleven death sequences, 24 structural-contact cases and 24-death stress, real attacks, lifecycle, affected suites/root/Pages smokes. Independent original door repro, 18 door/16 wall/four all-frame masonry cases and lifecycle probes clear R1/R2/C1 | Containing delivery |
 | P9 | Complete; independent review READY | Missing separated mode/envelope reds; actual eleven-chunk and named-skull browser checks | Full395/core377; seven breakup sequences, 24 structural contacts, all-24 stress, combat15/discoveries17/animation and root/Pages production. Independent six-case geometry, 15-unit skull support/occlusion, negative range/LOS and identity/reset probes pass | Containing delivery |
-| CPU0 | Next; queued after P9 | Fresh reproducible post-P9 timing/correctness baseline and pinned hitch request | Historical investigation at `3cfb378`; reusable tooling/current measurements not implemented | — |
+| CPU0 | Complete; independent follow-up READY | Missing module; persisted callback duplication, observer leak and no-attack fixture reds | Full400 checkpoint/final core382; recipe-2 45-window baseline/phalanx/native batch and replay. Reviewer clears all three findings with native callback, rollback and real phalanx probes; prior unaffected matrix reused. Both production paths/isolation pass; subsequent RTX 2070 baseline recorded | Containing delivery |
 | CPU1–CPU7 | Queued after CPU0, in documented order | Door queries → stationary collision → route hitches → nearby candidates → scene traversal → CPU6a geometry demand → CPU6b scheduling → integrated acceptance | Per-slice contracts and evidence gates in cpu-performance-plan.md; optimization not started | — |
 | EF0–EF4 | Planned after CPU7, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log
+
+### CPU0 — reproducible profiling and current baseline — 2026-11-21/22
+
+- **Review correction checkpoint:** initial independent verdict NOT READY for callback duplication,
+  partial observer acquisition leakage and a phalanx fixture that never attacked. Saved reds precede
+  microtask-boundary restoration, immediate rollback registration and a real motor-backed rank fixture.
+  New regression checks pass completion, throw/cancel, both application-loop positions and zero leaks.
+- Recipe **2**, source `e8b4bc7a5adc9fcb2e00444fec19a0b527caa59a370f7da348b1edf5076d1307`:
+  **45 windows / 10,044 samples** plus exact pinned replay. Corrected phalanx shows movement, opening,
+  thrust/impact/recovery and health100→88 in all six mode/repetition cells. Original phalanx windows
+  are excluded; 96 unaffected earlier controlled windows are reused with their source attribution.
+  Final check382/31.41s, type/lint/format211, lifecycle/regressions and both production paths pass.
+  **Independent follow-up READY:** three callback positions, throws/cancellation/restoration errors,
+  regeneration, four partial-registration cases and fresh real phalanx movement/thrust/HP88 pass.
+  The reviewer independently audits the current reports/source/replay and reuses broad gates.
+  No current-scope blocker remains. The initial implementation checkpoint below remains historical.
+
+- Committed the requested animation-aware planning update as `013079c` with normal hooks
+  (377 tests, lint/format). CPU0 follows in a separate commit.
+- Added bounded DEV-only timing/count sessions, source/recipe/environment reports, controlled
+  off/coarse/detailed parity, original-loop frame/catch-up sampling and exact request replay.
+  Setup/stop/exception/disposal restore original descriptors and callbacks; both production bases
+  erase diagnostic code. No gameplay optimization or machine transition was introduced.
+- Final source hash and measurements are in [cpu-baseline.md](cpu-baseline.md): **141 windows /
+  42,948 samples / 22 cases**, 129 controlled windows with identical gameplay/pose fingerprints and
+  repeatable detailed work counts, plus twelve clock-driven native windows. Pinned failed treasury
+  replan: 3,207 nodes, 196.6–211.6ms coarse; exact-input/result replay passes.
+- Full400/309.71s and core382/32.03s, typing/lint/format, CPU lifecycle, both builds/isolation/production
+  paths pass. Original source shape and authored/inactive-fixture qualifications are explicit.
+  Hardware launch timed out at 15s; software results are diagnostic. Independent review was pending
+  at that initial checkpoint; the correction and READY follow-up above supersede it.
 
 ### CPU workstream reconciled with delivered animation — 2026-11-21
 

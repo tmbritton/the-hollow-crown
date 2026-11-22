@@ -5,6 +5,7 @@ export { segmentIntersectsBox } from './generation/placement.ts';
 import { Statechart } from './machines/statechart.ts';
 import { navigationMachine } from './machines/navigation/travel.ts';
 import type { CollisionBody, Occupancy } from './occupancy.ts';
+import { cpuTrace } from './cpuMetrics.ts';
 
 export type NavigationWorld = Pick<World, 'tiles' | 'blockers' | 'entities'>;
 interface Point3 extends Point {
@@ -217,6 +218,7 @@ export class Navigator {
   }
 
   private staticClear(point: Point): boolean {
+    if (import.meta.env?.DEV) cpuTrace?.count('route.staticClear');
     const tile = tileAt(this.world, point.x, point.z);
     if (!tile || tile.blocked || tile.surface === 'lava') return false;
     for (const dx of [-CLEARANCE, CLEARANCE])
@@ -308,6 +310,7 @@ export class Navigator {
     bodies?: readonly CollisionBody[],
     terrainOnly = false,
   ): boolean {
+    if (import.meta.env?.DEV) cpuTrace?.count('route.segmentClear');
     if (this.world.blockers.some((box) => segmentIntersectsBox(from, to, box, CLEARANCE)))
       return false;
     if (!terrainOnly && !this.doorsSegmentClear(from, to, planning)) return false;
@@ -339,6 +342,7 @@ export class Navigator {
     // Point-compatible vectors may expose coordinates through prototype accessors.
     let previousPoint = { x: from.x, z: from.z, h: previous };
     for (let i = 1; i <= steps; i++) {
+      if (import.meta.env?.DEV) cpuTrace?.count('route.segmentSamples');
       const point = {
         x: from.x + ((to.x - from.x) * i) / steps,
         z: from.z + ((to.z - from.z) * i) / steps,
@@ -375,6 +379,7 @@ export class Navigator {
     this.chart.send({ type: 'CONFIGURE', opensDoors: options.openDoors ?? false });
     const environment = options.partial ? this.environment(bodies) : '';
     const accepted = this.plan(from, requested, !!options.partial, bodies, environment);
+    if (import.meta.env?.DEV) cpuTrace?.phase('publication');
     this.floorCommand = options.partial
       ? {
           requested: { x: requested.x, z: requested.z },
@@ -398,6 +403,7 @@ export class Navigator {
     bodies: readonly CollisionBody[] | undefined,
     environment: string,
   ): boolean {
+    if (import.meta.env?.DEV) cpuTrace?.phase('goal');
     const tile = tileAt(this.world, requested.x, requested.z);
     if (!tile) return false;
     // Snapshot once per search; moving actors must never enter the static-cell cache.
@@ -415,6 +421,7 @@ export class Navigator {
     }
     // Near another body the rounded starting cell can be occupied. Connect to nearby
     // free cells instead of abandoning a valid route around the creature.
+    if (import.meta.env?.DEV) cpuTrace?.phase('connectors');
     const cached =
       partial && this.floorSearch?.environment === environment ? this.floorSearch : null;
     const geometry = this.bodyGeometry(bodies);
@@ -443,7 +450,9 @@ export class Navigator {
         }
     if (!sameOrigin) queue.sort((a, b) => distance(a, from) - distance(b, from));
     let goalKey: string | null = null;
+    if (import.meta.env?.DEV) cpuTrace?.phase('search');
     for (let i = 0; i < queue.length; i++) {
+      if (import.meta.env?.DEV) cpuTrace?.count('route.visited');
       const current = queue[i];
       if (
         exact &&
@@ -454,10 +463,12 @@ export class Navigator {
         break;
       }
       if (sameOrigin) continue;
+      if (import.meta.env?.DEV) cpuTrace?.count('route.expanded');
       const currentKey = key(current.x, current.z);
       const currentHeight = heightAt(this.world, current.x, current.z);
       if (currentHeight === null) continue;
       for (const [dx, dz] of CARDINALS) {
+        if (import.meta.env?.DEV) cpuTrace?.count('route.edges');
         const next = { x: current.x + dx, z: current.z + dz };
         const id = key(next.x, next.z);
         if (parents.has(id)) continue;
@@ -505,9 +516,11 @@ export class Navigator {
       goal = fallback.point;
       goalKey = fallback.anchor === from ? null : key(fallback.anchor.x, fallback.anchor.z);
     }
+    if (import.meta.env?.DEV) cpuTrace?.phase('reconstruction');
     const chain = (end: string | null) => {
       const points: Point[] = [];
       for (let id = end; id !== null; id = parents.get(id) ?? null) {
+        if (import.meta.env?.DEV) cpuTrace?.count('route.chainNodes');
         const [x, z] = id.split(',').map(Number);
         points.unshift({ x, z });
       }
@@ -516,6 +529,7 @@ export class Navigator {
     const points = [...chain(goalKey), goal];
     let anchor = from;
     const route: Point[] = [];
+    if (import.meta.env?.DEV) cpuTrace?.phase('smoothing');
     for (let i = 0; i < points.length;) {
       let farthest = points.length - 1;
       while (farthest >= i && !this.segmentClear(anchor, points[farthest], true, bodies))
@@ -541,6 +555,7 @@ export class Navigator {
     search: Search,
     bodies?: readonly CollisionBody[],
   ) {
+    if (import.meta.env?.DEV) cpuTrace?.phase('frontierSort');
     let best = { point: { x: from.x, z: from.z }, anchor: from };
     let score = distance(from, requested);
     let travel = 0;
@@ -557,6 +572,7 @@ export class Navigator {
         a.z - b.z,
     );
     const consider = (point: Point, anchor: Point, refining = false) => {
+      if (import.meta.env?.DEV) cpuTrace?.count('route.candidates');
       const d = distance(point, requested);
       if (
         d <= score + tie &&
@@ -577,6 +593,7 @@ export class Navigator {
         }
       }
     };
+    if (import.meta.env?.DEV) cpuTrace?.phase('frontier');
     for (const anchor of anchors) {
       if (distance(anchor, requested) - 1.5 > score + tie) continue;
       consider(anchor, anchor);
@@ -617,6 +634,7 @@ export class Navigator {
       }
     }
     // Sub-cell alignment, including off-centre clicks and curved living-body boundaries.
+    if (import.meta.env?.DEV) cpuTrace?.phase('refinement');
     for (let step = 0.25; step >= 0.00048; step /= 2) {
       const origin = best.point;
       for (const dx of [-step, 0, step])
