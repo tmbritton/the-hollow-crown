@@ -173,6 +173,24 @@ Execution record for [implementation path](implementation-path.md). Started **20
 
 ## Work log
 
+### CPU workstream reconciled with delivered animation — 2026-11-21
+
+- Audited source at `3bf6bb4` against the original `3cfb378` measurement baseline. A6 adds a
+  time-sensitive accepted-block mailbox; A7 owns completed fixed-step pose/velocity history;
+  P8 steps physical deaths inside `animateActors`; P9 separates anatomy and extends terrain/
+  observation beyond the root. The historical all-living timing table is not a current profile.
+- Expanded CPU0's matrix/counters for shield transitions, cold lethal capture/admission, active
+  articulated/separated physics, settled publication/contact work and real-frame catch-up. Real
+  damage fixtures distinguish physical deaths from synthetic no-handoff collapse.
+- CPU1's scope includes per-island door-key reads; CPU2's gates protect support velocity and
+  stationary reactions. CPU4 keeps living collision separate from physical treads/bone terrain.
+  CPU5 now targets lifecycle-safe merge groups/frozen-matrix reuse; CPU6a targets extending the
+  existing corpse caches with per-piece bounds.
+- CPU6b must prove fixed-step physics/feedback/history consumers before reducing pose frequency.
+  Specified future catch-up-position block/death regressions, off-root observation and active/settled budgets.
+  CPU0 remains next and the slice order is unchanged. This source-backed documentation audit makes
+  no optimization or new timing claims; commands, paths and contracts are checked against current files.
+
 ### CPU performance queue promoted — 2026-11-21
 
 - User requested P9 review confirmation, fixes if needed, commit/push, and CPU performance work
