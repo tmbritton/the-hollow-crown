@@ -4,6 +4,15 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### CPU2 — exact-zero movement (independent review READY)
+
+Stationary motor test failed with 90 redundant sweeps, then passed with zero and retained a tiny
+nonzero sweep. Check/build and Chromium movement (16), jump (8), defense (9) passed. Entrance,
+stable and late workloads eliminated 3,301/2,231/2,898 zero sweeps per repeat; all moving sweeps
+and all 260 integrated checkpoints matched CPU0 and CPU1. The reviewer separately applied CPU2
+alone to CPU0: 160 matching checkpoints and improved fixed-step times. Independent lifecycle
+checks included lethal landing, stationary stair death, shield recoil, proxy sync and door travel.
+
 ### CPU1 — local door and blocker queries (independent review READY)
 
 Remote-door regressions initially observed 606 living and four active-physics getter reads;

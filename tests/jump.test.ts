@@ -19,6 +19,33 @@ function fixture() {
   return { ecs, world, player };
 }
 
+test('stationary motor skips displacement queries while maintaining support, facing, jump and proxy', () => {
+  const { world, player } = fixture();
+  let sweeps = 0,
+    syncs = 0;
+  player.entity.add('collision', {
+    move: (p, d) => {
+      sweeps++;
+      return { x: p.x + d.x, z: p.z + d.z };
+    },
+    sync: () => {
+      syncs++;
+    },
+  });
+  assert.ok(requestJump(player));
+  world.tiles.get('-4,0')!.h = 0.2;
+  for (let i = 0; i < 90; i++) moveActor(player, world, { facing: 0.77 }, 1 / 60);
+  assert.equal(player.jump.landings, 1);
+  assert.equal(player.position.h, 0.2);
+  assert.equal(player.position.heading, 0.77);
+  assert.equal(player.motion.supportVelocity, 0);
+  assert.equal(syncs, 90);
+  assert.equal(sweeps, 0);
+  moveActor(player, world, { direction: { x: 1, z: 0 } }, 1e-6);
+  assert.equal(sweeps, 1);
+  assert.ok(player.position.x > -4);
+});
+
 test('jump loads for two frames, follows gravity and lands consistently at different tick rates', () => {
   const apexTime = JUMP_PRELOAD + JUMP_SPEED / JUMP_GRAVITY;
   for (const rate of [30, 60, 120, 144]) {

@@ -246,9 +246,14 @@ export function moveActor(
     }
     return { ...next, h: heightAt(world, next.x, next.z) ?? from.h };
   };
-  const next = actor.navigator.occupancy
-    ? actor.navigator.occupancy.move(p, displacement, terrainMove)
-    : terrainMove(p, displacement);
+  // A zero horizontal sweep cannot move or expel an overlapping body. Keep the common
+  // support, jump, velocity, proxy and navigation publication below, even while stationary.
+  const next =
+    displacement.x === 0 && displacement.z === 0
+      ? p
+      : actor.navigator.occupancy
+        ? actor.navigator.occupancy.move(p, displacement, terrainMove)
+        : terrainMove(p, displacement);
   const moved = Math.hypot(next.x - p.x, next.z - p.z);
   sampleVelocity((next.x - p.x) / dt, (next.z - p.z) / dt);
   const ground = heightAt(world, next.x, next.z) ?? p.h;
