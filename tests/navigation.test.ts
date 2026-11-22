@@ -85,6 +85,104 @@ test('open-floor clicks produce a direct route to the precise destination', () =
   assert.equal(navigator.destination, null);
 });
 
+test('an exact goal in a small sealed pocket does not search the entire origin component', () => {
+  const world = grid(30, 12);
+  for (let z = -12; z <= 12; z++) if (z !== 0) world.tiles.delete(key(29, z));
+  for (let z = -12; z <= 12; z++) if (Math.abs(z) > 1) world.tiles.delete(key(30, z));
+  const door: DoorEntity = {
+    id: 'pocket',
+    type: 'door',
+    x: 29,
+    z: 0,
+    h: 0,
+    axis: 'x',
+    locked: true,
+    open: false,
+    requiresAltar: true,
+  };
+  world.entities.push(door);
+  const nav = new Navigator(world);
+  const from = { x: 27, z: 0 },
+    goal = { x: 30, z: 0 };
+  let probes = 0;
+  const segment = nav.segmentClear.bind(nav);
+  nav.segmentClear = (...args) => {
+    probes++;
+    return segment(...args);
+  };
+  assert.equal(nav.goTo(from, goal), false);
+  assert.ok(probes < 160, `sealed pocket used ${probes} segment probes`);
+  door.locked = false;
+  door.open = true;
+  assert.ok(nav.goTo(from, goal));
+  assert.deepEqual(nav.path, [goal]);
+});
+
+test('reverse goal bounds include a connector at floating-point distance exactly 1.5', () => {
+  const w = grid(0, 0);
+  const add = (x: number, z: number) => w.tiles.set(key(x, z), { x, z, h: 0, surface: 'stone' });
+  for (let x = -1; x <= 12; x++) add(x, 0);
+  for (let x = 9; x <= 12; x++) for (let z = 1; z <= 8; z++) add(x, z);
+  w.blockers.push({ id: 'trim', x: 0, z: -0.82 + 2e-10, w: 0.1, d: 1 });
+  const nav = new Navigator(w),
+    goal = { x: -0.5000000000000001, z: 1e-8 };
+  assert.ok(nav.segmentClear({ x: 1, z: 0 }, goal, true));
+  assert.ok(nav.goTo({ x: 10, z: 7 }, goal));
+  assert.deepEqual(nav.destination, goal);
+});
+
+test('smoothing a long switchback avoids thousands of known-void swept segments', () => {
+  const w: NavigationWorld = { tiles: new Map(), blockers: [], entities: [] };
+  const add = (x: number, z: number) => w.tiles.set(key(x, z), { x, z, h: 0, surface: 'stone' });
+  for (let r = 0; r < 12; r++) {
+    for (let x = 0; x <= 24; x++) add(x, r * 2);
+    if (r < 11) add(r % 2 ? 0 : 24, r * 2 + 1);
+  }
+  const nav = new Navigator(w),
+    start = { x: 0, z: 0 },
+    goal = { x: 0, z: 22 };
+  let longProbes = 0;
+  const probe = nav.segmentClear.bind(nav);
+  nav.segmentClear = (a, b, ...rest) => {
+    if (Math.hypot(a.x - b.x, a.z - b.z) > 2) longProbes++;
+    return probe(a, b, ...rest);
+  };
+  assert.ok(nav.goTo(start, goal));
+  assert.equal(nav.path.length, 23);
+  assert.ok(longProbes < 200, `${longProbes} long swept queries`);
+});
+
+test('independent route requests share static cardinal connectivity but see live gates', () => {
+  const world = grid(18, 18),
+    from = { x: -15, z: 0 },
+    goal = { x: 15, z: 0 };
+  for (let z = -18; z < 17; z++) world.tiles.delete(key(0, z));
+  const gate: DoorEntity = {
+    id: 'crossing',
+    type: 'door',
+    x: 0,
+    z: 17.5,
+    h: 0,
+    axis: 'x',
+    locked: false,
+    open: true,
+    requiresAltar: false,
+  };
+  world.entities.push(gate);
+  let sweptTerrainEdges = 0;
+  for (const open of [true, false, true]) {
+    gate.open = open;
+    const nav = new Navigator(world),
+      orig = nav.segmentClear.bind(nav);
+    nav.segmentClear = (...args) => {
+      if (args[4]) sweptTerrainEdges++;
+      return orig(...args);
+    };
+    assert.equal(nav.goTo(from, goal), open);
+  }
+  assert.ok(sweptTerrainEdges < 100, `repeated ${sweptTerrainEdges} static edge sweeps`);
+});
+
 test('smoothed routes go around furniture with character-sized corner clearance', () => {
   const world = grid();
   world.blockers.push({ id: 'large-table', x: 0, z: 0, w: 2.5, d: 2.5 });

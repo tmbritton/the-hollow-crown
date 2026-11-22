@@ -7,6 +7,8 @@ import { navigationMachine } from './machines/navigation/travel.ts';
 import type { CollisionBody, Occupancy } from './occupancy.ts';
 import { cpuTrace } from './cpuMetrics.ts';
 import { nearSegment, segmentBounds } from './queryBounds.ts';
+import { CARDINALS, CLEARANCE, routeGrid } from './routeGrid.ts';
+import type { RouteCell } from './routeGrid.ts';
 
 export type NavigationWorld = Pick<World, 'tiles' | 'blockers' | 'entities'>;
 interface Point3 extends Point {
@@ -23,21 +25,13 @@ export interface SteeringTarget {
   final: boolean;
 }
 
-const CLEARANCE = 0.32;
 const SAMPLE_SPACING = 0.18;
-const CARDINALS = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-] as const;
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 type Search = {
   from: Point;
-  parents: Map<string, string | null>;
-  costs: Map<string, number>;
-  queue: Point[];
-  links: Map<string, boolean>;
+  parents: Int32Array;
+  costs: Float64Array;
+  queue: RouteCell[];
 };
 type FloorCommand = {
   requested: Point;
@@ -79,10 +73,11 @@ export class Navigator {
   private readonly world: NavigationWorld;
   readonly occupancy?: Occupancy;
   private readonly staticCells = new Map<string, boolean>();
-  private readonly staticEdges = new Map<string, boolean>();
   private readonly doors: DoorEntity[];
+  private grid: ReturnType<typeof routeGrid>;
   // Input/search caches only. The chart remains the authority for active travel.
   private floorCommand: FloorCommand | null = null;
+  private floorBounds: ReturnType<typeof segmentBounds> | null = null;
   private floorSearch: (Search & { environment: string; geometry: string }) | null = null;
   private floorSearchTime = -Infinity;
   readonly chart = new Statechart(navigationMachine);
@@ -103,6 +98,15 @@ export class Navigator {
     this.world = world;
     this.occupancy = occupancy;
     this.doors = world.entities.filter((entity) => entity.type === 'door');
+    this.grid = routeGrid(world, this.doors);
+  }
+
+  private refreshGrid(): void {
+    const current = routeGrid(this.world, this.doors);
+    if (this.grid === current) return;
+    this.grid = current;
+    this.staticCells.clear();
+    this.cancel();
   }
 
   get active(): boolean {
@@ -118,6 +122,7 @@ export class Navigator {
   cancel(): void {
     this.chart.send({ type: 'CANCEL' });
     this.floorCommand = null;
+    this.floorBounds = null;
     this.floorSearch = null;
     this.floorSearchTime = -Infinity;
   }
@@ -161,6 +166,17 @@ export class Navigator {
     if (this.occupancy)
       for (const body of bodies) {
         const radius = body.radius + this.occupancy.size.radius;
+        // The exhausted component, attempted direct segment and goal bound all reachable
+        // anchors. Include rejected neighbors, start connectors and continuous refinements.
+        const bounds = command && this.floorBounds;
+        if (
+          bounds &&
+          (body.x < bounds.minX - radius - 3 ||
+            body.x > bounds.maxX + radius + 3 ||
+            body.z < bounds.minZ - radius - 3 ||
+            body.z > bounds.maxZ + radius + 3)
+        )
+          continue;
         const sample = [body];
         for (let x = Math.floor(body.x - radius) - 1; x <= Math.ceil(body.x + radius); x++)
           for (let z = Math.floor(body.z - radius) - 1; z <= Math.ceil(body.z + radius); z++) {
@@ -199,6 +215,7 @@ export class Navigator {
   /** Held-floor input reuses an unchanged command, including arrival/failure. Small cursor
    * drift on partial routes retries at most twice/second; explicit clicks are immediate. */
   followFloor(from: Point, requested: Point, now: number): boolean {
+    if (this.floorCommand) this.refreshGrid();
     const cached = this.floorCommand;
     if (cached) {
       const sameRequest = distance(cached.requested, requested) < 0.08;
@@ -311,6 +328,81 @@ export class Navigator {
     return clear && this.doorsClear(point, true) && this.bodyClear(point, bodies);
   }
 
+  /** A short reverse flood can prove that a small goal pocket has no path from the
+   * current forward frontier. Treat unknown static edges as open: this proof may
+   * decline to prune, but must never exclude a route the ordinary search could take. */
+  private sealedGoal(goal: Point, reached: Int32Array, bodies?: readonly CollisionBody[]): boolean {
+    const queue: Point[] = [],
+      seen = new Set<string>();
+    for (let x = Math.floor(goal.x - 1.5); x <= Math.ceil(goal.x + 1.5); x++)
+      for (let z = Math.floor(goal.z - 1.5); z <= Math.ceil(goal.z + 1.5); z++) {
+        const p = { x, z };
+        if (
+          distance(p, goal) > 1.5 ||
+          !this.cellClear(p, bodies) ||
+          !this.segmentClear(p, goal, true, bodies)
+        )
+          continue;
+        const id = key(x, z);
+        const cell = this.grid.cells.get(id);
+        if (cell && reached[cell.index] !== 0) return false;
+        queue.push(p);
+        seen.add(id);
+      }
+    for (let i = 0; i < queue.length; i++) {
+      if (i === 16) return false;
+      if (import.meta.env?.DEV) cpuTrace?.count('route.reverseCells');
+      const p = queue[i],
+        h = heightAt(this.world, p.x, p.z)!;
+      for (const [dx, dz] of CARDINALS) {
+        const prev = { x: p.x + dx, z: p.z + dz },
+          id = key(prev.x, prev.z);
+        if (seen.has(id) || !this.cellClear(prev, bodies)) continue;
+        const ph = heightAt(this.world, prev.x, prev.z);
+        if (
+          ph === null ||
+          Math.abs(h - ph) > 0.65 ||
+          !this.doorsSegmentClear(prev, p, true) ||
+          (this.occupancy &&
+            bodies &&
+            !this.occupancy.segmentClear({ ...prev, h: ph }, { ...p, h }, bodies))
+        )
+          continue;
+        const cell = this.grid.cells.get(id);
+        if (cell && reached[cell.index] !== 0) return false;
+        seen.add(id);
+        queue.push(prev);
+      }
+    }
+    return true;
+  }
+
+  /** Probe the first crossed tile rows/columns before doing the full swept test. A
+   * missing center tile over an open interval is necessarily rejected by segmentClear. */
+  private crossesVoid(from: Point, to: Point): boolean {
+    for (const axis of ['x', 'z'] as const) {
+      const other = axis === 'x' ? 'z' : 'x',
+        d = to[axis] - from[axis];
+      if (Math.abs(d) < 1) continue;
+      const sign = Math.sign(d),
+        start = Math.round(from[axis]);
+      for (let n = 1; n <= 3; n++) {
+        const v = start + sign * n,
+          t = (v - from[axis]) / d;
+        if (t >= 1) break;
+        const cross = from[other] + t * (to[other] - from[other]);
+        // At a corner the ray can merely graze a missing tile.
+        for (const offset of [-CLEARANCE, CLEARANCE]) {
+          const side = cross + offset,
+            cell = Math.round(side);
+          if (Math.abs(side - cell) >= 0.49999999) continue;
+          if (!this.world.tiles.has(axis === 'x' ? key(v, cell) : key(cell, v))) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   segmentClear(
     from: Point,
     to: Point,
@@ -389,6 +481,8 @@ export class Navigator {
     options: { openDoors?: boolean; partial?: boolean } = {},
   ): boolean {
     const bodies = this.occupancy?.bodies();
+    this.refreshGrid();
+    this.floorBounds = null;
     if (!options.partial) this.cancel();
     else this.chart.send({ type: 'CANCEL' });
     this.chart.send({ type: 'CONFIGURE', opensDoors: options.openDoors ?? false });
@@ -447,26 +541,39 @@ export class Navigator {
       ? cached
       : {
           from: { x: from.x, z: from.z },
-          parents: new Map(),
-          costs: new Map(),
+          parents: new Int32Array(this.grid.cells.size),
+          costs: new Float64Array(this.grid.cells.size),
           queue: [],
-          links: cached?.links ?? new Map(),
         };
-    const { parents, costs, queue, links } = search;
+    const { parents, costs, queue } = search;
+    const grid = this.grid;
+    const closed = new Map<DoorEntity, boolean>();
     if (!sameOrigin)
       for (let x = Math.round(from.x) - 1; x <= Math.round(from.x) + 1; x++)
         for (let z = Math.round(from.z) - 1; z <= Math.round(from.z) + 1; z++) {
           const start = { x, z };
-          if (this.cellClear(start, bodies) && this.segmentClear(from, start, true, bodies)) {
-            parents.set(key(x, z), null);
-            costs.set(key(x, z), distance(from, start));
-            queue.push(start);
+          const cell = grid.get(start);
+          if (
+            cell &&
+            this.cellClear(start, bodies) &&
+            this.segmentClear(from, start, true, bodies)
+          ) {
+            parents[cell.index] = -1;
+            costs[cell.index] = distance(from, start);
+            queue.push(cell);
           }
         }
     if (!sameOrigin) queue.sort((a, b) => distance(a, from) - distance(b, from));
-    let goalKey: string | null = null;
+    let goalKey: number | null = null;
     if (import.meta.env?.DEV) cpuTrace?.phase('search');
     for (let i = 0; i < queue.length; i++) {
+      // Let short successful routes finish before paying for a reverse probe. Its
+      // fixed cap is independent of time and it never changes successful BFS ordering.
+      if (i === 12 && !partial) {
+        if (import.meta.env?.DEV) cpuTrace?.phase('goalPocket');
+        if (this.sealedGoal(goal, parents, bodies)) return false;
+        if (import.meta.env?.DEV) cpuTrace?.phase('search');
+      }
       if (import.meta.env?.DEV) cpuTrace?.count('route.visited');
       const current = queue[i];
       if (
@@ -474,50 +581,34 @@ export class Navigator {
         distance(current, goal) <= 1.5 &&
         this.segmentClear(current, goal, true, bodies)
       ) {
-        goalKey = key(current.x, current.z);
+        goalKey = current.index;
         break;
       }
       if (sameOrigin) continue;
       if (import.meta.env?.DEV) cpuTrace?.count('route.expanded');
-      const currentKey = key(current.x, current.z);
-      const currentHeight = heightAt(this.world, current.x, current.z);
-      if (currentHeight === null) continue;
-      for (const [dx, dz] of CARDINALS) {
+      const cell = current;
+      for (const edge of cell.edges) {
         if (import.meta.env?.DEV) cpuTrace?.count('route.edges');
-        const next = { x: current.x + dx, z: current.z + dz };
-        const id = key(next.x, next.z);
-        if (parents.has(id)) continue;
-        const edge = [currentKey, id].sort().join(':');
-        const link = `${currentKey}>${id}`;
-        let connected = links.get(link);
-        if (connected === undefined) {
-          const nextHeight = heightAt(this.world, next.x, next.z);
-          connected =
-            this.cellClear(next, bodies) &&
-            nextHeight !== null &&
-            Math.abs(nextHeight - currentHeight) <= 0.65;
-          if (connected && nextHeight !== null) {
-            let clear = this.staticEdges.get(edge);
-            if (clear === undefined) {
-              clear = this.segmentClear(current, next, true, undefined, true);
-              this.staticEdges.set(edge, clear);
-            }
-            connected =
-              clear &&
-              this.doorsSegmentClear(current, next, true) &&
-              (!this.occupancy ||
-                !bodies ||
-                this.occupancy.segmentClear(
-                  { ...current, h: currentHeight },
-                  { ...next, h: nextHeight },
-                  bodies,
-                ));
-          }
-          links.set(link, connected);
+        const next = edge.next,
+          id = next.index;
+        if (parents[id] !== 0) continue;
+        if (
+          edge.doors.length &&
+          edge.doors.some((door) => {
+            if (!closed.has(door)) closed.set(door, this.doorBlocks(door, true));
+            return closed.get(door);
+          })
+        )
+          continue;
+        if (this.occupancy && bodies?.length) {
+          if (
+            !this.occupancy.canStand(next, bodies) ||
+            !this.occupancy.segmentClear(cell, next, bodies)
+          )
+            continue;
         }
-        if (!connected) continue;
-        parents.set(id, currentKey);
-        costs.set(id, costs.get(currentKey)! + 1);
+        parents[id] = current.index + 1;
+        costs[id] = costs[current.index] + 1;
         queue.push(next);
       }
     }
@@ -526,20 +617,28 @@ export class Navigator {
       // Only an exhausted component can be reused for a different cursor request. The
       // finite tile graph visits each cell once; terrain caches are world-local/immutable.
       this.floorSearch = { ...search, environment, geometry };
+      const bounds = segmentBounds(from, requested);
+      for (const p of queue) {
+        bounds.minX = Math.min(bounds.minX, p.x);
+        bounds.maxX = Math.max(bounds.maxX, p.x);
+        bounds.minZ = Math.min(bounds.minZ, p.z);
+        bounds.maxZ = Math.max(bounds.maxZ, p.z);
+      }
+      this.floorBounds = bounds;
       const fallback = this.closestReachable(from, requested, search, bodies);
       if (!fallback) return false;
-      goal = fallback.point;
-      goalKey = fallback.anchor === from ? null : key(fallback.anchor.x, fallback.anchor.z);
+      goal = { x: fallback.point.x, z: fallback.point.z };
+      goalKey = fallback.anchor === from ? null : grid.get(fallback.anchor)!.index;
     }
     if (import.meta.env?.DEV) cpuTrace?.phase('reconstruction');
-    const chain = (end: string | null) => {
+    const chain = (end: number | null) => {
       const points: Point[] = [];
-      for (let id = end; id !== null; id = parents.get(id) ?? null) {
+      for (let id = end ?? -1; id >= 0; id = parents[id] - 1) {
         if (import.meta.env?.DEV) cpuTrace?.count('route.chainNodes');
-        const [x, z] = id.split(',').map(Number);
-        points.unshift({ x, z });
+        const { x, z } = grid.byIndex[id];
+        points.push({ x, z });
       }
-      return points;
+      return points.reverse();
     };
     const points = [...chain(goalKey), goal];
     let anchor = from;
@@ -547,7 +646,11 @@ export class Navigator {
     if (import.meta.env?.DEV) cpuTrace?.phase('smoothing');
     for (let i = 0; i < points.length;) {
       let farthest = points.length - 1;
-      while (farthest >= i && !this.segmentClear(anchor, points[farthest], true, bodies))
+      while (
+        farthest >= i &&
+        (this.crossesVoid(anchor, points[farthest]) ||
+          !this.segmentClear(anchor, points[farthest], true, bodies))
+      )
         farthest--;
       if (farthest < i) {
         this.cancel();
@@ -578,14 +681,20 @@ export class Navigator {
     // Within 0.001 units of the best target distance, prefer shorter routed travel.
     const tie = 0.001;
     const cost = (anchor: Point) =>
-      anchor === from ? 0 : search.costs.get(key(anchor.x, anchor.z))!;
-    const anchors = [from, ...search.queue].sort(
-      (a, b) =>
-        distance(a, requested) - distance(b, requested) ||
-        cost(a) - cost(b) ||
-        a.x - b.x ||
-        a.z - b.z,
-    );
+      anchor === from ? 0 : search.costs[this.grid.get(anchor)!.index];
+    // Every reached cell is itself a feasible candidate, and refinements stay within
+    // 1.5 units of their anchor. Only this band can beat the closest cell (or origin).
+    let cutoff = score;
+    for (const p of search.queue) cutoff = Math.min(cutoff, distance(p, requested));
+    const anchors = [from, ...search.queue]
+      .filter((p) => distance(p, requested) - 1.5 <= cutoff + tie)
+      .sort(
+        (a, b) =>
+          distance(a, requested) - distance(b, requested) ||
+          cost(a) - cost(b) ||
+          a.x - b.x ||
+          a.z - b.z,
+      );
     const consider = (point: Point, anchor: Point, refining = false) => {
       if (import.meta.env?.DEV) cpuTrace?.count('route.candidates');
       const d = distance(point, requested);

@@ -15,6 +15,47 @@ function grid(width = 6, depth = 4): NavigationWorld {
   return { tiles, blockers: [], entities: [] };
 }
 const partial = { partial: true };
+
+test('removing a solid footprint retires a held partial tree and its cached cells', () => {
+  const w = grid(15, 6),
+    from = { x: -12, z: 0 },
+    goal = { x: 12, z: 3 };
+  w.blockers.push(
+    { id: 'temporary wall', x: 0, z: 0, w: 0.5, d: 20 },
+    { id: 'detour', x: 3, z: 2, w: 1, d: 3 },
+  );
+  const nav = new Navigator(w);
+  assert.ok(nav.followFloor(from, goal, 0));
+  assert.ok(nav.destination!.x < 0);
+  w.blockers.shift();
+  assert.ok(nav.followFloor(from, goal, 1000));
+  const fresh = new Navigator(w);
+  assert.ok(fresh.goTo(from, goal, partial));
+  assert.deepEqual(nav.path, fresh.path);
+});
+
+test('motion on a disconnected island does not restart an unchanged partial floor command', () => {
+  const w = grid(12, 3),
+    ecs = new ECS(),
+    from = { x: 0, z: 0, h: 0 };
+  for (const x of [15, 60, 61]) w.tiles.set(key(x, 0), { x, z: 0, h: 0, surface: 'stone' });
+  const actor = createActor(ecs, w, 'player', 'player', from),
+    remote = createActor(ecs, w, 'remote', 'kobold', { x: 60, z: 0, h: 0 });
+  const nav = actor.navigator,
+    plan = nav.goTo.bind(nav),
+    goal = { x: 15, z: 0 };
+  let requests = 0;
+  nav.goTo = (...args) => {
+    requests++;
+    return plan(...args);
+  };
+  assert.ok(nav.followFloor(from, goal, 0));
+  const path = nav.path;
+  remote.position.x = 61;
+  assert.ok(nav.followFloor(from, goal, 1000));
+  assert.deepEqual(nav.path, path);
+  assert.equal(requests, 1);
+});
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 function safeRoute(n: Navigator, from: Point) {
   for (const point of n.path) {
@@ -415,7 +456,9 @@ test('held cursor drift reuses the reached component and bounds expensive replan
   for (let i = 1; i <= 120; i++)
     n.followFloor(from, { x: target.x + i / 1000, z: target.z }, (i * 1000) / 60);
   assert.ok(plans <= 5, `${plans} searches in two seconds`);
-  assert.ok(probes < first / 2, `cached drift ${probes} vs cold ${first}`);
+  // CPU0 needed 3,369 cold sweeps and 118 for drift. The shared cardinal grid removes
+  // most of the cold denominator; gate the repeated work directly.
+  assert.ok(probes <= 125, `cached drift ${probes} vs cold ${first}`);
   t.diagnostic(
     JSON.stringify({
       tiles: world.tiles.size,
