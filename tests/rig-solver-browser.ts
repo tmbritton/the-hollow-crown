@@ -3,15 +3,19 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { DebugWindow } from './browserTypes.ts';
 import type { createSolverReview } from './rig-solver-browser-fixture.ts';
+import { rendererKind } from '../src/cpuMetrics.ts';
 
 declare const window: DebugWindow & {
   solverReview: ReturnType<typeof createSolverReview>;
   solverClip: ReturnType<ReturnType<typeof createSolverReview>['fixture']>;
 };
 
+const hardware = process.env.CPU_GPU === 'hardware';
 const browser = await chromium.launch({
-  headless: true,
-  args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+  headless: !hardware,
+  args: hardware
+    ? ['--ignore-gpu-blocklist']
+    : ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const deadline = setTimeout(() => void browser.close().catch(() => {}), 180000);
 try {
@@ -28,6 +32,10 @@ try {
     d.regenerate('MOURNING-731');
   });
   await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
+  if (hardware) {
+    const { renderer, vendor } = await page.evaluate(() => window.__dungeon.engine.getGlInfo());
+    assert.equal(rendererKind(renderer, vendor), 'hardware');
+  }
   await page.addStyleTag({ content: 'body > :not(#game) { visibility: hidden !important; }' });
   const resources = await page.evaluate(async () => {
     const d = window.__dungeon;

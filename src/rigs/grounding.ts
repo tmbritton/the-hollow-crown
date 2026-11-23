@@ -2,7 +2,7 @@ import type { Actor } from '../actors.ts';
 import type { LocomotionPose } from '../locomotion.ts';
 import type { NavigationWorld } from '../navigation.ts';
 import type { Spawn } from '../worldTypes.ts';
-import type { CorpseBox } from '../corpseTerrain.ts';
+import type { CorpseBox, CorpseContactQuery } from '../corpseTerrain.ts';
 import { corpseHeightAt, MAX_CORPSE_STEP } from '../corpseTerrain.ts';
 import { heightAt } from '../world.ts';
 import { volumeScale } from '../animationCurves.ts';
@@ -76,6 +76,7 @@ export class GroundedLocomotion {
   visualLift = 0;
   private world: NavigationWorld | undefined;
   private readonly corpses: CorpseBox[] = [];
+  private corpseContact?: CorpseContactQuery;
   private readonly probe: Spawn = { x: 0, z: 0, h: 0 };
   private readonly matrix = new Float64Array(16);
   private readonly heights = new Float64Array(4);
@@ -137,6 +138,7 @@ export class GroundedLocomotion {
     this.corpseRise = this.visualLift = this.terrainQueries = this.corpseQueries = 0;
     this.world = undefined;
     this.corpses.length = 0;
+    this.corpseContact = undefined;
     this.minimumClearance = 0;
     this.head.setAll(0);
     this.armYaw[0] = this.armYaw[1] = 0;
@@ -151,12 +153,14 @@ export class GroundedLocomotion {
     motion: LocomotionPose,
     heading: number,
     world?: NavigationWorld,
-    corpses: readonly CorpseBox[] = [],
+    corpses: readonly CorpseBox[] | CorpseContactQuery = [],
     actions?: ActionRig,
   ) {
     // A presentation sample consumes contact decisions once. Rendering/inspection of the same
     // authoritative clock + pose inputs reads that solved snapshot rather than planning again
     // from the release decisions it just produced. New geometry/inputs or reset invalidate it.
+    const contact = 'heightAt' in corpses ? corpses : undefined;
+    const boxes = 'heightAt' in corpses ? undefined : corpses;
     let repeated =
       this.active &&
       this.sampledTime === actor.motion.animation.time &&
@@ -166,7 +170,8 @@ export class GroundedLocomotion {
       this.actions === actions &&
       this.world === world &&
       this.sampledTiles === world?.tiles &&
-      this.sampledCorpses.length === corpses.length;
+      this.corpseContact === contact &&
+      this.sampledCorpses.length === (boxes?.length ?? 0);
     if (repeated) {
       this.writeRequest(actor, motion, heading);
       for (let i = 0; i < this.request.length; i++)
@@ -175,9 +180,9 @@ export class GroundedLocomotion {
           break;
         }
     }
-    if (repeated)
-      for (let i = 0; i < corpses.length; i++)
-        if (corpses[i] !== this.sampledCorpses[i]) {
+    if (repeated && boxes)
+      for (let i = 0; i < boxes.length; i++)
+        if (boxes[i] !== this.sampledCorpses[i]) {
           repeated = false;
           break;
         }
@@ -210,10 +215,11 @@ export class GroundedLocomotion {
     this.sin = Math.sin(heading);
     this.cos = Math.cos(heading);
     this.allowCorpses = !actor.jump.active;
+    this.corpseContact = contact;
     // The maximum foot/stride/plant envelope is bounded by anatomy and authored scale. Cull
     // distant boxes once, rather than walking every corpse for every corner and swing probe.
     let nearbyCount = 0;
-    if (this.allowCorpses) {
+    if (this.allowCorpses && boxes?.length) {
       const profile = d.profile;
       const radius =
         (profile.hipWidth +
@@ -226,7 +232,7 @@ export class GroundedLocomotion {
           profile.soleHalfDepth) *
           Math.max(scale.x, scale.z) +
         0.35;
-      for (const box of corpses)
+      for (const box of boxes)
         if (
           box.worldMin.x <= actor.position.x + radius &&
           box.worldMax.x >= actor.position.x - radius &&
@@ -257,8 +263,8 @@ export class GroundedLocomotion {
     this.sampledKind = actor.kind;
     this.sampledTime = actor.motion.animation.time;
     this.sampledTiles = world?.tiles;
-    for (let i = 0; i < corpses.length; i++) this.sampledCorpses[i] = corpses[i];
-    this.sampledCorpses.length = corpses.length;
+    if (boxes) for (let i = 0; i < boxes.length; i++) this.sampledCorpses[i] = boxes[i];
+    this.sampledCorpses.length = boxes?.length ?? 0;
     return result;
   }
 
@@ -312,12 +318,16 @@ export class GroundedLocomotion {
   }
 
   private corpse(x: number, z: number, h: number): number {
-    if (!this.allowCorpses || !this.corpses.length) return 0;
+    if (!this.allowCorpses || !this.hasCorpseContacts) return 0;
     this.corpseQueries++;
     this.probe.x = x;
     this.probe.z = z;
     this.probe.h = h;
-    return corpseHeightAt(this.corpses, this.probe);
+    return this.corpseContact?.heightAt(this.probe) ?? corpseHeightAt(this.corpses, this.probe);
+  }
+
+  private get hasCorpseContacts() {
+    return this.corpseContact ? !this.corpseContact.empty : this.corpses.length > 0;
   }
 
   private plan(actor: Actor, motion: LocomotionPose, i: number): void {
@@ -391,7 +401,7 @@ export class GroundedLocomotion {
       this.heights[n] = h;
       highest = Math.max(highest, this.corpse(px, pz, h));
     }
-    if (moving && phase > Math.PI && this.allowCorpses && this.corpses.length) {
+    if (moving && phase > Math.PI && this.allowCorpses && this.hasCorpseContacts) {
       let ahead = highest;
       for (let n = 0; n < 4; n++) {
         const t = n < 2 ? -1 + n * 0.5 : 0.5 + (n - 2) * 0.5;

@@ -1,11 +1,12 @@
 import type { Actor } from '../actors.ts';
-import type { ECS } from '../ecs.ts';
+import type { ECS, Entity } from '../ecs.ts';
 import type { NavigationWorld } from '../navigation.ts';
 import { heightAt, tileAt } from '../world.ts';
 import type { DoorEntity, Footprint, Tile } from '../worldTypes.ts';
 import type { ActionRig } from './actions.ts';
 import type { XYZ } from './types.ts';
 import type { TailBounds } from './tail.ts';
+import { cpuTrace } from '../cpuMetrics.ts';
 import { WALL_OFFSET, WALL_THICKNESS, WALL_LENGTH, WALL_BASE, WALL_CAP } from '../wallGeometry.ts';
 
 type StaticBox = Footprint & { minY?: number; maxY?: number };
@@ -137,7 +138,7 @@ export const clearanceBox = (oriented = false): TailBounds => ({
 });
 export function setClearanceBox(
   out: TailBounds,
-  matrix: Float64Array,
+  matrix: ArrayLike<number>,
   offset: number,
   center: XYZ,
   size: XYZ,
@@ -175,9 +176,19 @@ export interface RigSurface {
   readonly bounds: TailBounds;
   readonly rootJoin: boolean;
   readonly tail: boolean;
-  enabled: boolean;
+  readonly enabled: boolean;
 }
 export const RIG_SURFACE_LIMIT = 64;
+
+export function tailNeighbor(actor: Entity, other: Entity): boolean {
+  if (import.meta.env?.DEV) cpuTrace?.count('tail.neighborhoodVisits');
+  if (actor === other || other.has('corpse') || (other.get('health')?.current ?? 0) <= 0)
+    return false;
+  const a = actor.require('transform'),
+    b = other.require('transform');
+  // Include long weapons, not just the living motor footprint.
+  return Math.hypot(a.x - b.x, a.z - b.z) <= 6;
+}
 
 /** Render-only conservative AABBs. Static obstacles are indexed once per world; doors retain
  * their live collision state. No navigation/occupancy mutation or whole-scene matrix traversal. */
@@ -186,8 +197,6 @@ export class TailClearance {
   private cells?: Map<string, StaticBox[]>;
   private doors: DoorEntity[] = [];
   private own: readonly RigSurface[] = [];
-  private readonly cargo = clearanceBox(true);
-  private hasCargo = false;
   private readonly neighbors: RigSurface[] = [];
   private support = 0;
   private tileX = NaN;
@@ -195,7 +204,13 @@ export class TailClearance {
   private tile?: Tile;
   floorQueries = 0;
   reason = '';
-  prepare(actor: Actor, ecs: ECS, actions: ActionRig, world?: NavigationWorld): void {
+  prepare(
+    actor: Actor,
+    ecs: ECS,
+    _actions: ActionRig,
+    world?: NavigationWorld,
+    members?: readonly Entity[],
+  ): void {
     this.floorQueries = 0;
     this.tileX = this.tileZ = NaN;
     if (this.world !== world) {
@@ -204,24 +219,21 @@ export class TailClearance {
       this.doors = world?.entities.filter((e) => e.type === 'door') ?? [];
     }
     this.support = actor.position.h;
-    this.own = actor.entity.get('rigPose')?.surfaces ?? [];
-    this.hasCargo = actions.carrying;
-    if (this.hasCargo)
-      setClearanceBox(this.cargo, actions.frames.cargo, 0, [0, 0.26, 0], [0.66, 0.53, 0.53]);
+    this.own = actor.entity.get('rigPose')?.clearanceSurfaces() ?? [];
     this.neighbors.length = 0;
     // Falling/settled remains never dodge living bodies. This also keeps their contact surface
     // independent of the actor currently stepping over it.
     if (actor.entity.has('corpse')) return;
-    for (const e of ecs.query('actor', 'transform', 'health')) {
-      if (e === actor.entity || e.require('health').current <= 0 || e.has('corpse')) continue;
-      const p = e.require('transform');
-      // Include long weapons, not just the living motor footprint.
-      if (Math.hypot(p.x - actor.position.x, p.z - actor.position.z) > 6) continue;
-      for (const surface of e.get('rigPose')?.surfaces ?? []) {
-        // Earlier IDs retain priority over later decorative tails, independent of ECS order.
-        // Every body's anatomy/equipment remains protected regardless of that ordering.
-        if (surface.enabled && (!surface.tail || e.id < actor.id)) this.neighbors.push(surface);
-      }
+    for (const e of members ?? ecs.query('actor', 'transform', 'health')) {
+      if (!members && !tailNeighbor(actor.entity, e)) continue;
+      const binding = e.get('rigPose');
+      if (!binding) continue;
+      for (const surface of binding.clearanceSurfaces())
+        if (surface.enabled) this.neighbors.push(surface);
+      // Only earlier IDs have already published their final tail for this step.
+      if (e.id < actor.id)
+        for (const surface of binding.clearanceSurfaces(true))
+          if (surface.enabled) this.neighbors.push(surface);
     }
   }
   readonly clear = (b: TailBounds, segment = 0): boolean => {
@@ -237,10 +249,6 @@ export class TailClearance {
         this.reason = 'body/equipment';
         return false;
       }
-    if (this.hasCargo && overlaps(b, this.cargo)) {
-      this.reason = 'cargo';
-      return false;
-    }
     for (const surface of this.neighbors)
       if (overlaps(b, surface.bounds)) {
         this.reason = 'neighbor';

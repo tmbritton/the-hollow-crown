@@ -284,23 +284,41 @@ try {
     const death = await page.evaluate((members) => {
       const d = window.__dungeon,
         g = d.game;
-      for (const id of members) g.combat.damage(g.combat.actor(id)!, 1000);
+      const equipment = (id: string) => {
+        const rig = g.combat.actor(id)!.entity.require('rig');
+        const drawn = rig.equipment!.map((mesh) => mesh.isEnabled());
+        const stowed = rig.stowedEquipment!.map((mesh) => mesh.isEnabled());
+        return { drawn, stowed };
+      };
+      // Leave the first member in its actual returned social pose. Exercise a drawn lethal
+      // at the same clock by publishing the regular equipment writer for a second member.
+      const binding = g.combat.actor(members[1])!.entity.require('rigPose');
+      binding.actions.stowed = false;
+      binding.apply();
+      const before = members.map(equipment);
+      for (const id of members) {
+        if (!g.combat.damage(g.combat.actor(id)!, 1000)) throw new Error(`rejected lethal: ${id}`);
+      }
       d.step([], 45);
-      return members.map((id) => {
-        const a = g.combat.actor(id)!,
-          rig = a.entity.require('rig');
+      return members.map((id, i) => {
+        const a = g.combat.actor(id)!;
         return {
+          before: before[i],
+          after: equipment(id),
           corpse: a.entity.has('corpse'),
-          drawn: rig
-            .equipment!.filter((m) => !m.name.includes(':javelin'))
-            .every((m) => m.isEnabled()),
-          stowed: rig.stowedEquipment!.some((m) => m.isEnabled()),
           state: a.entity.require('squadMember').group.require('koboldSquad').state,
         };
       });
     }, fixture.group.members);
-    assert.ok(death.every((a) => a.corpse && a.drawn && !a.stowed && a.state === 'defeated'));
-    checks.push(`${activity}: death retains drawn role equipment and defeats the original squad`);
+    assert.ok(death[0].before.stowed.some(Boolean) && !death[0].before.drawn.some(Boolean));
+    assert.ok(death[1].before.drawn.some(Boolean) && !death[1].before.stowed.some(Boolean));
+    for (const actor of death) {
+      assert.ok(actor.corpse && actor.state === 'defeated');
+      assert.deepEqual(actor.after, actor.before, 'death retains the actual prelethal equipment');
+    }
+    checks.push(
+      `${activity}: death retains stowed and drawn equipment and defeats the original squad`,
+    );
   }
   assert.deepEqual(errors, []);
   for (const check of checks) console.log(`PASS ${check}`);

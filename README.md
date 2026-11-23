@@ -106,8 +106,10 @@ P9 skeleton breakup is implemented, verified and independently reviewed **READY*
 **CPU0 (reproducible performance baseline) is implemented, verified and independently reviewed READY.**
 CPU1–CPU3 are also independently reviewed **READY**. Astra's [final independent CPU4 review](VERIFICATION.md#cpu4--final-independent-review)
 returned **APPROVE with zero findings**. [CPU5's final independent review](VERIFICATION.md#cpu5--final-independent-review)
-returned **APPROVE** for settled transform publication; its post-review coverage test awaits review.
-[**CPU6a is next**](docs/cpu-performance-plan.md#cpu6a--only-construct-animation-geometry-when-needed).
+returned **APPROVE** for settled transform publication. The later cap/replacement regression is
+included in CPU5 `f3fa9a3`. [CPU6a received final independent **APPROVE**](VERIFICATION.md#cpu6a--animation-geometry),
+including both follow-ups, and remains uncommitted on `main`.
+[**CPU6b is next**](docs/cpu-performance-plan.md#cpu6b--separate-presentation-solving-from-simulation-frequency).
 See the [CPU0 baseline and profiling commands](docs/cpu-baseline.md). EF0–EF4 follow the CPU pass before further
 procedural-feature expansion; see the [delivery sequence](docs/implementation-path.md).
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),

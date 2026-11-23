@@ -34,6 +34,14 @@ try {
     const { animateActors, resetActorRig } = (await import(
       rendererPath
     )) as typeof import('../src/actorRendering.ts');
+    const geometryPath = '/src/actorGeometry.ts',
+      metricsPath = '/src/cpuMetrics.ts';
+    const { actorGeometry } = (await import(
+      geometryPath
+    )) as typeof import('../src/actorGeometry.ts');
+    const { CpuMetrics, setCpuMetrics } = (await import(
+      metricsPath
+    )) as typeof import('../src/cpuMetrics.ts');
     const g = window.__dungeon.game,
       stage = createReviewStage(g);
     type Point = [number, number, number];
@@ -232,6 +240,224 @@ try {
     other.entity.remove('brain');
     other.health.current = other.health.max;
     otherRig.root.setEnabled(true);
+    const otherBinding = other.entity.require('rigPose');
+    const originalSample = otherBinding.sampleSurfaces;
+    const originalReuse = otherBinding.tail!.reuses;
+    otherBinding.tail!.reuses = () => true;
+    const trace = new CpuMetrics();
+    let fullSamples = 0,
+      bodyRequests = 0;
+    otherBinding.sampleSurfaces = function (...args) {
+      if (args[0]) return originalSample.apply(this, args);
+      trace.begin(++bodyRequests);
+      setCpuMetrics(trace, true);
+      try {
+        const changed = originalSample.apply(this, args);
+        if (changed) fullSamples++;
+        return changed;
+      } finally {
+        trace.end();
+        setCpuMetrics(null);
+      }
+    };
+    const checkDrawn = (meshes: readonly AbstractMesh[], tailOnly: boolean) => {
+      const surfaces = (tailOnly ? otherBinding.tailSurfaces : otherBinding.bodySurfaces).filter(
+        (s) => s.enabled,
+      );
+      if (
+        JSON.stringify(surfaces.map((s) => s.name).sort()) !==
+        JSON.stringify(meshes.map((m) => m.name).sort())
+      )
+        throw new Error(`current ${tailOnly ? 'tail' : 'body'} membership differs from draw`);
+      for (const mesh of meshes) {
+        const parents = [];
+        for (let node = mesh.parent; node; node = node.parent) parents.unshift(node);
+        parents.forEach((node) => node.computeWorldMatrix(true));
+        const corners = shape(mesh).flat();
+        const index = surfaces.findIndex(
+          (s) =>
+            s.name === mesh.name &&
+            corners.every((v, i) => Math.abs(v - s.bounds.corners![i]) < 1e-5),
+        );
+        if (index < 0) throw new Error(`current corners differ from draw for ${mesh.name}`);
+        surfaces.splice(index, 1);
+      }
+    };
+    const ownedRender = other.entity.require('render');
+    const originalMembers = ownedRender.meshes;
+    const owner = actorGeometry(ownedRender);
+    if (!owner) throw new Error('expected the real actor renderer to own geometry');
+    const isTail = (mesh: AbstractMesh) => {
+      for (let node: typeof mesh.parent = mesh; node; node = node.parent)
+        if (otherRig.tail!.some((link) => link === node)) return true;
+      return false;
+    };
+    const isDrawn = (m: AbstractMesh) =>
+      !m.isDisposed() && m.isEnabled() && m.isVisible && m.visibility > 0;
+    const tailMesh = ownedRender.meshes.find((mesh) => mesh.parent === otherRig.tail![0])!;
+    const equipment = ownedRender.meshes.find(
+      (mesh) =>
+        mesh.parent === otherRig.weapon ||
+        mesh.parent === otherRig.shield ||
+        mesh.parent === otherRig.spear,
+    )!;
+    if (!equipment || !tailMesh) throw new Error('need a drawn attachment and a tail mesh');
+    Object.assign(a.position, { x: 0, z: 0, h: 0 });
+    Object.assign(other.position, { x: 1000, z: 1000, h: 0, heading: 0 });
+    const parked = g.combat.enemies.filter(
+      (x) => x.id !== a.id && x.id !== other.id && x.entity.require('rigPose').tail,
+    );
+    if (parked.length < 2) throw new Error('need two inactive tails');
+    parked.forEach((x, i) => {
+      Object.assign(x.position, { x: 1000, z: 1000, h: 0 });
+      x.entity.remove('corpse');
+      x.health.current = i === 0 ? 0 : x.health.max;
+      x.entity.require('rig').root.setEnabled(i === 0);
+    });
+    animateActors(g.ecs, 1 / 60, 0, g.world);
+    const distantSamples = fullSamples;
+    const distantBody = otherBinding.bodySurfaces;
+    const originalOffset = equipment.position.x;
+    owner.edit(() => (equipment.position.x += 0.37));
+    if (otherBinding.bodySurfaces !== distantBody) throw new Error('distant edit republished');
+    Object.assign(other.position, { x: a.position.x + 6, z: a.position.z, h: 0 });
+    animateActors(g.ecs, 1 / 60, 1 / 60, g.world);
+    const boundarySamples = fullSamples - distantSamples;
+    if (!isDrawn(equipment)) throw new Error('edited attachment did not draw on entry');
+    checkDrawn(
+      ownedRender.meshes.filter((m) => isDrawn(m) && !isTail(m)),
+      false,
+    );
+    checkDrawn(
+      ownedRender.meshes.filter((m) => isDrawn(m) && isTail(m)),
+      true,
+    );
+    const entryBody = otherBinding.bodySurfaces;
+    const entrant = parked[0];
+    entrant.health.current = entrant.health.max;
+    Object.assign(entrant.position, { ...a.position, x: a.position.x + 1 });
+    animateActors(g.ecs, 1 / 60, 2 / 60, g.world);
+    if (fullSamples - distantSamples - boundarySamples !== 0)
+      throw new Error(
+        `overlapping demand: ${fullSamples - distantSamples - boundarySamples}; positions ${JSON.stringify([a.position, other.position, entrant.position])}; initial ${distantSamples}/${boundarySamples}`,
+      );
+    const [entryWork, hitWork] = trace.snapshot().samples.map((s) => s.counts);
+    if (
+      !entryWork?.['rig.surfaceBoxes'] ||
+      !hitWork ||
+      hitWork['rig.surfaceChecks'] ||
+      hitWork['rig.surfaceBoxes'] ||
+      otherBinding.bodySurfaces !== entryBody
+    )
+      throw new Error('expected one edited body build and a zero-work unchanged hit');
+    const sampledOther = otherBinding.bodySurfaces;
+    Object.assign(other.position, { x: 1000, z: 1000, heading: 1.3 });
+    animateActors(g.ecs, 1 / 60, 3 / 60, g.world);
+    if (otherBinding.bodySurfaces !== sampledOther) throw new Error('distant write republished');
+    owner.edit(() => (equipment.position.x = originalOffset));
+    const clone = equipment.clone('replacement equipment', equipment.parent)!;
+    clone.position.x += 0.24;
+    clone.rotation.z += 0.19;
+    const child = tailMesh.clone('replacement tail child', tailMesh.parent)!;
+    child.position.y += 0.12;
+    const meshes = [clone, child];
+    other.entity.add('render', { root: otherRig.root, meshes });
+    Object.assign(other.position, { x: a.position.x + 6, z: a.position.z });
+    animateActors(g.ecs, 1 / 60, 4 / 60, g.world);
+    if (otherBinding.bodySurfaces === sampledOther) throw new Error('re-entry used a stale pose');
+    if (!isDrawn(equipment) || !isDrawn(tailMesh))
+      throw new Error('omitted originals must still draw');
+    checkDrawn([clone], false);
+    checkDrawn([child], true);
+    for (const node of otherRig.tail!) node.setEnabled(false);
+    animateActors(g.ecs, 1 / 60, 5 / 60, g.world);
+    checkDrawn([], true);
+    for (const node of otherRig.tail!) node.setEnabled(true);
+    animateActors(g.ecs, 1 / 60, 6 / 60, g.world);
+    checkDrawn([child], true);
+    child.isVisible = false;
+    animateActors(g.ecs, 1 / 60, 7 / 60, g.world);
+    checkDrawn([], true);
+    child.isVisible = true;
+    meshes.pop();
+    animateActors(g.ecs, 1 / 60, 8 / 60, g.world);
+    checkDrawn([], true);
+    meshes.push(child);
+    child.position.z += 0.2;
+    animateActors(g.ecs, 1 / 60, 9 / 60, g.world);
+    checkDrawn([child], true);
+    const externalMount = clone.clone('external mount', null)!;
+    externalMount.parent = null;
+    externalMount.position.set(a.position.x, a.position.h + 12, a.position.z);
+    externalMount.isVisible = false;
+    clone.parent = externalMount;
+    clone.position.setAll(0);
+    const looseLink = otherRig.tail!.at(-1)!,
+      linkParent = looseLink.parent;
+    looseLink.parent = externalMount;
+    entrant.entity.require('rig').root.setEnabled(false);
+    otherRig.root.setEnabled(false);
+    if (g.ecs.query('cargo').some((e) => e.require('cargo').owner === other.entity))
+      throw new Error('external equipment fixture must not carry tribute');
+    let inactiveRequests = 0;
+    otherBinding.tail!.reuses = () => {
+      inactiveRequests++;
+      return false;
+    };
+    const clearance = binding.tailClearance!;
+    externalMount.computeWorldMatrix(true);
+    const corners = shape(clone);
+    const min = (i: number) => Math.min(...corners.map((p) => p[i]));
+    const max = (i: number) => Math.max(...corners.map((p) => p[i]));
+    const probe = {
+      minX: min(0),
+      minY: min(1),
+      minZ: min(2),
+      maxX: max(0),
+      maxY: max(1),
+      maxZ: max(2),
+    };
+    for (const layout of ['replaced', 'owned open']) {
+      if (layout === 'owned open') {
+        other.entity.add('render', ownedRender);
+        owner.replace(meshes);
+      }
+      externalMount.setEnabled(true);
+      if (!looseLink.isEnabled()) throw new Error('need an enabled link on the inactive actor');
+      const before = bodyRequests;
+      other.position.x = a.position.x + 7;
+      animateActors(g.ecs, 1 / 60, 10 / 60);
+      if (bodyRequests !== before || !clearance.clear(probe))
+        throw new Error(`${layout}: out-of-range external equipment entered neighborhood`);
+      other.position.x = a.position.x + 6;
+      animateActors(g.ecs, 1 / 60, 11 / 60);
+      if (!isDrawn(clone) || clearance.clear(probe) || clearance.reason !== 'neighbor')
+        throw new Error(
+          `${layout}: drawn equipment of disabled noncarrier missing from neighborhood`,
+        );
+      checkDrawn([clone], false);
+      checkDrawn([], true);
+      externalMount.setEnabled(false); // No owner edit: the mount is external.
+      animateActors(g.ecs, 1 / 60, 12 / 60);
+      if (isDrawn(clone) || !clearance.clear(probe))
+        throw new Error(`${layout}: hidden external equipment remained in neighborhood`);
+      checkDrawn([], false);
+    }
+    if (inactiveRequests !== 0) throw new Error('disabled neighbor became a tail requester');
+    looseLink.parent = linkParent;
+    other.entity.add('render', ownedRender);
+    owner.replace(originalMembers);
+    externalMount.dispose();
+    child.dispose();
+    stage.fixture('shieldbearer', 'guard').advance(6);
+    other.health.current = other.health.max;
+    otherRig.root.setEnabled(true);
+    otherBinding.sampleSurfaces = originalSample;
+    otherBinding.tail!.reuses = originalReuse;
+    if (distantSamples !== 0 || boundarySamples !== 1)
+      throw new Error(
+        `full samples: distant=${distantSamples}, inclusive boundary=${boundarySamples}`,
+      );
     let cases = 0,
       blockedCases = 0,
       blockedEither = 0,
@@ -400,10 +626,100 @@ try {
       }
       break;
     }
+    const cargoEntities = g.ecs.query('cargo');
+    const crate = cargoEntities[0],
+      cargo = crate.require('cargo');
+    const root = g.scene.getTransformNodeByName('Royal tribute crate 0')!;
+    const tick = () => animateActors(g.ecs, 1 / 60, 0, g.world);
+    const checkCargo = (carrier: typeof a, expected: string[]) => {
+      const surfaces = carrier.entity
+        .require('rigPose')
+        .bodySurfaces.filter((s) => s.name.startsWith('tribute '));
+      const names = surfaces.map((s) => s.name).sort();
+      if (names.join() !== expected.join())
+        throw new Error(`cargo draw membership: ${names} !== ${expected}`);
+      for (const surface of surfaces) {
+        const corners = surface.bounds.corners!;
+        const matched = root
+          .getChildMeshes()
+          .filter((m) => m.name === surface.name)
+          .some((m) =>
+            shape(m)
+              .flat()
+              .every((value, i) => Math.abs(value - corners[i]) < 1e-5),
+          );
+        if (!matched) throw new Error(`cargo frame does not match draw: ${surface.name}`);
+      }
+    };
+    Object.assign(other.position, { ...a.position, x: a.position.x + 2 });
+    other.health.current = other.health.max;
+    otherRig.root.setEnabled(true);
+    if (!cargo.claim(other.entity)) throw new Error('fixture could not claim cargo');
+    cargo.commit(other.entity, 'pickup');
+    const expected = root
+      .getChildMeshes()
+      .map((m) => m.name)
+      .sort();
+    tick();
+    checkCargo(other, expected);
+    otherRig.root.setEnabled(false); // Inspection hides the actor, not its scene-root crate.
+    tick();
+    if (!root.isEnabled()) throw new Error('inspection changed crate visibility');
+    checkCargo(other, expected);
+    const captured: { revision?: number } = {};
+    otherBinding.sampleSurfaces = function (...args) {
+      if (!args[0]) captured.revision = args[2];
+      return originalSample.apply(this, args);
+    };
+    const reuseRequester = binding.tail!.reuses;
+    binding.tail!.reuses = () => false;
+    const cargoRevision = () => {
+      delete captured.revision;
+      animateActors(g.ecs, 0, 0, g.world);
+      if (captured.revision === undefined) throw new Error('expected carried geometry on demand');
+      return captured.revision;
+    };
+    cargoRevision();
+    const beforeRestore = cargoRevision();
+    const crateX = root.position.x;
+    root.position.x += 0.8;
+    if (cargoRevision() !== beforeRestore + 1 || root.position.x !== crateX)
+      throw new Error(
+        'identical cargo frame restored draw without advancing the geometry revision',
+      );
+    if (cargoRevision() !== beforeRestore + 1)
+      throw new Error('unchanged cargo write advanced the geometry revision');
+    binding.tail!.reuses = reuseRequester;
+    otherBinding.sampleSurfaces = originalSample;
+    const strap = root.getChildMeshes().find((m) => m.name === 'tribute gold strap')!;
+    strap.visibility = 0;
+    tick();
+    checkCargo(
+      other,
+      expected.filter((_, i) => i !== expected.indexOf(strap.name)),
+    );
+    strap.visibility = 1;
+    cargo.drop();
+    otherRig.root.setEnabled(true);
+    tick();
+    checkCargo(other, []);
+    if (!cargo.claim(a.entity)) throw new Error('fixture could not transfer cargo');
+    cargo.commit(a.entity, 'pickup');
+    tick();
+    checkCargo(a, expected);
+    checkCargo(other, []);
     return {
       corpse,
       groups,
       orderError,
+      demand: {
+        distantSamples,
+        boundarySamples,
+        entryWork,
+        hitWork,
+        externalLayouts: 2,
+        inactiveRequests,
+      },
       neighbors: { cases, blockedCases, blockedEither, clearHits, examples: neighborExamples },
       walls,
       settling,

@@ -1,12 +1,13 @@
 import { humanoid, profiles } from '../src/rigs/humanoid.ts';
 import { createPose, setEuler } from '../src/rigs/pose.ts';
-import type { RigProfile } from '../src/rigs/types.ts';
+import type { RigDefinition, RigProfile } from '../src/rigs/types.ts';
 import type { RigTargets, QuaternionTuple } from '../src/rigs/targets.ts';
 
 /** One action-owned weapon frame, two grip sockets; fixed support and a raised sloping step. */
-export function solverFixture(id: RigProfile['id']) {
-  const profile = profiles[id],
-    base = createPose(humanoid(profile));
+export function solverFixture(id: RigProfile['id'] | RigDefinition) {
+  const definition = typeof id === 'string' ? humanoid(profiles[id]) : id;
+  const profile = definition.profile,
+    base = createPose(definition);
   const left: [number, number, number] = [-profile.hipWidth, 0, profile.soleForward];
   const right: [number, number, number] = [profile.hipWidth, 0, profile.soleForward];
   const leftGrip: [number, number, number] = [0, 0, 0],

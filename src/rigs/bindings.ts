@@ -33,6 +33,8 @@ import {
   RIG_SURFACE_LIMIT,
 } from './tailClearance.ts';
 import type { RigSurface } from './tailClearance.ts';
+import { cpuTrace } from '../cpuMetrics.ts';
+import { actorGeometry } from '../actorGeometry.ts';
 
 export interface RigBinding {
   readonly pose: PoseBuffer;
@@ -44,8 +46,17 @@ export interface RigBinding {
   readonly tail?: TailRig;
   readonly tailClearance?: TailClearance;
   readonly surfaces: readonly RigSurface[];
+  readonly bodySurfaces: readonly RigSurface[];
   readonly tailSurfaces: readonly RigSurface[];
-  sampleSurfaces(tailOnly?: boolean): void;
+  certifiedGeometry(): ReturnType<typeof actorGeometry>;
+  settledPoseRevision(owner: Ragdoll): number | undefined;
+  /** Transient solver data; inspection must read the detached snapshot getters instead. */
+  clearanceSurfaces(tailOnly?: boolean): readonly RigSurface[];
+  sampleSurfaces(
+    tailOnly?: boolean,
+    cargo?: readonly AbstractMesh[],
+    cargoRevision?: number,
+  ): boolean;
   attach(node: TransformNode, frame: ActionFrame, offset?: XYZ, visible?: () => boolean): void;
   readonly attachments: readonly {
     name: string;
@@ -80,6 +91,7 @@ export function bindHumanoid(
   tailJoinMeshes: readonly TransformNode[] = [],
 ): RigBinding {
   const rig = entity.require('rig');
+  const authoredRender = entity.get('render');
   if (bindings.has(rig)) throw new Error('Humanoid rig already bound');
   if (rig.root.parent) throw new Error('Actor anchor must be a scene root');
   const definition = rig.tail ? withTail(humanoid(profile)) : humanoid(profile);
@@ -160,7 +172,7 @@ export function bindHumanoid(
     if (rig.tail.length !== definition.tail.length) throw new Error('Incomplete tail binding');
     rig.tail.forEach((node, i) => add(node, definition.tail![i].index));
   }
-  const writeMatrix = (entry: Entry) => {
+  const writeMatrix = (entry: Entry, trackChange: boolean) => {
     const m = local,
       p = entry.pivot,
       node = entry.node;
@@ -169,6 +181,7 @@ export function bindHumanoid(
       sz = Math.hypot(m[8], m[9], m[10]);
     if (Math.min(sx, sy, sz) < 1e-9 || !Number.isFinite(sx + sy + sz))
       throw new Error('Invalid binding scale');
+    let pitch: number, yaw: number, roll: number;
     if (
       (pose.definition.joints[entry.joint].name.endsWith('Shin') ||
         pose.definition.joints[entry.joint].name.endsWith('Forearm')) &&
@@ -176,22 +189,28 @@ export function bindHumanoid(
     ) {
       // The logical hinge has a full signed X range. Canonical Y-X-Z decomposition would turn
       // a folded knee into an equivalent small X plus π yaw/roll, obscuring its actual bend.
-      node.rotation.set(Math.atan2(m[6] / sy, m[5] / sy), 0, 0);
+      pitch = Math.atan2(m[6] / sy, m[5] / sy);
+      yaw = roll = 0;
     } else {
-      const pitch = Math.asin(Math.max(-1, Math.min(1, -m[9] / sz)));
-      const yaw =
+      pitch = Math.asin(Math.max(-1, Math.min(1, -m[9] / sz)));
+      yaw =
         Math.abs(Math.cos(pitch)) > 1e-7
           ? Math.atan2(m[8] / sz, m[10] / sz)
           : Math.atan2(-m[2] / sx, m[0] / sx);
-      const roll = Math.abs(Math.cos(pitch)) > 1e-7 ? Math.atan2(m[1] / sx, m[5] / sy) : 0;
-      node.rotation.set(pitch, yaw, roll);
+      roll = Math.abs(Math.cos(pitch)) > 1e-7 ? Math.atan2(m[1] / sx, m[5] / sy) : 0;
     }
+    const x = m[12] - p[0] + m[0] * p[0] + m[4] * p[1] + m[8] * p[2],
+      y = m[13] - p[1] + m[1] * p[0] + m[5] * p[1] + m[9] * p[2],
+      z = m[14] - p[2] + m[2] * p[0] + m[6] * p[1] + m[10] * p[2];
+    const changed =
+      trackChange &&
+      (!node.position.equalsToFloats(x, y, z) ||
+        !node.rotation.equalsToFloats(pitch, yaw, roll) ||
+        !node.scaling.equalsToFloats(sx, sy, sz));
+    node.rotation.set(pitch, yaw, roll);
     node.scaling.set(sx, sy, sz);
-    node.position.set(
-      m[12] - p[0] + m[0] * p[0] + m[4] * p[1] + m[8] * p[2],
-      m[13] - p[1] + m[1] * p[0] + m[5] * p[1] + m[9] * p[2],
-      m[14] - p[2] + m[2] * p[0] + m[6] * p[1] + m[10] * p[2],
-    );
+    node.position.set(x, y, z);
+    return changed;
   };
   let stepDuration = 0;
   const attached: { binding: FrameAttachment; frame: ActionFrame; visible?: () => boolean }[] = [];
@@ -199,7 +218,9 @@ export function bindHumanoid(
     | { joint: number; offset: Float64Array; frame: Float64Array; matrix: Matrix }[]
     | null = null;
   const tailEntries = entries.filter((e) => definition.tail?.some((s) => s.index === e.joint));
-  const surfaces: RigSurface[] = [];
+  let bodySnapshot: readonly RigSurface[] | undefined,
+    tailSnapshot: readonly RigSurface[] | undefined;
+  let combined: readonly RigSurface[] | undefined;
   const bodyMeshes: AbstractMesh[] = [];
   const surfaceSources: {
     mesh: AbstractMesh;
@@ -208,9 +229,15 @@ export function bindHumanoid(
     world: Float64Array;
     center: XYZ;
     size: XYZ;
-    surface: RigSurface;
+    surface: RigSurface & { enabled: boolean };
     dynamic: boolean;
   }[] = [];
+  const bodies: RigSurface[] = [],
+    tails: RigSurface[] = [];
+  let hasPublished = false;
+  const bodySources: typeof surfaceSources = [],
+    tailSources: typeof surfaceSources = [];
+  const authoredSurfaces = new Map<AbstractMesh, RigSurface>();
   const registerSurface = (
     mesh: AbstractMesh,
     matrix: Float64Array,
@@ -218,17 +245,16 @@ export function bindHumanoid(
     rootJoin = false,
     tail = false,
   ) => {
-    if (surfaces.length >= RIG_SURFACE_LIMIT) throw new Error('Rig surface budget exceeded');
+    if (surfaceSources.length >= RIG_SURFACE_LIMIT) throw new Error('Rig surface budget exceeded');
     const b = mesh.getBoundingInfo().boundingBox;
-    const surface: RigSurface = {
+    const surface = {
       name: mesh.name,
       bounds: clearanceBox(true),
       rootJoin,
       tail,
       enabled: false,
     };
-    surfaces.push(surface);
-    surfaceSources.push({
+    const source = {
       mesh,
       matrix,
       local,
@@ -238,12 +264,20 @@ export function bindHumanoid(
         (b.minimum.x + b.maximum.x) / 2,
         (b.minimum.y + b.maximum.y) / 2,
         (b.minimum.z + b.maximum.z) / 2,
-      ],
-      size: [b.maximum.x - b.minimum.x, b.maximum.y - b.minimum.y, b.maximum.z - b.minimum.z],
+      ] as XYZ,
+      size: [
+        b.maximum.x - b.minimum.x,
+        b.maximum.y - b.minimum.y,
+        b.maximum.z - b.minimum.z,
+      ] as XYZ,
       dynamic: mesh === rig.cape,
-    });
+    };
+    surfaceSources.push(source);
+    authoredSurfaces.set(mesh, surface);
+    (tail ? tailSources : bodySources).push(source);
+    if (!hasPublished) (tail ? tails : bodies).push(surface);
   };
-  for (const mesh of entity.get('render')?.meshes ?? []) {
+  for (const mesh of authoredRender?.meshes ?? []) {
     if (rig.equipment?.includes(mesh) || rig.stowedEquipment?.includes(mesh)) continue;
     const own = byNode.get(mesh),
       parent = mesh.parent ? byNode.get(mesh.parent) : undefined;
@@ -261,29 +295,192 @@ export function bindHumanoid(
       tailEntries.includes(entry),
     );
   }
-  // Cargo is scene-root geometry, but its current solved frame belongs to this actor. Publish
-  // its coffer/strap envelope alongside anatomy so other tails protect it too.
-  const cargoSurface: RigSurface = {
-    name: `${entity.id}:carried cargo`,
-    bounds: clearanceBox(true),
-    rootJoin: false,
-    tail: false,
-    enabled: false,
+  const snapshot = (surfaces: readonly RigSurface[]) =>
+    surfaces.map((s) => ({
+      ...s,
+      bounds: { ...s.bounds, corners: s.bounds.corners!.slice() },
+    }));
+  const cargoPieces = new WeakMap<AbstractMesh, RigSurface>();
+  const visible = (mesh: AbstractMesh) =>
+    !mesh.isDisposed() && mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0;
+  const drawnPiece = (mesh: AbstractMesh, piece: RigSurface) => {
+    const sync = (node: Node): void => {
+      if (node.parent) sync(node.parent);
+      node.computeWorldMatrix(true);
+    };
+    sync(mesh);
+    const { minimum: a, maximum: b } = mesh.getBoundingInfo().boundingBox;
+    setClearanceBox(
+      piece.bounds,
+      mesh.getWorldMatrix().m,
+      0,
+      [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2],
+      [b.x - a.x, b.y - a.y, b.z - a.z],
+    );
+    if (import.meta.env?.DEV) cpuTrace?.count('rig.surfaceBoxes');
   };
-  if (surfaces.length >= RIG_SURFACE_LIMIT) throw new Error('Rig surface budget exceeded');
-  surfaces.push(cargoSurface);
+  const tailNodes = new Set<Node>(tailEntries.map((entry) => entry.node));
+  const attachmentNodes = new Set<Node>();
+  let checkedGeometry: ReturnType<typeof actorGeometry>;
+  let checkedRevision: number;
+  let closedPaths = false;
+  const hasClosedPaths = (
+    geometry: NonNullable<ReturnType<typeof actorGeometry>>,
+    meshes: readonly AbstractMesh[],
+  ) => {
+    for (const mesh of meshes) {
+      if (mesh.isDisposed()) continue;
+      let node: Node | null = mesh;
+      for (; node && node !== rig.root; node = node.parent)
+        if (
+          !byNode.has(node) &&
+          !attachmentNodes.has(node) &&
+          !(node instanceof AbstractMesh && geometry.includes(node))
+        )
+          return false;
+      if (node !== rig.root) return false;
+    }
+    return true;
+  };
+  const liveBody: AbstractMesh[] = [],
+    liveTail: AbstractMesh[] = [],
+    drawnCargo: AbstractMesh[] = [],
+    publishedCargo: RigSurface[] = [];
+  let selectedGeometry: ReturnType<typeof actorGeometry>;
+  let selectedRevision: number;
+  let selectedBodyRevision: number;
+  let selectedEnabled: boolean;
+  const retireBodySample = () => {
+    sampledRevision = -1;
+    sampledGeometry = undefined;
+  };
+  const clearSelection = () => {
+    selectedGeometry = undefined;
+    liveBody.length = liveTail.length = drawnCargo.length = 0;
+  };
+  const overflow = (): never => {
+    clearSelection();
+    retireBodySample();
+    throw new Error('Rig surface budget exceeded');
+  };
+  const selectLive = (meshes: readonly AbstractMesh[] | undefined, cargoSlots: number) => {
+    clearSelection();
+    let slots = cargoSlots;
+    for (const mesh of meshes ?? []) {
+      if (import.meta.env?.DEV) cpuTrace?.count('rig.surfaceChecks');
+      if (!visible(mesh)) continue;
+      if (++slots > RIG_SURFACE_LIMIT) overflow();
+      let partition = liveBody;
+      for (let node: Node | null = mesh; node && node !== rig.root; node = node.parent) {
+        if (tailNodes.has(node)) {
+          partition = liveTail;
+          break;
+        }
+      }
+      partition.push(mesh);
+    }
+  };
+  const publish = (tailOnly: boolean, geometry: ReturnType<typeof actorGeometry>) => {
+    const output = tailOnly ? tails : bodies;
+    if (!geometry || geometry.edited) {
+      // Authored offsets cannot describe a modified or unowned layout. Read the current
+      // drawn hierarchy even when the current membership is empty.
+      output.length = 0;
+      for (const mesh of tailOnly ? liveTail : liveBody) {
+        const piece = {
+          name: mesh.name,
+          bounds: clearanceBox(true),
+          rootJoin: authoredSurfaces.get(mesh)?.rootJoin ?? false,
+          tail: tailOnly,
+          enabled: true,
+        };
+        drawnPiece(mesh, piece);
+        output.push(piece);
+      }
+    } else {
+      const sources = tailOnly ? tailSources : bodySources;
+      output.length = sources.length;
+      for (const [i, s] of sources.entries()) {
+        output[i] = s.surface;
+        if (import.meta.env?.DEV) cpuTrace?.count('rig.surfaceChecks');
+        s.surface.enabled = geometry.includes(s.mesh) && visible(s.mesh);
+        if (s.surface.enabled) {
+          const b = s.mesh.getBoundingInfo().boundingBox;
+          const cx = (b.minimum.x + b.maximum.x) / 2,
+            cy = (b.minimum.y + b.maximum.y) / 2,
+            cz = (b.minimum.z + b.maximum.z) / 2;
+          const sx = b.maximum.x - b.minimum.x,
+            sy = b.maximum.y - b.minimum.y,
+            sz = b.maximum.z - b.minimum.z;
+          if (s.dynamic) composeNode(s.mesh, s.local);
+          multiply(s.matrix, 0, s.local, 0, s.world, 0);
+          setClearanceBox(s.surface.bounds, s.world, 0, [cx, cy, cz], [sx, sy, sz]);
+          if (import.meta.env?.DEV) cpuTrace?.count('rig.surfaceBoxes');
+        }
+      }
+    }
+    if (!tailOnly) {
+      for (const piece of publishedCargo) bodies.push(piece);
+      bodySnapshot = undefined;
+    } else tailSnapshot = undefined;
+    combined = undefined;
+    if (import.meta.env?.DEV)
+      cpuTrace?.count(tailOnly ? 'rig.tailPublications' : 'rig.bodyPublications');
+  };
+  const publishCargo = () => {
+    publishedCargo.length = 0;
+    for (const mesh of drawnCargo) {
+      let piece = cargoPieces.get(mesh);
+      if (!piece) {
+        piece = {
+          name: mesh.name,
+          bounds: clearanceBox(true),
+          rootJoin: false,
+          tail: false,
+          enabled: true,
+        };
+        cargoPieces.set(mesh, piece);
+      }
+      drawnPiece(mesh, piece);
+      publishedCargo.push(piece);
+    }
+  };
   const finishHistory = () => {
     history.publish(stepDuration);
     stepDuration = 0;
   };
   let finalOwner: Ragdoll | undefined;
   let restDuration = 0;
-  const applyEntry = (entry: Entry) => {
-    multiply(pose.world, entry.joint * 16, entry.offset, 0, entry.world, 0);
+  let physicalRevision = 0;
+  let bodyRevision = 0;
+  let sampledRevision = -1;
+  let sampledGeometry: ReturnType<typeof actorGeometry>;
+  let sampledGeometryRevision: number | undefined;
+  let sampledMembership: readonly AbstractMesh[] | undefined;
+  let sampledEnabled = false;
+  let sampledCargo: readonly AbstractMesh[] | undefined;
+  let sampledCargoRevision: number | undefined;
+  const bodyEntries = entries.filter((entry) => !tailEntries.includes(entry));
+  const bodyWorld = new Float64Array(16);
+  const different = (a: Float64Array, b: Float64Array) => a.some((value, i) => value !== b[i]);
+  // Edited-layout publications read actual node transforms, not the authored frames.
+  // An edit can be sampled before a writer restores its node to the same logical pose.
+  const sampledDraw = () => sampledRevision === bodyRevision && sampledGeometry?.edited === true;
+  const sampledFrames = () => sampledRevision === bodyRevision && !sampledGeometry?.edited;
+  const enablePart = (node: TransformNode, enabled: boolean) => {
+    if (node.isEnabled(false) !== enabled) bodyRevision++;
+    node.setEnabled(enabled);
+  };
+  const applyEntry = (entry: Entry, body = false) => {
+    multiply(pose.world, entry.joint * 16, entry.offset, 0, body ? bodyWorld : entry.world, 0);
+    if (body) {
+      if (sampledFrames() && different(entry.world, bodyWorld)) bodyRevision++;
+      entry.world.set(bodyWorld);
+    }
     inverse(entry.world, 0, entry.inverse);
     if (entry.parent) multiply(entry.parent.inverse, 0, entry.world, 0, local, 0);
     else local.set(entry.world);
-    writeMatrix(entry);
+    if (writeMatrix(entry, body && sampledDraw())) bodyRevision++;
   };
   const binding: RigBinding = {
     pose,
@@ -294,29 +491,120 @@ export function bindHumanoid(
     actions,
     tail,
     tailClearance,
-    surfaces,
     bodyMeshes,
-    tailSurfaces: surfaces.filter((s) => s.tail),
-    sampleSurfaces(tailOnly = false) {
-      for (const s of surfaceSources) {
-        if (tailOnly && !s.surface.tail) continue;
-        s.surface.enabled = s.mesh.isEnabled() && s.mesh.isVisible;
-        if (!s.surface.enabled) continue;
-        if (s.dynamic) composeNode(s.mesh, s.local);
-        multiply(s.matrix, 0, s.local, 0, s.world, 0);
-        setClearanceBox(s.surface.bounds, s.world, 0, s.center, s.size);
+    get surfaces() {
+      return (combined ??= tails.length
+        ? [...binding.bodySurfaces, ...binding.tailSurfaces]
+        : binding.bodySurfaces);
+    },
+    get bodySurfaces() {
+      return (bodySnapshot ??= snapshot(bodies));
+    },
+    get tailSurfaces() {
+      return (tailSnapshot ??= snapshot(tails));
+    },
+    clearanceSurfaces(tailOnly = false) {
+      return tailOnly ? tails : bodies;
+    },
+    certifiedGeometry() {
+      const render = entity.get('render');
+      const geometry = actorGeometry(render);
+      // No writer covers an ancestor above the actor, including for frozen physics poses.
+      if (
+        !render ||
+        render.root !== rig.root ||
+        rig.root.parent ||
+        !geometry?.ownsLayout(authoredRender)
+      )
+        return undefined;
+      if (checkedGeometry !== geometry || checkedRevision !== geometry.revision) {
+        // Include hidden meshes and the entire tail partition: an unowned path can change
+        // either effective visibility or which partition a mesh belongs to without an edit.
+        closedPaths = hasClosedPaths(geometry, render.meshes);
+        checkedGeometry = geometry;
+        checkedRevision = geometry.revision;
       }
-      if (!tailOnly) {
-        cargoSurface.enabled = actions.carrying && rig.root.isEnabled();
-        if (cargoSurface.enabled)
-          setClearanceBox(
-            cargoSurface.bounds,
-            actions.frames.cargo,
-            0,
-            [0, 0.26, 0],
-            [0.66, 0.53, 0.53],
-          );
+      return closedPaths ? geometry : undefined;
+    },
+    settledPoseRevision(owner) {
+      return owner.settled && finalOwner === owner ? physicalRevision : undefined;
+    },
+    sampleSurfaces(tailOnly = false, cargo, cargoRevision) {
+      const render = entity.get('render');
+      const geometry = binding.certifiedGeometry();
+      const enabled = rig.root.isEnabled();
+      const certifiable = geometry && (!cargo || cargoRevision !== undefined);
+      if (
+        !tailOnly &&
+        certifiable &&
+        sampledRevision === bodyRevision &&
+        sampledGeometry === geometry &&
+        sampledGeometryRevision === geometry.revision &&
+        sampledMembership === render?.meshes &&
+        sampledEnabled === enabled &&
+        sampledCargo === cargo &&
+        sampledCargoRevision === cargoRevision
+      )
+        return false;
+
+      // Select both partitions before mutating even one box. Tail demand can reuse a
+      // certified rig selection but keeps the cargo from the last body publication.
+      const retainedCargoSlots = tailOnly ? publishedCargo.length : 0;
+      const live = !geometry || geometry.edited;
+      if (!live) clearSelection();
+      else if (
+        !tailOnly ||
+        !geometry ||
+        selectedGeometry !== geometry ||
+        selectedRevision !== geometry.revision ||
+        selectedBodyRevision !== bodyRevision ||
+        selectedEnabled !== enabled
+      )
+        selectLive(render?.meshes, retainedCargoSlots);
+
+      const bodySlots = live ? liveBody.length : bodySources.length;
+      const tailSlots = live ? liveTail.length : tailSources.length;
+      let slots = bodySlots + tailSlots + retainedCargoSlots;
+      if (slots > RIG_SURFACE_LIMIT) overflow();
+      if (!tailOnly && cargo) {
+        for (const mesh of cargo) {
+          if (!visible(mesh)) continue;
+          if (++slots > RIG_SURFACE_LIMIT) overflow();
+          drawnCargo.push(mesh);
+        }
       }
+
+      // The other buffer may predate a repartition. Refresh it only if keeping it
+      // would exceed the validated budget; tail solving otherwise owns tail writes.
+      if (tailOnly) {
+        if (bodies.length + tailSlots > RIG_SURFACE_LIMIT) {
+          retireBodySample();
+          publish(false, geometry);
+        }
+      } else {
+        retireBodySample();
+        if (slots - tailSlots + tails.length > RIG_SURFACE_LIMIT) publish(true, geometry);
+        publishCargo();
+      }
+      publish(tailOnly, geometry);
+      hasPublished = true;
+      drawnCargo.length = 0;
+      if (geometry?.edited) {
+        selectedGeometry = geometry;
+        selectedRevision = geometry.revision;
+        selectedBodyRevision = bodyRevision;
+        selectedEnabled = enabled;
+      } else clearSelection();
+      if (!tailOnly && certifiable) {
+        sampledRevision = bodyRevision;
+        sampledGeometry = geometry;
+        sampledGeometryRevision = geometry.revision;
+        sampledMembership = render?.meshes;
+        sampledEnabled = enabled;
+        sampledCargo = cargo;
+        sampledCargoRevision = cargoRevision;
+      }
+      return true;
     },
     attach(node, frame, offset, visible) {
       if (node.parent !== rig.root)
@@ -325,6 +613,9 @@ export function bindHumanoid(
         throw new Error('Duplicate attachment writer');
       const attachment = new FrameAttachment(node, offset);
       attached.push({ binding: attachment, frame, visible });
+      attachmentNodes.add(node);
+      checkedGeometry = undefined;
+      bodyRevision++;
       if (visible) node.setEnabled(visible());
       // Capture geometry-to-frame offsets once. Runtime snapshots use numerical matrices only.
       node.computeWorldMatrix(true);
@@ -370,6 +661,7 @@ export function bindHumanoid(
     },
     invalidateHistory() {
       finalOwner = undefined;
+      bodyRevision++;
       restDuration = 0;
       entity.get('blockFeedback')?.reset();
       grounding.reset();
@@ -408,17 +700,24 @@ export function bindHumanoid(
         return;
       }
       evaluatePose(pose);
-      for (const entry of entries)
-        if (!deferTail || !tailEntries.includes(entry)) applyEntry(entry);
-      if (rig.cape) rig.cape.rotation.x = binding.cape;
-      for (const mesh of rig.equipment ?? []) mesh.setEnabled(!actions.stowed);
-      for (const mesh of rig.stowedEquipment ?? []) mesh.setEnabled(actions.stowed);
-      rig.spear?.setEnabled(!actions.stowed && actions.mode !== 'throw');
-      rig.javelin?.setEnabled(!actions.stowed && actions.mode === 'throw' && !actions.released);
+      for (const entry of bodyEntries) applyEntry(entry, true);
+      if (!deferTail) for (const entry of tailEntries) applyEntry(entry);
+      if (rig.cape) {
+        if (rig.cape.rotation.x !== binding.cape) bodyRevision++;
+        rig.cape.rotation.x = binding.cape;
+      }
+      for (const mesh of rig.equipment ?? []) enablePart(mesh, !actions.stowed);
+      for (const mesh of rig.stowedEquipment ?? []) enablePart(mesh, actions.stowed);
+      if (rig.spear) enablePart(rig.spear, !actions.stowed && actions.mode !== 'throw');
+      if (rig.javelin)
+        enablePart(rig.javelin, !actions.stowed && actions.mode === 'throw' && !actions.released);
       actions.finish(pose);
       for (const a of attached) {
-        if (a.visible) a.binding.node.setEnabled(a.visible());
-        a.binding.apply(actions.frames[a.frame], entries[0].inverse);
+        if (a.visible) enablePart(a.binding.node, a.visible());
+        const frames = sampledFrames();
+        if (frames) bodyWorld.set(a.binding.world);
+        const changed = a.binding.apply(actions.frames[a.frame], entries[0].inverse, sampledDraw());
+        if (changed || (frames && different(a.binding.world, bodyWorld))) bodyRevision++;
       }
       if (!deferTail) finishHistory();
     },
@@ -440,6 +739,8 @@ export function bindHumanoid(
         return;
       }
       const world = ragdoll.world;
+      bodyRevision++;
+      physicalRevision++;
       if (!physicsAttachments) {
         grounding.reset();
         entity.get('blockFeedback')?.reset();
@@ -465,7 +766,7 @@ export function bindHumanoid(
       for (let i = 0; i < attached.length; i++) {
         const a = physicsAttachments[i];
         multiply(world, a.joint * 16, a.offset, 0, a.frame, 0);
-        attached[i].binding.apply(a.frame, entries[0].inverse);
+        attached[i].binding.apply(a.frame, entries[0].inverse, false);
         Matrix.FromArrayToRef(attached[i].binding.world, 0, a.matrix);
         attached[i].binding.node.freezeWorldMatrix(a.matrix);
       }

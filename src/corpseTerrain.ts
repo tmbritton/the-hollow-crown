@@ -20,6 +20,11 @@ export interface CorpseBox {
 
 export const MAX_CORPSE_STEP = 0.46;
 
+export interface CorpseContactQuery {
+  readonly empty: boolean;
+  heightAt(point: Spawn): number;
+}
+
 /** Height above the caller's real floor; corpses union by maximum, never by addition. */
 export function corpseHeightAt(boxes: readonly CorpseBox[], point: Spawn): number {
   let height = 0;
@@ -58,19 +63,20 @@ export function corpseHeightAt(boxes: readonly CorpseBox[], point: Spawn): numbe
 /** Contact under this foot plus short swing-only clearance along its travel direction.
  * No clocks or retained offsets: repeated samples and overlapping bodies are idempotent. */
 export function corpseStep(
-  boxes: readonly CorpseBox[],
+  boxes: readonly CorpseBox[] | CorpseContactQuery,
   point: Spawn,
   ahead: Point,
   phase: number,
 ): number {
-  const contact = corpseHeightAt(boxes, point);
+  const sample = (p: Spawn) => ('heightAt' in boxes ? boxes.heightAt(p) : corpseHeightAt(boxes, p));
+  const contact = sample(point);
   const cycle = ((phase % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
   if (cycle <= Math.PI) return contact;
   let obstacle = contact;
   for (const t of [-1, -0.5, 0.5, 1])
     obstacle = Math.max(
       obstacle,
-      corpseHeightAt(boxes, { x: point.x + ahead.x * t, z: point.z + ahead.z * t, h: point.h }),
+      sample({ x: point.x + ahead.x * t, z: point.z + ahead.z * t, h: point.h }),
     );
   return Math.max(contact, obstacle * Math.sin(cycle - Math.PI));
 }

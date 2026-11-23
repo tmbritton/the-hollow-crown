@@ -28,7 +28,7 @@ export function createSolverReview(g: Game) {
         actor = g.combat.actor(clip.id)!;
       const binding = actor.entity.require('rigPose'),
         rig = actor.entity.require('rig');
-      const fixture = solverFixture(binding.pose.definition.profile.id),
+      const fixture = solverFixture(binding.pose.definition),
         solver = new FullBodySolver(binding.pose.definition);
       Object.assign(actor.position, { x: 0, z: 0, h: 0, heading: 0 });
       return {
@@ -131,7 +131,7 @@ export function createSolverReview(g: Game) {
     },
     async cost() {
       const fixtures = g.combat.actors.map((a) =>
-        solverFixture(a.entity.require('rigPose').pose.definition.profile.id),
+        solverFixture(a.entity.require('rigPose').pose.definition),
       );
       const solvers = fixtures.map((f) => new FullBodySolver(f.base.definition));
       const times: number[] = [];

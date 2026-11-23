@@ -122,8 +122,8 @@ checks support this process but do not establish that a scenario is enjoyable.
 
 With A0–A7/P8/P9 complete, the user's **2026-11-21** scheduling update makes
 **CPU0 → CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7 → EF0–EF4** the delivery queue,
-followed by further procedural-feature expansion. CPU0–CPU5 have cleared independent review;
-**CPU6a is next.** See the [CPU plan](cpu-performance-plan.md)
+followed by further procedural-feature expansion. CPU0–CPU6a have cleared independent review;
+**CPU6b is next.** See the [CPU plan](cpu-performance-plan.md)
 and [implementation path](implementation-path.md). EF5 remains a separate follow-up. The
 [Effect generation adoption gate](effect-refactor-plan.md) still precedes additional generated
 encounters/objectives.

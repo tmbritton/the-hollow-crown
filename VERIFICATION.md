@@ -4,12 +4,324 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### CPU6a — animation geometry
+
+**Final independent review: APPROVE.** The overall verdict covers the original CPU6a slice
+and both follow-ups on `main` over CPU5 `f3fa9a3`. It supersedes the narrower approvals and
+open statuses in the review history below. CPU6a remains uncommitted; [CPU6b is next](docs/cpu-performance-plan.md#cpu6b--separate-presentation-solving-from-simulation-frequency),
+not started or covered by this verdict.
+
+| Closeout evidence | Result |
+| --- | --- |
+| Fresh focused rerun: `node --test tests/rig-bindings.test.ts tests/rig-tail.test.ts tests/corpse-terrain.test.ts` | **37/37 passed** |
+| Fresh static and diff checks | `npm run typecheck`, `npm run lint`, `npm run format:check` and `git diff --check` passed |
+| Existing full and browser evidence (not rerun for closeout) | `npm run check:full` **456/456** (`/tmp/opencode/cpu6a-f2-check.log`); build, both production gates, ordered Chromium browser gates, Firefox movement and the 27-window hardware profile passed as recorded below |
+| Existing matched hardware replay (not rerun for closeout) | RTX 2070 against CPU5 `f3fa9a3`: death digest `926cd1a6` matched at 614 probes; zero settled corpse mesh visits, support lookups or list rebuilds over 180 ticks, and zero mesh visits over 45 paused reads (`test-results/cpu6a-geometry.json`) |
+
+Follow-up 1 closes stale geometry on restored transforms and replaced or externally driven
+layouts while retaining scan-free certified hits. Follow-up 2 closes the combined 64-slot
+body/tail/cargo budget: overflow rejects before changing the last good publication, and
+unchanged certified hits still do no geometry work. Open layouts still sample live when
+demanded. The replay supports reduced work and lower settled/paused animation medians in
+that workload, not a general FPS gain.
+
+#### Verification history
+
+**Follow-up 2 — one combined clearance budget per binding.** Before the fix, the isolated
+split run failed four ways (owned/unowned, body/tail first), and the isolated cargo run failed
+for both live layout and authored registration, all with `Missing expected exception`. The
+body-only test threw but had already changed the live buffer. The inclusive 64-slot cases
+passed before the fix. Red logs: `/tmp/opencode/cpu6a-f2-split-red.log`,
+`/tmp/opencode/cpu6a-f2-cargo-red.log`, and `/tmp/opencode/cpu6a-f2-all-red.log`.
+
+The binding now validates both partitions and drawn cargo before writing boxes. Rejected
+inputs preserve both live buffers, corners and inspection snapshots; a repaired layout
+publishes on retry. Tail-only requests count the cargo retained by the body, and a demand
+refreshes the opposite partition if a valid repartition would otherwise exceed 64 slots in
+the two live buffers. Unit instrumentation found no mesh or versioned cargo reads on an
+unchanged certified body hit; the browser trace reported `hitWork: {}` (zero publications,
+surface checks and box builds).
+
+Fresh checks: focused binding/tail/corpse tests **37/37**, `npm test` **438/438**,
+`npm run check:full` **456/456** including typecheck, lint and format, and `npm run build`
+(existing large-chunk warning). `test:production` and `test:cpu:production` passed on the
+fresh build (82 chunks checked for diagnostics). Clearance, inspection and CPU regressions
+passed sequentially on a fresh Vite server at **5194**. The first clearance attempt on the
+existing **5173** server failed the renderer ownership assertion; it is not counted as a pass.
+All 24 suites in the original ordered browser gate and the separate Firefox movement gate
+also passed fresh on 5194 (`/tmp/opencode/cpu6a-f2-ordered.log`). Tail carry, shield reversal
+and corpse-crossing captures were spot-checked. `CPU_GPU=hardware CPU_LABEL=cpu6a-f2 npm run
+profile:cpu` passed all 27 windows with the earlier scenario digests `352535cc`, `81d26326`,
+and `cee27788` (`/tmp/opencode/cpu6a-f2-profile.log`).
+
+Fresh matched hardware replay: `DEMO_URL=http://127.0.0.1:5194 CPU_GPU=hardware
+CPU5_URL=http://127.0.0.1:5187 node tests/cpu-animation-geometry-browser.ts`, on headed
+Chromium / ANGLE / RTX 2070 against CPU5 `f3fa9a3`. Death digest `926cd1a6` matched across
+614 probe locations. Distant living checkpoints matched; busy/cargo differences remained
+limited to parked dead/disabled actors. Body publications were 540 distant and 180 each
+busy/cargo (CPU5: 1,125 each); neighborhood visits were 13,500 distant and 720 each busy/cargo
+(CPU5 eager visits: 13,500 each). Across 180 settled ticks there were zero corpse mesh visits,
+support lookups or list rebuilds, and zero corpse mesh visits over 45 paused reads. Across
+three timing repeats, settled animation medians were 0.6 ms versus CPU5's 1.8–2.0 ms; paused
+medians were 0.3–0.4 ms versus 1.4–1.6 ms. Distant and active-death timings did not show a
+clear gain, and settled frame timings overlapped. This is not a general FPS claim. Raw replay:
+`test-results/cpu6a-geometry.json`; command output: `/tmp/opencode/cpu6a-f2-fresh-browser-replay.log`.
+
+The Astra 6.2 feature reviewer **APPROVED follow-up 2 only**, independently rerunning the
+focused tests, lint and typecheck and reusing the browser and replay evidence
+(`/tmp/opencode/cpu6a-f2-subagent.log`). Prior evidence and scope qualifications below still
+apply; that review did not grant broader CPU6a acceptance. Nothing was staged or committed.
+
+**Follow-up 1, review round 2 — both blockers reproduced and fixed.** The cache incorrectly
+hit after an unchanged logical pose restored a previously sampled mount offset (`x += 0.8`).
+The same repro failed for joint scale and cape pitch. Closed edited layouts now invalidate when
+the final writer changes the node's actual local TRS; the unedited layout still checks the
+numerical frames used for authored surfaces. The three cases verify all drawn corners, a single
+publication on restoration, and then an unchanged identity hit. The carried crate writer also
+tracks actual TRS changes; the browser reproduced a restored crate with an unchanged revision.
+
+Nearby disabled-root noncarriers with open or replaced render layouts now remain neighbor
+candidates, not tail requesters. In the browser the real animation pass rejects a probe against
+their drawn external equipment at the inclusive six-metre boundary but not out of range or
+after hiding the external mount without an actor edit. Both layout variants check drawn corners,
+withdrawal of the hidden body surface, and zero requests from the inactive actor even with an
+enabled external tail link. Open layouts may require live surface sampling when demanded; the
+closed disabled-root fast exclusion is retained. Red logs: `/tmp/opencode/cpu6a-f1-r2-node-red.log`,
+`/tmp/opencode/cpu6a-f1-r2-browser-red.log`, and `/tmp/opencode/cpu6a-f1-r2-cargo-red.log`.
+
+Fresh checks: focused binding/tail/corpse tests 24/24, `npm test` 425/425, `npm run check:full`
+443/443 with typecheck, lint and format, and `npm run build` (existing large-chunk warning).
+`test:production` and `test:cpu:production` passed on port 4193. Tail clearance (including a rerun
+with the enabled external link), inspection, CPU regressions, tribute, rig solver (1,210 samples),
+shield transitions, ragdoll contacts (24 cases) and skeleton breakup (seven sequences) passed on
+port 5193. Broader browser results are carried forward unless explicitly listed here. Nothing
+was staged or committed.
+
+The matched RTX 2070 replay against CPU5 `f3fa9a3` on port 5187 passed: death digest `926cd1a6`
+matched at 614 probe locations. Distant living checkpoints matched; busy/cargo differences were
+still limited to parked dead/disabled actors. Living body publications stayed at 540 distant
+and 180 each busy/cargo. Across 180 settled ticks there were zero corpse mesh visits, support
+lookups or list rebuilds, and zero corpse mesh visits across 45 paused reads. Settled animation
+medians were 1.9–2.0 ms for CPU5 versus 0.6 ms here, and paused medians 1.4–1.5 ms versus 0.3 ms.
+This is not a general FPS claim. Raw results: `test-results/cpu6a-geometry.json`.
+
+Astra 6.2 independently **APPROVED both round 2 fixes** after inspecting the writer and
+neighborhood paths and the red/green evidence. It reused the completed checks without running
+another renderer (`/tmp/opencode/cpu6a-f1-r2-independent.log`). That review was not an overall sign-off.
+
+**Follow-up 1, review round 1 — both blockers reproduced and fixed; recheck was pending at this checkpoint.**
+The two new binding tests first failed independently: moving an external tail mount under the
+body left `scales` missing from the body publication, and disabling an external settled mount
+left contact height at `0.20000000074505805` instead of zero. Red output:
+`/tmp/opencode/cpu6a-f1-r1-red.log`.
+
+Living and settled publications now share a binding-level check for writer-owned ancestor
+paths. It includes hidden and tail-partition members and rejects any parent above the actor
+root. The path check is memoized by owner/revision; layouts with external dependencies use
+live sampling, even without a writer revision. Tests check both partitions and all drawn corners
+after reparenting, movement and disablement; settled probes check moved and withdrawn contacts,
+an ancestor above the root, and zero mesh reads after returning to a closed edited path.
+
+Fresh checks: focused binding/tail/corpse tests 21/21; `npm test` 422/422; `npm run check:full`
+440/440 with typecheck, lint and format; `npm run build` (existing large-chunk warning),
+`test:production` and `test:cpu:production` passed. Tail clearance, inspection, CPU regressions,
+ragdoll contacts (24 cases) and skeleton breakup (7 sequences) passed against port 5192.
+
+The matched RTX 2070 replay on 5192 against CPU5 `f3fa9a3` on 5187 matched the death digest
+`926cd1a6` at 614 probe locations, with the same living differences versus CPU5 as before.
+Production recorded zero settled mesh visits, support lookups and list rebuilds over 180 ticks,
+and zero paused mesh visits over 45 reads. Living body publications remained 540 distant and
+180 each busy/cargo. Fresh replay: `test-results/cpu6a-geometry.json`. These counts do not
+establish a general FPS gain. Other earlier gates are carried forward, not claimed as reruns.
+
+**Follow-up 1 — initial implementation verification.** On `main` over
+CPU5 `f3fa9a3`, the new isolated tests first failed independently: the unowned replacement
+omitted the drawn clone and retained two unlisted meshes, and the unchanged owned edit returned
+`true` after its corners already matched the draw. On a clean dev server the new browser test also
+failed with one extra publication on overlapping demand. Red logs: `/tmp/opencode/cpu6a-f1-node-red.log`
+and `/tmp/opencode/cpu6a-f1-browser-red-clean.log`.
+
+The focused binding/tail/corpse suite passed 19 tests. `npm test` passed 420 tests and
+`npm run check:full` passed 438 tests, type checking, lint and format. `npm run build` passed with
+the existing large-chunk warning; `npm run test:production` and `npm run test:cpu:production` passed.
+Tail clearance, inspection and CPU regressions passed in sequence on a fresh Vite server
+(`DEMO_URL=http://localhost:5191`; the existing 5173 server was left untouched). The tail report
+(`test-results/rig-tail-clearance-report.json`) records zero distant body publications, one at
+the inclusive boundary (36 checks, 26 boxes), and no body work on the overlapping request. It
+also checks both partitions against the drawn mesh corners after unowned re-entry, including
+tail-child hide, removal and reinsertion, with zero order error and zero clear neighbor hits.
+`BROWSER=firefox npm run test:movement` passed on the same dev server. The hardware profile
+(`CPU_GPU=hardware CPU_LABEL=cpu6a-f1 npm run profile:cpu`) passed all 27 windows and matched the
+Round 2 scenario digests (`352535cc`, `81d26326`, `cee27788`).
+
+The matched hardware replay ran on RTX 2070 with the CPU5 source on 5187. The death checkpoints
+matched first (`926cd1a6`, 614 probe locations); living checkpoint differences versus CPU5 were
+unchanged from Round 2 (parked dead/disabled rigs only). Count runs were identical to Round 2:
+zero settled mesh visits, contact support lookups or list rebuilds over 180 ticks, and zero
+paused mesh visits over 45 reads. Across three repeats, settled animation medians were 1.8–2.1 ms
+for CPU5 versus 0.6 ms here; paused medians were 1.5–1.6 ms versus 0.3 ms. Active death medians were
+8.6–9.0 ms versus 9.1–9.8 ms, and scene-submission ranges overlap. These are workload observations,
+not a general FPS claim. Follow-up raw replay: `/tmp/opencode/test-results/cpu6a-geometry.json`;
+the Round 2 artifact was previously at `test-results/cpu6a-geometry.json`. Other broad browser results
+below are carried forward unless explicitly rerun here. Nothing was staged or committed.
+
+**Round 2.** The previous mutable scan is still exercised by unowned fixtures. The certified
+production path reuses an unchanged settled list without visiting meshes or looking up support.
+The cap fixture checks the actual mesh `isEnabled` and support-map `get` call counts over 180
+reads, and forces writer-owned visibility, membership, support and reactivation changes. The red
+hardware count assertion on the previous implementation observed 134,820 mesh visits in 180
+ticks; the unchanged body identity assertion also failed before adding the final writer revision.
+
+The death workload is now a separate same-seed run, warmed with 12 game steps and 30 animation
+steps; it no longer revives parked formation actors. The matching gate compares warm state,
+lethals, entry, first settled boxes/feet, and first-settled direct and swing probes. Both sides
+flush Babylon world bounds explicitly at the controlled freeze boundary before reading contacts;
+that setup and the drawn-triangle oracle are outside the timed settled windows. The cap eviction
+and reset paths remain covered separately. Count runs do not record timings.
+
+Headed Chromium on RTX 2070, CPU5 `f3fa9a3` on port 5187, candidate on 5173:
+`CPU_GPU=hardware CPU5_URL=http://127.0.0.1:5187 node tests/cpu-animation-geometry-browser.ts`.
+The fresh death checkpoints matched (`926cd1a6`), including 614 drawn-box probe locations. Across
+180 settled ticks CPU5 visited 128,700 meshes and rebuilt 180 lists; the candidate recorded zero
+mesh visits, zero contact support lookups and zero list rebuilds. CPU5 did not count contact
+support lookups separately. Paused mesh visits fell from 32,175 to zero over 45 reads. Living
+body publications were 1,125 → 540 distant and 1,125 → 180 each busy/cargo. The targeted
+neighbor fixture, not aggregate counts from continually changing poses, verifies unchanged reuse.
+
+Settled animation medians across the three timing repeats were 3.3–4.1 ms (CPU5) versus
+0.9–1.0 ms (candidate); paused was 2.5–3.0 ms versus 0.4–0.6 ms. Synchronous scene-submission
+timing ranges overlap, and the other phases do not establish a general frame-time or FPS win.
+Browser gates were also running during this replay; raw counts and repeat distributions are in
+`test-results/cpu6a-geometry.json`.
+
+The social browser suite passed all three activities, including both actual equipment states at
+death. Firefox movement passed the full suite, including separately checked interior pointer
+aim and exact-coordinate rerooting, with no navigator change. `npm run check:full` passed
+435 tests with type checking, lint and format; `npm run build`, `npm run test:production` and
+`npm run test:cpu:production` passed. The build retains its existing large-chunk warning.
+
+Astra's read-only follow-up caught stale attachment offsets after a writer-owned layout edit.
+Edited rigs now sample actual drawn transforms and current membership on demand instead of
+reusing authored offsets. A fixed-root repro failed before the correction, then passed all eight
+corner comparisons on re-entry and detected an added piece. Astra independently confirmed the
+red/green result (`/tmp/opencode/cpu6a-r2-recheck.log`). The hardware rig solver passed (1,210
+samples) after the two software attempts lost their Playwright context or hit the suite deadline.
+Tribute passed on retry. Combat's water fixture now writes through the runtime tile map; the
+unmodified test's in-place writes no longer took effect against frozen runtime tile values. The
+corrected full combat suite passed, including flat/corpse parity and the 52% water speed check.
+
+All browser gates in the CPU6a plan have a passing run, including Chromium and Firefox movement,
+tail clearance, physical handoff and landing, the 24 structural ragdoll-contact cases, skeleton
+breakup/reset, discovery, inspection and CPU regressions. `CPU_GPU=hardware CPU_LABEL=cpu6a-r2
+npm run profile:cpu` passed all 27 windows on retry with matching per-scenario digests
+(`352535cc`, `81d26326`, `cee27788`). The independent recheck found no functional blocker in
+the edited-geometry fix; it preceded completion of the remaining browser gates and was not an
+overall sign-off. Nothing was staged or committed.
+
+**Round 1 history (superseded where noted above).**
+
+Round 1 working tree on `main` over CPU5 `f3fa9a3`. Acceptance was open at this checkpoint.
+No commit or staging.
+
+**Finding dispositions.** Dead/disabled parked tails no longer create demand; the browser now
+checks overlapping demand, the inclusive boundary, distant changes and re-entry. Astra's
+follow-up reproduced stale links when a neighboring body stayed eligible with all tail nodes
+disabled. The added browser assertion failed on that tree and passes after withdrawing those
+links before consumption; re-enabling the links republishes them. Stable-ID priority and the
+unordered final pair check are retained.
+
+The settled-corpse test failed on a plain `isVisible` write without manual invalidation. Physics
+owns the published affines but not mesh membership, draw flags, local geometry or support tiles.
+Removed the false certification and partial subscriptions rather than renewing observers that
+cannot detect all of those writes. The production query revalidates mutable inputs and retains
+numeric boxes, lists and the point index when unchanged. Tests cover first-settled off-root direct
+and swing probes, retained numeric results, disable/re-enable, scalar visibility, same-array
+replacement, transform/bounds edits, in-place support change, disposal and same-ID retirement.
+Known heights provide an independent check for the edited box; comparing to the exhaustive reader
+checks the point index but shares box extraction. The zero-visit criterion is **not met**.
+
+Tribute rendering supplies the actual current owner's scene-root meshes. A drawn coffer, straps
+and seals are sampled in their drawn frame, even if inspection hides the carrier. The browser
+oracle checks actual corners and visibility on pickup, hidden-carrier inspection, hidden strap,
+drop and transfer. Living clearance uses transient solver buffers; retained inspection values
+are detached copies made on read. The tailed solver fixtures now use the binding's definition.
+
+```sh
+node --test tests/rig-tail.test.ts tests/rig-bindings.test.ts tests/corpse-terrain.test.ts
+```
+
+**Hardware replay.** `CPU_GPU=hardware CPU5_URL=http://127.0.0.1:5187 node
+tests/cpu-animation-geometry-browser.ts`, candidate port 5173 and a `git archive f3fa9a3` on
+5187. Headed Chromium, WebGL2 / ANGLE on RTX 2070, `MOURNING-731`, 800×450, High. Separate count
+passes and three 45-step timing repeats. The two within-candidate controls are `eager` (build
+normally skipped eligible bodies without changing the solver) and `copy` (force the inspection
+copy on each publish). They match candidate state at both checkpoints of every phase. CPU5
+matches distant at both checkpoints. Busy and cargo differ only in parked, dead/disabled tails.
+The benchmark revives those actors immediately before the active-death phase, so their starting
+poses differ at handoff and their ragdolls/boxes subsequently differ. Active/settled/paused are
+not exact CPU5 pose-parity replays and their timing is descriptive. The artifact
+`test-results/cpu6a-geometry.json` records differing actor IDs, fields and draw/alive states
+at both ends. Cargo in this timing run is sustained carrying, not a timed transfer.
+
+| Work, separate from timing | CPU5 | Candidate |
+| --- | ---: | ---: |
+| Distant actors, full body sample calls / 45 ticks | 1,125 | 540 |
+| Distant actors, tail neighborhood candidate visits | 13,500 | 13,500 |
+| Busy/cargo full body sample calls / 45 ticks, each | 1,125 | 180 |
+| Busy/cargo tail neighborhood candidate visits, each | 13,500 | 720 |
+| Large settled set, list rebuilds / 180 ticks | 180 | 0 |
+| Large settled set, mesh visits / 180 ticks | 134,820 | 134,820 |
+| Large settled set, contact support lookups / 180 ticks | Not separately instrumented on CPU5 | 115,740 |
+| Paused, mesh visits / 45 reads | 33,705 | 33,705 |
+
+Per-repeat medians in ms (animation / animation plus synchronous scene submission):
+
+| Phase | CPU5 | Candidate | Eager control | Copy control |
+| --- | --- | --- | --- | --- |
+| Distant | 4.4/14.7; 4.9/15.8; 4.7/15.9 | 4.8/16.7; 4.4/14.8; 4.4/15.0 | 4.7/14.7; 4.9/15.9; 4.9/16.1 | 4.8/14.8; 5.2/16.7; 5.3/17.7 |
+| Busy | 2.8/11.1; 2.7/10.7; 3.2/12.5 | 2.5/10.9; 2.3/11.0; 2.3/10.8 | 2.6/12.0; 2.4/11.6; 2.5/11.3 | 2.7/12.5; 2.5/11.6; 2.7/12.9 |
+| Cargo | 2.7/10.9; 3.3/12.8; 2.8/11.5 | 2.2/10.4; 2.2/10.6; 2.2/10.7 | 2.2/10.4; 2.2/10.5; 2.3/11.0 | 2.5/12.1; 2.5/11.4; 2.4/10.9 |
+| Active deaths | 9.6/23.6; 10.5/25.7; 9.3/21.9 | 9.3/21.0; 9.5/21.4; 9.2/22.4 | 9.7/21.8; 9.3/20.7; 9.8/22.2 | 9.7/23.1; 9.2/22.9; 9.8/23.6 |
+| Settled | 1.3/13.4; 1.2/11.6; 1.4/13.4 | 1.9/12.6; 2.0/13.9; 2.1/14.0 | 2.2/14.5; 2.0/13.3; 2.0/13.4 | 2.0/14.0; 2.1/13.8; 1.9/13.4 |
+| Paused | 1.3/13.0; 1.4/14.0; 1.2/12.3 | 1.9/12.4; 2.0/13.8; 2.0/13.7 | 2.1/14.0; 2.0/13.8; 2.0/13.2 | 2.0/14.4; 2.0/13.9; 1.9/12.9 |
+
+The prior distant regression did not recur beyond repeat spread; there is no distant timing win
+either. Demand saves 585 builds in that phase; the ablation overlaps the candidate timing spread.
+It saves no extra calls against the eligible-only control in the fully packed busy/cargo phases.
+Forced copies have the clearest animation cost in cargo. Settled/paused now cost more in this
+workload; fewer list rebuilds do not offset revalidation. Synchronous submission is not GPU
+completion or FPS. A safe zero-visit writer contract and an isolated matched death/contact
+timing replay remain open; do not promote this slice as a net timing win.
+
+**Gates.** Focused Node: 16/16. `npm test`: 417/417. `npm run check:full`: 435/435 plus typecheck,
+lint and format; `npm run build`, `npm run test:production` and `npm run test:cpu:production`
+passed (existing large-chunk warning). The ordered browser run passed `rig` through `defense`,
+including the repaired `rig:solver`. `social` failed at the post-death `corpse && drawn && !stowed
+&& defeated` assertion; the same assertion failed on CPU5. Resuming in plan order, all suites
+from `phalanx` through `cpu:regressions` passed. `BROWSER=firefox npm run test:movement` failed
+twice at the repeated blocked furniture click's “current side” assertion, also failing there
+on CPU5. Neither failure is waived. Targeted `test:rig:tails:clearance` passed again after
+the independent stale-link repro was added and fixed.
+
+`CPU_GPU=hardware CPU_LABEL=cpu6a-r1 npm run profile:cpu` completed all 27 entrance/stable/hitch
+windows on the RTX 2070; digests matched across modes and repeats (`352535cc`, `81d26326`,
+`cee27788`). The report is `test-results/cpu0-cpu6a-r1.json`. Inspected the fresh
+`tail-carry-side.png`, `rig-shield-shieldbearer-moving-release.png` and corpse walk/run/swing
+and stair panels in `chromium-animation-poses.png`: tail silhouette and shield were readable,
+and the selected contact poses showed feet stepping over the remains. These are spot checks,
+not exhaustive visual parity. The general profile and captures precede the stale-link fix;
+the targeted clearance, full gate, production checks and geometry replay were rerun after it.
+Astra's first read-only follow-up (local log
+`/tmp/opencode/cpu6a-r1-independent.log`) returned **REQUEST CHANGES** for stale links and the
+then-overstated parity evidence. The independent recheck (`/tmp/opencode/cpu6a-r1-recheck.log`)
+confirmed both findings were addressed and kept delivery open for the gates and limits above.
+
 ### CPU5 — final independent review
 
 The independent reviewer returned **APPROVE** for CPU5 on `main` over CPU4 `242b520`, with a
 minor, non-blocking coverage follow-up. This supersedes the earlier unsigned checkpoints below.
 Only settled transform publication was retained as a performance change; the approval does not
-imply a general render, shadow-pass, glow-pass, or FPS speedup. **CPU6a is next.**
+imply a general render, shadow-pass, glow-pass, or FPS speedup.
 
 | Fresh reviewer check | Result |
 | --- | --- |
@@ -26,7 +338,8 @@ the same ID: a distinct handoff object still targeting the old entity is rejecte
 handoff publishes on the replacement binding. The settled hardware/browser fixture and production
 code were not changed in this follow-up. `node --test tests/rig-bindings.test.ts` passed both tests;
 the post-review `npm run check:full` passed 435 tests plus typecheck, lint and format check, and
-`npm run build` passed. The new test is pending follow-up review. No commit was made.
+`npm run build` passed. The follow-up is included in CPU5 `f3fa9a3`; the original approval did
+not cover the later test.
 
 ### CPU5 — original settled transform publication checkpoint
 

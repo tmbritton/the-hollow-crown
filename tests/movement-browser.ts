@@ -343,8 +343,19 @@ try {
   assert.ok(detour.distance < 0.04, JSON.stringify(detour));
   pass('Click movement physically routes around furniture without cutting corners');
 
+  const interiorAim = (traveler: Point) => {
+    const { x, z, w, d } = obstacle.blocker;
+    const distance = Math.hypot(traveler.x - x, traveler.z - z);
+    const point = {
+      x: x + (0.17 * (traveler.x - x)) / distance,
+      z: z + (0.17 * (traveler.z - z)) / distance,
+    };
+    assert.ok(Math.abs(point.x - x) < w / 2 && Math.abs(point.z - z) < d / 2);
+    return point;
+  };
   await reset(obstacle.from);
-  await click(obstacle.blocker);
+  const firstAim = interiorAim(obstacle.from);
+  await click(firstAim);
   const partialProp = (await state()).destination;
   assert.ok(partialProp, 'blocked furniture floor click must install a partial route');
   assert.ok(
@@ -368,7 +379,7 @@ try {
   await page.evaluate(() => window.__dungeon.game.scene.render());
   await page.screenshot({ path: `test-results/${browserName}-movement-partial-furniture.png` });
   await arrive(partialProp);
-  await holdSettled(obstacle.blocker);
+  await holdSettled(firstAim);
   pass(
     'Blocked furniture floor clicks show the effective ring, arrive precisely and held input stays settled',
   );
@@ -377,7 +388,7 @@ try {
   // the blocked floor again; old-root caches and coordinate-only ties hid in reset tests.
   await click(obstacle.to);
   await arrive(obstacle.to);
-  await click(obstacle.blocker);
+  await click(interiorAim(obstacle.to));
   const opposite = await state();
   assert.ok(opposite.destination);
   const toward = { x: obstacle.to.x - obstacle.blocker.x, z: obstacle.to.z - obstacle.blocker.z };
@@ -398,9 +409,30 @@ try {
   await page.evaluate(() => window.__dungeon.game.scene.render());
   await page.screenshot({ path: `test-results/${browserName}-movement-partial-opposite.png` });
   await arrive(opposite.destination);
-  pass(
-    'Repeated blocked floor clicks after actual travel choose the near side without returning to an old route root',
-  );
+  pass('Interior blocked floor clicks choose the safe approach on the current side');
+
+  // Separately send the exact same world coordinate on both sides, bypassing screen rounding.
+  // Keep the same navigator across the trip so a stale cached root cannot pass this test.
+  const exact = () =>
+    page.evaluate(({ x, z }) => {
+      const d = window.__dungeon,
+        p = d.game.player,
+        n = p.navigator;
+      n.goTo(p.actor.position, { x, z }, { partial: true });
+      for (let i = 0; n.pending && i < 120; i++) d.step([], 1);
+      if (n.pending || !n.destination || !n.canOccupy(n.destination))
+        throw new Error('unsafe exact partial route');
+      return n.destination;
+    }, obstacle.blocker);
+  await reset(obstacle.from);
+  const exactFrom = await exact();
+  await arrive(exactFrom);
+  await click(obstacle.to);
+  await arrive(obstacle.to);
+  const exactTo = await exact();
+  assert.ok((exactTo.x - exactFrom.x) * toward.x + (exactTo.z - exactFrom.z) * toward.z > 0);
+  await arrive(exactTo);
+  pass('Exact-coordinate blocked requests re-root after travel without pointer rounding');
 
   const lava = await page.evaluate(() => {
     const g = window.__dungeon.game,

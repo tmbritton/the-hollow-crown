@@ -279,7 +279,10 @@ try {
     skull.computeWorldMatrix(true);
     const p = skull.getBoundingInfo().boundingBox.centerWorld;
     // The selected chunk, not a remote pelvis or another visible piece, must pass both gates.
-    for (const mesh of a.entity.require('render').meshes) mesh.isVisible = mesh === skull;
+    // This fixture directly edits Babylon geometry; opt into the unowned contact path.
+    const render = a.entity.require('render');
+    a.entity.add('render', { ...render, meshes: [...render.meshes] });
+    for (const mesh of render.meshes) mesh.isVisible = mesh === skull;
     d.teleport(p.x, p.z - 2);
     g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
     g.camera.beta = 0.64;

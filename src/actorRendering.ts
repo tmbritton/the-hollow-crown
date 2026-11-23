@@ -2,22 +2,23 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder.js';
 import type { Scene } from '@babylonjs/core/scene';
 import { Actor } from './actors.ts';
-import type { Components, ECS } from './ecs.ts';
+import type { Components, ECS, Entity } from './ecs.ts';
 import { animateLocomotion } from './locomotion.ts';
 import { applyJumpPose } from './actionPoses.ts';
 import { heightAt, tileAt } from './world.ts';
 import type { NavigationWorld } from './navigation.ts';
 import '@babylonjs/core/Collisions/collisionCoordinator.js';
 import type { Spawn } from './worldTypes.ts';
-import { readCorpseTerrain } from './corpseRendering.ts';
+import { publishCorpseContacts } from './corpseRendering.ts';
 import { skeletonLurch } from './skeletonGait.ts';
 import { rigBinding } from './rigs/bindings.ts';
 import { profiles } from './rigs/humanoid.ts';
 import { copyLocal } from './rigs/ikMath.ts';
-import { overlaps } from './rigs/tailClearance.ts';
+import { overlaps, tailNeighbor } from './rigs/tailClearance.ts';
 import { advanceDeathPhysics } from './deathPhysics.ts';
-import { cpuTiming } from './cpuMetrics.ts';
+import { cpuTiming, cpuTrace } from './cpuMetrics.ts';
 import { collisionTerrain } from './terrainCandidates.ts';
+import { updateCarriedTribute } from './tributeRendering.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -115,7 +116,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     }
   }
   const contactStart = cpu?.clock() ?? 0;
-  const corpses = readCorpseTerrain(ecs, world);
+  const corpses = publishCorpseContacts(ecs, world);
   cpu?.finish('corpse.surfaces', contactStart);
   for (const entity of entities) {
     if (entity.has('corpse')) continue;
@@ -196,24 +197,53 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     copyLocal(solved.pose.local, binding.pose.local);
     binding.apply(!!binding.tail);
   }
-  // Publish every final body/equipment pose before any living tail queries another actor.
-  // No ECS insertion-order dependency and no previous-frame limb/shield proxies.
-  const needsTailSurfaces = entities.some(
-    (e) => !e.has('corpse') && e.require('rigPose').tail && !e.require('rigPose').tail!.reuses(dt),
-  );
-  if (needsTailSurfaces)
-    for (const entity of entities)
-      if (!entity.has('corpse')) entity.require('rigPose').sampleSurfaces();
-  const tailed = entities
-    .filter((e) => !e.has('corpse') && e.require('rigPose').tail)
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const cargo = updateCarriedTribute(ecs);
+  const neighborCandidates: Entity[] = [],
+    tailed: Entity[] = [];
+  for (const e of entities) {
+    if (e.has('corpse') || (e.get('health')?.current ?? 0) <= 0) continue;
+    const rig = e.require('rig');
+    const active = rig.root.isEnabled();
+    if (active && rig.tail?.some((node) => node.isEnabled())) tailed.push(e);
+    // A closed layout cannot draw under a disabled root. An open/replaced layout can
+    // still draw scene-root equipment, so let nearby demand sample its live membership.
+    if (active || cargo?.has(e) || (e.has('render') && !e.require('rigPose').certifiedGeometry()))
+      neighborCandidates.push(e);
+  }
+  tailed.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const demand = new Map<Entity, Entity[]>(),
+    bodies = new Set<Entity>();
+  const requesters = tailed.filter((e) => !e.require('rigPose').tail!.reuses(dt));
+  for (const entity of requesters) {
+    const neighbors: Entity[] = [];
+    for (const other of neighborCandidates)
+      if (tailNeighbor(entity, other)) {
+        neighbors.push(other);
+        bodies.add(other);
+      }
+    demand.set(entity, neighbors);
+    bodies.add(entity);
+  }
+  // Every demanded final body/equipment pose is available before any living tail solves.
+  for (const entity of bodies) {
+    const carried = cargo?.get(entity);
+    entity.require('rigPose').sampleSurfaces(false, carried?.meshes, carried?.revision);
+  }
+  // An eligible body/scene-root crate can outlive its drawn tail. Withdraw the old links
+  // before any later-ID requester can consume that body's clearance surfaces.
+  for (const entity of entities) {
+    const binding = entity.require('rigPose');
+    if (entity.has('corpse') || !binding.tail || tailed.includes(entity)) continue;
+    binding.applyTail();
+    if (bodies.has(entity)) binding.sampleSurfaces(true);
+  }
   for (const entity of tailed) {
     const actor = new Actor(entity),
       binding = entity.require('rigPose');
     if (binding.tail && binding.tailClearance) {
       const heading = binding.heading;
-      if (!binding.tail.reuses(dt))
-        binding.tailClearance.prepare(actor, ecs, binding.actions, world);
+      const neighbors = demand.get(entity);
+      if (neighbors) binding.tailClearance.prepare(actor, ecs, binding.actions, world, neighbors);
       binding.tail.sample(
         binding.pose,
         {
@@ -238,14 +268,19 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
   // never report a successful clearance while the final published chains intersect.
   for (let i = 0; i < tailed.length; i++)
     for (let j = i + 1; j < tailed.length; j++) {
+      if (import.meta.env?.DEV) cpuTrace?.count('tail.finalPairs');
       const a = tailed[i].require('rigPose'),
         b = tailed[j].require('rigPose');
-      for (const x of a.tailSurfaces)
-        if (x.enabled)
-          for (const y of b.tailSurfaces)
-            if (y.enabled && overlaps(x.bounds, y.bounds)) {
-              a.tail!.blocked = b.tail!.blocked = true;
-            }
+      if (
+        a
+          .clearanceSurfaces(true)
+          .some(
+            (x) =>
+              x.enabled &&
+              b.clearanceSurfaces(true).some((y) => y.enabled && overlaps(x.bounds, y.bounds)),
+          )
+      )
+        a.tail!.blocked = b.tail!.blocked = true;
     }
   cpu?.finish('animation', started);
 }

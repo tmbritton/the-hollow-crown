@@ -63,8 +63,9 @@ A6 shield motion is implemented, verified and independently reviewed READY; both
 A7, P8–P9 and CPU0–CPU3 are implemented, verified and independently reviewed READY.**
 Astra's [final independent CPU4 review](../VERIFICATION.md#cpu4--final-independent-review)
 returned **APPROVE with zero findings**. [CPU5's final independent review](../VERIFICATION.md#cpu5--final-independent-review)
-returned **APPROVE** for settled transform publication; the post-review test awaits review.
-**CPU6a is next.**
+returned **APPROVE** for settled transform publication; the later cap/replacement test landed in
+`f3fa9a3`. [CPU6a received final independent **APPROVE**](../VERIFICATION.md#cpu6a--animation-geometry)
+including both follow-ups and remains uncommitted on `main`. **CPU6b is next, not started.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 

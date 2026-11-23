@@ -14,7 +14,8 @@ export class FrameAttachment {
     this.node = node;
     this.offset = [...offset];
   }
-  apply(frame: Float64Array, parentInverse?: Float64Array): void {
+  /** Returns whether the write changed the node's actual local TRS. */
+  apply(frame: Float64Array, parentInverse?: Float64Array, trackChange = true): boolean {
     this.world.set(frame);
     for (let row = 0; row < 3; row++)
       this.world[12 + row] +=
@@ -35,8 +36,14 @@ export class FrameAttachment {
         ? Math.atan2(m[8] / sz, m[10] / sz)
         : Math.atan2(-m[2] / sx, m[0] / sx);
     const roll = Math.abs(Math.cos(pitch)) > 1e-7 ? Math.atan2(m[1] / sx, m[5] / sy) : 0;
+    const changed =
+      trackChange &&
+      (!node.position.equalsToFloats(m[12], m[13], m[14]) ||
+        !node.rotation.equalsToFloats(pitch, yaw, roll) ||
+        !node.scaling.equalsToFloats(sx, sy, sz));
     node.position.set(m[12], m[13], m[14]);
     node.rotation.set(pitch, yaw, roll);
     node.scaling.set(sx, sy, sz);
+    return changed;
   }
 }

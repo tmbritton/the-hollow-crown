@@ -281,13 +281,16 @@ try {
     for (let i = 0; i < 500 && !dead.entity.get('ragdoll')?.settled; i++) d.step([], 1);
     if (!dead.entity.get('ragdoll')?.settled) throw new Error('corpse did not settle');
     const crossingStart = { x: dead.position.x - 2.2, z: dead.position.z };
-    const surfaces = [...g.world.tiles.values()].map((tile) => ({ tile, surface: tile.surface }));
+    const tiles = [...g.world.tiles];
     try {
       return [false, true].map((run) =>
         ['flat', 'corpse', 'water-corpse'].map((ground) => {
           dead.entity.require('rig').root.setEnabled(ground !== 'flat');
-          for (const { tile, surface } of surfaces)
-            tile.surface = ground === 'water-corpse' ? 'water' : surface;
+          for (const [key, tile] of tiles)
+            g.world.tiles.set(
+              key,
+              ground === 'water-corpse' ? { ...tile, surface: 'water' } : tile,
+            );
           d.teleport(crossingStart.x, crossingStart.z);
           g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
           const samples = [];
@@ -311,7 +314,7 @@ try {
         }),
       );
     } finally {
-      for (const { tile, surface } of surfaces) tile.surface = surface;
+      for (const [key, tile] of tiles) g.world.tiles.set(key, tile);
       dead.entity.add('corpse', { age: 1 });
       dead.entity.require('rig').root.setEnabled(true);
     }

@@ -42,6 +42,8 @@ import { animateActors, ACTOR_OBSERVATION_RADIUS } from './actorRendering.ts';
 import { cpuTiming } from './cpuMetrics.ts';
 import { createEnemyRendering } from './enemyRendering.ts';
 import { registerWorld, registerDungeonRendering, updateDoors } from './worldEntities.ts';
+import { ActorGeometry } from './actorGeometry.ts';
+import { SupportTiles } from './supportTiles.ts';
 import { TerrainCandidates } from './terrainCandidates.ts';
 import { UI } from './ui.ts';
 import { InspectionController } from './inspection.ts';
@@ -318,6 +320,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   const ecs = new ECS();
   const discoveries = new DiscoveryRecord(generationIdentity(seed));
   ecs.create('run').add('discoveries', discoveries);
+  world.tiles = new SupportTiles(world.tiles);
   registerWorld(ecs, world);
   registerDungeonRendering(ecs, dungeon);
   const player = createPlayer(scene, materials, shadow, world, ecs);
@@ -356,6 +359,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   const clue = world.entities.find((e) => e.id === ember.sites.clue.id);
   if (clue?.inspection) clue.inspection.description += `\n\n${emberClue(world).description}`;
   const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
+  for (const actor of combat.actors) new ActorGeometry(actor.entity);
   // This closed bootstrap builds only authored motor colliders and permanent render meshes
   // (including the effects pools and actor proxies). Never classify later scene additions here.
   const authoredColliders = new Set(dungeon.colliders);

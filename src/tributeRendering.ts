@@ -1,10 +1,22 @@
-import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder.js';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh.js';
 import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Materials } from './materials.ts';
-import type { ECS } from './ecs.ts';
+import type { ECS, Entity } from './ecs.ts';
 import { FrameAttachment } from './rigs/attachments.ts';
+
+interface CarriedGeometry {
+  readonly meshes: readonly AbstractMesh[];
+  revision: number;
+}
+const cargoWriters = new WeakMap<ECS, () => ReadonlyMap<Entity, CarriedGeometry>>();
+
+/** Publish scene-root crate ownership and the same frame the renderer draws, after body poses. */
+export function updateCarriedTribute(ecs: ECS) {
+  return cargoWriters.get(ecs)?.();
+}
 
 /** Four crates, their floor sockets and one hatch. Existing materials only; scene-owned. */
 export function createTributeRendering(
@@ -45,7 +57,15 @@ export function createTributeRendering(
       p = tribute.sites.cargo[i];
     socket.position.set(p.x, p.h + 0.025, p.z);
     for (const x of [-0.48, 0.48]) box('cache marking', socket, x, 0, 0, 0.08, 0.025, 0.9, 'gold');
-    return { entity, root, socket, attachment: new FrameAttachment(root) };
+    const meshes = root.getChildMeshes();
+    return {
+      entity,
+      root,
+      socket,
+      attachment: new FrameAttachment(root),
+      geometry: { meshes, revision: 0 },
+      drawn: meshes.map(() => false),
+    };
   });
   const hatch = new TransformNode('Royal tribute escape hatch', scene),
     at = tribute.sites.exit;
@@ -56,24 +76,43 @@ export function createTributeRendering(
     box('hatch beacon', hatch, x, 0.3, 0, 0.12, 0.6, 0.12, 'iron');
     box('hatch lamp', hatch, x, 0.65, 0, 0.22, 0.16, 0.22, 'rune');
   }
+  const carriedMeshes = new Map<Entity, CarriedGeometry>();
+  function updateCrates() {
+    carriedMeshes.clear();
+    const current = ecs.get('run')?.get('tribute') === tribute;
+    for (const { entity, root, attachment, geometry, drawn } of crates) {
+      const cargo = entity.require('cargo'),
+        p = entity.require('transform');
+      const owner = cargo.owner;
+      const binding = owner && ecs.get(owner.id) === owner ? owner.get('rigPose') : undefined;
+      root.setEnabled(
+        current && !root.isDisposed() && cargo.state !== 'delivered' && cargo.state !== 'recovered',
+      );
+      if (cargo.state === 'carried' && binding?.actions.carrying && owner && root.isEnabled()) {
+        let changed = attachment.apply(binding.actions.frames.cargo);
+        for (const [i, mesh] of geometry.meshes.entries()) {
+          const visible =
+            !mesh.isDisposed() && mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0;
+          changed ||= drawn[i] !== visible;
+          drawn[i] = visible;
+        }
+        if (changed) geometry.revision++;
+        carriedMeshes.set(owner, geometry);
+      } else {
+        root.position.set(p.x, p.h + 0.05, p.z);
+        root.rotation.setAll(0);
+        root.scaling.setAll(1);
+      }
+    }
+    return carriedMeshes;
+  }
+  cargoWriters.set(ecs, updateCrates);
   return {
     update() {
       const current = ecs.get('run')?.get('tribute') === tribute;
       hatch.setEnabled(current);
-      for (const { entity, root, socket, attachment } of crates) {
-        const cargo = entity.require('cargo'),
-          p = entity.require('transform');
-        const carried = cargo.state === 'carried',
-          owner = cargo.owner?.get('rigPose');
-        root.setEnabled(current && cargo.state !== 'delivered' && cargo.state !== 'recovered');
-        socket.setEnabled(current);
-        if (carried && owner?.actions.carrying) attachment.apply(owner.actions.frames.cargo);
-        else {
-          root.position.set(p.x, p.h + 0.05, p.z);
-          root.rotation.setAll(0);
-          root.scaling.setAll(1);
-        }
-      }
+      for (const { socket } of crates) socket.setEnabled(current);
+      updateCrates();
     },
   };
 }

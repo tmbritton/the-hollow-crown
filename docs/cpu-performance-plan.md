@@ -2,7 +2,9 @@
 
 **Status:** CPU0 through CPU3 are independently reviewed **READY**. Astra's final independent
 CPU4 review returned **APPROVE with zero findings**. The [final independent CPU5 review](../VERIFICATION.md#cpu5--final-independent-review)
-returned **APPROVE**; the post-review cap/replacement test awaits review. **CPU6a is next** and has not started.
+returned **APPROVE**; the later cap/replacement test landed in `f3fa9a3`.
+[CPU6a received final independent **APPROVE**](../VERIFICATION.md#cpu6a--animation-geometry),
+including both follow-ups, and remains uncommitted on `main`. **CPU6b is next, not started.**
 See [delivery evidence](../VERIFICATION.md) and the [CPU0 baseline/tooling](cpu-baseline.md). This plan retains the completed CPU investigation at
 **`3cfb378`**; its historical measurements excluded concurrent shield-animation work. CPU0 must
 refresh them against the reviewed A0–A7/P8/P9 integration before accepting optimization results.
@@ -420,6 +422,9 @@ surface/observation contracts before old meshes are removed.
 
 ### CPU6a — only construct animation geometry when needed
 
+**Status:** Independently approved, including both follow-ups. See the [slice plan](plans/cpu6a-animation-geometry.md)
+and [closeout evidence](../VERIFICATION.md#cpu6a--animation-geometry).
+
 **Touchpoints:** `src/actorRendering.ts`, `src/rigs/bindings.ts`, `src/rigs/tailClearance.ts`,
 `src/corpseRendering.ts` and grounding/contact consumers.
 
@@ -448,6 +453,8 @@ overlap, bounded infeasible fallback and ECS-order independence. Grounded feet s
 drawn corpse geometry; corpses remain passable and cannot change support/navigation.
 
 ### CPU6b — separate presentation solving from simulation frequency
+
+**Status:** Next, not started. CPU6a approval does not cover scheduling or detail tiers.
 
 Introduce explicit stages for fixed-step motion/action/feedback state, death-physics advance and
 consumer publication, expensive living pose solving, and mesh binding. Prove the stage boundaries

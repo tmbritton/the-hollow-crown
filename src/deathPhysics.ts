@@ -4,18 +4,26 @@ import { heightAt } from './world.ts';
 import { Ragdoll, RAGDOLL_LIMIT } from './ragdoll.ts';
 import type { RagdollTerrain } from './ragdoll.ts';
 import type { DeathHandoff } from './deathHandoff.ts';
+import { SupportTiles } from './supportTiles.ts';
+import type { RigBinding } from './rigs/bindings.ts';
 
 /** Run-owned presentation lifecycle. Authoritative death and cargo/knowledge commits precede this.
  * Heroes respawn before presentation; no duplicate hero or delayed health transition is introduced. */
 export class DeathPhysics {
   private readonly ecs: ECS;
   private readonly terrain: RagdollTerrain;
+  private readonly world: NavigationWorld;
   private readonly records = new Map<Entity, Ragdoll>();
+  private readonly rootSupport = new WeakMap<
+    Ragdoll,
+    { binding: RigBinding; pose: number; tiles: SupportTiles; revision: number; h: number | null }
+  >();
   private readonly consumed = new WeakSet<DeathHandoff>();
   private sequence = 0;
   private retired = false;
   constructor(ecs: ECS, terrain: NavigationWorld) {
     this.ecs = ecs;
+    this.world = terrain;
     this.terrain = { ...terrain, physicalObstacles: ecs.get('run')?.get('physicalObstacles') };
   }
   advance(dt: number): void {
@@ -70,7 +78,30 @@ export class DeathPhysics {
       const p = entity.require('transform');
       p.x = ragdoll.world[12];
       p.z = ragdoll.world[14];
-      p.h = heightAt(this.terrain, p.x, p.z) ?? p.h;
+      const tiles = this.world.tiles;
+      const pose = binding.settledPoseRevision(ragdoll);
+      if (pose !== undefined && tiles instanceof SupportTiles) {
+        let cached = this.rootSupport.get(ragdoll);
+        if (
+          cached?.binding !== binding ||
+          cached.pose !== pose ||
+          cached.tiles !== tiles ||
+          cached.revision !== tiles.revision
+        ) {
+          cached = {
+            binding,
+            pose,
+            tiles,
+            revision: tiles.revision,
+            h: heightAt(this.world, p.x, p.z),
+          };
+          this.rootSupport.set(ragdoll, cached);
+        }
+        p.h = cached.h ?? p.h;
+      } else {
+        this.rootSupport.delete(ragdoll);
+        p.h = heightAt(this.world, p.x, p.z) ?? p.h;
+      }
     }
   }
   dispose(): void {

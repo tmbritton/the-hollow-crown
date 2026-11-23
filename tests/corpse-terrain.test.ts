@@ -109,6 +109,7 @@ test('tilted surfaces use oriented geometry; unchanged draws reuse samples and r
       f.root.position.set(0, 0, 0);
       f.mesh.position.set(0, 0.1, 0);
       assert.equal(readCorpseTerrain(f.ecs)[0], first[0], 'no repeated inverse/box allocation');
+      assert.equal(readCorpseTerrain(f.ecs), first, 'unchanged membership reuses the list');
     }
     const upper = MeshBuilder.CreateBox('overlapping fallen head', { size: 0.4 }, f.scene);
     upper.position.y = 0.3;
@@ -120,6 +121,10 @@ test('tilted surfaces use oriented geometry; unchanged draws reuse samples and r
     );
     upper.setEnabled(false);
     assert.ok(corpseHeightAt(readCorpseTerrain(f.ecs), { x: 0, z: 0, h: 0 }) < 0.34);
+    f.mesh
+      .getBoundingInfo()
+      .reConstruct(f.mesh.getBoundingInfo().minimum, upper.getBoundingInfo().maximum);
+    assert.notEqual(readCorpseTerrain(f.ecs)[0], first[0], 'local bounds invalidate inverse entry');
     f.ecs.remove(f.dead.id);
     assert.equal(corpseHeightAt(readCorpseTerrain(f.ecs), { x: 0, z: 0, h: 0 }), 0);
     assert.equal(readCorpseTerrain(new ECS()).length, 0);
