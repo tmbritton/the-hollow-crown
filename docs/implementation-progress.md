@@ -45,7 +45,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
   `3cfb378` measurements remain historical. **CPU0–CPU3 are independently reviewed READY**.
   The [CPU0 desktop hardware baseline](cpu-baseline.md) pins the expensive replan and confirms
   instrumentation parity. Astra's [final independent CPU4 review](../VERIFICATION.md#cpu4--final-independent-review)
-  returned **APPROVE with zero findings**. **CPU5 is next** and has not started.
+  returned **APPROVE with zero findings**. The [final independent CPU5 review](../VERIFICATION.md#cpu5--final-independent-review)
+  returned **APPROVE**; the post-review cap/replacement regression awaits review. **CPU6a is next** and has not started.
 - **Effect adoption remains before the next procedural-feature expansion, after CPU7.**
   EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
@@ -170,7 +171,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | P8 | Complete; final independent review READY | Missing-module, scaled-parent/frozen-contact, door/waist regressions; review's actual upper-plank/base penetration and replay reds | Full389 checkpoint/core373; eleven death sequences, 24 structural-contact cases and 24-death stress, real attacks, lifecycle, affected suites/root/Pages smokes. Independent original door repro, 18 door/16 wall/four all-frame masonry cases and lifecycle probes clear R1/R2/C1 | Containing delivery |
 | P9 | Complete; independent review READY | Missing separated mode/envelope reds; actual eleven-chunk and named-skull browser checks | Full395/core377; seven breakup sequences, 24 structural contacts, all-24 stress, combat15/discoveries17/animation and root/Pages production. Independent six-case geometry, 15-unit skull support/occlusion, negative range/LOS and identity/reset probes pass | Containing delivery |
 | CPU0 | Complete; independent follow-up READY | Missing module; persisted callback duplication, observer leak and no-attack fixture reds | Full400 checkpoint/final core382; recipe-2 45-window baseline/phalanx/native batch and replay. Reviewer clears all three findings with native callback, rollback and real phalanx probes; prior unaffected matrix reused. Both production paths/isolation pass; subsequent RTX 2070 baseline recorded | Containing delivery |
-| CPU1–CPU7 | Queued after CPU0, in documented order | Door queries → stationary collision → route hitches → nearby candidates → scene traversal → CPU6a geometry demand → CPU6b scheduling → integrated acceptance | Per-slice contracts and evidence gates in cpu-performance-plan.md; optimization not started | — |
+| CPU1–CPU4 | CPU1–CPU3 independently reviewed READY; CPU4 independently approved with zero findings | Door queries → stationary collision → route hitches → nearby candidates | See [verification](../VERIFICATION.md#cpu4--final-independent-review) for per-slice evidence | Through `242b520` |
+| CPU5 | Independently approved; post-review test awaits review | Settled transform publication and scene-owned resource retirement | Fresh reviewer hardware: 4,344 → 0 unchanged root writes, 1.0–1.2 → 0.2 ms death advance; full 434 and 3 resets. [Post-review regression](../VERIFICATION.md#cpu5--final-independent-review): full 435 | Working tree on `main` |
+| CPU6a–CPU7 | CPU6a next, not started | Geometry demand → presentation scheduling and LOD → integrated acceptance | Per-slice gates in [CPU performance plan](cpu-performance-plan.md#cpu6a--only-construct-animation-geometry-when-needed) | — |
 | EF0–EF4 | Planned after CPU7, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 

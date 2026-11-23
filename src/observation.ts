@@ -78,12 +78,13 @@ export class CameraObservation {
   private readonly instanceMaximum = Vector3.Zero();
   private readonly groups: ObservationGroup[];
   private indexDirty = true;
+  private retired = false;
   private indexedMeshes: readonly AbstractMesh[] = [];
   private readonly buckets = new Map<string, AbstractMesh[]>();
   private dynamicMeshes: AbstractMesh[] = [];
   private fixedMeshes: { mesh: AbstractMesh; version: number }[] = [];
   private parents: { node: TransformNode; parent: TransformNode['parent'] }[] = [];
-  private readonly transforms = new WeakMap<
+  private transforms = new WeakMap<
     TransformNode,
     {
       pass: number;
@@ -91,7 +92,7 @@ export class CameraObservation {
       values: Float64Array;
     }
   >();
-  private readonly rigs = new WeakMap<
+  private rigs = new WeakMap<
     Components['render'],
     {
       samples: AbstractMesh[];
@@ -109,11 +110,23 @@ export class CameraObservation {
   ) {
     this.camera = camera;
     this.groups = groups.map((group) => ({ ...group, meshes: [], ray: null, intersects: false }));
-    camera.getScene().onNewMeshAddedObservable.add(() => {
+    const scene = camera.getScene();
+    const added = scene.onNewMeshAddedObservable.add(() => {
       this.indexDirty = true;
     });
-    camera.getScene().onMeshRemovedObservable.add(() => {
+    const removed = scene.onMeshRemovedObservable.add(() => {
       this.indexDirty = true;
+    });
+    scene.onDisposeObservable.addOnce(() => {
+      scene.onNewMeshAddedObservable.remove(added);
+      scene.onMeshRemovedObservable.remove(removed);
+      this.retired = true;
+      this.groups.length = 0;
+      this.indexedMeshes = [];
+      this.buckets.clear();
+      this.dynamicMeshes.length = this.fixedMeshes.length = this.parents.length = 0;
+      this.transforms = new WeakMap();
+      this.rigs = new WeakMap();
     });
   }
 
@@ -348,7 +361,7 @@ export class CameraObservation {
     samples?: readonly AbstractMesh[],
     eligible?: (point: Vector3) => boolean,
   ): boolean {
-    if (!render.root?.isEnabled()) return false;
+    if (this.retired || !render.root?.isEnabled()) return false;
     this.pass++;
     this.ensureIndex();
     let rig = this.rigs.get(render);

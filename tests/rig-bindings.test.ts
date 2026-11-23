@@ -10,7 +10,7 @@ import type { Components } from '../src/ecs.ts';
 import { bindHumanoid } from '../src/rigs/bindings.ts';
 import { profiles } from '../src/rigs/humanoid.ts';
 import { setEuler, worldPoint } from '../src/rigs/pose.ts';
-import { Ragdoll } from '../src/ragdoll.ts';
+import { Ragdoll, RAGDOLL_LIMIT } from '../src/ragdoll.ts';
 import { readCorpseTerrain } from '../src/corpseRendering.ts';
 import { DeathPhysics } from '../src/deathPhysics.ts';
 import type { DeathHandoff } from '../src/deathHandoff.ts';
@@ -158,7 +158,7 @@ test('semantic binding preserves neutral geometry and writes independent head/li
     entity.add('ragdoll', physics);
     for (let frame = 0; frame < 30; frame++) {
       physics.advance(1 / 60);
-      binding.applyPhysics(physics.world);
+      binding.applyPhysics(physics);
       forearms[0].computeWorldMatrix(true);
       const actual = Vector3.TransformCoordinates(
         new Vector3(0, -0.27, 0),
@@ -225,6 +225,114 @@ test('semantic binding preserves neutral geometry and writes independent head/li
     assert.throws(() => binding.history.snapshot(), /retired/);
     assert.equal(entity.has('rigPose'), false);
   } finally {
+    engine.dispose();
+  }
+});
+
+test('death physics publishes a cap eviction once and rejects a stale handoff at a reused ID', (t) => {
+  const engine = new NullEngine();
+  const scene = new Scene(engine);
+  const ecs = new ECS();
+  const physics = new DeathPhysics(ecs, { tiles: new Map(), blockers: [], entities: [] });
+  const dt = 1 / 60;
+  const create = (id: string, x: number) => {
+    const node = (name: string, parent?: TransformNode) => {
+      const result = new TransformNode(`${id}:${name}`, scene);
+      if (parent) result.parent = parent;
+      return result;
+    };
+    const root = node('root');
+    root.position.set(x, 3, 0);
+    const body = node('body', root);
+    const arms = [-1, 1].map((side) => node(`arm:${side}`, body));
+    const legs = [-1, 1].map((side) => node(`leg:${side}`, root));
+    const knees = legs.map((leg) => node('knee', leg));
+    const entity = ecs
+      .create(id)
+      .add('transform', { x, h: 3, z: 0, heading: 0 })
+      .add('rig', {
+        root,
+        body,
+        arms,
+        forearms: arms.map((arm) => node('forearm', arm)),
+        legs,
+        knees,
+        feet: knees.map((knee) => node('foot', knee)),
+        footPlants: [{ anchor: null }, { anchor: null }],
+      });
+    const binding = bindHumanoid(entity, profiles.player);
+    const handoff: DeathHandoff = {
+      run: ecs,
+      target: entity,
+      source: null,
+      time: 0,
+      kind: 'melee',
+      magnitude: 20,
+      travel: [1, 0, 0],
+      position: [x, 3, 0],
+      heading: 0,
+      velocity: [0, 0, 0],
+      pose: binding.history.snapshot(),
+    };
+    return { entity, binding, root, handoff };
+  };
+  try {
+    const corpses = Array.from({ length: RAGDOLL_LIMIT }, (_, i) => create(`actor:${i}`, i * 4));
+    for (const { entity, handoff } of corpses)
+      entity.add('corpse', { age: 0 }).add('deathHandoff', handoff);
+    physics.advance(dt);
+    physics.advance(dt);
+    const islands = () => ecs.query('ragdoll').map((entity) => entity.require('ragdoll'));
+    const active = islands();
+    assert.equal(active.length, RAGDOLL_LIMIT);
+    assert.ok(active.every((island) => !island.settled && island.bodyCount > 0));
+    const [oldest] = corpses;
+    const evicted = oldest.entity.require('ragdoll');
+    assert.notDeepEqual(oldest.binding.history.snapshot().world, oldest.handoff.pose?.world);
+    const finalMatrix = Array.from(oldest.root.getWorldMatrix().m);
+    const publications = t.mock.method(oldest.root, 'freezeWorldMatrix');
+
+    // Admission, not a direct freeze() call, must evict the oldest active island.
+    const overflow = create('overflow', RAGDOLL_LIMIT * 4);
+    overflow.entity.add('corpse', { age: 0 }).add('deathHandoff', overflow.handoff);
+    physics.advance(dt);
+    assert.equal(evicted.settled, true, 'the oldest active island is evicted');
+    assert.equal(islands().filter((island) => !island.settled).length, RAGDOLL_LIMIT);
+    assert.equal(overflow.entity.require('ragdoll').settled, false);
+    assert.equal(evicted.bodyCount + evicted.constraintCount + evicted.staticCount, 0);
+    assert.equal(publications.mock.callCount(), 1, 'publish the cap-frozen pose on this tick');
+    const rest = oldest.binding.history.snapshot();
+    assert.deepEqual(oldest.binding.pose.world, evicted.world);
+    assert.ok(rest.world.every((v, i) => Math.abs(v - evicted.world[i]) < 1e-9));
+    assert.ok([...rest.linear, ...rest.angular].every((v) => Math.abs(v) < 1e-9));
+    assert.deepEqual(Array.from(oldest.root.getWorldMatrix().m), finalMatrix);
+    physics.advance(dt);
+    assert.equal(publications.mock.callCount(), 1, 'do not republish the unchanged final pose');
+
+    ecs.remove(oldest.entity.id);
+    const replacement = create(oldest.entity.id, -4);
+    assert.notEqual(replacement.entity, oldest.entity);
+    // Use a distinct handoff object so the consumed-object check cannot mask a stale target.
+    replacement.entity.add('corpse', { age: 0 }).add('deathHandoff', { ...oldest.handoff });
+    physics.advance(dt);
+    assert.equal(oldest.entity.has('ragdoll'), false);
+    assert.equal(replacement.entity.has('ragdoll'), false);
+    assert.equal(replacement.root.isWorldMatrixFrozen, false);
+    replacement.entity.add('deathHandoff', replacement.handoff);
+    physics.advance(dt);
+    const fresh = replacement.entity.require('ragdoll');
+    assert.notEqual(fresh, evicted);
+    assert.equal(fresh.settled, false);
+    assert.equal(replacement.root.isWorldMatrixFrozen, true);
+    assert.equal(replacement.root.getWorldMatrix().m[12], -4);
+    assert.deepEqual(replacement.binding.pose.world, fresh.world);
+    assert.equal(
+      publications.mock.callCount(),
+      1,
+      'the removed binding receives no further writes',
+    );
+  } finally {
+    physics.dispose();
     engine.dispose();
   }
 });

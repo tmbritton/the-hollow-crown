@@ -18,7 +18,7 @@ await withViteServer(base, 'dev', async () => {
   const deadline = setTimeout(() => {
     timedOut = true;
     void browser.close().catch(() => {});
-  }, 60000);
+  }, 120000);
   const report: Record<string, unknown> = {
     seed: 'MOURNING-731',
     viewport: '640x360',
@@ -53,7 +53,10 @@ await withViteServer(base, 'dev', async () => {
     // Real active frames, input, and menu pause, before the controlled/yielding probe.
     const start = await page.evaluate(() => window.__dungeon.game.player.root.position.asArray());
     await page.keyboard.down('KeyD');
-    await page.waitForTimeout(300);
+    await page.waitForFunction(([x, , z]) => {
+      const p = window.__dungeon.game.player.root.position;
+      return Math.hypot(p.x - x, p.z - z) > 0.1;
+    }, start);
     await page.keyboard.up('KeyD');
     assert.notDeepEqual(
       await page.evaluate(() => window.__dungeon.game.player.root.position.asArray()),
@@ -75,6 +78,11 @@ await withViteServer(base, 'dev', async () => {
           effects: s.effects,
           shaderSources: s.shaderSources,
           scenes: d.engine.scenes.length,
+          nodes: g.scene.transformNodes.length,
+          renderTargets: g.scene.textures.filter((texture) => texture.isRenderTarget).length,
+          casters: g.shadowCasters.length,
+          heroCasters: g.heroCasters.size,
+          meshObservers: g.scene.onMeshRemovedObservable.observers.length,
           renderLoops: d.engine.activeRenderLoops.length,
           entities: g.ecs.size,
           particles: g.ecs.query('particle').length,
@@ -137,17 +145,96 @@ await withViteServer(base, 'dev', async () => {
     }
     report.seals = costs;
     const regenerations = [];
+    const retirements: unknown[] = [];
+    report.retirements = retirements;
     for (let cycle = 0; cycle < 3; cycle++) {
       const disposal = await page.evaluate(() => {
         const d = window.__dungeon,
           old = d.game;
+        const select = document.querySelector<HTMLSelectElement>('#quality')!;
+        const quality = (value: string) => {
+          select.value = value;
+          select.dispatchEvent(new Event('change'));
+        };
+        quality('high');
+        const skeleton = old.combat.enemies.find((actor) => actor.kind === 'skeleton')!;
+        if (!old.combat.target(old.player.actor, skeleton)) throw new Error('Selection failed');
+        old.combat.damage(skeleton, 1000, old.player.actor, {
+          kind: 'melee',
+          travel: { x: 1, z: 0 },
+        });
+        for (let i = 0; i < 20; i++) d.step([], 1);
+        const ragdoll = skeleton.entity.require('ragdoll');
+        const binding = skeleton.entity.require('rigPose');
+        const chunks = [...binding.bodyMeshes];
+        old.observation.visible(skeleton.entity.require('render'), chunks);
+        const portrait = old.world.entities.find((entity) => entity.type === 'portrait')!;
+        old.inspection.open(portrait.inspection!);
+        for (let i = 0; i < 18; i++) d.step([], 1);
+        old.scene.render();
+        if (chunks.length !== 11 || !old.inspection.active || !old.scene.shadowsEnabled)
+          throw new Error('Did not exercise scatter, inspection and High quality');
+        const meshOwners = {
+          scene: [...old.scene.meshes],
+          casters: old.shadowCasters,
+          hero: old.heroCasters,
+        };
+        const sceneObservers = [
+          old.scene.onNewMeshAddedObservable,
+          old.scene.onMeshRemovedObservable,
+        ];
+        const meshObservers = chunks.map((mesh) => mesh.onAfterWorldMatrixUpdateObservable);
+        const observation = old.observation as unknown as {
+          indexedMeshes: unknown[];
+          groups: unknown[];
+          buckets: Map<string, unknown>;
+          dynamicMeshes: unknown[];
+          fixedMeshes: unknown[];
+          parents: unknown[];
+        };
+        quality('low');
         d.regenerate('MOURNING-731');
+        const retired = new Set(meshOwners.scene);
         return {
           sceneDisposed: old.scene.isDisposed,
           workRetired: !old.ecs.get('run')?.has('objectiveWork'),
+          inspectionClosed: !old.inspection.active,
+          disposedMeshes: meshOwners.scene.every((mesh) => mesh.isDisposed()),
+          oldSceneMeshes: old.scene.meshes.length,
+          oldCasters:
+            meshOwners.casters.length +
+            meshOwners.hero.size +
+            (old.shadowMap.renderList?.length ?? 0),
+          reusedMeshes: d.game.scene.meshes.filter((mesh) => retired.has(mesh)).length,
+          oldObservers: [...sceneObservers, ...meshObservers].reduce(
+            (total, observable) => total + observable.observers.length,
+            0,
+          ),
+          oldObservationRecords:
+            observation.indexedMeshes.length +
+            observation.groups.length +
+            observation.buckets.size +
+            observation.dynamicMeshes.length +
+            observation.fixedMeshes.length +
+            observation.parents.length,
+          oldChunkSurfaces: binding.bodyMeshes.length,
+          oldPhysics: ragdoll.bodyCount + ragdoll.constraintCount + ragdoll.staticCount,
         };
       });
-      assert.deepEqual(disposal, { sceneDisposed: true, workRetired: true });
+      retirements.push(disposal);
+      assert.deepEqual(disposal, {
+        sceneDisposed: true,
+        workRetired: true,
+        inspectionClosed: true,
+        disposedMeshes: true,
+        oldSceneMeshes: 0,
+        oldCasters: 0,
+        reusedMeshes: 0,
+        oldObservers: 0,
+        oldObservationRecords: 0,
+        oldChunkSurfaces: 0,
+        oldPhysics: 0,
+      });
       await page.waitForFunction(
         () => {
           window.__dungeon.game.scene.render();

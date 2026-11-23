@@ -18,7 +18,7 @@ import {
 } from './pose.ts';
 import { matrixRotation, orthonormalize } from './ikMath.ts';
 import { bodyOwner } from '../ragdoll.ts';
-import type { RagdollShape } from '../ragdoll.ts';
+import type { Ragdoll, RagdollShape } from '../ragdoll.ts';
 import { PoseHistory } from './history.ts';
 import type { Spawn } from '../worldTypes.ts';
 import { GroundedLocomotion } from './grounding.ts';
@@ -58,7 +58,7 @@ export interface RigBinding {
   reset(position?: Spawn, heading?: number): void;
   apply(deferTail?: boolean): void;
   applyTail(): void;
-  applyPhysics(world: Float64Array): void;
+  applyPhysics(ragdoll: Ragdoll): void;
   physicsShapes(): RagdollShape[];
   /** One actual anatomical surface per physical chunk, populated at handoff. */
   readonly bodyMeshes: readonly AbstractMesh[];
@@ -276,6 +276,8 @@ export function bindHumanoid(
     history.publish(stepDuration);
     stepDuration = 0;
   };
+  let finalOwner: Ragdoll | undefined;
+  let restDuration = 0;
   const applyEntry = (entry: Entry) => {
     multiply(pose.world, entry.joint * 16, entry.offset, 0, entry.world, 0);
     inverse(entry.world, 0, entry.inverse);
@@ -367,6 +369,8 @@ export function bindHumanoid(
       stepDuration = dt;
     },
     invalidateHistory() {
+      finalOwner = undefined;
+      restDuration = 0;
       entity.get('blockFeedback')?.reset();
       grounding.reset();
       actions.reset();
@@ -400,7 +404,7 @@ export function bindHumanoid(
     apply(deferTail = false) {
       if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
       if (entity.has('ragdoll')) {
-        binding.applyPhysics(entity.require('ragdoll').world);
+        binding.applyPhysics(entity.require('ragdoll'));
         return;
       }
       evaluatePose(pose);
@@ -423,8 +427,19 @@ export function bindHumanoid(
       for (const entry of tailEntries) applyEntry(entry);
       finishHistory();
     },
-    applyPhysics(world) {
+    applyPhysics(ragdoll) {
       if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
+      if (ragdoll.settled && finalOwner === ragdoll) {
+        // The next positive step must move previous/current to the same pose; a
+        // render-only zero step must not erase velocity from the last physical tick.
+        if (stepDuration !== 0 && stepDuration !== restDuration) {
+          const duration = stepDuration;
+          finishHistory();
+          restDuration = duration;
+        } else stepDuration = 0;
+        return;
+      }
+      const world = ragdoll.world;
       if (!physicsAttachments) {
         grounding.reset();
         entity.get('blockFeedback')?.reset();
@@ -455,6 +470,10 @@ export function bindHumanoid(
         attached[i].binding.node.freezeWorldMatrix(a.matrix);
       }
       finishHistory();
+      // Freeze can happen before the island's turn (cap eviction) or inside advance.
+      // Only mark the owner after publishing every final affine matrix and history.
+      finalOwner = ragdoll.settled ? ragdoll : undefined;
+      restDuration = 0;
     },
     physicsShapes() {
       // One coarse box per anatomical body, plus one per held/stowed attachment. Decorative
@@ -557,6 +576,7 @@ export function bindHumanoid(
     entity.get('ragdoll')?.dispose();
     entity.remove('ragdoll');
     binding.invalidateHistory();
+    bodyMeshes.length = 0;
     history.retire();
     entity.remove('deathHandoff');
     entity.remove('rigPose');

@@ -1,7 +1,8 @@
 # CPU performance plan — queries, collision, rendering and animation
 
 **Status:** CPU0 through CPU3 are independently reviewed **READY**. Astra's final independent
-CPU4 review returned **APPROVE with zero findings**. **CPU5 is next** and has not started.
+CPU4 review returned **APPROVE with zero findings**. The [final independent CPU5 review](../VERIFICATION.md#cpu5--final-independent-review)
+returned **APPROVE**; the post-review cap/replacement test awaits review. **CPU6a is next** and has not started.
 See [delivery evidence](../VERIFICATION.md) and the [CPU0 baseline/tooling](cpu-baseline.md). This plan retains the completed CPU investigation at
 **`3cfb378`**; its historical measurements excluded concurrent shield-animation work. CPU0 must
 refresh them against the reviewed A0–A7/P8/P9 integration before accepting optimization results.
@@ -375,6 +376,10 @@ overlaps, sliding and same-tick A-then-B updates, including death/teleport/body 
 replacement. A reused result must remain valid for the exact current query.
 
 ### CPU5 — reduce scene traversal and transform overhead
+
+**Delivered and independently approved:** publish each settled ragdoll's final transform once
+and retire scene-owned caster and observation records. Camera candidate pruning, rigid merging,
+instancing and cutaway write changes were not retained. See the [CPU5 plan and closeout](plans/cpu5-scene-traversal.md).
 
 **Touchpoints:** `src/geometry.ts`, `src/buildDungeon.ts`, `src/player.ts`, `src/enemyRendering.ts`,
 `src/rigs/bindings.ts`, `src/deathPhysics.ts`, `src/observation.ts` and `src/main.ts`.

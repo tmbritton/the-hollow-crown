@@ -58,7 +58,7 @@ export class DeathPhysics {
       );
       this.records.set(entity, ragdoll);
       entity.add('ragdoll', ragdoll);
-      entity.require('rigPose').applyPhysics(ragdoll.world);
+      entity.require('rigPose').applyPhysics(ragdoll);
       entered.add(entity);
       // The entry publication is exactly the captured pose; simulation starts next fixed tick.
     }
@@ -66,7 +66,7 @@ export class DeathPhysics {
       const binding = entity.require('rigPose');
       binding.begin(dt);
       if (!entered.has(entity)) ragdoll.advance(dt);
-      binding.applyPhysics(ragdoll.world);
+      binding.applyPhysics(ragdoll);
       const p = entity.require('transform');
       p.x = ragdoll.world[12];
       p.z = ragdoll.world[14];

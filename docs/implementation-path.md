@@ -62,7 +62,9 @@ reviewed READY. A5 articulated tails is implemented, verified and independently 
 A6 shield motion is implemented, verified and independently reviewed READY; both blockers cleared.
 A7, P8–P9 and CPU0–CPU3 are implemented, verified and independently reviewed READY.**
 Astra's [final independent CPU4 review](../VERIFICATION.md#cpu4--final-independent-review)
-returned **APPROVE with zero findings**. **CPU5 is next.**
+returned **APPROVE with zero findings**. [CPU5's final independent review](../VERIFICATION.md#cpu5--final-independent-review)
+returned **APPROVE** for settled transform publication; the post-review test awaits review.
+**CPU6a is next.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 

@@ -373,6 +373,12 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       ecs.create(`render:${mesh.uniqueId}`).add('render', { root: null, meshes: [mesh] });
   const shadowMap = required(shadow.getShadowMap(), 'Shadow map unavailable');
   const shadowCasters = [...(shadowMap.renderList ?? [])];
+  const heroCasters = new Set(player.shadowMeshes);
+  scene.onDisposeObservable.addOnce(() => {
+    shadowCasters.length = 0;
+    heroCasters.clear();
+    if (shadowMap.renderList) shadowMap.renderList.length = 0;
+  });
   for (const mesh of scene.meshes)
     if (
       mesh instanceof Mesh &&
@@ -426,7 +432,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     shadow,
     shadowMap,
     shadowCasters,
-    heroCasters: new Set(player.shadowMeshes),
+    heroCasters,
     glow,
     fxaa,
     materials,

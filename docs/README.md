@@ -8,7 +8,8 @@ use [implementation path](implementation-path.md) for the dependency-ordered del
 | [Game direction](game-direction.md) | Chosen compact, simulation-heavy scenario direction: approachable single-adventurer controls, autonomous agendas, circumstance-driven escalation and provisional playtest candidates. |
 | [Implementation path](implementation-path.md) | Dependency-ordered feature slices and the test-first, verification, review, commit workflow. |
 | [Implementation progress](implementation-progress.md) | Delivery tracker, checks and review. P1–P7 delivered; P7 published at `3934e17`. T2/A0, A1–A7 and P8–P9 independently reviewed READY. |
-| [CPU performance plan](cpu-performance-plan.md) | CPU0–CPU3 independently reviewed READY; Astra's final independent CPU4 verdict is APPROVE with zero findings. CPU5 is next. |
+| [CPU performance plan](cpu-performance-plan.md) | CPU0–CPU3 independently reviewed READY; CPU4 and CPU5 independently approved. CPU6a is next. |
+| [CPU5 slice plan and closeout](plans/cpu5-scene-traversal.md) | Settled transform publication, lifecycle verification, unretained traversal trials and post-review coverage. |
 | [CPU baseline](cpu-baseline.md) | Reviewed CPU0 tooling, source-identified timing/count/parity reports, 22 workloads, pinned route replay, corrected lifecycle/phalanx gates, reference budgets and RTX 2070 frame intervals. |
 | [Animation roadmap](animation-roadmap.md) | Shared humanoid/tailed rigs, complete animation migration, shield motion and death physics. A0–A7 and P8–P9 independently reviewed READY. |
 | [Animation baseline](animation-baseline.md) | A0 review controls, complete 30-clip inventory, reproducible captures, current foot/grip defects, 25-actor baseline and initial A1/A2 budgets. |

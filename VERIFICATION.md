@@ -4,11 +4,230 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### CPU5 — final independent review
+
+The independent reviewer returned **APPROVE** for CPU5 on `main` over CPU4 `242b520`, with a
+minor, non-blocking coverage follow-up. This supersedes the earlier unsigned checkpoints below.
+Only settled transform publication was retained as a performance change; the approval does not
+imply a general render, shadow-pass, glow-pass, or FPS speedup. **CPU6a is next.**
+
+| Fresh reviewer check | Result |
+| --- | --- |
+| Paired hardware settled replay (CPU4 → CPU5) | 4,344 → 0 unchanged root-matrix publications; settled death-system advance 1.0–1.2 → 0.2 ms in the controlled replay |
+| High off-camera shadow probe | An off-camera caster produced a visible shadow in 1 of 4 tested orientations |
+| Full gate | 434 tests passed, plus typecheck, lint and format check |
+| Resource lifecycle | 3 same-seed resets passed retirement and plateau checks |
+
+**Post-review coverage (not part of the approval).** A new NullEngine regression in
+`tests/rig-bindings.test.ts` fills the production cap with 24 active islands, admits the 25th
+through `DeathPhysics`, and verifies oldest-island eviction, final affine publication, rest
+history, and no redundant write on the next tick. It then removes that ECS entity and recreates
+the same ID: a distinct handoff object still targeting the old entity is rejected, while a fresh
+handoff publishes on the replacement binding. The settled hardware/browser fixture and production
+code were not changed in this follow-up. `node --test tests/rig-bindings.test.ts` passed both tests;
+the post-review `npm run check:full` passed 435 tests plus typecheck, lint and format check, and
+`npm run build` passed. The new test is pending follow-up review. No commit was made.
+
+### CPU5 — original settled transform publication checkpoint
+
+This is the initial checkpoint; see [fix round 1](#cpu5--fix-round-1) for the subsequent
+browser, lifecycle, and workload results.
+
+Starting point: `main` at `242b520`. Only the settled-publication optimization is in the
+working tree. The binding keys the final pose to its ragdoll, publishes the final affine
+transforms as before, and advances history to rest on the next positive tick without another
+mesh write. Entry and active publication ordering, chunk envelopes, support reads, and
+camera/shadow/glow membership policies are unchanged. No camera candidate index, rigid merging,
+instancing, or cutaway write changes were retained; they have not earned a performance/parity gate.
+No claim is made that these omitted approaches were measured and disproved.
+
+**Red → green.** `tests/cpu-settled-browser.ts` first ran against unchanged CPU4 and reached
+the expected unchanged-root-write failure: **4,344 vs 0** (24 corpses × 180 fixed ticks plus
+24 calls through `binding.apply()`). Candidate: **0**. The paired replay checks active, forced
+pre-update freeze and long-settled phases; it matches all sampled affine entries, joint history,
+ragdoll radii, 607 corpse-contact boxes and camera state. Rest velocity is zero, and removal
+restores a finite, unfrozen living binding. Forced freeze tests the publication ordering used
+by cap eviction, but does not create a 25th live island to trigger the actual cap.
+
+**Rendered timing and parity.** Headed Chromium, WebGL2, ANGLE on NVIDIA RTX 2070, seed
+`MOURNING-731`, 800×450, 12 fixed gameplay steps before the authored deaths, 24 settled actors,
+High, 30 warm rendered frames followed by 3 × 60 frames. The benchmark drives only
+`DeathPhysics.advance(1/60)` then actual `scene.render()` in each sampled frame; it is not native
+catch-up or a full simulation-step benchmark. Write probes and render parity observers are off
+during timing. Timing tuples below are milliseconds, median / p95 / max, per repeat:
+
+| Inclusive region | CPU4 | CPU5 |
+| --- | --- | --- |
+| Death-system advance | 1.6 / 2.2 / 4.7; 1.5 / 1.7 / 3.0; 1.6 / 1.9 / 2.3 | 0.1 / 0.2 / 0.2; 0.1 / 0.2 / 0.2; 0.1 / 0.2 / 0.2 |
+| Scene render | 32.2 / 38.2 / 40.2; 31.0 / 34.3 / 43.5; 30.5 / 34.0 / 36.8 | 29.9 / 42.2 / 57.9; 22.6 / 25.8 / 33.5; 24.1 / 29.4 / 32.8 |
+
+Death advance improved beyond repeat spread. Render timings are inclusive and shared the
+desktop with other verification work; **no independent render cost, per-pass speedup, or FPS
+claim** is based on them. Sixteen camera-only frames (four orientations, radii 8/35, Low/High)
+matched ordered active-surface and caster identities, matrices, pass callbacks and PNG hashes.
+Low: 87–533 active meshes, zero shadow or glow callbacks. High: 87–534 active meshes, 349
+shadow and 3–22 glow mesh callbacks per sampled frame, including submitted casters absent from
+the main active list. Inspected the paired High near view (hero silhouette, shield and shadow).
+This is not a paired inspection/equipment/room-edge motion sequence or an isolated off-camera
+shadow-on-floor pixel test.
+
+In a separate pass-probed frame of the warmed **living** view, CPU4 and CPU5 matched:
+main (both qualities) 2,382 scene candidates, 2,061 frustum checks, 2,849 matrix requests
+with 33 matrix-update notifications, 29 bounds updates, 2,382 mesh and 450 material readiness
+calls; High shadow-target scope 2,237 matrix requests and zero update notifications; High
+glow-target scope 16 requests, four update notifications and ten material readiness calls.
+Both targets had no calls to the scene candidate hook; that does not mean zero target candidates
+or shader work. Low ran neither target. The test-only wrappers are restored after the single
+diagnostic frame. These target-scoped counts do not cover all effect/shadow shader readiness,
+blur or shadow-list maintenance, and are not per-pass timings or a traversal optimization trial.
+
+Artifacts: `test-results/cpu5-settled-hardware-{reference,candidate}.json`, paired PNGs, and
+`cpu5-settled-{pass-red,green}.log`. Reproduce the paired run by serving an unchanged CPU4 tree
+separately and running `DEMO_URL=<cpu4-url> CPU_GPU=hardware CPU_SETTLED_REFERENCE=1 node tests/cpu-settled-browser.ts`
+(expect the final budget assertion to fail after artifact output), then
+`CPU_GPU=hardware CPU_SETTLED_COMPARE=1 node tests/cpu-settled-browser.ts` against the candidate.
+The initial broader SwiftShader `profile:cpu` reference run lost its page context when the dev
+source changed; its partial log is not used as a paired benchmark, and the full eight-case
+matrix was not completed. A separate headed RTX 2070 run of
+`CPU_GPU=hardware CPU_CASES=live-low,live-high CPU_REPEATS=3 CPU_MODES=coarse npm run profile:cpu`
+completed for both versions (`cpu5-live-{reference,candidate}.log`). Native samples advanced
+different numbers of simulation ticks and their fingerprints differ. They show no demonstrated
+general speedup: mean frame intervals were 21.01–24.61 / 22.78–32.47 ms Low/High on CPU4 and
+24.83–30.11 / 29.37–40.24 ms on CPU5 with other desktop load. Do not substitute these samples
+for the controlled death-publication comparison.
+
+**Gates.** `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test` (416 passed,
+18 extended skipped), `npm run check:full` (434 passed), `npm run build`,
+`npm run test:cpu:production` (82 chunks, no profiling hooks), and `npm run test:production`
+(root smoke) passed. The focused binding, observation and skeleton-breakup Node tests passed
+(18). All listed targeted browser suites passed, including Firefox inspection and portraits;
+`test:resources` passed on an isolated rerun after a collision-plateau mismatch and a menu
+timeout in earlier attempts. The isolated CPU4 resource run also passed. Candidate Low
+plateaued across all three warmed regenerations at 1 scene, 2,382 meshes, 28 materials,
+4 textures and 58 effects, and retired collision owners had zero records. This does not
+establish retired-caster and observer accounting after a combined scatter/inspection replay.
+The general `npm run test:browser` **failed** in the landmark route driver on a physical
+collision at waypoint `[5,-29]`, after its render/shadow, input, door, stairs, water, lava and
+living-blocker checks passed. The cause was not isolated and no movement fix was attempted.
+Browser logs use `test-results/cpu5-test-*.log` and `cpu5-browser-summary.log`.
+Independent Astra review (`cpu5-independent-review-retry.log`) found no blocking defect in
+the settled fast path, but **blocked full CPU5 sign-off**: browser gates were still in progress
+at review time, paired interaction/motion coverage was incomplete, and detailed traversal
+attribution was missing. The test-only pass probe above partly addresses the last concern;
+CPU5 was unsigned at this checkpoint.
+
+### CPU5 — fix round 1
+
+**Landmark driver.** The original review saw different stalled cells (`[-53,28]` on CPU4,
+`[11,-29]` on CPU5; the first candidate run also reported `[5,-29]`). With native frames stopped
+before regeneration, both uncorrected drivers reproduced the *same* `MOURNING-731` failure at
+step 6210 on the throne leg: waypoint `[-24,0]`, position `[-23.27557,0,0.06645]`, speed and
+actual speed zero, camera north, inspection idle, no Babylon mesh contacts or nearby doors;
+the old nearest-enemy heuristic chose `kobold:treasury:0` and could not clear it by pursuit.
+The driver treated a tile-center route as physically mandatory and failed if pursuit couldn't
+kill the chosen enemy. It also used proximity rather than the actual interaction selected by E.
+The corrected driver records actual swept mesh and living-body contacts, opens the actual
+eligible door, bounds ordinary pursuit/attacks, and replans around a failed directed edge if
+necessary. No movement, damage, collision or progression rules were changed. Landmark captures
+no longer teleport the hero. The fixed replay completed all 15 legs across `MOURNING-731`,
+`CINDER-42`, and `VIOLET-7` with identical CPU4/CPU5 step, position and stall reports. For example,
+the corrected Mourning driver detects a swept contact with `kobold:treasury:0` at step 4362,
+abandons unsuccessful combat at 4962, defeats `skeleton:throne:0` through normal combat, and
+reaches the throne approach at 6120. The full Chromium `test:browser` passed all 23 checks,
+including an authored living blocker that must die before keyboard travel can continue.
+Reproduce with `LANDMARK_REPLAY=MOURNING-731,CINDER-42,VIOLET-7 BROWSER_REPORT=<path> npm run test:browser`
+against either dev server. Artifacts: `test-results/cpu5-r1-landmark-{cpu4,cpu5}[-red].json`.
+
+**Paired presentation and evidence.** `tests/cpu5-interactions-browser.ts` matched 19 frame
+fingerprints and PNG hashes on SwiftShader: physical doorway travel, portrait entry/view/exit,
+Low while inspecting, then High with stowed and held meshes. Inspected doorway, portrait, and
+held-state captures for cutaways, torch light, silhouette and ground shadows. The fixture also
+compares the selected living actor and hit distance through the production pick proxy, one
+witnessed death, zero immediate events for the unseen death, and a single later `remains-found`
+event. Before and after settling the actual skull triangles hit; the isolated skull is visible,
+rejected by the nine-unit eligibility control, hidden by a rendered slab, and itself hides a
+second render target (which reappears when the skull is hidden). Adding the old 4.8-unit envelope
+as a negative control first failed at 1.47 units. With an authored head velocity at handoff and
+the regular physics solver, the skull was 4.89 units from the pelvis while active and 5.50 at
+rest, with matching CPU4/CPU5 results. Nine units refers to viewer eligibility, not scatter range.
+The equipment test drives the authored binding output, not quest completion. Use
+`DEMO_URL=<cpu4-url> CPU5_REFERENCE=1 node tests/cpu5-interactions-browser.ts`, then the same
+script without those variables for the candidate. Reports/captures: `cpu5-r1-interactions-*`.
+
+**Eight-case hardware matrix.** RTX 2070 / Chromium WebGL2, `MOURNING-731`, 800×450,
+coarse mode, three fresh repeats each. Cells give the range of repeat mean frame times, then
+pooled p95 (ms). The six controlled cases matched digests across all repeats; live is native
+clock-driven with different fingerprints and is not a state-matched timing gate. The desktop
+was not idle throughout; the matrix does not establish a general speedup or explain the higher
+candidate times in some cases. The earlier controlled 24-corpse rendered fixture, not the
+small general `settled` workload, isolates the accepted publication win.
+
+| Case | CPU4 mean range / p95 | CPU5 mean range / p95 | Controlled digest |
+| --- | ---: | ---: | --- |
+| frames-low | 22.27–25.51 / 43.6 | 20.93–32.11 / 51.0 | `717fcc64` |
+| frames-high | 24.28–30.18 / 48.0 | 26.66–35.56 / 57.7 | `717fcc64` |
+| live-low | 23.35–47.71 / 66.3 | 26.62–45.07 / 54.3 | native |
+| live-high | 22.22–54.17 / 70.0 | 30.37–51.67 / 65.5 | native |
+| ragdoll | 4.81–5.48 / 7.3 | 5.14–5.88 / 7.9 | `594cd5ec` |
+| bones | 4.46–4.60 / 5.9 | 4.93–5.55 / 6.9 | `dd57176b` |
+| burst | 14.42–15.41 / 32.1 | 16.20–21.53 / 37.7 | `76a63fdd` |
+| settled | 4.24–4.80 / 5.6 | 4.67–7.17 / 8.2 | `2211e447` |
+
+Raw samples and summaries: `cpu0-cpu5-r1-cpu4*.json` in the isolated CPU4 tree's
+`test-results/` (`/tmp/opencode/cpu5-reference` in this run), and `cpu0-cpu5-r1-cpu5*.json`
+in the working tree's `test-results/`. Do not use the earlier same-label CPU4 output in the
+working tree: that launcher hashed the dirty CPU5 tree and failed its end-hash check.
+The isolated run hashed the CPU4 tree. A follow-up `?raw` check against both dev servers also
+compared all 112 served source files byte-for-byte to their local trees and, for CPU4, to
+`git show 242b520:<path>` (`test-results/cpu5-r1-served-sources.json`). Only the interaction
+fixture changed after the CPU5 profile; runtime and workload recipe were unchanged.
+Run the plan's eight `CPU_CASES` with
+`CPU_GPU=hardware CPU_REPEATS=3 CPU_MODES=coarse` in each source tree, with separate labels.
+
+**Alternative evaluation.** `CPU5_TRIAL=1 CPU_GPU=hardware node tests/cpu5-interactions-browser.ts`
+produces `cpu5-r1-interactions-cpu5-trial.json`. A reversible main-evaluation filter scanned the
+510 eligible frozen meshes and reduced Babylon's candidate list from 2,382 to 1,957–1,973.
+During rotating rendered trials, Low median ranges were 11.4–13.0 ms plain vs 11.3–12.5 trial;
+High 25.6–33.9 vs 30.0–33.3. It did not prove a timing win and one Low orientation failed the
+combined active-order/pixel comparison. Reject this filter, not all possible spatial indexes.
+The shadow list was kept independent; this is not an isolated shadow/glow timing comparison.
+Rigid inventory found eight shared-pivot, same-material skull/jaw pairs (at most eight fewer
+meshes for that merge), but the skull is the actual head evidence surface in every pair;
+merging the jaw into that representative directly would change its triangle set and center.
+Static inventory found 508 already-frozen spatial batches and 20 thin-instance meshes/pools,
+including 13 room rubble groups. A one-for-one bounded instancing substitution would not remove
+a camera candidate and would need to preserve face masking, per-vertex tint, and shadow and
+observation behavior. Do not retain either geometry change on this inventory; no comparable
+merged or instanced end-to-end timing was run. Cutaway sampling found 11,928 identical of
+23,760 writes in 60 still-view presentation updates, and 9,382 during rotation (still easing,
+not a fully converged stationary view). This establishes avoidable assignments, not a coarse
+CPU win. No cutaway write guard retained.
+
+**Ownership, red → green.** After real combat target selection, separated death, observation
+index population, High rendering and active inspection, the new probe initially found 1,927
+retired caster references and 5,265 observation records. Scene-owned retirement now clears the
+caster inventories and the observation caches and unregisters observation callbacks. Three
+same-seed resets each checked disposed mesh identities, zero old scene meshes, casters, observed
+mesh/scene callbacks, observation records, chunk surface refs and physics bodies/constraints,
+and no retired mesh reused. The warmed Low scene plateaued at 2,382 meshes, 495 transform
+nodes, 28 materials, 4 textures/render targets, 58 effects, 1,890 caster entries (37 hero entries),
+and two mesh-removal observers. Artifact: `test-results/cpu5-r1-resource.json`.
+
+**Round gates.** `npm test` (416 passed), `npm run check:full` (434 passed, typecheck, lint, format), `npm run build`,
+both production checks, and browser/resources/CPU regressions, movement, ragdoll contacts,
+skeleton breakup and inspection passed. Discoveries passed on an isolated rerun after its
+first run was interrupted. The independent round review (`/tmp/opencode/cpu5-r1-independent-retry.log`)
+found no blocking defect in the settled fast path or lifecycle fix, but did not sign off broader
+CPU5. The served-source and off-root probes above were run in response. At this checkpoint,
+there was no isolated off-camera shadow-on-floor pixel assertion, actual cap-eviction/same-ID
+replacement replay, or demonstrated stage-specific speedup outside settled publication. The
+settled optimization remains the only retained performance change. No commit was made.
+
 ### CPU4 — final independent review
 
 Astra's final independent review of CPU4 on `main` returned **APPROVE with zero findings**.
 This supersedes the pending statuses in the historical checkpoints below, including the
-pursuit-only follow-up. CPU4 remains uncommitted; CPU5 is next and has not started.
+pursuit-only follow-up. This is the historical CPU4 verdict; CPU4 is now at `242b520`.
 
 | Evidence | Result |
 | --- | --- |

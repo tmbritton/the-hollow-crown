@@ -9,7 +9,8 @@ import type { BrowserReport, DebugWindow } from './browserTypes.ts';
 declare const window: DebugWindow;
 
 const base = process.env.DEMO_URL || 'http://localhost:5173',
-  browserName = process.env.BROWSER || 'chromium';
+  browserName = process.env.BROWSER || 'chromium',
+  replaySeeds = process.env.LANDMARK_REPLAY?.split(',');
 await withViteServer(base, 'dev', async () => {
   await mkdir('test-results', { recursive: true });
   const browser = await (browserName === 'firefox' ? firefox : chromium).launch({
@@ -23,11 +24,12 @@ await withViteServer(base, 'dev', async () => {
     page.setDefaultNavigationTimeout(90000);
     const errors: string[] = [],
       requests: string[] = [];
-    const report: BrowserReport = {
+    const report: BrowserReport & { travel?: unknown[] } = {
       browser: browserName,
       checks: [],
       screenshots: [],
       regenerations: [],
+      travel: [],
     };
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => {
@@ -92,8 +94,8 @@ await withViteServer(base, 'dev', async () => {
       }, id);
     }
 
-    // Terrain routing remains independent of production navigation. A living blocker must
-    // be defeated through ordinary pursuit/attacks before the physical route is replanned.
+    // Tile routes are proposals, not proof a swept keyboard move can traverse each edge.
+    // Keep live physics/AI, retry around failed edges, and use ordinary combat for blockers.
     async function walkTo(x: number, z: number) {
       const result = await page.evaluate(
         ({ x, z }) => {
@@ -102,9 +104,31 @@ await withViteServer(base, 'dev', async () => {
             p = g.player.root.position,
             w = g.world;
           const immunity = g.player.actor.health.invulnerable;
+          const proxy = g.scene.getMeshByName(`${g.player.actor.id} collision proxy`)!;
+          const contacts = new Set<string>();
+          const observer = proxy.onCollideObservable.add((mesh) => contacts.add(mesh.name));
+          const occupancy = g.player.navigator.occupancy!;
+          const previousProbe = occupancy.contactProbe;
+          let livingContact: string | undefined;
+          occupancy.contactProbe = ({ hit, from, to, bodies }) => {
+            if (!hit) return;
+            const probe = occupancy.contactProbe;
+            occupancy.contactProbe = undefined;
+            try {
+              const body = bodies.find((b) => !occupancy.segmentClear(from, to, [b]));
+              if (body)
+                livingContact = g.combat.enemies.find(
+                  (a) => a.alive && a.position.x === body.x && a.position.z === body.z,
+                )?.id;
+            } finally {
+              occupancy.contactProbe = probe;
+            }
+          };
+          const rejected = new Set<string>();
+          const stalls = [];
           g.player.actor.health.invulnerable = Infinity;
           try {
-            route: for (let replans = 0; replans <= g.combat.enemies.length; replans++) {
+            route: for (let replans = 0; replans < 48; replans++) {
               const key = (x: number, z: number) => `${Math.round(x)},${Math.round(z)}`;
               const start = key(p.x, p.z),
                 goal = key(x, z),
@@ -136,17 +160,25 @@ await withViteServer(base, 'dev', async () => {
                   )
                     continue;
                   const k = key(next.x, next.z);
-                  if (parents.has(k)) continue;
+                  if (parents.has(k) || rejected.has(`${queue[i]}>${k}`)) continue;
                   parents.set(k, queue[i]);
                   queue.push(k);
                 }
               }
               if (!parents.has(goal))
-                return { ok: false, reason: 'No navigation route', goal, position: p.asArray() };
+                return {
+                  ok: false,
+                  reason: 'No navigation route',
+                  goal,
+                  position: p.asArray(),
+                  stalls,
+                };
               const route: number[][] = [];
               for (let at: string | null = goal; at !== null; at = parents.get(at) ?? null)
                 route.unshift(at.split(',').map(Number));
               for (const [index, [tx, tz]] of route.entries()) {
+                contacts.clear();
+                livingContact = undefined;
                 const finalWaypoint = index === route.length - 1;
                 let reached = false,
                   stuck = 0;
@@ -156,16 +188,10 @@ await withViteServer(base, 'dev', async () => {
                     reached = true;
                     break;
                   }
-                  const door = w.entities.find(
-                    (e) =>
-                      e.type === 'door' &&
-                      !e.open &&
-                      !e.locked &&
-                      Math.hypot(e.x - p.x, e.z - p.z) < 2.3,
-                  );
-                  if (door) {
+                  const door = g.nearest;
+                  if (door?.type === 'door' && !door.locked && !door.open) {
                     d.interact();
-                    d.step([], 60);
+                    if (door.open) d.step([], 40);
                   }
                   const codes = [];
                   if (tx - p.x > 0.045) codes.push('KeyD');
@@ -183,58 +209,83 @@ await withViteServer(base, 'dev', async () => {
                   if (stuck > 15) break;
                 }
                 if (!reached) {
-                  const blocker = g.combat.enemies
-                    .filter(
-                      (enemy) =>
-                        enemy.alive &&
-                        Math.abs(enemy.position.h - p.y) < 0.9 &&
-                        Math.hypot(enemy.position.x - p.x, enemy.position.z - p.z) < 2.5,
-                    )
-                    .sort(
-                      (a, b) =>
-                        Math.hypot(a.position.x - p.x, a.position.z - p.z) -
-                        Math.hypot(b.position.x - p.x, b.position.z - p.z),
-                    )[0];
-                  if (blocker) {
-                    g.combat.target(g.player.actor, blocker);
-                    // Bounded normal combat: no direct damage, actor deletion or disabled collision.
-                    for (let frame = 0; frame < 1800 && blocker.alive; frame++) d.step([], 1);
-                    g.player.actor.attack.cancel();
-                    g.player.actor.navigator.cancel();
-                    if (!blocker.alive) continue route;
-                  }
-                  return {
-                    ok: false,
-                    reason: 'Physical collision',
+                  const edge = `${route[index - 1]?.join(',') ?? start}>${key(tx, tz)}`;
+                  const blocker = livingContact ? g.combat.actor(livingContact) : undefined;
+                  const stall = {
+                    step: g.steps,
+                    edge,
                     waypoint: [tx, tz],
                     position: p.asArray(),
+                    controller: {
+                      speed: g.player.motion.speed,
+                      actualSpeed: g.player.motion.actualSpeed,
+                      alpha: g.camera.alpha,
+                      inspection: g.inspection.state,
+                      nearest: g.nearest?.id,
+                    },
+                    blocker: livingContact,
+                    contacts: [...contacts],
+                    doors: w.entities.flatMap((e) =>
+                      e.type === 'door' && Math.hypot(e.x - p.x, e.z - p.z) < 4
+                        ? [[e.id, e.open, e.locked, e.x, e.z]]
+                        : [],
+                    ),
                   };
+                  if (blocker?.alive) {
+                    g.combat.target(g.player.actor, blocker);
+                    // Bounded normal combat: no direct damage, actor deletion or disabled collision.
+                    for (
+                      let frame = 0;
+                      frame < 600 && blocker.alive && g.player.actor.attack.target;
+                      frame++
+                    )
+                      d.step([], 1);
+                    g.player.actor.attack.cancel();
+                    g.player.actor.navigator.cancel();
+                    stalls.push({ ...stall, resumedAt: g.steps, defeated: !blocker.alive });
+                    if (!blocker.alive) continue route;
+                  } else stalls.push(stall);
+                  if (index === 0) {
+                    // If rounding put us in the obstructed target cell, start planning from
+                    // here rather than forcing the center of that cell before leaving it.
+                    if (!finalWaypoint) continue;
+                    break route;
+                  }
+                  rejected.add(edge);
+                  continue route;
                 }
               }
-              return { ok: true, position: p.asArray() };
+              return { ok: true, position: p.asArray(), stalls };
             }
             return {
               ok: false,
               reason: 'Traversal replan budget exhausted',
               position: p.asArray(),
+              stalls,
             };
           } finally {
+            proxy.onCollideObservable.remove(observer);
+            occupancy.contactProbe = previousProbe;
             g.player.actor.health.invulnerable = immunity;
           }
         },
         { x, z },
       );
-      assert.ok(result.ok, JSON.stringify(result));
+      const state = await page.evaluate(() => ({
+        seed: window.__dungeon.game.world.seed,
+        step: window.__dungeon.game.steps,
+        position: window.__dungeon.game.player.root.position.asArray(),
+      }));
+      const evidence = { ...state, goal: [x, z], ...result };
+      report.travel!.push(evidence);
+      assert.ok(result.ok, JSON.stringify(evidence));
     }
-    async function showRoom(id: RoomId, name: string = id) {
-      const target =
-        id === 'altar' || id === 'throne' ? (await entity(id)).approach : await room(id);
-      await teleport(target.x, target.z);
+    async function captureLandmark(name: string) {
       await page.evaluate(() => {
         const g = window.__dungeon.game;
         g.camera.alpha = g.desiredAlpha = -Math.PI / 4;
+        g.scene.render();
       });
-      await page.waitForTimeout(500);
       await screenshot(name);
       await north();
     }
@@ -258,25 +309,17 @@ await withViteServer(base, 'dev', async () => {
       for (const id of rooms) {
         const r = await room(id);
         await walkTo(r.x, r.z);
-        if (capture) {
-          await page.evaluate(() => {
-            const g = window.__dungeon.game;
-            g.camera.alpha = g.desiredAlpha = -Math.PI / 4;
-          });
-          await page.waitForTimeout(300);
-          await screenshot(id);
-          await north();
-        }
+        if (capture) await captureLandmark(id);
       }
       const altar = await entity('altar');
       await walkTo(altar.approach.x, altar.approach.z);
-      await interact();
+      await page.evaluate(() => window.__dungeon.interact());
       assert.equal((await snapshot()).active, true);
-      if (capture) await showRoom('altar');
+      if (capture) await captureLandmark('altar');
       const throne = await entity('throne');
       await walkTo(throne.approach.x, throne.approach.z);
-      if (capture) await showRoom('throne');
-      await interact();
+      if (capture) await captureLandmark('throne');
+      await page.evaluate(() => window.__dungeon.interact());
       assert.equal((await snapshot()).complete, true);
       await page.locator('#continue').click();
       await north();
@@ -380,6 +423,23 @@ await withViteServer(base, 'dev', async () => {
     }
 
     try {
+      if (replaySeeds) {
+        await page.goto(`${base}/?debug&seed=MOURNING-731`);
+        await settle();
+        for (const seed of replaySeeds) {
+          await page.evaluate((seed) => {
+            const d = window.__dungeon;
+            d.engine.stopRenderLoop();
+            d.regenerate(seed);
+          }, seed);
+          await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
+          assert.equal(await page.evaluate(() => window.__dungeon.game.steps), 0);
+          await completeRun();
+          pass(`Fixed-step landmark replay ${seed}`);
+        }
+        report.success = true;
+        return;
+      }
       await page.goto(`${base}/?debug`);
       await settle();
       const loadSeeds = new Set([(await snapshot()).seed]);
@@ -634,7 +694,10 @@ await withViteServer(base, 'dev', async () => {
       console.error(error);
       process.exitCode = 1;
     } finally {
-      await writeFile(`test-results/${browserName}-report.json`, JSON.stringify(report, null, 2));
+      await writeFile(
+        process.env.BROWSER_REPORT || `test-results/${browserName}-report.json`,
+        JSON.stringify(report, null, 2),
+      );
     }
   } finally {
     await browser.close();
