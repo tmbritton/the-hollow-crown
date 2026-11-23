@@ -1,7 +1,7 @@
 # CPU5 — Reduce scene traversal and transform overhead
 
 Task source: [CPU5, including its gate](../cpu-performance-plan.md#cpu5--reduce-scene-traversal-and-transform-overhead).  
-Status: [final independent **APPROVE**](../../VERIFICATION.md#cpu5--final-independent-review). The later cap-eviction and same-ID regression is included in CPU5 `f3fa9a3`; it was not part of the original approval. [CPU6a is independently approved](../../VERIFICATION.md#cpu6a--animation-geometry); [CPU6b is next](../cpu-performance-plan.md#cpu6b--separate-presentation-solving-from-simulation-frequency).
+Status: [final independent **APPROVE**](../../VERIFICATION.md#cpu5--final-independent-review). The later cap-eviction and same-ID regression is included in CPU5 `f3fa9a3`; it was not part of the original approval. See the [current delivery queue](../implementation-path.md) for the later slices.
 
 Branch: `main`, starting at CPU4 `242b520`. No commits requested.
 

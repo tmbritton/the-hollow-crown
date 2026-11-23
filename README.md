@@ -111,8 +111,10 @@ included in CPU5 `f3fa9a3`. [CPU6a received final independent **APPROVE**](VERIF
 including both follow-ups, at `96849ae`.
 [**CPU6b retained subset**](VERIFICATION.md#cpu6b--retained-full-rate-subset): living pose transfer,
 completion and drawing stay synchronous at fixed-tick rate, with separate development timings.
-The scheduler/LOD is deferred after the historical trial missed its whole-frame gate. **CPU7 is
-next by decision**, not because CPU6b passed its performance gate.
+The scheduler/LOD is deferred after the historical trial missed its whole-frame gate. The
+[CPU7 desktop investigation](docs/cpu7-integrated-results.md) was independently approved as a
+negative report, not a performance pass: measured desktop budgets were missed and matched-start
+speedup remains inconclusive.
 See the [CPU0 baseline and profiling commands](docs/cpu-baseline.md). EF0–EF4 follow the CPU pass before further
 procedural-feature expansion; see the [delivery sequence](docs/implementation-path.md).
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),

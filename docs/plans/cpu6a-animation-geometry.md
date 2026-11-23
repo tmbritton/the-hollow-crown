@@ -2,7 +2,7 @@
 
 - **Task source**: [CPU6a backlog contract](../cpu-performance-plan.md#cpu6a--only-construct-animation-geometry-when-needed)
 - **Epic / Story**: CPU performance / CPU6a
-- **Status**: [Final independent **APPROVE**](../../VERIFICATION.md#cpu6a--animation-geometry), including [follow-up 1](cpu6a-follow-up-1.md) and [follow-up 2](cpu6a-follow-up-2.md). Uncommitted on `main`; [CPU6b is next](../cpu-performance-plan.md#cpu6b--separate-presentation-solving-from-simulation-frequency).
+- **Status**: [Final independent **APPROVE**](../../VERIFICATION.md#cpu6a--animation-geometry), including [follow-up 1](cpu6a-follow-up-1.md) and [follow-up 2](cpu6a-follow-up-2.md), at `96849ae`. See the [current delivery queue](../implementation-path.md) for the later slices.
 - **Branch**: `main`, baseline CPU5 `f3fa9a3`. No commits requested.
 
 ## Goal

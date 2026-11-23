@@ -50,7 +50,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
   [CPU6a received final independent **APPROVE**](../VERIFICATION.md#cpu6a--animation-geometry),
   including both follow-ups, at `96849ae`. The [exact CPU6b retained subset](../VERIFICATION.md#cpu6b--retained-full-rate-subset)
   received final independent **APPROVE** for correctness only. Scheduler/LOD is deferred and the
-  whole-frame criterion remains unmet. **CPU7 is next by decision.**
+  whole-frame criterion remains unmet. The [CPU7 investigation](cpu7-integrated-results.md) was
+  independently approved as a negative report, not performance acceptance.
 - **Effect adoption remains before the next procedural-feature expansion, after CPU7.**
   EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
@@ -178,9 +179,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | CPU1–CPU4 | CPU1–CPU3 independently reviewed READY; CPU4 independently approved with zero findings | Door queries → stationary collision → route hitches → nearby candidates | See [verification](../VERIFICATION.md#cpu4--final-independent-review) for per-slice evidence | Through `242b520` |
 | CPU5 | Independently approved; later cap/replacement coverage landed | Settled transform publication and scene-owned resource retirement | Fresh reviewer hardware: 4,344 → 0 unchanged root writes, 1.0–1.2 → 0.2 ms death advance; full 434 and 3 resets. [Later regression](../VERIFICATION.md#cpu5--final-independent-review): full 435 | `f3fa9a3` |
 | CPU6a | Final independent APPROVE, including both follow-ups | Demand-driven clearance, certified geometry reuse, indexed settled contacts and one combined surface budget | [Closeout](../VERIFICATION.md#cpu6a--animation-geometry): 37 fresh focused tests and static/diff checks; existing 456-test full gate and matched RTX 2070 replay | `96849ae` |
-| CPU6b | Exact retained subset: final independent APPROVE for correctness only; scheduler/LOD deferred, whole-frame criterion unmet | Full-rate ownership, development attribution and parity tests only | [Subset evidence](../VERIFICATION.md#cpu6b--retained-full-rate-subset): 46 fresh focused tests; typecheck, lint, format and production isolation passed; 459 full tests and hardware/browser results reused | Uncommitted on `main` |
-| CPU7 | Next, not started | Integrated CPU acceptance on the retained tree | [CPU performance plan](cpu-performance-plan.md#6-cpu7--integrated-acceptance-and-remaining-gpu-work) | — |
-| EF0–EF4 | Planned after CPU7, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
+| CPU6b | Exact retained subset: final independent APPROVE for correctness only; scheduler/LOD deferred, whole-frame criterion unmet | Full-rate ownership, development attribution and parity tests only | [Subset evidence](../VERIFICATION.md#cpu6b--retained-full-rate-subset): 46 fresh focused tests; typecheck, lint, format and production isolation passed; 459 full tests and hardware/browser results reused | `88a297e` |
+| CPU7 | Investigation independently approved; no performance acceptance | Integrated desktop study on the retained tree | [Results and scorecard](cpu7-integrated-results.md): measured budgets unmet, matched-start speedup inconclusive, GPU attribution unresolved | Uncommitted on `main` |
+| EF0–EF4 | Next in the agreed queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log

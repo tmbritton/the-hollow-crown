@@ -4,7 +4,8 @@
 CPU4 review returned **APPROVE with zero findings**. The [final independent CPU5 review](../VERIFICATION.md#cpu5--final-independent-review)
 returned **APPROVE**; the later cap/replacement test landed in `f3fa9a3`.
 [CPU6a received final independent **APPROVE**](../VERIFICATION.md#cpu6a--animation-geometry),
-including both follow-ups, at `96849ae`. **CPU6b scheduler/LOD is deferred; CPU7 is next by decision.**
+including both follow-ups, at `96849ae`. **CPU6b scheduler/LOD is deferred.** The [CPU7 investigation](cpu7-integrated-results.md)
+was independently approved; performance targets were not accepted.
 See [delivery evidence](../VERIFICATION.md) and the [CPU0 baseline/tooling](cpu-baseline.md). This plan retains the completed CPU investigation at
 **`3cfb378`**; its historical measurements excluded concurrent shield-animation work. CPU0 must
 refresh them against the reviewed A0–A7/P8/P9 integration before accepting optimization results.
@@ -457,7 +458,7 @@ drawn corpse geometry; corpses remain passable and cannot change support/navigat
 **Status: deferred — scheduler/LOD performance gate unmet.** Keep the
 [full-rate subset](plans/cpu6b-retained-subset.md) for ownership and observability only.
 The contract below is for any future scheduling work, not a description of the retained code.
-CPU7 is next by decision; no FPS or scheduler acceptance is implied.
+The subsequent CPU7 investigation did not reopen the scheduler or establish an FPS pass.
 
 Introduce explicit stages for fixed-step motion/action/feedback state, death-physics advance and
 consumer publication, expensive living pose solving, and mesh binding. Prove the stage boundaries
@@ -563,6 +564,10 @@ browser checks and the production smoke check. Reuse trustworthy completed check
 review; add targeted probes for suspected gaps instead of repeating broad suites without cause.
 
 ## 6. CPU7 — integrated acceptance and remaining GPU work
+
+See the [CPU7 execution report](cpu7-integrated-results.md) for the approved negative investigation.
+Measured desktop budgets are unmet, strict matched-start speedup is inconclusive, and GPU
+attribution is unresolved. The criteria below remain the performance contract, not a pass verdict.
 
 Repeat bounded baseline/candidate sessions at equal seeds, actor states, elapsed simulation times,
 camera paths and quality settings. Include idle, travel, doors, busy phalanxes, repeated shield

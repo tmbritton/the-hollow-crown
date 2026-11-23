@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
 import { withViteServer } from './testServer.ts';
+import { withCpu7InteractionServer } from './cpu7-interaction-server.ts';
 import { trialTraversal } from './cpu5-traversal-trial.ts';
 import { rendererKind } from '../src/cpuMetrics.ts';
 import type { DebugWindow } from './browserTypes.ts';
@@ -10,14 +11,18 @@ import type { Ray } from '@babylonjs/core/Culling/ray.js';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 
 declare const window: DebugWindow;
-const base = process.env.DEMO_URL ?? 'http://localhost:5173';
 const reference = process.env.CPU5_REFERENCE === '1';
 const trial = process.env.CPU5_TRIAL === '1';
 const hardware = process.env.CPU_GPU === 'hardware';
 const label = reference ? 'cpu4' : 'cpu5';
-const artifact = (suffix: string) => `test-results/cpu5-r1-interactions-${suffix}`;
-await withViteServer(base, 'dev', async () => {
-  await mkdir('test-results', { recursive: true });
+const study = process.env.CPU7_INTERACTION_LABEL;
+if (study !== undefined) assert.match(study, /^[a-zA-Z0-9_-]{1,30}$/);
+const artifact = (suffix: string) =>
+  study
+    ? `test-results/cpu7/${study}-off-root-${suffix}`
+    : `test-results/cpu5-r1-interactions-${suffix}`;
+async function observe(base: string) {
+  await mkdir(study ? 'test-results/cpu7' : 'test-results', { recursive: true });
   const browser = await chromium.launch({
     headless: !hardware,
     args: hardware
@@ -319,16 +324,25 @@ await withViteServer(base, 'dev', async () => {
     }
     assert.ok(frames.some((frame) => frame.inspection === 'viewing'));
     assert.ok(frames.at(-2)?.stowed?.length && frames.at(-1)?.held?.length);
-    if (!reference)
+    if (!reference && !study)
       assert.equal(
         json,
         await readFile(artifact('cpu4.json'), 'utf8'),
         'CPU4 interaction, phase and pixel parity',
       );
+    const scope = study ? `CPU7 ${study} standalone` : 'paired CPU5';
     console.log(
-      `PASS paired CPU5 interaction replay: ${frames.length} frames, picks and bone evidence`,
+      `PASS ${scope} interaction replay: ${frames.length} frames, picks and bone evidence`,
     );
   } finally {
     await browser.close();
   }
-});
+}
+
+if (study) {
+  assert.ok(!reference && !trial, 'CPU7 does not support CPU5 reference or trial mode');
+  await withCpu7InteractionServer(process.env.DEMO_URL, observe);
+} else {
+  const base = process.env.DEMO_URL ?? 'http://localhost:5173';
+  await withViteServer(base, 'dev', () => observe(base));
+}

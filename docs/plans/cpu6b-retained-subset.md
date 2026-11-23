@@ -2,7 +2,7 @@
 
 - **Task source**: User decision to stop tuning and take CPU7 next; [CPU6b contract, lines 455–509](../cpu-performance-plan.md#cpu6b--separate-presentation-solving-from-simulation-frequency); [follow-up and round 2 evidence, lines 7–222](../../VERIFICATION.md#cpu6b--follow-up-1-diagnostics-and-shadow-census-stopped-before-replay).
 - **Epic / Story**: CPU performance / CPU6b retained subset.
-- **Status**: The exact retained subset received [final independent **APPROVE** for correctness only](../../VERIFICATION.md#cpu6b--retained-full-rate-subset). Scheduler/LOD deferred; whole-frame criterion unmet. CPU7 integrated acceptance is next by decision, not by a CPU6b performance pass.
+- **Status**: The exact retained subset received [final independent **APPROVE** for correctness only](../../VERIFICATION.md#cpu6b--retained-full-rate-subset). Scheduler/LOD deferred; whole-frame criterion unmet. The subsequent [CPU7 investigation](../cpu7-integrated-results.md) did not change that verdict.
 - **Branch**: `main`; compare the dirty tree to CPU6a `96849ae`, not to an experimental switch in the candidate.
 
 ## Goal

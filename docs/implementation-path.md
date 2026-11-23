@@ -66,7 +66,9 @@ returned **APPROVE with zero findings**. [CPU5's final independent review](../VE
 returned **APPROVE** for settled transform publication; the later cap/replacement test landed in
 `f3fa9a3`. [CPU6a received final independent **APPROVE**](../VERIFICATION.md#cpu6a--animation-geometry)
 including both follow-ups at `96849ae`. CPU6b retains only full-rate ownership, profiling,
-and parity checks; its scheduler/LOD is deferred. **CPU7 is next by decision.**
+and parity checks; its scheduler/LOD is deferred. The [CPU7 investigation](cpu7-integrated-results.md)
+was independently approved, with performance targets unmet or inconclusive. EF0–EF4 are next in
+the agreed delivery sequence and have not started.
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -80,7 +82,7 @@ shared full-body rig, tailed kobolds, complete animation migration and shield mo
 The [animation roadmap](animation-roadmap.md) contains their architecture, per-slice gates, migration
 inventory and compaction handoff. Preserve the raw notes as the source of intent.
 
-## Next delivery queue — CPU performance
+## CPU performance delivery sequence
 
 The user promoted the [CPU performance plan](cpu-performance-plan.md) on **2026-11-21**, after
 P9's independent READY review. Implement these slices in order, with test-first correctness,
@@ -100,7 +102,7 @@ P8 fixed-step physics and P9 scattered geometry as explicit profiling and accept
 | CPU5 | Reduce scene traversal, transforms and repeated frozen publication | Equal camera/state measurements; exact affine remains, separate death-chunk merge groups, picking, dynamic observation envelopes, shadows and cutaways survive consolidation; resources plateau. |
 | CPU6a | Demand-driven/cached animation and settled-contact geometry | Share prepared geometry and rebuild only relevant surfaces with pose/visibility/support invalidation. Candidate-pose checks retain exact snapshot inputs; preserve shield/tail/equipment clearance, once-per-pair final tail checks, corpse sampling and deterministic ordering. |
 | CPU6b | Scheduler/LOD deferred; [retain the full-rate subset](plans/cpu6b-retained-subset.md) | No skipped solves or writes. The historical whole-frame gate was not met; parity and attribution are verified separately for the retained diff. |
-| CPU7 | Integrated performance, resource and visual acceptance | Equivalent seeded workloads and camera paths, p95/max hitch and resource checks. Hardware FPS claims require real hardware evidence; report remaining goals explicitly. |
+| CPU7 | [Approved integrated investigation](cpu7-integrated-results.md); no performance acceptance | Measured desktop budgets missed, strict matched-start gains inconclusive, javelin max regressed in the diagnostic, GPU attribution unresolved. |
 
 CPU2 follows CPU1 in delivery order but retains an independent CPU0 comparison. CPU6a and CPU6b
 are separate review gates. The detailed work bounds, numerical targets and affected suites remain

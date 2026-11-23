@@ -3,7 +3,9 @@
 **Status:** planned; no production adoption has started. **Date:** 2026-11-20.
 
 **Scheduling (updated 2026-11-21):** A0–A7 and P8/P9 are complete and independently reviewed READY.
-The user placed **CPU0–CPU7 next**, followed by EF0–EF4 in the [implementation path](implementation-path.md).
+The user placed CPU0–CPU7 ahead of EF0–EF4 in the [implementation path](implementation-path.md).
+The [CPU7 investigation](cpu7-integrated-results.md) is now approved without performance acceptance;
+EF0–EF4 are next in the queue, not started.
 EF0–EF4 still precede **the next expansion of procedurally generated features**—new scene recipes,
 keep variants, adventure grammars, or generated encounters/objectives. If content work is rescheduled,
 carry this prerequisite with it; refresh EF0's measurements after the CPU pass.

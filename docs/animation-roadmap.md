@@ -463,9 +463,10 @@ the existing Pages workflow, with a hosted smoke for meaningful release changes.
     P8 and P9 are complete and independently reviewed READY. Keep every catalog row in the
    migration checklist; a walking hero alone
    is not completion of the rig conversion.
-5. The user scheduled [CPU0–CPU7](cpu-performance-plan.md) next on **2026-11-21**. Begin with CPU0's
-   fresh post-P9 measurement baseline; retain the completed rig, handoff and scattered-remains
-   contracts through optimization. EF0–EF4 follow CPU7 before procedural-feature expansion.
+5. The user scheduled [CPU0–CPU7](cpu-performance-plan.md) on **2026-11-21**, starting with CPU0's
+   fresh post-P9 baseline and preserving the completed rig, handoff and scattered-remains contracts.
+   The [CPU7 investigation](cpu7-integrated-results.md) was approved without performance acceptance;
+   CPU6b scheduler/LOD stays deferred. EF0–EF4 are next before procedural-feature expansion.
 
 ### Reference and continuity
 
