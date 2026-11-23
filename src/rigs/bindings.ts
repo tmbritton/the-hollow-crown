@@ -16,11 +16,15 @@ import {
   setEuler,
   transformPoint,
 } from './pose.ts';
-import { matrixRotation, orthonormalize } from './ikMath.ts';
+import { copyLocal, matrixRotation, orthonormalize } from './ikMath.ts';
 import { bodyOwner } from '../ragdoll.ts';
 import type { Ragdoll, RagdollShape } from '../ragdoll.ts';
 import { PoseHistory } from './history.ts';
 import type { Spawn } from '../worldTypes.ts';
+import type { Actor } from '../actors.ts';
+import type { LocomotionPose } from '../locomotion.ts';
+import type { NavigationWorld } from '../navigation.ts';
+import type { CorpseContactQuery } from '../corpseTerrain.ts';
 import { GroundedLocomotion } from './grounding.ts';
 import { ActionRig, SHIELD_GRIP, SPEAR_GRIPS } from './actions.ts';
 import type { ActionFrame } from './actions.ts';
@@ -33,7 +37,7 @@ import {
   RIG_SURFACE_LIMIT,
 } from './tailClearance.ts';
 import type { RigSurface } from './tailClearance.ts';
-import { cpuTrace } from '../cpuMetrics.ts';
+import { cpuTiming, cpuTrace } from '../cpuMetrics.ts';
 import { actorGeometry } from '../actorGeometry.ts';
 
 export interface RigBinding {
@@ -67,6 +71,12 @@ export interface RigBinding {
   begin(dt: number): void;
   invalidateHistory(): void;
   reset(position?: Spawn, heading?: number): void;
+  applyGrounded(
+    actor: Actor,
+    motion: LocomotionPose,
+    world?: NavigationWorld,
+    corpses?: CorpseContactQuery,
+  ): void;
   apply(deferTail?: boolean): void;
   applyTail(): void;
   applyPhysics(ragdoll: Ragdoll): void;
@@ -482,6 +492,55 @@ export function bindHumanoid(
     else local.set(entry.world);
     if (writeMatrix(entry, body && sampledDraw())) bodyRevision++;
   };
+  const writeDraw = (deferTail: boolean) => {
+    for (const entry of bodyEntries) applyEntry(entry, true);
+    if (!deferTail) for (const entry of tailEntries) applyEntry(entry);
+    if (rig.cape) {
+      if (rig.cape.rotation.x !== binding.cape) bodyRevision++;
+      rig.cape.rotation.x = binding.cape;
+    }
+    for (const mesh of rig.equipment ?? []) enablePart(mesh, !actions.stowed);
+    for (const mesh of rig.stowedEquipment ?? []) enablePart(mesh, actions.stowed);
+    if (rig.spear) enablePart(rig.spear, !actions.stowed && actions.mode !== 'throw');
+    if (rig.javelin)
+      enablePart(rig.javelin, !actions.stowed && actions.mode === 'throw' && !actions.released);
+    for (const a of attached) {
+      if (a.visible) enablePart(a.binding.node, a.visible());
+      const frames = sampledFrames();
+      if (frames) bodyWorld.set(a.binding.world);
+      const changed = a.binding.apply(actions.frames[a.frame], entries[0].inverse, sampledDraw());
+      if (changed || (frames && different(a.binding.world, bodyWorld))) bodyRevision++;
+    }
+  };
+  const completeBody = (solved?: PoseBuffer) => {
+    if (solved) {
+      if (solved.definition !== pose.definition) throw new Error('Incompatible grounded pose');
+      const started = import.meta.env?.DEV && cpuTiming ? cpuTiming.clock() : 0;
+      // Synchronous transfer from this binding's own solver, with no intervening local edits.
+      // The root is part of the transfer (not rebased); history and tail writes stay binding-owned.
+      copyLocal(solved.local, pose.local);
+      pose.matrices.set(solved.matrices);
+      pose.world.set(solved.world);
+      if (import.meta.env?.DEV) cpuTiming?.finish('binding.transfer', started);
+    } else {
+      evaluatePose(pose);
+    }
+    const started = import.meta.env?.DEV && solved && cpuTiming ? cpuTiming.clock() : 0;
+    actions.finish(pose);
+    if (import.meta.env?.DEV && solved) cpuTiming?.finish('binding.completion', started);
+  };
+  const publishBody = (deferTail: boolean, solved?: PoseBuffer) => {
+    if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
+    if (entity.has('ragdoll')) {
+      binding.applyPhysics(entity.require('ragdoll'));
+      return;
+    }
+    completeBody(solved);
+    const started = import.meta.env?.DEV && solved && cpuTiming ? cpuTiming.clock() : 0;
+    writeDraw(deferTail);
+    if (import.meta.env?.DEV && solved) cpuTiming?.finish('binding.draw', started);
+    if (!deferTail) finishHistory();
+  };
   const binding: RigBinding = {
     pose,
     history,
@@ -693,33 +752,14 @@ export function bindHumanoid(
       tail?.apply(pose);
       binding.apply();
     },
+    applyGrounded(actor, motion, world, corpses) {
+      const started = import.meta.env?.DEV && cpuTiming ? cpuTiming.clock() : 0;
+      const solved = grounding.sample(actor, motion, binding.heading, world, corpses, actions);
+      if (import.meta.env?.DEV) cpuTiming?.finish('grounding', started);
+      publishBody(!!tail, solved.pose);
+    },
     apply(deferTail = false) {
-      if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
-      if (entity.has('ragdoll')) {
-        binding.applyPhysics(entity.require('ragdoll'));
-        return;
-      }
-      evaluatePose(pose);
-      for (const entry of bodyEntries) applyEntry(entry, true);
-      if (!deferTail) for (const entry of tailEntries) applyEntry(entry);
-      if (rig.cape) {
-        if (rig.cape.rotation.x !== binding.cape) bodyRevision++;
-        rig.cape.rotation.x = binding.cape;
-      }
-      for (const mesh of rig.equipment ?? []) enablePart(mesh, !actions.stowed);
-      for (const mesh of rig.stowedEquipment ?? []) enablePart(mesh, actions.stowed);
-      if (rig.spear) enablePart(rig.spear, !actions.stowed && actions.mode !== 'throw');
-      if (rig.javelin)
-        enablePart(rig.javelin, !actions.stowed && actions.mode === 'throw' && !actions.released);
-      actions.finish(pose);
-      for (const a of attached) {
-        if (a.visible) enablePart(a.binding.node, a.visible());
-        const frames = sampledFrames();
-        if (frames) bodyWorld.set(a.binding.world);
-        const changed = a.binding.apply(actions.frames[a.frame], entries[0].inverse, sampledDraw());
-        if (changed || (frames && different(a.binding.world, bodyWorld))) bodyRevision++;
-      }
-      if (!deferTail) finishHistory();
+      publishBody(deferTail);
     },
     applyTail() {
       if (entity.has('ragdoll')) return;

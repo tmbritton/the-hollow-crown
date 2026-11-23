@@ -7,6 +7,28 @@ import type { RigTargets } from '../src/rigs/targets.ts';
 import { solverFixture } from './rig-solver-fixture.ts';
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { limitJoint, copyLocal } from '../src/rigs/ikMath.ts';
+import { withTail } from '../src/rigs/tail.ts';
+
+test('refined solve returns complete FK including inactive limbs, root scale and tail', () => {
+  for (const definition of [humanoid(profiles.player), withTail(humanoid(profiles.kobold))]) {
+    const base = createPose(definition),
+      reference = createPose(definition);
+    base.local[0].position.set(3, 0.5, -1);
+    base.local[0].scale.set(1.15, 0.9, 1.05);
+    setEuler(base.local[0], 0, 1.2, 0);
+    const { pose } = new FullBodySolver(definition, { pelvis: 0 }).solve(
+      base,
+      {
+        leftSole: { space: 'rig', position: [-2, 0.12, 2], rotation: [0, 0, 0, 1], required: true },
+      },
+      () => false,
+    );
+    copyLocal(pose.local, reference.local);
+    evaluatePose(reference);
+    assert.deepEqual(pose.matrices, reference.matrices);
+    assert.deepEqual(pose.world, reference.world);
+  }
+});
 
 test('simultaneous planted soles and two-hand grip require bounded body compensation on every profile', () => {
   for (const profile of Object.values(profiles)) {

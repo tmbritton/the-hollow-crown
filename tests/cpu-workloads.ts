@@ -6,7 +6,7 @@ import { KoboldSquad } from '../src/koboldSquads.ts';
 export { cpuCases, CPU_RECIPE_VERSION } from './cpu-cases.ts';
 import type { CpuCase } from './cpu-cases.ts';
 
-function phalanxWorkload(d: DungeonDebug) {
+export function phalanxWorkload(d: DungeonDebug) {
   const g = d.game,
     entity = g.ecs.get('pack:stable')!;
   const pack = entity.require('koboldSquad').members.map((m) => g.combat.actor(m.entity.id)!);
@@ -80,6 +80,8 @@ function phalanxWorkload(d: DungeonDebug) {
     health: g.player.health,
   });
   return {
+    pack,
+    squad,
     kind: 'authored-phalanx',
     warmup: 0,
     frames: 360,

@@ -48,7 +48,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
   returned **APPROVE with zero findings**. The [final independent CPU5 review](../VERIFICATION.md#cpu5--final-independent-review)
   returned **APPROVE**. The cap/replacement regression landed in `f3fa9a3`.
   [CPU6a received final independent **APPROVE**](../VERIFICATION.md#cpu6a--animation-geometry),
-  including both follow-ups. **CPU6b is next.**
+  including both follow-ups, at `96849ae`. The [exact CPU6b retained subset](../VERIFICATION.md#cpu6b--retained-full-rate-subset)
+  received final independent **APPROVE** for correctness only. Scheduler/LOD is deferred and the
+  whole-frame criterion remains unmet. **CPU7 is next by decision.**
 - **Effect adoption remains before the next procedural-feature expansion, after CPU7.**
   EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
@@ -175,9 +177,9 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | CPU0 | Complete; independent follow-up READY | Missing module; persisted callback duplication, observer leak and no-attack fixture reds | Full400 checkpoint/final core382; recipe-2 45-window baseline/phalanx/native batch and replay. Reviewer clears all three findings with native callback, rollback and real phalanx probes; prior unaffected matrix reused. Both production paths/isolation pass; subsequent RTX 2070 baseline recorded | Containing delivery |
 | CPU1–CPU4 | CPU1–CPU3 independently reviewed READY; CPU4 independently approved with zero findings | Door queries → stationary collision → route hitches → nearby candidates | See [verification](../VERIFICATION.md#cpu4--final-independent-review) for per-slice evidence | Through `242b520` |
 | CPU5 | Independently approved; later cap/replacement coverage landed | Settled transform publication and scene-owned resource retirement | Fresh reviewer hardware: 4,344 → 0 unchanged root writes, 1.0–1.2 → 0.2 ms death advance; full 434 and 3 resets. [Later regression](../VERIFICATION.md#cpu5--final-independent-review): full 435 | `f3fa9a3` |
-| CPU6a | Final independent APPROVE, including both follow-ups | Demand-driven clearance, certified geometry reuse, indexed settled contacts and one combined surface budget | [Closeout](../VERIFICATION.md#cpu6a--animation-geometry): 37 fresh focused tests and static/diff checks; existing 456-test full gate and matched RTX 2070 replay | Uncommitted on `main` |
-| CPU6b | Next, not started | Presentation scheduling and LOD | [Fixed-step physics, feedback and history gates](cpu-performance-plan.md#cpu6b--separate-presentation-solving-from-simulation-frequency) | — |
-| CPU7 | Not started; follows CPU6b | Integrated CPU acceptance | [CPU performance plan](cpu-performance-plan.md) | — |
+| CPU6a | Final independent APPROVE, including both follow-ups | Demand-driven clearance, certified geometry reuse, indexed settled contacts and one combined surface budget | [Closeout](../VERIFICATION.md#cpu6a--animation-geometry): 37 fresh focused tests and static/diff checks; existing 456-test full gate and matched RTX 2070 replay | `96849ae` |
+| CPU6b | Exact retained subset: final independent APPROVE for correctness only; scheduler/LOD deferred, whole-frame criterion unmet | Full-rate ownership, development attribution and parity tests only | [Subset evidence](../VERIFICATION.md#cpu6b--retained-full-rate-subset): 46 fresh focused tests; typecheck, lint, format and production isolation passed; 459 full tests and hardware/browser results reused | Uncommitted on `main` |
+| CPU7 | Next, not started | Integrated CPU acceptance on the retained tree | [CPU performance plan](cpu-performance-plan.md#6-cpu7--integrated-acceptance-and-remaining-gpu-work) | — |
 | EF0–EF4 | Planned after CPU7, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 

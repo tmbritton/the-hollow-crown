@@ -13,7 +13,10 @@ import { ECS } from '../src/ecs.ts';
 import type { Components } from '../src/ecs.ts';
 import { bindHumanoid } from '../src/rigs/bindings.ts';
 import { profiles } from '../src/rigs/humanoid.ts';
-import { setEuler, worldPoint } from '../src/rigs/pose.ts';
+import { createPose, evaluatePose, setEuler, worldPoint } from '../src/rigs/pose.ts';
+import { copyLocal } from '../src/rigs/ikMath.ts';
+import { createActor } from '../src/actors.ts';
+import { animateLocomotion } from '../src/locomotion.ts';
 import { Ragdoll, RAGDOLL_LIMIT } from '../src/ragdoll.ts';
 import { publishCorpseContacts, readCorpseTerrain } from '../src/corpseRendering.ts';
 import { corpseHeightAt, corpseStep } from '../src/corpseTerrain.ts';
@@ -24,7 +27,7 @@ import type { DeathHandoff } from '../src/deathHandoff.ts';
 import { ActorGeometry } from '../src/actorGeometry.ts';
 import { SupportTiles } from '../src/supportTiles.ts';
 
-function clearanceFixture(authoredExtras = 0) {
+function clearanceFixture(authoredExtras = 0, world?: NavigationWorld) {
   const engine = new NullEngine(),
     scene = new Scene(engine);
   const node = (name: string, parent?: TransformNode) => {
@@ -54,8 +57,8 @@ function clearanceFixture(authoredExtras = 0) {
     tip = mesh('tip', mount),
     scales = mesh('scales', tail[0]);
   const ecs = new ECS();
-  const entity = ecs
-    .create('actor')
+  const actor = world && createActor(ecs, world, 'actor', 'player', { x: 2, z: 3, h: 0 });
+  const entity = (actor?.entity ?? ecs.create('actor'))
     .add('rig', {
       root,
       body,
@@ -79,6 +82,7 @@ function clearanceFixture(authoredExtras = 0) {
   binding.apply();
   return {
     ecs,
+    actor,
     engine,
     node,
     mesh,
@@ -95,6 +99,59 @@ function clearanceFixture(authoredExtras = 0) {
     scales,
   };
 }
+
+test('grounded FK is copied and only the final tail pose enters fixed-step history', (t) => {
+  const world: NavigationWorld = { tiles: new Map(), blockers: [], entities: [] };
+  const { actor, binding, engine, root } = clearanceFixture(0, world);
+  t.after(() => engine.dispose());
+  assert.ok(actor && binding.tail);
+  const dt = 1 / 60;
+  const motion = animateLocomotion(actor.motion.animation, 0, false, dt);
+  motion.stretch = 0.15;
+  binding.heading = 1.3;
+  const before = binding.history.snapshot();
+  const publish = t.mock.method(binding.history, 'publish');
+  binding.begin(dt);
+  binding.applyGrounded(actor, motion, world);
+
+  const scratch = binding.grounding.result.pose;
+  const reference = createPose(binding.pose.definition);
+  copyLocal(scratch.local, reference.local);
+  evaluatePose(reference);
+  assert.notEqual(reference.local[0].scale.y, 1, 'non-neutral scale fixture');
+  assert.deepEqual(binding.pose.local, reference.local);
+  assert.deepEqual(binding.pose.matrices, reference.matrices);
+  assert.deepEqual(binding.pose.world, reference.world);
+  assert.equal(root.position.x, actor.position.x, 'body is already drawn');
+  assert.equal(publish.mock.callCount(), 0);
+  assert.deepEqual(binding.history.snapshot(), before);
+
+  // Set a different final tail angle through the tail owner before its scene write.
+  binding.tail.angles[0] = 0.3;
+  binding.tail.angles[1] = 0.2;
+  binding.tail.apply(binding.pose);
+  assert.notDeepEqual(binding.pose.world, reference.world);
+  binding.applyTail();
+  assert.equal(publish.mock.callCount(), 1);
+  const final = binding.history.snapshot();
+  assert.deepEqual(final.world, Array.from(binding.pose.world));
+  assert.equal(final.duration, dt);
+  assert.deepEqual(binding.pose.previousWorld, Float64Array.from(before.world));
+
+  const tailWorld = binding.pose.world.slice();
+  const tailMatrices = binding.pose.matrices.slice();
+  scratch.world.fill(123);
+  scratch.matrices.fill(456);
+  scratch.local[0].position.x = 789;
+  setEuler(scratch.local[1], 0.4, 0.5, 0.6);
+  scratch.local[0].scale.set(1, 1, 1);
+  scratch.previousWorld.fill(10);
+  assert.deepEqual(binding.pose.world, tailWorld);
+  assert.deepEqual(binding.pose.matrices, tailMatrices);
+  assert.deepEqual(binding.pose.local[0], reference.local[0]);
+  assert.deepEqual(binding.pose.local[1], reference.local[1]);
+  assert.deepEqual(binding.history.snapshot(), final);
+});
 
 function extraMeshes(
   length: number,

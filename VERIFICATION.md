@@ -4,12 +4,443 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### CPU6b — retained full-rate subset
+
+**Decision:** scheduler/LOD deferred; the whole-frame criterion remains unmet. CPU7 integrated
+acceptance is next by decision and has not been run. This closeout verifies correctness and
+development attribution only, not a speedup, allocation reduction, or FPS target.
+
+**Source and scope:** uncommitted `main` against CPU6a `96849ae3d52c181f336d8bb9b6d80c8ae33f6862`;
+see the [retention plan](docs/plans/cpu6b-retained-subset.md). Keep synchronous grounded FK transfer
+(including root, with independent binding storage), action sockets, and body/attachment writes.
+History follows the final tail pose; authored locals still go through FK. Keep corrected development
+timings at the actual owners and seeded parity fixtures. The generic CPU6a solver traversal,
+affine multiply, binding inversions and ordered tail SAT are restored. No alternate writer,
+eligibility/census, certified limb path, or one-off benchmark/trace tooling ships.
+
+**Preserved evidence:** before pruning, archived all modified tracked and nonignored untracked
+files (overlay on `96849ae`) in `/tmp/opencode/cpu6b-pre-prune-96849ae.tar.gz`, SHA-256
+`5e0e849aa2122521d5db8aba092b4dacbf8e1d6d394f3f117a1e3dcf0c96aef9`.
+The preexisting ignored CPU6b reports, patches and captures were also archived in
+`/tmp/opencode/cpu6b-pre-prune-results.tar.gz`, SHA-256
+`7e570ab970bf76d42966e56fcb2df53cdd499bc7a07e989b8fede5efe7f32394`.
+These are local evidence, not delivery dependencies. The four CPU6b investigation sections below
+describe their own historical snapshots; words such as “retained” there do not apply to this subset.
+In round 2, the 32-visit Early Low four-tick whole-frame p95 was 38.2–40.5 ms (CPU6a) vs.
+38.7–41.1 ms (trial); the follow-up found one provisional 14-tick early run and none late,
+and skipped no solves. Neither result was remeasured on this subset.
+
+**Discriminating checks:** the scale/ownership test failed at local FK matrix equality when
+only the transfer of local matrices was removed, then passed when restored. It independently
+evaluates solved locals and checks scratch mutation cannot alter the binding's pose or history;
+it also checks the body is drawn before the tail and that the tail publishes exactly one final
+sample. The dirty pre-prune headed replay passed against the existing CPU6a fingerprints at
+lethal slots 1–4 (`cpu6b-subset-pre-prune.log`); the fingerprint literals were not regenerated.
+
+**Final independent review: APPROVE** for correctness only, on the exact retained source and test
+diff (tracked and untracked) on `main` against `96849ae`. The final review passed **46 fresh focused
+tests**, typecheck, lint, formatting and production isolation. It reused the recorded **459-test
+full gate** and hardware/browser results below; those were not rerun for the final review. This is
+not performance acceptance.
+
+**Earlier independent review:** Astra 6.2 returned **APPROVE** for correctness with no blocking findings
+on the exact retained source/test diff. The reviewer independently checked the recorded hardware
+replay against the CPU6a fingerprints and grouped/positive-draw parity; it did not rerun the
+browser or grant performance acceptance. Review transcript: `/tmp/opencode/cpu6b-subset-independent.log`.
+
+**Exact subset gates** (logs under `test-results/`, prefix `cpu6b-subset-`):
+
+| Command | Result |
+| --- | --- |
+| `node --test tests/rig-bindings.test.ts tests/rig-handoff.test.ts` | 31 passed; `focused.log`. The targeted omitted-copy mutation went red in `ownership-red.log`. |
+| `npm test` | 441 passed; the core command excludes 18 extended tests, all exercised by `check:full`. `core.log`. |
+| `npm run check:full` | 459 passed; typecheck, lint and formatting (234 files) clean; `full.log`. |
+| `CPU_GPU=hardware npm run test:cpu:regressions` | Headed Chromium / ANGLE RTX 2070: four pinned CPU6a tick/mesh fingerprints; mixed and four-tick batches; repeated blocks, landing/opening, witness, contacts, physical shapes and retirement. Existing native/rollback/phalanx regressions pass. `hardware.log` and `cpu6b-subset-hardware.json`; event report `cpu6b-r1-events-subset-hardware.json`. |
+| `npm run test:cpu` | 25 living actors, 0/25/50/100 calls to each of `grounding`, `grounding.solve`, `binding.transfer`, `binding.completion` and `binding.draw` at 0/1/2/4 ticks; no stage timings at zero. `cpu.log` and `cpu0-lifecycle.json`. `grounding.solve` is nested, not additive; render submission is not GPU completion. |
+| `node tests/cpu6b-visual-browser.ts` | RTX 2070, six Low/High 30/60/120 Hz sequences with matched tick/draw matrices and 88 framebuffer samples. Compared matching ticks 8/10/16/24, including the 120 Hz zero-tick repeats: actor/equipment poses and physical transitions aligned by tick; expected High shadow differences. `cadence.log`, `cpu6b-subset-cadence/report.json`, and contact sheets in `/tmp/opencode/cpu6b-subset-cadence-{contact,zero}.png`. |
+| `npm run test:rig:handoff`, `npm run test:rig:handoff:landing`, `npm run test:rig:tails:clearance` | All passed serially on a fresh dev server: 84 catalog death entries, real lethal hits across landing/stairs/lava, stable corpses, neighbor sweep and masonry. `rig-targeted.log`. |
+| `npm run build`, `npm run test:cpu:production`, `DEMO_URL=http://127.0.0.1:4261/ npm run test:production` | Root build, production isolation across 82 JS chunks, and local root smoke passed. `build.log`, `root-isolation.log`, `root-smoke.log`. |
+| `npm run build:pages`, `npm run test:cpu:production`, `DEMO_URL=http://127.0.0.1:4262/the-hollow-crown/ npm run test:production` | Pages build, isolation across 82 JS chunks, and local Pages-base smoke passed. Both smokes exercised seeded bootstrap, movement, menus, regeneration and base-contained assets, with no debug global, Inspector load or browser/network errors. `pages-build.log`, `pages-isolation.log`, `pages-smoke.log`. This is not a hosted deploy. |
+
+### CPU6b — follow-up 1: diagnostics and shadow census, stopped before replay
+
+**Decision: blocked, not accepted.** This is the bounded investigation in
+[`docs/plans/cpu6b-follow-up-1.md`](docs/plans/cpu6b-follow-up-1.md). No scheduler,
+checkpoint writer, replay, screen or final acceptance matrix was enabled. The existing
+full-rate owners, parity oracles, retained numerical reuse and ordered SAT changes were left intact.
+
+**Controls.** Independent source `96849ae3d52c181f336d8bb9b6d80c8ae33f6862` (A);
+pre-follow-up round-2 worktree snapshot (B), archive `/tmp/opencode/cpu6b-f1-round2.tar`,
+SHA-256 `914aeafb23af5114a65bd724f2f6b5c04f8dfbac3b540f39bc4d16ab1d1de9df`.
+Headed Chromium 159, WebGL2/ANGLE RTX 2070, Ryzen 5 2600X, 800×450, Node 26.0.0.
+This was a logged-in desktop, not a dedicated isolated acceptance machine (1-minute load
+2.17–3.70 at visit starts). Stable `MOURNING-731`, Low after tick 120, 240 displays / 420 ticks
+per visit, existing `[0,1,2,4]` driver, AB then BA in **each** of separate CPU and GC passes.
+Every visit matched fingerprint `d8643bdd`. Minified local Vite production only; hidden maps
+and phase markers are opt-in in `tests/cpu6b-bench.config.ts`. Main bundle and map SHA-256:
+
+| Build | Bundle | Map |
+| --- | --- | --- |
+| A | `266e76b89047bda68062d828a49306492e65b57ac29a2270a7a23021224e96f3` | `2e2b6fa9bf8a08f3639c52b83dc90f4b7fd82e1388e9503d9e505d4b6d435ab2` |
+| B | `8ad47c1caea9932bbc2c279aaa5aa47a23fe6db35d63e1a7e1841b5195a59e11` | `a6e1ec161d7eeaab15be3153b9bcbd922c215a9e8d2b50712b2414d232f95185` |
+
+| Mode/order | Build | 0 tick whole p50/p95/max ms | 0 tick render p50/p95 ms | 4 tick whole p50/p95/max ms | 4 tick fixed p50 ms | 4 tick render p50/p95 ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| CPU AB | A | 7.6/10.0/12.0 | 7.2/9.5 | 35.2/44.0/49.2 | 25.5 | 8.9/11.3 |
+| CPU AB | B | 8.1/9.9/12.9 | 7.5/9.4 | 35.5/44.0/47.4 | 25.5 | 9.2/12.8 |
+| CPU BA | B | 7.7/9.2/11.6 | 7.2/8.7 | 34.9/43.5/48.0 | 25.0 | 9.3/11.3 |
+| CPU BA | A | 8.0/10.0/13.4 | 7.5/9.5 | 36.9/43.1/45.6 | 26.7 | 9.2/13.2 |
+| GC AB | A | 7.8/9.2/10.1 | 7.3/8.4 | 34.3/40.2/45.2 | 24.6 | 9.0/10.6 |
+| GC AB | B | 7.1/8.4/10.0 | 6.5/7.8 | 32.0/37.3/40.2 | 23.0 | 8.3/10.9 |
+| GC BA | B | 7.6/9.7/14.1 | 7.1/9.2 | 34.1/46.5/55.3 | 24.3 | 8.9/13.0 |
+| GC BA | A | 7.6/9.6/11.0 | 7.0/8.6 | 34.8/40.2/45.4 | 25.2 | 9.0/11.5 |
+
+No zero-tick frame had a fixed phase; 59/60 per visit immediately followed four ticks
+(driver does not independently vary this). Presentation p50 was 0.4–0.5 ms. In CPU captures,
+four-tick grounding stacks (inclusive) were 1,945→1,806 and 1,958→1,757 samples (A→B,
+AB and BA respectively); solver self was 645→628 and 664→616. Inclusive grounding includes
+solver and other reads. A sample is not one invocation or a measured stall. Nominal weights
+at the requested 100 μs/sample would be 194.5→180.6 and 195.8→175.7 ms of inclusive
+grounding, not elapsed phase timings. Representative mapped stacks include
+`actorRendering.ts → grounding.ts → solver.ts:solveLimb` and Babylon `scene.pure.js:
+_renderForCamera → _evaluateActiveMeshes → transformNode.pure.js:computeWorldMatrix`.
+Within four-tick render, active/cull self counts were 708→678 and 652→703, matrix/bounds
+803→1,007 and 845→1,025, draw/submission 738→786 and 721→760. The counts partition sampled
+leaves by named paths; inclusive categories overlap. At zero ticks the corresponding
+matrix/bounds counts were 422→430 and 382→475, while active/cull and draw were much larger
+than fixed work (which was zero). These are different stacks from solving. Native/wait,
+unresolved leaves, other mapped scene work and gaps are kept separate, not assigned to
+the solver or interpreted as GPU completion. This profiles paths that update/check bounds,
+not an exact count of newly dirtied meshes. The direction of elapsed render tails varied.
+
+In the separate GC trace: A/B had 34/31 and 34/30 minor pauses, no major pauses. Four-tick
+intersecting pause totals were 15.94→5.63 and 16.65→8.94 ms over 60 four-tick frames each;
+outside-frame pauses were 7.64→14.38 and 8.30→13.57 ms. Zero-tick intersection was zero
+except 0.026 ms unassigned in B/BA. The 55.3 ms B/BA tail (frame 43) had 39.9 ms fixed,
+14.7 ms render and **no** intersecting GC. Lower on-frame GC did not imply lower whole-frame
+p95. This does not attribute pauses to SAT or explain the zero-tick difference. Raw per-event
+heap before/after, duration, frame and phase joins, unresolved samples, 1/2-tick strata,
+and slowest frames are in `test-results/cpu6b-f1-{cpu,gc}-*-{raw,mapped}.json`,
+`cpu6b-bench-f1-{cpu,gc}.json` and `cpu6b-f1-strata.json`. The offline report mapped secondary
+chunks against the same builds without resampling.
+
+**Shadow census, not a skip certificate.** The test-only observer counted real calls to the
+retained grounding/refinement path and compared a swept authored envelope against current
+camera planes and actual mesh bounds, also checking shadow reach/list, player observation,
+tail neighbors, layout, action dependencies, contact and support. It ran the unchanged stable
+fixture in all four original quality/warmup cells (384 displays/672 ticks each). The initial
+dev capture was invalidated by page navigation during module import; one retry completed.
+The retry matched independent start/end fingerprints from round 2 (`9c2348e5` early,
+`5697eae7` late). Every cell measured **16,800** full-rate living numerical completions.
+Early Low and High each found the same one *provisional* 14-tick outside run for
+`skeleton:crypt:0` (ticks 239–252; 22 owned meshes), with 11 samples at run length ≥4;
+late Low and High found no run. The next tick, 253, re-entered the plant path. Most common
+overlapping exclusions were unproved flat support (13,082 early / 12,843 late per quality),
+shield/phalanx (8,736), tail (8,064), plant recurrence (6,382 / 6,037), attack (6,048) and
+frustum (5,376). `test-results/cpu6b-f1-census.json` includes all tick and display reasons.
+
+**Ownership and blocker.** Locomotion/action clocks, heading, landing and feedback springs,
+death physics and corpse-contact publication stay fixed-rate. Grounding plans stance from
+the previous plant/block/mode state; its refinement reads transformed sole points, calls
+the live floor/contact provider and can release a plant and block the next stance. Foot
+locks are therefore not a postprocess; moving stance was excluded (the census recorded
+125 early / 123 late pre-existing-anchor to blocked-unplanted transitions). The brief idle
+run avoided that recurrence while observed, but the census inspected *completed* solves.
+It did not establish an independent pre-solve read set: it did not prove immutable support
+inputs across skips, or exhaustive geometry invalidation before all consumers. In particular
+Babylon active evaluation calls `computeWorldMatrix()` **before** `isInFrustum`; the High
+shadow-list refresh reads live caster bounds even when a caster is subsequently excluded.
+A post-solve outside-frustum/shadow result is not an oracle for those reads after skipping.
+Combat's weapon origin is authoritative root/heading, but accepted lethal damage consumes
+adjacent history before `stopActor`; witness and shape capture cannot use distance as a
+substitute for exact refresh. Display/pick/inspection are separate from that event boundary.
+No reverse-order/exhaustive consumer oracle or deferred death/reconstruction parity was claimed.
+
+**Paid work:** zero runtime skips, zero replays, zero net saved solves. Ordered replay would
+charge one full solve for each missed solve plus capture/recovery overhead. Even granting
+four completed qualification ticks and uninterrupted debt through the idle run, at most
+ten ticks were available for deferral; final-pair-only materialization with 4+4+2 debt
+would pay at least six solves before any additional consumer charges, *if* independence
+were proved. This is an accounting bound, not measured savings. Packet/checkpoint bytes,
+actual recovery depth, event and burst p95/max are unmeasured (no prototype). The unresolved
+mutable read set and absent before-use proof are the stop gate, not an assertion that the
+fixture contains no distant idle actors or that scheduling is impossible in general.
+
+Verification on the retained path: the trace/residency tests went red on the absent
+diagnostic modules, then passed; focused schedule/handoff/bindings/feedback tests 39/39;
+`npm run test:models`, `npm test` (442), `npm run check:full` (460, typecheck/lint/format),
+and the hardware `test:cpu:regressions` passed, including the existing independent CPU6a
+oracle, lethal offsets, witness/contacts/retirement and grouped drawing. Ordinary root and
+Pages builds both passed `test:cpu:production` and `test:production`. See the
+`test-results/cpu6b-f1-{red,focused,check-full,replay,verify-status,pages-status}.log` logs.
+The full browser/profile/visual acceptance matrix was not run; this is not an independent
+approval or a scheduler correctness result.
+
+### CPU6b — round 2 profiler attribution and hardware gate
+
+**Attribution fixed.** `npm run test:cpu` first failed at `binding.transfer` (0 calls for 25
+grounded actors). With the fix, controlled 0/1/2/4-tick displays have 0/25/50/100 calls each to
+`grounding`, `grounding.solve`, `binding.transfer`, `binding.completion` and `binding.draw`.
+Zero-tick displays contain no time entry for any of them. `grounding.solve` includes solver
+refinement and is nested in `grounding`; transfer times the actual local/global buffer copies,
+completion times solved action frames, and draw times synchronous body/equipment writes. Tail
+processing, deferred tail draws and pose-history publication are outside these body subtotals.
+The patched generic `binding.apply` metric is no longer labeled the living writer.
+
+**Early Low diagnosis.** On the same RTX 2070/Ryzen 5 2600X hardware fixture, two coarse runs
+(`cpu0-cpu6b-r2-stages.json`, stable after tick 120, 18 four-tick samples per run) show four-tick
+p50s of 4.5–5.1 ms for grounding including 3.1–3.2 ms solver/refinement, 0.1–0.2 ms each for
+transfer and completion, and 2.6–2.8 ms for body draw. The earlier Low regression is not evidence
+of a large transfer penalty. These are diagnostic stage timings, not additive percentiles or
+production-frame A/B. CDP CPU and heap sampling (`cpu6b-r2-cpu.json`, `cpu6b-r2-heap.json`, 144
+draws, tracing off) points to TRS decomposition and rig surface publication as hot sites;
+tail SAT overlap tests were the largest single app allocation site (~43 MB estimated self bytes
+on the hottest call stack, transient allocations included). The sampling run was a development
+diagnostic with the identical-TRS trial present, not a production benchmark.
+
+**Individual trials.** Both use the round 1 production-mode candidate as the reference, not
+`96849ae`. Each had 240 frames (420 ticks) per visit with both AB and BA orders, hardware Low
+after 120 warmup ticks, and matching endpoint state fingerprints in every visit.
+
+| Standalone change | Reference four-tick p50 / p95 (ms) | Trial four-tick p50 / p95 (ms) | Disposition |
+| --- | --- | --- | --- |
+| Skip exact same-valued Babylon TRS setters (compare against live vectors, not cached writes) | 31.9–35.0 / 37.1–42.3 | 33.7–34.5 / 39.0–40.5 | Rejected: opposite pair outcomes, extra comparisons before setters, no reliable gain. |
+| Remove per-query closure/arrays from tail SAT | 33.0–33.5 / 38.9–40.1 | 32.7–34.0 / 38.7–41.6 | No reliable independent frame gain. Same 15 ordered axes, projections and early-outs; retained as an allocation-only change. |
+
+Raw reports: `test-results/cpu6b-bench-r2-writes.json` and `cpu6b-bench-r2-sat.json`.
+The identical-write test went red on the unconditional writer and green in the trial, including
+repair of a foreign position write; neither that assertion nor the trial is in the candidate.
+The retained SAT test covers sheared boxes whose broad-phase bounds overlap, including exact
+touching, and checks both argument orders. No tolerance, solve/physics budget or tick/draw cadence
+changes were made.
+
+**Whole-frame gate: not met.** `cpu6b-bench-r2-final.json` compares `96849ae`
+(`index-B2VoRMQe.js`) and the SAT candidate (`index-BGnUFTAX.js`) in minified production-mode
+builds with only the local frame driver exposed. Headed Chromium/WebGL2, RTX 2070, 800×450,
+stable-room `MOURNING-731`, no concurrent test/build jobs. Each quality/window had four AB/BA
+pairs, with 384 displayed frames and 672 measured ticks per visit. The window starts are after
+120 and 360 warmup ticks. Start/end authority and pose fingerprints matched in all 32 visits
+(`9c2348e5` early, `5697eae7` late). Ranges across paired repeats are in ms:
+
+| Window | Baseline four-tick p50 / p95 | Candidate four-tick p50 / p95 | Baseline all-frame p50 / p95 | Candidate all-frame p50 / p95 |
+| --- | --- | --- | --- | --- |
+| Low early | 32.4–34.5 / 38.2–40.5 | 32.2–33.3 / 38.7–41.1 | 18.4–18.9 / 34.4–37.3 | 18.5–19.2 / 35.2–35.9 |
+| High early | 35.3–35.9 / 41.0–42.9 | 32.8–35.4 / 37.3–42.3 | 20.7–21.6 / 37.4–38.4 | 19.7–20.8 / 34.9–37.9 |
+| Low late | 31.4–32.3 / 35.4–38.0 | 31.1–32.1 / 35.4–39.6 | 18.1–18.5 / 33.3–35.0 | 18.0–18.8 / 33.0–35.2 |
+| High late | 33.0–35.8 / 38.4–41.7 | 34.2–34.9 / 39.0–44.6 | 20.4–20.9 / 34.9–38.5 | 20.6–21.3 / 36.1–38.5 |
+
+The early Low four-tick tick median improved in all four pairs (23.4–25.1 → 22.9–23.7 ms),
+but the `scene.render` p95 increased in all four (10.8–11.5 → 11.7–12.9 ms). Early Low zero-tick
+frame medians were 7.1–7.4 → 7.4–7.7 ms. A slowdown restricted to solver or transfer is therefore
+not supported; some of the observed spread is present without running either. `scene.render` is
+inclusive CPU-side submission, not GPU completion. High early trends faster but the tails still
+overlap; late High does not corroborate it. The allocation resample (`cpu6b-r2-heap-sat.json`)
+no longer sampled self allocation in `overlaps` or `separated`, versus ~49.9 MB aggregate estimate
+in `overlaps` before; this does not establish lower whole-frame latency.
+
+**Next action:** take separate, source-mapped production CPU and GC traces of the same early Low
+window, first splitting `scene.render` into active-mesh evaluation/world-matrix work and submission
+on zero- and four-tick frames. If repeated world-matrix dirtiness is confirmed, trial a shortcut
+*before* TRS decomposition for exactly identical local affine inputs, with live-node edit and
+parent/attachment invalidation tests. Re-run the same 32-cell comparison; do not defer draws,
+change tier cadence or skip a fixed solve on the strength of the current data.
+
+`npm run check:full` passed all 458 tests, typecheck, lint and format on the rerun; `npm test`
+also passed. The initial typecheck caught an untyped `Actor.dead` read in the new test; the
+assertion now counts non-corpse actors as the renderer does. The hardware `test:cpu:regressions`
+passed the `96849ae` replay oracle, lethal offsets, repeated blocks, landing/opening, event-time
+witness, contacts and retirement. The hardware cadence check captured 88 frames across the six
+Low/High sequences, with matching event traces and matrices at matched ticks. The focused trace
+run (`cpu0-cpu6b-r2-final.json`) passed Low/High in coarse and detailed modes.
+Targeted Chromium rig/solver/action/tail/shield, handoff/landing, ragdoll/contact, breakup,
+animation/defense/social, discovery/inspection, jump, phalanx and combat suites passed, as did
+Firefox combat/social. The first tail-clearance run on the long-lived dev server could not find
+the geometry owner; a fresh-dev-server run passed that suite and the CPU lifecycle test.
+Root and Pages builds, production diagnostics isolation, and Playwright smoke all passed; the
+root smoke used a clean preview port after the first attempt used a stale Pages build.
+See `cpu6b-r2-check-status.log` and `cpu6b-r2-final-status.log` for the serial gate results.
+CPU6b remains a repair candidate, not independently approved.
+
+### CPU6b — round 1 duplicate numerical work
+
+The prior write-only experiment (below) remains rejected. Round 1 keeps tick timing, draws,
+contacts, history and physical ownership on the same paths. It removes duplicate binding FK by
+copying the grounding solver's just-completed same-definition pose, including root TRS and scale,
+into independent local/global buffers. Authored/reset/collapse binding inputs still run FK.
+
+The authored humanoid and its certified four-link extension have disjoint limb chains. Within
+one solve, a goal is reused only while its resolved target and parent-matrix revision are current;
+a limb is reused only with that same goal and the same bend hint. Authored root translation and
+scale remain in the calculation, and all original passes, target refinement and residual checks
+run. Starting from fully oriented rig/world requests can build just the root for initial target
+resolution; omitted orientations or joint-relative requests take the original authored FK.
+Custom definitions keep the original full pass traversals. Final matrices and residuals were
+compared exactly against a separate generic-solver instance; the new work-reduction assertion
+failed before the optimization. The binding test recomputes FK independently and mutates solver
+scratch afterward to check isolation.
+
+#### Measurement setup and negative trials
+
+The headless unit/trace gates are separate from performance measurements. The local-only Vite
+benchmark config exposes the existing controlled frame driver in two minified production-mode
+builds (DEV false; production tick/presentation and `scene.render` code). The baseline source is
+a detached `96849ae` worktree, not a staged-writer switch. `tests/cpu6b-bench.ts` alternates order,
+compares begin/end authority and pose fingerprints, and separates `[0,1,2,4]` strata. Frame timing
+includes tick, presentation and real scene submission; it is not a native RAF interval or GPU
+completion time. RTX 2070, Ryzen 5 2600X, headed Chromium/WebGL2, 800×450, `MOURNING-731`.
+
+- **FK-only** (`cpu6b-r1-bench-fk.json`, entrance control, two repeats): exact state parity, but
+  no consistent four-tick improvement. Low p50 baseline 30.2/31.7 ms, candidate 31.6/30.8 ms.
+- **Initial solver reuse** (`cpu6b-r1-bench-solver.json`, stable, three repeats): exact state parity;
+  High four-tick median improved, but Low and frame tails did not consistently improve.
+- **Broader intermediate trial** (`cpu6b-r1-bench-broad.json`, stable, three repeats): leaf inverse
+  avoidance and affine loop restructuring also did not establish a general frame win. Initial Low
+  four-tick p50 32.5–33.7 ms baseline versus 34.3–35.7 ms candidate. The late trial overlapped a
+  regression startup and is not isolated timing evidence.
+- **Root-only/revision-keyed candidate**: `cpu6b-r1-bench-final.json` matched fingerprints in all
+  18 cells. This first timing series overlapped test execution; it is not acceptance evidence.
+
+**Whole-frame performance gate remains open.** Isolated rerun
+(`cpu6b-r1-bench-final-isolated.json`, baseline `index-B2VoRMQe.js`, candidate `index-Bnfq5HVm.js`)
+matched each seeded state fingerprint at both window boundaries in all 18 cells. There were 96
+drawn frames and 168 measured ticks per cell, including 24 four-tick frames. These are the ranges
+across three repeats of the **whole-frame** four-tick strata (milliseconds):
+
+| Stable window | `96849ae` p50 / p95 | Candidate p50 / p95 |
+| --- | --- | --- |
+| Low, after 120 ticks | 33.6–36.5 / 41.5–44.6 | 34.8–35.2 / 41.0–43.3 |
+| High, after 120 ticks | 36.6–37.9 / 44.2–46.9 | 35.6–37.8 / 39.2–44.5 |
+| Low, after 360 ticks | 32.8–33.3 / 36.1–38.9 | 32.4–33.7 / 38.0–38.3 |
+
+High's four-tick p95 improved in all pairs, but the run ranges overlap; Low was mixed and the
+all-frame median did not improve reliably. The reduced numerical work is real, but it does not
+justify claiming a repeatable whole-frame win beyond spread. No draw deferral or tier change was
+used to obtain these results.
+
+**Actual numerical work.** The detailed `frames-low,frames-high` report
+(`cpu0-cpu6b-r1-work.json`, source `23f434f5a1eb…`, digest `717fcc64`) agrees across qualities.
+After 120 warmup ticks, each quality drew 72 frames with 126 measured ticks. In the 18 four-tick
+frames (1,800 living body writes), the writer avoided **39,456 FK joint evaluations**; the solver
+ran **50,738** joint evaluations versus **134,291** on the original traversal at the same pass and
+target counts. It skipped **4,554** redundant parent-local goals and **48** complete limb solves.
+Unconsumed binding leaf inverses accounted for **22,032** further avoided inversions. These are
+operations not executed, not timers for relocated work. The counts do not establish frame-time gains.
+The detailed harness's legacy `binding.living` patch still times `apply`, not `applyGrounded`;
+do not interpret that subtotal as all living writer work. The rendered-frame A/B does not use it.
+
+`npm run check:full` completed 457 passing tests including the unit/model suites, lint and
+format. The original 120-tick replay still matched the recorded `96849ae` tick and display
+oracles. The extended hardware replay passed (`cpu6b-r1-events-r1-final.json`): the same shield
+owner took four accepted blocks before lethal offsets 1–4; the second victim landed on the lethal
+tick and was hidden from the witness at damage time. The real phalanx opened on tick 94 and took
+frontal lethal damage on tick 95. Entry matrices, seeded trajectories, observed killer, ordered
+zero-tick samples, settled ticks, drawn contact boxes, released physics resources and scene
+retirement matched the single-step replay. The opening case settled on tick 476, so the first
+380-tick window was too short. Initial attempts also hit a Vite reload and the original browser
+deadline. The six Low/High 30/60/120-Hz samples drew the same event sequence and matched mesh
+matrix digests at shared simulation ticks. The standalone cadence runner saved **88** hardware
+framebuffer captures (`test-results/cpu6b-r1-cadence/`), including all 22 sampled zero-tick vs
+tick-positive PNG pairs byte-identical. Across 30/60/120 partitions the pose fingerprints match;
+the full scene PNGs are not generally byte-identical. These are controlled display partitions,
+not a claim of native refresh-rate or complete pixel coverage for all action clips.
+The uninstrumented root and Pages production builds and both corresponding production isolation
+and Playwright smoke gates passed (`cpu6b-r1-production.log`).
+
+The full hardware profiling matrix completed **198/198 cells**: 22 workloads × three tracing
+modes × three repeats, with no browser errors (`cpu0-cpu6b-r1-matrix.json`, source `ba371d7a54fc…`).
+Controlled cases preserved their digests across repeats and tracing modes. Native RAF cases are
+interval/workload observations, not matched tick budgets or another production A/B.
+
+The Chromium gameplay suite and targeted CPU, rig, shield, tail, action, animation, defense,
+social, handoff, landing, ragdoll, contact, breakup, discovery, inspection, jump, phalanx and
+combat checks passed serially (`cpu6b-r1-browser-status.log` and per-gate logs). Firefox
+combat/social passed. The first `test:rig:solver` run timed out during a screenshot, rather than
+failing a solver assertion; the hardware retry completed all 1,210 samples
+(`cpu6b-r1-gate-rig-solver-hw.log`). Round 1 is not independently approved.
+
+### CPU6b — fixed-step presentation trial
+
+**Performance gate unmet.** Retained the full-rate stage split in `src/rigs/bindings.ts` and the
+fixed-step browser replay, not the write scheduler. Living poses, tails and physics keep the CPU6a
+fixed-step cadence and existing reuse; there are no new skipped solves, tiers, or deferred writes.
+The [ownership table](docs/rig-handoff.md#cpu6b-stage-ownership) describes the retained boundaries.
+
+- **Red on `96849ae`:** `CPU_LABEL=96849ae npm run test:cpu:regressions` matched each sampled
+  presentation partition to the original single-step implementation but failed the new binding
+  work assertion. Stored the original per-tick and shared-display hashes in the fixture's oracle.
+- **Trial:** Deferred intermediate body/equipment writes for unedited, certified, non-player,
+  non-social, non-tailed, non-carrying actors. Materialized for contacts, witnesses, picking,
+  shape capture and display. An early version lost the last binding matrices when `stopActor`
+  invalidated history; exact entry still matched but frame 1 of separated physics diverged.
+  Publishing before that reset restored shape and trajectory parity. Social attachments and smoke
+  were kept full rate, as were tails, cargo, active/frozen deaths and unsupported layouts.
+- **Replay:** At seed `MOURNING-731`, compare 120 ticks under `[1]`, `[0,1]`, `[2]`, `[4]`, and
+  `[0,1,3,0,4]`, with melee/hazard deaths and four accepted guard blocks (two on one tick,
+  then consecutive ticks). Test all four offsets in a four-tick display, both corpse modes,
+  hero respawn without an island, exact shape capture, pose matrices/history, shield state,
+  routes/attacks and actual mesh matrices at shared display ticks. The retained assertion is
+  **four** body writes on a four-tick frame and **zero** on a zero-tick frame, not a claim of savings.
+
+#### RTX 2070 measurements
+
+Headed Chromium 159 ANGLE/NVIDIA WebGL2, Ryzen 5 2600X, Node 26, 800×450, same seed, stationary
+stable camera. Controlled `frames-low,frames-high`: 120 warmup ticks, 72 drawn frames each with
+`[0,1,2,4]` repeated (126 ticks, 36 catch-up frames). Alternate three full-rate and three trial
+runs, using both coarse and detailed modes. The same source hash (`86496c5dd8…`) and parity digest
+(`717fcc64`) hold for all controlled reports. Full-rate is the staged binding control, not a
+separate binary from the CPU6a commit. Detailed counts: **3,150 → 2,574** body bindings (18.3%,
+25.0 → 20.4 per tick, 43.75 → 35.75 per display); **3,150 → 3,150** numerical completions,
+no consumer refreshes in this workload. The `animation` timer includes the fixed writer and
+its children, while `frame` includes tick, presentation and scene submission, not RAF intervals.
+
+| Coarse whole frame (ms, p50 / p95 / max for each run) | Full-rate | Trial |
+| --- | --- | --- |
+| Low | 21.4 / 41.7 / 52.0; 20.7 / 43.1 / 48.8; 20.8 / 40.0 / 48.2 | 22.6 / 53.8 / 72.1; 20.0 / 38.7 / 48.6; 20.9 / 38.9 / 48.6 |
+| High | 27.5 / 46.5 / 50.2; 27.1 / 43.7 / 50.1; 28.5 / 45.3 / 48.3 | 25.5 / 44.5 / 46.8; 27.8 / 46.7 / 49.6; 26.1 / 45.5 / 48.8 |
+
+Coarse inclusive animation p50 ranges (full → trial): Low 5.2–6.5 → 4.6–6.3 ms, High
+4.5–4.9 → 4.1–4.6 ms; presentation p50 0.4–0.5 ms. Whole-frame tails did not improve
+consistently; do not treat lower binding counts or a favorable individual run as a frame win.
+Native RAF at stable Low/High also contained genuine catch-up (11–50 / 34–52 multi-tick frames
+out of 72 in the same-source completed coarse samples). Workload tick counts differed, so these
+are not paired throughput measurements. Native Low/High did not show a repeatable gain. The
+late hitch window (360 warmup, 300 measured ticks) was one presentation per tick, a control only.
+One original-source native run was interrupted by Vite reload, and a trial cell crossed a test-source
+edit; neither contributes to the same-source RAF comparison. Initial hardware series briefly
+overlapped the first controlled series; run spread and host load are in the raw reports.
+
+Raw artifacts: `test-results/cpu6b-96849ae.json`, `cpu6b-parity.json`,
+`cpu0-cpu6b-frames-{full,default}-*.json` and accompanying PNGs,
+`cpu0-cpu6b-{full,default}-*.json`, `cpu6b-{frames,hardware}-ab.log`,
+`cpu6b-write-trial.patch` (removed experiment). The full all-case × three-repeat profiling matrix,
+dedicated hardware 30/60/120 Hz visual sequences and independent review are not established by
+these runs. No tier model partitions were added because no scheduler or tier state ships.
+
+#### Retained path checks
+
+- `npm run check:full`: 456 passed, including typecheck, lint and format check.
+  `npm run test:models` and `npm test` (438 core tests) passed separately. The seven focused
+  block/rig/shield/ragdoll/breakup/observation unit files passed 72 tests.
+- `npm run test:cpu:regressions`, `test:cpu`, `test:rig`, `test:rig:solver`, `test:rig:actions`,
+  `test:rig:tails` and `test:rig:shield` passed. `test:rig:tails:clearance` first failed to find
+  the geometry owner on a reused Vite server; it passed unchanged against a fresh server
+  (`DEMO_URL=http://127.0.0.1:5199`). Logs use `test-results/cpu6b-test-*.log`.
+- Fresh-server `test:rig:shield:transitions`, `test:animation`, `test:defense`, `test:social`,
+  `test:rig:handoff`, `test:rig:handoff:landing`, `test:ragdoll`, `test:ragdoll:contacts`,
+  `test:skeleton:breakup`, `test:discoveries`, `test:inspection`, `test:jump`, `test:phalanx`,
+  `test:combat`, and the full `test:browser` passed. `BROWSER=firefox npm run test:combat`
+  and `BROWSER=firefox npm run test:social` passed as well.
+- `npm run build`, `npm run build:pages`, `npm run test:cpu:production` (both builds, 82 chunks
+  each), and `npm run test:production` (root and `DEMO_URL=http://localhost:4187/the-hollow-crown/`)
+  passed. See `test-results/cpu6b-check-full.log`, `cpu6b-core-model.log`, `cpu6b-build.log`
+  and `cpu6b-gates-fresh.log`.
+
 ### CPU6a — animation geometry
 
 **Final independent review: APPROVE.** The overall verdict covers the original CPU6a slice
 and both follow-ups on `main` over CPU5 `f3fa9a3`. It supersedes the narrower approvals and
-open statuses in the review history below. CPU6a remains uncommitted; [CPU6b is next](docs/cpu-performance-plan.md#cpu6b--separate-presentation-solving-from-simulation-frequency),
-not started or covered by this verdict.
+open statuses in the review history below. CPU6a is the `96849ae` oracle; CPU6b is not covered
+by this verdict.
 
 | Closeout evidence | Result |
 | --- | --- |

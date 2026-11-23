@@ -265,19 +265,11 @@ export function createCpuProfile(
                 },
             );
           patch(
-            b.grounding,
-            'sample',
-            (old) =>
-              function (...args) {
-                return m.measure('grounding', () => old.apply(this, args));
-              },
-          );
-          patch(
             b,
             'apply',
             (old) =>
               function (...args) {
-                return m.measure('binding.living', () => old.apply(this, args));
+                return m.measure('binding.apply', () => old.apply(this, args));
               },
           );
           patch(

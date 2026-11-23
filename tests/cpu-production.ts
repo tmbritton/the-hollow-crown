@@ -7,7 +7,7 @@ assert.ok(files.length > 0, 'Build the application before checking CPU diagnosti
 for (const file of files)
   assert.doesNotMatch(
     await readFile(`dist/assets/${file}`, 'utf8'),
-    /CPU session|CPU sample|CPU metric|route\.expanded|alloc\.poseSnapshots|physics\.terrainChecks|cpuProfile|cpuMetrics/,
+    /CPU session|CPU sample|CPU metric|route\.expanded|alloc\.poseSnapshots|physics\.terrainChecks|binding\.(transfer|completion|draw)|grounding\.solve|cpuProfile|cpuMetrics/,
     `CPU0 diagnostic code leaked into ${file}`,
   );
 console.log(`PASS CPU0 production isolation: ${files.length} bundled JavaScript chunks`);

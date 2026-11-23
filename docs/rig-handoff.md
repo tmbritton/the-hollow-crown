@@ -59,6 +59,26 @@ stop/teleport clears it. Reset/respawn and disposal retire the component. Later 
 the snapshot. P8 explicitly replaces the procedural writer before simulating bodies and supplies
 impulse tuning, collision/settling and bounded resource ownership. A7 itself added no physics dependency.
 
+## CPU6b stage ownership
+
+The binding's numerical body stage finishes action sockets using complete joint matrices; its
+draw stage writes body nodes, equipment visibility and attachment transforms. During living
+grounding it synchronously copies local TRS (including the root), local matrices and globals from
+its own same-definition solver. It never borrows solver arrays or copies solver history. Reset,
+authored edits and collapse still evaluate the binding's own locals.
+These stages still run together on each fixed tick. A tailed actor publishes history only after
+its final constrained tail. Corpse physics owns its exact entry and subsequent affine publications.
+
+| Read | Time and owner |
+| --- | --- |
+| Lethal handoff and witness | Damage uses the previous completed pose, rebased to the event transform, and captures motion before stopping the actor. Drawn geometry is already current for the event camera. |
+| Corpse surfaces, living equipment and cargo, tail neighbors | Fixed tick; publish corpse contacts before feet, body and cargo before tail clearance, and retain final pair validation. |
+| Shadow list, observation, inspection and picking | Read the already-written last completed pose. A display with zero ticks does not write rig poses, consume reactions or publish history. |
+
+There are no distance/visibility tiers, deadlines or pending draw records in the retained path.
+See the [retained subset verification](../VERIFICATION.md#cpu6b--retained-full-rate-subset) and
+the separate [historical trial](../VERIFICATION.md#cpu6b--fixed-step-presentation-trial).
+
 ## Verification
 
 ```sh

@@ -62,8 +62,10 @@ await withViteServer(base, 'dev', async () => {
       const empty = d.cpu.report().samples[0].counts.ticks === 0;
       d.cpu.stop();
       d.cpu.start('detailed');
-      d.cpu.frame([], 1);
-      const observed = d.cpu.report().samples[0];
+      const living = g.combat.actors.filter((a) => !a.entity.has('corpse')).length;
+      for (const ticks of [0, 1, 2, 4]) d.cpu.frame([], ticks, true);
+      const frames = d.cpu.report().samples;
+      const observed = frames[1];
       d.regenerate('MOURNING-731');
       return {
         nested,
@@ -73,6 +75,8 @@ await withViteServer(base, 'dev', async () => {
         unchanged,
         empty,
         observed,
+        frames,
+        living,
         retired: !d.cpu.active && g.combat.update === original && nav.goTo === goTo,
       };
     });
@@ -129,6 +133,22 @@ await withViteServer(base, 'dev', async () => {
       assert.ok(result[key], key);
     assert.equal(result.observed.counts.ticks, 1);
     assert.ok(result.observed.counts['calls.grounding'] > 0);
+    assert.equal(result.living, 25);
+    for (const [i, ticks] of [0, 1, 2, 4].entries()) {
+      const frame = result.frames[i];
+      assert.equal(frame.counts.ticks, ticks);
+      for (const stage of [
+        'grounding',
+        'grounding.solve',
+        'binding.transfer',
+        'binding.completion',
+        'binding.draw',
+      ]) {
+        assert.equal(frame.counts[`calls.${stage}`] ?? 0, ticks * result.living, stage);
+        if (ticks) assert.ok(Number.isFinite(frame.ms[stage]), stage);
+        else assert.equal(frame.ms[stage], undefined, stage);
+      }
+    }
     assert.ok(result.observed.counts['doors.open'] > 0);
     const resources = [];
     for (let i = 0; i < 3; i++) {

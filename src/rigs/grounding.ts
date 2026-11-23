@@ -7,6 +7,7 @@ import { corpseHeightAt, MAX_CORPSE_STEP } from '../corpseTerrain.ts';
 import { heightAt } from '../world.ts';
 import { volumeScale } from '../animationCurves.ts';
 import { gaitFootPhase } from '../skeletonGait.ts';
+import { cpuTiming } from '../cpuMetrics.ts';
 import { createPose, evaluatePose, resetLocal, setEuler } from './pose.ts';
 import { clamp, matrixRotation } from './ikMath.ts';
 import { PoseVector } from './types.ts';
@@ -255,7 +256,9 @@ export class GroundedLocomotion {
     this.targets.leftGrip = actions?.targets.leftGrip;
     this.targets.rightGrip = actions?.targets.rightGrip;
     this.active = true;
+    const started = import.meta.env?.DEV && cpuTiming ? cpuTiming.clock() : 0;
     const result = this.solver.solve(pose, this.targets, this.refine);
+    if (import.meta.env?.DEV) cpuTiming?.finish('grounding.solve', started);
     this.writeRequest(actor, motion, heading);
     this.sampledRequest.set(this.request);
     this.sampledActor = actor.entity;

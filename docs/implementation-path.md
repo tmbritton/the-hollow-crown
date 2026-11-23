@@ -65,7 +65,8 @@ Astra's [final independent CPU4 review](../VERIFICATION.md#cpu4--final-independe
 returned **APPROVE with zero findings**. [CPU5's final independent review](../VERIFICATION.md#cpu5--final-independent-review)
 returned **APPROVE** for settled transform publication; the later cap/replacement test landed in
 `f3fa9a3`. [CPU6a received final independent **APPROVE**](../VERIFICATION.md#cpu6a--animation-geometry)
-including both follow-ups and remains uncommitted on `main`. **CPU6b is next, not started.**
+including both follow-ups at `96849ae`. CPU6b retains only full-rate ownership, profiling,
+and parity checks; its scheduler/LOD is deferred. **CPU7 is next by decision.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -98,12 +99,12 @@ P8 fixed-step physics and P9 scattered geometry as explicit profiling and accept
 | CPU4 | Nearby collision candidates and shared living-body data | Spatial indexes and prepared body records match the full-scan oracle; preserve fresh same-tick movement/slide results. Reuse symmetric pair work where valid; memoize swept results only for matching inputs/revisions and measured benefit. Bound ownership and invalidation. |
 | CPU5 | Reduce scene traversal, transforms and repeated frozen publication | Equal camera/state measurements; exact affine remains, separate death-chunk merge groups, picking, dynamic observation envelopes, shadows and cutaways survive consolidation; resources plateau. |
 | CPU6a | Demand-driven/cached animation and settled-contact geometry | Share prepared geometry and rebuild only relevant surfaces with pose/visibility/support invalidation. Candidate-pose checks retain exact snapshot inputs; preserve shield/tail/equipment clearance, once-per-pair final tail checks, corpse sampling and deterministic ordering. |
-| CPU6b | Separate presentation solving from catch-up; animation detail tiers | Prove fixed-step physics, block-feedback consumption and adjacent-step lethal history before throttling. Compare event-time observation, per-batch-position deaths and seeded physical motion across render cadences. |
+| CPU6b | Scheduler/LOD deferred; [retain the full-rate subset](plans/cpu6b-retained-subset.md) | No skipped solves or writes. The historical whole-frame gate was not met; parity and attribution are verified separately for the retained diff. |
 | CPU7 | Integrated performance, resource and visual acceptance | Equivalent seeded workloads and camera paths, p95/max hitch and resource checks. Hardware FPS claims require real hardware evidence; report remaining goals explicitly. |
 
 CPU2 follows CPU1 in delivery order but retains an independent CPU0 comparison. CPU6a and CPU6b
 are separate review gates. The detailed work bounds, numerical targets and affected suites remain
-in the CPU plan. These slices are **queued, not implemented** by this scheduling update.
+in the CPU plan. CPU7 assesses the integrated tree without the deferred CPU6b scheduler.
 
 ## Before the next procedural-feature expansion — Effect refactor
 

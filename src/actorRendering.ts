@@ -13,7 +13,6 @@ import { publishCorpseContacts } from './corpseRendering.ts';
 import { skeletonLurch } from './skeletonGait.ts';
 import { rigBinding } from './rigs/bindings.ts';
 import { profiles } from './rigs/humanoid.ts';
-import { copyLocal } from './rigs/ikMath.ts';
 import { overlaps, tailNeighbor } from './rigs/tailClearance.ts';
 import { advanceDeathPhysics } from './deathPhysics.ts';
 import { cpuTiming, cpuTrace } from './cpuMetrics.ts';
@@ -193,9 +192,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       grounding.head.set(lurch.headPitch * weight, 0, lurch.headRoll * weight);
     }
     binding.cape = pose.cape;
-    const solved = grounding.sample(actor, pose, binding.heading, world, corpses, actions);
-    copyLocal(solved.pose.local, binding.pose.local);
-    binding.apply(!!binding.tail);
+    binding.applyGrounded(actor, pose, world, corpses);
   }
   const cargo = updateCarriedTribute(ecs);
   const neighborCandidates: Entity[] = [],

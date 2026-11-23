@@ -4,7 +4,7 @@
 CPU4 review returned **APPROVE with zero findings**. The [final independent CPU5 review](../VERIFICATION.md#cpu5--final-independent-review)
 returned **APPROVE**; the later cap/replacement test landed in `f3fa9a3`.
 [CPU6a received final independent **APPROVE**](../VERIFICATION.md#cpu6a--animation-geometry),
-including both follow-ups, and remains uncommitted on `main`. **CPU6b is next, not started.**
+including both follow-ups, at `96849ae`. **CPU6b scheduler/LOD is deferred; CPU7 is next by decision.**
 See [delivery evidence](../VERIFICATION.md) and the [CPU0 baseline/tooling](cpu-baseline.md). This plan retains the completed CPU investigation at
 **`3cfb378`**; its historical measurements excluded concurrent shield-animation work. CPU0 must
 refresh them against the reviewed A0–A7/P8/P9 integration before accepting optimization results.
@@ -162,7 +162,7 @@ CPU5–CPU6 must preserve the completed rig, ragdoll and separated-remains owner
 | **CPU5** | Lower CPU scene traversal, transform and repeated frozen-publication cost | CPU0–CPU4 results; A7/P8/P9 binding and chunk identities |
 | **CPU6a** | Demand-driven/cached animation and settled-contact geometry | CPU5 review; current grounding/tail/shield and scattered-remains contracts |
 | **CPU6b** | Separate presentation solving from catch-up and add animation LOD | CPU6a; fixed-step physics/feedback/history separation proven before throttling |
-| **CPU7** | Integrated frame-time, resource and visual acceptance | Implemented slices above |
+| **CPU7** | Integrated frame-time, resource and visual acceptance | Delivered slices plus the full-rate CPU6b subset, not the deferred scheduler |
 
 The [implementation path](implementation-path.md) records the user's promotion of this queue after
 P9. Refresh CPU0 on the delivered revision, including A7's cutover, P8's pose/velocity handoff and P9's
@@ -454,7 +454,10 @@ drawn corpse geometry; corpses remain passable and cannot change support/navigat
 
 ### CPU6b — separate presentation solving from simulation frequency
 
-**Status:** Next, not started. CPU6a approval does not cover scheduling or detail tiers.
+**Status: deferred — scheduler/LOD performance gate unmet.** Keep the
+[full-rate subset](plans/cpu6b-retained-subset.md) for ownership and observability only.
+The contract below is for any future scheduling work, not a description of the retained code.
+CPU7 is next by decision; no FPS or scheduler acceptance is implied.
 
 Introduce explicit stages for fixed-step motion/action/feedback state, death-physics advance and
 consumer publication, expensive living pose solving, and mesh binding. Prove the stage boundaries
