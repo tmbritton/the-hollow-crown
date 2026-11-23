@@ -165,9 +165,7 @@ export class KoboldSquad {
           if (!a.navigator.canOccupy(goal)) return [];
           score +=
             this.distance(a.position, goal) +
-            (a.navigator.segmentClear(a.position, goal, false, a.navigator.occupancy?.bodies())
-              ? 0
-              : 3);
+            (a.navigator.liveSegmentClear(a.position, goal) ? 0 : 3);
         }
         return [{ point, score }];
       })
@@ -260,8 +258,7 @@ export class KoboldSquad {
       const a = new Actor(m.entity),
         goal = this.approach(m);
       if (this.distance(a.position, goal) < 0.025) continue;
-      if (a.navigator.segmentClear(a.position, goal, false, a.navigator.occupancy?.bodies()))
-        ready = true;
+      if (a.navigator.liveSegmentClear(a.position, goal)) ready = true;
       else if (this.routeToSlot(a, goal)) ready = true;
     }
     this.reformDistance = changed ? remaining() : Math.min(this.reformDistance, remaining());
@@ -286,11 +283,7 @@ export class KoboldSquad {
           z: a.position.z + Math.cos(this.heading + (i * Math.PI) / 4) * radius,
         })),
       )
-      .filter(
-        (p) =>
-          a.navigator.canOccupy(p) &&
-          a.navigator.segmentClear(a.position, p, false, a.navigator.occupancy?.bodies()),
-      )
+      .filter((p) => a.navigator.canOccupy(p) && a.navigator.liveSegmentClear(a.position, p))
       .sort((p, q) => this.distance(p, goal) - this.distance(q, goal));
     return (
       !!yields[0] && a.navigator.request(a.position, yields[0], { openDoors: true }) === 'ready'
@@ -412,7 +405,7 @@ export class KoboldSquad {
             Math.hypot(retreat.x, retreat.z) === 0 || Math.hypot(direction.x, direction.z) < 0.015,
         });
       } else if (moving && d > 0.025) {
-        if (a.navigator.segmentClear(a.position, goal, false, a.navigator.occupancy?.bodies())) {
+        if (a.navigator.liveSegmentClear(a.position, goal)) {
           a.navigator.cancel();
           intent.direction = { x: goal.x - a.position.x, z: goal.z - a.position.z };
           intent.speed = Math.min(PHALANX.speed, d * 12);

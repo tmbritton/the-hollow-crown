@@ -8,7 +8,9 @@ import type { ActorKind } from '../src/ecs.ts';
 import { CombatSystem } from '../src/combat.ts';
 import { key } from '../src/world.ts';
 import type { NavigationWorld } from '../src/navigation.ts';
-import type { Point, Tile } from '../src/worldTypes.ts';
+import type { DoorEntity, Point, Spawn, Tile } from '../src/worldTypes.ts';
+import { updateDoors } from '../src/worldEntities.ts';
+import { Health } from '../src/machines/actors/health.ts';
 
 function fixture(depth = 5) {
   const ecs = new ECS();
@@ -28,6 +30,235 @@ function assertSeparated(a: Actor, b: Actor) {
     `${a.id} overlaps ${b.id}: ${distance}`,
   );
 }
+
+test('ECS owns body and transform inputs, including getter-backed geometry', () => {
+  const { ecs, actor } = fixture();
+  const a = actor('player', -2),
+    b = actor('goblin', 0);
+  const o = a.navigator.occupancy!;
+  const p = { x: 0, z: 0, h: 0, heading: 0 };
+  const body = { radius: 0.45, height: 1.6 };
+  b.entity.add('transform', p).add('body', body);
+  p.x = 6;
+  body.radius = 0.01;
+  const point = { x: 0.65, z: 0, h: 0 };
+  assert.equal(b.position.x, 0);
+  assert.equal(o.canStand(point), false);
+  let x = 0;
+  b.entity.add('transform', {
+    get x() {
+      return x;
+    },
+    z: 0,
+    h: 0,
+    heading: 0,
+  });
+  b.entity.add('body', {
+    get radius() {
+      return body.radius;
+    },
+    height: 1.6,
+  });
+  x = 6;
+  body.radius = 1;
+  assert.equal(b.position.x, 0);
+  assert.equal(o.canStand(point), true);
+  b.position.x = 0.4;
+  b.entity.require('body').radius = 0.5;
+  assert.equal(o.canStand(point), false);
+  b.entity.setPosition({ x: 6, z: 0, h: 0 });
+  assert.equal(o.canStand(point), true);
+  ecs.living.fullScan = true;
+  assert.equal(o.canStand(point), true);
+});
+
+test('updateDoors sees live doorway centers with or without motor geometry', () => {
+  for (const fullScan of [false, true]) {
+    const { ecs, actor } = fixture();
+    ecs.living.fullScan = fullScan;
+    const b = actor('goblin', 0);
+    const door: DoorEntity = {
+      id: 'gate',
+      type: 'door',
+      x: 0,
+      z: 0,
+      h: 0,
+      axis: 'x',
+      open: true,
+      locked: false,
+      requiresAltar: false,
+    };
+    ecs.create(door.id).add('door', door);
+    updateDoors(ecs, 1);
+    const shape = b.entity.require('body');
+    const closes = () => {
+      updateDoors(ecs, 1 / 60);
+      door.open = false;
+      return !door.open;
+    };
+    assert.equal(closes(), false);
+    b.entity.remove('body');
+    assert.equal(closes(), false, 'detached motor still holds the door');
+    b.entity.add('body', shape);
+    assert.equal(closes(), false);
+    b.health.current = 0;
+    assert.equal(closes(), true);
+  }
+});
+
+test('every health transition publishes motor and doorway eligibility before returning', () => {
+  for (const fullScan of [true, false]) {
+    const { ecs, actor } = fixture();
+    ecs.living.fullScan = fullScan;
+    const a = actor('player', -2),
+      b = actor('goblin', 0);
+    const door: DoorEntity = {
+      id: 'gate',
+      type: 'door',
+      x: 0,
+      z: 0,
+      h: 0,
+      axis: 'x',
+      open: true,
+      locked: false,
+      requiresAltar: false,
+    };
+    ecs.create(door.id).add('door', door);
+    const occupancy = a.navigator.occupancy!;
+    const check = (label: string, living: boolean) => {
+      door.open = true;
+      updateDoors(ecs, 1);
+      door.open = false;
+      assert.deepEqual(
+        [
+          b.health.current > 0,
+          !occupancy.canStand(b.position),
+          !occupancy.segmentClear(a.position, { x: 2, z: 0, h: 0 }),
+          door.open,
+        ],
+        [living, living, living, living],
+        `${fullScan ? 'native' : 'indexed'}: ${label} (health, stand, sweep, doorway)`,
+      );
+    };
+    let publications = 0;
+    const h = b.health;
+    h.observeEligibility(() => publications++);
+    check('initial', true);
+    const builds = ecs.living.builds;
+    h.chart.send({ type: 'PROTECT', value: 1 });
+    h.chart.send({ type: 'DAMAGE', amount: 1000 });
+    assert.equal(h.damage(1000), false);
+    h.advance(1);
+    h.max = 10;
+    h.chart.send({ type: 'DAMAGE', amount: 1 });
+    check('protection, expiration, max clamp and nonlethal damage', true);
+    assert.equal(publications, 0);
+    assert.equal(ecs.living.builds, builds);
+
+    h.chart.send({ type: 'DAMAGE', amount: 1000 });
+    check('direct lethal DAMAGE', false);
+    h.chart.send({ type: 'SET_HP', value: 4 });
+    check('direct SET_HP revival', true);
+    assert.ok(h.damage(1000));
+    check('wrapper lethal damage', false);
+    h.current = 4;
+    check('setter revival', true);
+    h.chart.send({ type: 'SET_HP', value: 0 });
+    check('direct SET_HP death', false);
+    if (!fullScan)
+      assert.equal(publications, 5, 'exactly one notification per eligibility transition');
+
+    b.entity.add('health', new Health(10));
+    check('live health component replaces dead component', true);
+    h.current = 4;
+    h.current = 0;
+    check('writes to detached health do not alter the replacement', true);
+    b.health.chart.send({ type: 'DAMAGE', amount: 1000 });
+    check('replacement health still publishes', false);
+  }
+});
+
+test('live indexed cylinders match fresh scans after each sequential publication', () => {
+  const { ecs, world, actor } = fixture();
+  let a = actor('player', -2);
+  const b = actor('goblin', 0);
+  const compare = () => {
+    const results = (fullScan: boolean) => {
+      ecs.living.fullScan = fullScan;
+      return [a, b].map((m) => {
+        const o = m.navigator.occupancy!;
+        const from = m.position,
+          to = { x: -1 - from.x, z: 0.25, h: from.h };
+        return [
+          o.canStand(to),
+          o.segmentClear(from, to),
+          o.move(from, { x: to.x - from.x, z: to.z }, (p, d) => ({
+            x: p.x + d.x,
+            z: p.z + d.z,
+            h: p.h,
+          })),
+        ];
+      });
+    };
+    const indexed = results(false);
+    assert.deepEqual(results(true), indexed);
+    ecs.living.fullScan = false;
+  };
+  compare();
+  const builds = ecs.living.builds;
+  compare();
+  assert.equal(ecs.living.builds, builds);
+  moveActor(a, world, { direction: { x: 1, z: 0.35 }, speed: 8 }, 0.25);
+  compare();
+  teleportActor(a, world, { x: -1, z: 0 });
+  compare();
+  a.position.h = 3;
+  a.entity.require('body').radius = 1;
+  compare();
+  a.entity.add('body', { height: 0.2, radius: 0.1 });
+  a.position.h = 0;
+  compare();
+  a.health.current = 0;
+  assert.equal(ecs.living.counts.records, 1);
+  compare();
+  ecs.remove(a.id);
+  a = createActor(ecs, world, a.id, 'player', { x: 0.6, z: 0, h: 0 });
+  assert.equal(ecs.living.counts.records, 2);
+  assert.equal(b.navigator.occupancy!.canStand(a.position), false);
+  assert.equal(a.navigator.occupancy!.canStand(b.position), false);
+  compare();
+  ecs.living.dispose();
+  assert.deepEqual(ecs.living.counts, { records: 0, buckets: 0, memberships: 0 });
+});
+
+test('initial overlap blocks inward motion, allows escape, and redirected slides recheck terrain', () => {
+  const { ecs, actor } = fixture();
+  const a = actor('player', -0.6),
+    b = actor('goblin', 0);
+  const o = a.navigator.occupancy!;
+  const traces = [false, true].map((scan) => {
+    ecs.living.fullScan = scan;
+    const free = (p: Spawn, d: Point) => ({ x: p.x + d.x, z: p.z + d.z, h: p.h });
+    const inward = o.move(a.position, { x: 0.4, z: 0 }, free);
+    const escape = o.move(a.position, { x: -0.5, z: 0 }, free);
+    assert.equal(inward.x, -0.6);
+    assert.ok(escape.x < -1.09);
+    const start = { x: -1, z: -0.35, h: 0, heading: 0 };
+    let redirected = 0,
+      clipped = 0;
+    const slide = o.move(start, { x: 1.1, z: 0 }, (p, d) => {
+      if (d.z < -1e-6) redirected++;
+      const next = free(p, d);
+      if (next.z < -0.43) clipped++;
+      return { ...next, z: Math.max(-0.43, next.z) };
+    });
+    assert.ok(redirected && clipped, 'living contact must redirect a sweep into terrain');
+    assert.ok(Math.hypot(slide.x - b.position.x, slide.z - b.position.z) >= 0.9 - 1e-6);
+    assert.ok(slide.z >= -0.43 && slide.z < start.z, 'slide remains on the safe side of terrain');
+    return { inward, escape, slide, redirected, clipped };
+  });
+  assert.deepEqual(traces[0], traces[1]);
+});
 
 test('keyboard motors stop at hostile and allied bodies without pushing them', () => {
   for (const kind of ['player', 'goblin'] as const) {

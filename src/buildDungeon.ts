@@ -180,14 +180,12 @@ export function buildDungeon(
 
   // Perimeter masonry, with separately transformable upper sections for camera cutaways.
   const wallGroups = new Map<string, WallGroup>();
+  // Batcher already partitions collision-only masonry by 10-unit world cells.
+  // Preserve its group and face order for Babylon's equal-distance contact ties.
   const wallColliderBatch = new Batcher(
     scene,
     { collider: materials.dark },
-    {
-      addShadowCaster() {
-        return shadow;
-      },
-    },
+    { addShadowCaster: () => shadow },
   );
   for (const t of world.tiles.values()) {
     for (const [dx, dz] of [

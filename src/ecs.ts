@@ -12,6 +12,8 @@ import type { Health } from './machines/actors/health.ts';
 import type { MonsterBehavior, BrainState } from './machines/monsters/index.ts';
 import type { SocialGroup } from './social.ts';
 import type { BodySize } from './occupancy.ts';
+import { LivingCandidates, bodyComponents } from './livingCandidates.ts';
+import type { BodyComponent } from './livingCandidates.ts';
 import type { Jump } from './jump.ts';
 import type { InhabitantIdentity } from './generation/inhabitants.ts';
 import type { DiscoveryRecord } from './discoveries.ts';
@@ -151,12 +153,29 @@ export class Entity {
   readonly id: string;
   private readonly components: Partial<Components> = {};
   private readonly changed: (name: keyof Components, attached: boolean) => void;
+  private readonly orders = new Map<BodyComponent, number>();
+  private eligibility?: () => void;
+  private editingTransform = false;
   constructor(id: string, changed: (name: keyof Components, attached: boolean) => void = () => {}) {
     this.id = id;
     this.changed = changed;
   }
   add<K extends keyof Components>(name: K, value: Components[K]): this {
-    this.components[name] = value;
+    if (name === 'health') {
+      this.eligibility?.();
+      this.eligibility = (value as Health).observeEligibility(() => this.changed('health', true));
+    }
+    if (name === 'body') {
+      const { radius, height } = value as BodySize;
+      this.components.body = this.trackGeometry('body', { radius, height }, ['radius', 'height']);
+    } else if (name === 'transform') {
+      const { x, z, h, heading } = value as Components['transform'];
+      this.components.transform = this.trackGeometry('transform', { x, z, h, heading }, [
+        'x',
+        'z',
+        'h',
+      ]);
+    } else this.components[name] = value;
     this.changed(name, true);
     return this;
   }
@@ -172,8 +191,55 @@ export class Entity {
     return this.components[name] !== undefined;
   }
   remove(name: keyof Components): void {
+    if (name === 'health') this.detachHealthObserver();
     delete this.components[name];
     this.changed(name, false);
+  }
+
+  private trackGeometry<K extends 'transform' | 'body'>(
+    name: K,
+    owned: Components[K],
+    keys: (keyof Components[K])[],
+  ): Components[K] {
+    for (const key of keys) {
+      let current = owned[key];
+      Object.defineProperty(owned, key, {
+        enumerable: true,
+        configurable: false,
+        get: () => current,
+        set: (next: typeof current) => {
+          if (current === next) return;
+          current = next;
+          if (!this.editingTransform && this.get(name) === owned) this.changed(name, true);
+        },
+      });
+    }
+    return owned;
+  }
+
+  /** Publish a complete support transform once, never intermediate x/z/h combinations. */
+  setPosition(position: Spawn): void {
+    const p = this.require('transform');
+    if (p.x === position.x && p.z === position.z && p.h === position.h) return;
+    this.editingTransform = true;
+    try {
+      p.x = position.x;
+      p.z = position.z;
+      p.h = position.h;
+    } finally {
+      this.editingTransform = false;
+    }
+    this.changed('transform', true);
+  }
+
+  componentOrder(name: BodyComponent, order?: number): number {
+    if (order !== undefined) this.orders.set(name, order);
+    return this.orders.get(name) ?? -1;
+  }
+
+  detachHealthObserver(): void {
+    this.eligibility?.();
+    this.eligibility = undefined;
   }
 }
 
@@ -181,16 +247,24 @@ export class ECS {
   private readonly entities = new Map<string, Entity>();
   private serial = 0;
   private readonly index = new Map<keyof Components, Set<Entity>>();
+  private attachment = 0;
+  readonly living = new LivingCandidates(this);
   create(id = `transient:${this.serial++}`): Entity {
     if (this.entities.has(id)) throw new Error(`Duplicate entity: ${id}`);
     const entity = new Entity(id, (name, attached) => {
+      if (this.entities.get(id) !== entity) return;
       let set = this.index.get(name);
       if (!set) {
         set = new Set();
         this.index.set(name, set);
       }
-      if (attached && this.entities.get(id) === entity) set.add(entity);
-      else set.delete(entity);
+      const geometry =
+        name === 'actor' || name === 'body' || name === 'transform' || name === 'health';
+      if (attached) {
+        if (geometry && !set.has(entity)) entity.componentOrder(name, this.attachment++);
+        set.add(entity);
+      } else set.delete(entity);
+      if (geometry || name === 'corpse') this.living.publish(entity);
     });
     this.entities.set(id, entity);
     return entity;
@@ -201,6 +275,8 @@ export class ECS {
   remove(id: string): void {
     const entity = this.entities.get(id);
     if (!entity) return;
+    entity.detachHealthObserver();
+    this.living.remove(entity);
     for (const set of this.index.values()) set.delete(entity);
     this.entities.delete(id);
   }
@@ -210,6 +286,16 @@ export class ECS {
     if (sets.some((set) => !set)) return [];
     const smallest = sets.reduce((a, b) => (a!.size < b!.size ? a : b))!;
     return [...smallest].filter((entity) => components.every((name) => entity.has(name)));
+  }
+  querySource(components: typeof bodyComponents): number {
+    let source = 0;
+    for (let i = 1; i < components.length; i++)
+      if (
+        (this.index.get(components[i])?.size ?? 0) <=
+        (this.index.get(components[source])?.size ?? 0)
+      )
+        source = i;
+    return source;
   }
   get size(): number {
     return this.entities.size;

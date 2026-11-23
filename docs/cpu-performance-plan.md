@@ -1,6 +1,7 @@
 # CPU performance plan — queries, collision, rendering and animation
 
-**Status:** CPU0 through CPU3 are independently reviewed **READY**. **CPU4 is next**.
+**Status:** CPU0 through CPU3 are independently reviewed **READY**. Astra's final independent
+CPU4 review returned **APPROVE with zero findings**. **CPU5 is next** and has not started.
 See [delivery evidence](../VERIFICATION.md) and the [CPU0 baseline/tooling](cpu-baseline.md). This plan retains the completed CPU investigation at
 **`3cfb378`**; its historical measurements excluded concurrent shield-animation work. CPU0 must
 refresh them against the reviewed A0–A7/P8/P9 integration before accepting optimization results.
@@ -323,6 +324,13 @@ a previously blocked choke clears. If requests span ticks, specify and test the 
 contract explicitly; do not present changed gameplay timing as an invisible optimization.
 
 ### CPU4 — limit collision candidates to relevant geometry
+
+**Implementation status:** Implemented and independently approved; see [Astra's final review and verification evidence](../VERIFICATION.md#cpu4--final-independent-review).
+Synchronous [partial-route planning](plans/cpu4-partial-route-locality.md) uses one pinned
+occupancy view for collision probes and a separate complete list for cache identity. The crowded
+detour and reachable frontier match full scan without reading distant candidates in indexed
+narrow-phase probes. Short pursuit also uses the bounded lookup; CPU3 deferred planning still
+uses detached body data and its existing scheduler.
 
 **Touchpoints:** `src/actors.ts`, `src/occupancy.ts`, `src/actorRendering.ts`, `src/buildDungeon.ts`,
 `src/worldEntities.ts` and collision adapter contracts. Evaluate a world-owned spatial index or the engine's candidate-list mechanism

@@ -42,6 +42,7 @@ import { animateActors, ACTOR_OBSERVATION_RADIUS } from './actorRendering.ts';
 import { cpuTiming } from './cpuMetrics.ts';
 import { createEnemyRendering } from './enemyRendering.ts';
 import { registerWorld, registerDungeonRendering, updateDoors } from './worldEntities.ts';
+import { TerrainCandidates } from './terrainCandidates.ts';
 import { UI } from './ui.ts';
 import { InspectionController } from './inspection.ts';
 import { Statechart } from './machines/statechart.ts';
@@ -335,7 +336,10 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
         ? actor.position
         : null,
     );
-  scene.onDisposeObservable.addOnce(() => routeBudget.dispose());
+  scene.onDisposeObservable.addOnce(() => {
+    routeBudget.dispose();
+    ecs.living.dispose();
+  });
   const tributePlan = prepareTribute(ecs, world, player.actor);
   installObjectiveWork(
     ecs,
@@ -352,6 +356,14 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   const clue = world.entities.find((e) => e.id === ember.sites.clue.id);
   if (clue?.inspection) clue.inspection.description += `\n\n${emberClue(world).description}`;
   const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
+  // This closed bootstrap builds only authored motor colliders and permanent render meshes
+  // (including the effects pools and actor proxies). Never classify later scene additions here.
+  const authoredColliders = new Set(dungeon.colliders);
+  new TerrainCandidates(
+    scene,
+    dungeon.colliders,
+    scene.meshes.filter((mesh) => !(mesh instanceof Mesh && authoredColliders.has(mesh))),
+  );
   // Render batches can serve many logical tiles/props without duplicating geometry.
   const actorMeshes = new Set(
     ecs.query('render').flatMap((entity) => entity.require('render').meshes),

@@ -74,14 +74,11 @@ export function createActor(
 ): Actor {
   const max = { player: 100, skeleton: 48, goblin: 36, kobold: 44 }[kind];
   const body = { radius: 0.45, height: kind === 'player' || kind === 'skeleton' ? 1.8 : 1.3 };
-  const occupancy = new Occupancy(body, () =>
-    ecs
-      .query('actor', 'body', 'transform', 'health')
-      .filter(
-        (entity) =>
-          entity.id !== id && entity.require('health').current > 0 && !entity.has('corpse'),
-      )
-      .map((entity) => ({ ...entity.require('transform'), ...entity.require('body') })),
+  const occupancy = new Occupancy(
+    // Removing the obstacle component makes others pass through this actor, not vice versa.
+    () => actor.entity.get('body') ?? body,
+    () => ecs.living.snapshot(id),
+    (read) => ecs.living.withView(id, read),
   );
   const actor: Actor = new Actor(
     ecs
@@ -175,7 +172,7 @@ export function teleportActor(actor: Actor, world: NavigationWorld, point: Point
   stopActor(actor);
   const destination = actor.navigator.nearestOpenPoint(point);
   if (!destination) return;
-  Object.assign(actor.position, {
+  actor.entity.setPosition({
     x: destination.x,
     z: destination.z,
     h: heightAt(world, destination.x, destination.z) ?? 0,
@@ -262,7 +259,7 @@ export function moveActor(
   const ground = heightAt(world, next.x, next.z) ?? p.h;
   motion.supportVelocity = (ground - p.h) / dt;
   actor.jump.advance(dt, ground - p.h);
-  Object.assign(p, { x: next.x, z: next.z, h: heightAt(world, next.x, next.z) ?? p.h });
+  actor.entity.setPosition({ x: next.x, z: next.z, h: ground });
   collision?.sync?.(p);
   if (travel > 0.001 && moved < travel * 0.05) motion.speed = 0;
   if (!actor.navigator.waitingForDoor) actor.navigator.recordProgress(moved, dt, p);

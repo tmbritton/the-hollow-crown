@@ -10,13 +10,15 @@ import type { NavigationWorld } from '../src/navigation.ts';
 import type { DoorEntity, Tile } from '../src/worldTypes.ts';
 import { Health } from '../src/machines/actors/health.ts';
 import { RUN_SPEED, WALK_SPEED } from '../src/locomotion.ts';
+import { RouteBudget } from '../src/routeBudget.ts';
+import type { CollisionBody } from '../src/occupancy.ts';
 
-function fixture() {
+function fixture(entities: NavigationWorld['entities'] = []) {
   const ecs = new ECS(),
     tiles = new Map<string, Tile>();
   for (let x = -12; x <= 12; x++)
     for (let z = -8; z <= 8; z++) tiles.set(key(x, z), { x, z, h: 0, surface: 'stone' });
-  const world: NavigationWorld = { tiles, blockers: [], entities: [] };
+  const world: NavigationWorld = { tiles, blockers: [], entities };
   const player = createActor(ecs, world, 'player', 'player', { x: -8, z: 0, h: 0 });
   const combat = new CombatSystem(ecs, world, [player]);
   const enemy = (kind: ActorKind, x: number, z = 0, ai = true, slot = 0) => {
@@ -229,6 +231,113 @@ test('pursuit routes around obstacles, repeatedly attacks, stops on death, and r
   assert.deepEqual(f.player.position, p);
   assert.ok(f.ecs.get(target.id));
   assert.equal(f.ecs.query('particle').length, 0);
+});
+
+test('short pursuit checks local bodies before route admission and preserves planning door rules', (t) => {
+  function pursue(distant: number, scan: boolean, obstacle?: 'body' | 'shut' | 'locked') {
+    const doors: DoorEntity[] =
+      obstacle === 'shut' || obstacle === 'locked'
+        ? [
+            {
+              id: 'gate',
+              type: 'door',
+              x: 0.775,
+              z: 0,
+              h: 0,
+              axis: 'x',
+              open: false,
+              locked: obstacle === 'locked',
+              requiresAltar: false,
+            },
+          ]
+        : [];
+    const { ecs, player, combat, enemy } = fixture(doors);
+    ecs.living.fullScan = scan;
+    player.entity.setPosition({ x: 0, z: 0, h: 0 });
+    const target = enemy('skeleton', 2.5, 0, false);
+    if (obstacle === 'body') enemy('skeleton', 0.775, 0.5, false);
+    for (let i = 0; i < distant; i++) enemy('skeleton', 100 + 4 * i, 0, false);
+
+    const nav = player.navigator,
+      occ = nav.occupancy!,
+      budget = new RouteBudget(6);
+    nav.scheduleWith(budget, () => player.position);
+    // Spend this tick's allowance so submission cannot inline the separate admission check.
+    budget.submit({ cost: () => 6, advance: () => true, retire: () => {} });
+    assert.ok(combat.target(player, target));
+    player.attack.repath = 0.3; // Don't let the slower fallback mask a rejected short approach.
+    nav.chart.send({ type: 'CONFIGURE', opensDoors: true });
+    const goal = { x: 1.55, z: 0 };
+    assert.ok(nav.canOccupy(goal), 'the obstruction must be between the endpoints');
+
+    // Count numeric reads in the real cylinder solver, regardless of how it received its list.
+    let reads = { near: 0, distant: 0 };
+    const wrap = (list: readonly CollisionBody[]) =>
+      new Proxy(list, {
+        get(target, property, receiver) {
+          const value = Reflect.get(target, property, receiver);
+          if (typeof property === 'string' && /^(0|[1-9]\d*)$/.test(property))
+            reads[target[Number(property)].x >= 100 ? 'distant' : 'near']++;
+          return value;
+        },
+      });
+    const segment = occ.segmentClear.bind(occ);
+    t.mock.method(occ, 'segmentClear', (...[a, b, input]: Parameters<typeof segment>) =>
+      segment(
+        a,
+        b,
+        typeof input === 'function' ? (bounds) => wrap(input(bounds)) : input && wrap(input),
+      ),
+    );
+
+    assert.equal(combat.pursue(player, 1 / 60), false);
+    const probe = reads;
+    const pending = nav.pending;
+    assert.equal(nav.destination, null, 'admission has not run during the probe');
+    reads = { near: 0, distant: 0 };
+    budget.tick();
+    return {
+      probe,
+      admission: reads,
+      result: { pending, destination: nav.destination, path: nav.path },
+    };
+  }
+
+  const sparse = pursue(0, false),
+    crowded = pursue(128, false),
+    scan = pursue(128, true);
+  t.diagnostic(`clear near/distant reads: ${JSON.stringify({ sparse, crowded, scan })}`);
+  const direct = { pending: true, destination: { x: 1.55, z: 0 }, path: [{ x: 1.55, z: 0 }] };
+  assert.deepEqual(sparse.result, direct);
+  assert.deepEqual(crowded.result, scan.result);
+  assert.deepEqual(crowded.result, direct);
+  assert.ok(scan.probe.distant > 0, 'the full-scan oracle must actually read distant bodies');
+  assert.ok(crowded.admission.distant > 0, 'deferred admission still uses its detached snapshot');
+
+  const blocked = pursue(128, false, 'body'),
+    blockedScan = pursue(128, true, 'body');
+  t.diagnostic(`blocked near/distant reads: ${JSON.stringify({ blocked, blockedScan })}`);
+  assert.deepEqual(blocked.result, blockedScan.result);
+  assert.deepEqual(blocked.result, { pending: false, destination: null, path: [] });
+  assert.ok(blocked.probe.near > 0);
+  assert.deepEqual(
+    pursue(0, false, 'shut').result,
+    direct,
+    'an openable shut door allows planning',
+  );
+  assert.deepEqual(
+    pursue(0, false, 'locked').result,
+    blocked.result,
+    'a locked door blocks planning',
+  );
+
+  assert.deepEqual(
+    crowded.probe,
+    sparse.probe,
+    'short approach must not scale with far population',
+  );
+  assert.equal(crowded.probe.distant, 0);
+  assert.equal(blocked.probe.distant, 0);
 });
 
 test('melee resolves at impact and cannot hit through furniture, shut doors or after cancellation', () => {

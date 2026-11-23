@@ -157,6 +157,7 @@ try {
             if (type.startsWith('door') && frame <= 180) worst = Math.max(worst, overlap());
           }
           const r = a.entity.require('ragdoll');
+          if (g.ecs.living.has(a.entity)) throw new Error('Ragdoll entered living collision');
           rows.push({
             type,
             profile,

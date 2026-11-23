@@ -17,6 +17,7 @@ import { copyLocal } from './rigs/ikMath.ts';
 import { overlaps } from './rigs/tailClearance.ts';
 import { advanceDeathPhysics } from './deathPhysics.ts';
 import { cpuTiming } from './cpuMetrics.ts';
+import { collisionTerrain } from './terrainCandidates.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -41,7 +42,9 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
       if (!supported(from.x, from.z + delta.z)) delta.z = 0;
       if (!supported(from.x + delta.x, from.z + delta.z)) delta.setAll(0);
       proxy.computeWorldMatrix(true);
-      proxy.moveWithCollisions(delta);
+      const terrain = collisionTerrain(scene);
+      if (terrain) terrain.move(proxy, delta);
+      else proxy.moveWithCollisions(delta);
       proxy.position.y = (heightAt(world, proxy.position.x, proxy.position.z) ?? from.h) + 0.72;
       proxy.computeWorldMatrix(true);
       return { x: proxy.position.x, z: proxy.position.z };

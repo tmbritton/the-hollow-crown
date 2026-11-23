@@ -4,6 +4,240 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### CPU4 — final independent review
+
+Astra's final independent review of CPU4 on `main` returned **APPROVE with zero findings**.
+This supersedes the pending statuses in the historical checkpoints below, including the
+pursuit-only follow-up. CPU4 remains uncommitted; CPU5 is next and has not started.
+
+| Evidence | Result |
+| --- | --- |
+| Focused collision-candidate, navigation, partial-navigation, occupancy, route-budget and combat tests | 84 passed |
+| `npm run check:full` | 434 passed; typecheck, lint and format check passed |
+| Fresh headless Chromium `npm run test:combat` | All 15 checks passed |
+| Earlier motor and production evidence, reused rather than rerun for final review | Movement: 17 checks, including 215 paired motor samples and 240 seam sweeps; root production smoke and profiling isolation passed |
+
+The prior motor and production results are recorded in the partial-route and round 2 checkpoints
+below. The Chromium pass does not change the recorded Firefox WebGL2 limitation.
+
+### CPU4 — short pursuit locality (follow-up finding fixed)
+
+Astra's full-feature review found that `CombatSystem.pursue` passed a complete body list to
+the short synchronous approach sweep. It now calls `liveSegmentClear` with `planning = true`.
+The standing check, route request, door policy and CPU3 admission are unchanged.
+
+The real pursuit regression starts the player at `(0, 0)` and the target at `(2.5, 0)`. It
+spends the current route allowance so it can count actual array-element reads from the
+short sweep before ticking the budget and measuring admission separately. Counts below are
+**near / distant** candidate reads in the cylinder solver, not timings or snapshot reads.
+
+| Fixture | Short sweep before | Short sweep after | Admission after |
+| --- | ---: | ---: | ---: |
+| Clear, indexed, sparse | 9 / 0 | 0 / 0 | 9 / 0 |
+| Clear, indexed, +128 distant | 9 / 1,152 | 0 / 0 | 9 / 1,152 |
+| Clear, full scan, +128 distant | 9 / 1,152 | 9 / 1,152 | 9 / 1,152 |
+| Blocked, indexed, +128 distant | 2 / 128 | 1 / 0 | 0 / 0 |
+| Blocked, full scan, +128 distant | 2 / 128 | 2 / 128 | 0 / 0 |
+
+The red test failed on indexed population scaling. After the change, all clear runs still
+admit the single waypoint `(1.55, 0)`. In the blocked runs, the goal itself is occupiable but
+the intervening body rejects the short approach before submission in both modes. A shut,
+unlocked door still allows planning for a door-capable player; a locked door does not.
+
+**Caller audit:** Live steering, objective work and ordinary squad probes already use the
+bounded lookup. Terrain-only checks retain that policy. Remaining navigation full-body lists
+serve floor-cache identity or detached CPU3 admission, failure stamps and revalidation.
+`KoboldSquad.clearTranslation` still scans a specialized external-only set because ranks
+translate together; a single-actor live view would change its exclusions. This follow-up
+does not claim population-independent work for that formation check or for route admission.
+
+| Command | Result |
+| --- | --- |
+| `node --test --test-name-pattern='short pursuit' tests/combat.test.ts` (before fix) | 1 expected failure: 9 → 1,161 short-sweep reads |
+| `node --test tests/combat.test.ts` (after fix) | 18 passed |
+| `npm run check:full` | 434 passed; typecheck, lint and format passed |
+| `npm test` | 416 passed; typecheck passed |
+| `npm run build` | Passed; Vite chunk-size warning |
+| `env -u DISPLAY -u WAYLAND_DISPLAY BROWSER=chromium DEMO_URL=http://localhost:5173 npm run test:combat` | All 15 checks passed |
+| Same headless combat command with `BROWSER=firefox` | Timed out waiting for initialization; a separate probe confirmed no WebGL2 context in this environment |
+| `git diff --check` | Passed |
+
+Local logs: `test-results/cpu4-pursuit-*.log`. A read-only Astra follow-up reviewed this
+fix's source, caller audit and red/green logs and found no blockers in the pursuit change;
+it did not rerun the suite or re-review the entire CPU4 feature.
+
+### CPU4 — synchronous partial-route locality (implemented and verified; independent review pending)
+
+Implemented the [partial-route locality plan](docs/plans/cpu4-partial-route-locality.md) on
+`main` over the existing uncommitted CPU4 changes. Synchronous routes pin one occupancy view;
+partial routes also take one complete body list before probing, for cache identity only. Exact
+routes take no fingerprint list. Both floor caches retain signatures, not the lookup or body
+lists. CPU3 scheduled drafts still probe and validate against detached body arrays; partial
+drafts also use that same detached array for their fingerprints.
+
+The first focused run, before changing `src/navigation.ts`, had **45 passes and 3 expected
+failures**: indexed detour and exhausted-search locality, and capture without entering a view.
+Route parity and the held-command control already passed. The table counts actual candidate
+array element reads in the planner's narrow phase, excluding fingerprint singleton probes and
+snapshot enumeration. Each pair is **near / distant** reads; these are operation counts, not
+timing measurements or fixed budgets.
+
+| Fixture | Baseline stand | Baseline segment | Indexed stand after fix | Indexed segment after fix |
+| --- | ---: | ---: | ---: | ---: |
+| Detour, sparse | 115 / 0 | 305 / 0 | 4 / 0 | 17 / 0 |
+| Detour, +128 distant | 115 / 14,208 | 305 / 39,040 | 4 / 0 | 17 / 0 |
+| Exhausted, cold, sparse | 246 / 0 | 1,001 / 0 | 4 / 0 | 15 / 0 |
+| Exhausted, cold, +128 distant | 246 / 30,976 | 1,001 / 128,128 | 4 / 0 | 15 / 0 |
+| Exhausted, warm, sparse | 173 / 0 | 885 / 0 | 0 / 0 | 15 / 0 |
+| Exhausted, warm, +128 distant | 173 / 22,144 | 885 / 113,280 | 0 / 0 | 15 / 0 |
+
+- The crowded two-argument scan adapter still reads **53,668** candidate elements on the
+  detour. Indexed routing reads **21** in either population, with identical acceptance,
+  destination and ordered waypoints. Indexed lookups were **420** per detour and **1,247 cold /
+  1,058 warm** for the exhausted fixture in either population. Fingerprint work still depends on
+  population; the crowded partial route's single fingerprint list contains all **129** non-self bodies.
+- Same-origin exhaustion drops from **60 to 0** expansion-edge sweeps and retains the fresh
+  scan's frontier and route. Changes to local occupancy, same-mask continuous geometry, radius
+  or height each restore **60** expansion sweeps and match a fresh scan. On an active held fallback,
+  an unchanged repeat after the retry window adds no search; a 0.06-unit same-mask body move
+  triggers one search and matches the fresh scan. Temporarily omitting the fingerprint input
+  failed both the same-mask exhausted-tree invalidation and unchanged-hold controls.
+
+Node 26.0.0, npm 11.12.1. Browser checks ran sequentially in headless Chromium with
+`DISPLAY` and `WAYLAND_DISPLAY` unset. Local logs: `test-results/cpu4-partial-*.log`.
+
+| Command | Actual result |
+| --- | --- |
+| `node --test tests/navigation.test.ts tests/partial-navigation.test.ts tests/route-budget.test.ts` | 48 passed, including all 8 CPU3 route-budget cases |
+| `npm run check:full` | 433 passed; typecheck, lint and format check passed |
+| `npm test` | 415 passed; typecheck passed |
+| `npm run build` | Passed; Vite reported its chunk-size warning |
+| `DEMO_URL=http://localhost:5173 npm run test:movement` | 17 checks passed; includes real click/hold travel and 215 paired motor samples plus 240 seam sweeps |
+| `npm run test:production` | Root preview smoke passed, including real movement/map and held F; no debug hooks, external assets or browser/network errors |
+| `git diff --check` | Passed |
+
+### CPU4 — Sol fix round 2 (follow-up review pending)
+
+- **Mover footprint:** At radius 0.50, the live sweep from `(-2, 1.41)` to `(2, 1.41)` past
+  the body at `(0, 0.5)` rejected the old direct route. Before the fix, the hold at 1,000 ms
+  still reused it; afterward it matches a fresh plan via `(1, 2)`. A height-only change also
+  matches a fresh detour, even inside the cursor retry window. An unchanged hold keeps the same
+  chart snapshot. The exhausted partial search still drops from **172 to 112** unit sweeps on
+  unchanged input, but takes **172** after either dimension changes, matching a cold search.
+  Both floor caches store the dimensions used to plan. Stuck-command bookkeeping does not
+  rewrite them. Scheduled drafts already copy the footprint and revalidate both dimensions
+  before publication; the deferred negative-result stamp already includes both.
+- **Health publication:** Before the fix, direct chart `DAMAGE 1000` set HP to zero but both
+  indexed motor probes and the doorway still saw the actor; the native scan did not. Now all
+  supported health writes pass through one synchronous chart-send boundary that checks positive
+  HP before and after the transition. The indexed and native tests agree immediately on death
+  and revival through chart events and wrapper APIs, including health component replacement.
+  Protected/ignored damage, nonlethal damage, protection expiry and an ordinary max clamp produce
+  no eligibility publication. Corpse membership remains an ECS write; direct health events do
+  not perform combat's death effects.
+
+Linux x86-64, Node 26.0.0, npm 11.12.1; browser checks ran sequentially in headless Chromium
+with `DISPLAY` and `WAYLAND_DISPLAY` empty. Round 2 logs: `test-results/cpu4-round2-*`.
+
+| Command | Actual result |
+| --- | --- |
+| Focused red/green filter in `navigation.test.ts` and `occupancy.test.ts` | 4 failures before, 4 passes after |
+| `node --test tests/collision-candidates.test.ts tests/navigation.test.ts tests/partial-navigation.test.ts tests/occupancy.test.ts tests/route-budget.test.ts` | 64 passed |
+| `npm run check:full` | 431 passed; typecheck, lint, and format check passed |
+| `npm test` | 413 passed; typecheck passed |
+| `npm run build` | Passed; Vite reported its chunk-size warning |
+| `npm run test:movement` | 17 checks passed; 215 paired motor samples and 240 seam sweeps, including door-threshold replay and locked/closing/open gate travel |
+| `npm run test:combat` | 15 checks passed, including corpse passability, player respawn, door open by click and altar lock preservation |
+| `npm run test:jump` | 8 checks passed, including sealed-gate denial and lava damage resuming on landing |
+| `npm run test:cpu:regressions` | Passed; 2,382-mesh seeded locality and contact parity probes |
+| `npm run test:cpu:production`, `npm run test:production` | Passed; profiling isolation and root production smoke |
+
+### CPU4 — local motor collision candidates (Astra fix round 1; follow-up review pending)
+
+Worktree based on `d366753`, Linux x86-64 / Ryzen 5 2600X, Node 26.0.0, npm 11.12.1,
+locked Babylon 9.37.0, Chromium headless with SwiftShader, `DISPLAY= WAYLAND_DISPLAY=`.
+This is not hardware FPS evidence.
+
+1. **Terrain coverage:** The initially disabled, unclassified wall reproduced the original
+   `2.0` vs `0.445` displacement. Late activation, same-turn creation and attempts to declare a
+   detached mesh now match native. Only the closed authored bootstrap or an explicit lifecycle
+   declaration marks permanent décor. Known adds/removes balance the census without scanning.
+   The 215 paired real-motor comparisons (`1e-6` tolerance) made zero reconciliation visits,
+   foreign visits or fallbacks during the seeded path. An injected unknown collider produced one
+   2,383-entry reconciliation, six foreign visits and six native fallbacks; it was then removed.
+2. **Geometry publication:** `add` now snapshots the scalar geometry even for getter-backed input.
+   ECS-owned properties publish on writes, while `setPosition` publishes once. The previous
+   retained-reference fixture read the caller's later `x = 6` instead of `0`; the new test also
+   confirms writes through the ECS component and explicit position update change indexed answers.
+3. **Exact navigation:** The 21×7 floor's `-6 → 6` route with a blocker at `(0,0)` previously failed
+   under forced full scan. Indexed, forced scan and an unsupported-radius fallback now produce
+   the same detour. Lookup callbacks are not tested for emptiness via function arity.
+4. **Doorway occupancy:** Calling `updateDoors` used to let a gate close when a live actor lost
+   its motor body. A separate point index follows the original actor/transform/positive-health
+   predicate; the gate stays held through detach and reattach, then releases on death. The
+   forced-scan test uses the original ECS predicate, and P8/P9 collision remains separate.
+5. **Contact and batching parity:** Blocked/escaping overlap and the terrain recheck after a
+   redirected slide run in both modes. The same-ID fixture uses the new actor as both mover and
+   blocker. The original single `Batcher` already produced **89** spatial groups, largest extent
+   **10.425** units on the reference seed. Round 1's oracle first found changed triangle order at
+   scalar 972 with the extra splitting; removing that split preserves the original triangle stream
+   and passes **240** clipped native-vs-indexed sweeps at **80** authored seams.
+6. **Partial-route reuse:** The first exhausted search records the body fingerprint at storage.
+   The immediate same-origin repeat preserves the route and drops unit sweeps from 172 to 112;
+   before the fix it took 172 again. This does not change CPU3 deferred validation.
+
+`npm run test:cpu:regressions` pins `MOURNING-731` at **2,382 scene meshes**. One detailed pass
+has 16 motor steps. The sparse pass made 31 terrain and 31 living queries, with indexed candidate
+median/p95/max of 1/1/1 terrain and 0/0/0 living, versus 2,382 and 24 per query, respectively,
+in the full scan. Adding 128 distant colliders, 128 decorations and 128 actors (2,638 total meshes)
+left the candidate sequences and bucket-entry work (112 terrain / 61 living) unchanged, with zero
+foreign visits, reconciliation visits or fallbacks. This also holds on the unextended contact pass.
+
+The contact fixture adds four living blockers and a lateral wall. Both paths agree on the motor
+trace, with **42 cylinder contacts and 21 Babylon clips across 56 queries**. Indexed candidate
+median/p95/max is 1/2/2 terrain and 1/1/1 living (362/560 bucket-entry visits across the pass),
+against 2,383 scene entries and 28 bodies per query for the forced-scan adapter. Sparse/contact
+passes each built 0 terrain bounds and 17/10 motor body records, including the reset. Instrumented
+contact-pass totals were approx. 0.7 ms terrain lookup + 0.2 ms Babylon sweep and 0.1 ms living
+lookup + 0.1 ms solve; measured publication cost rounded to 0.0 ms. The full path spent about
+5.9 ms in Babylon, 1.1 ms on living snapshots and 0.1 ms on publication. Individual instrumented
+stage totals are noisy near the timer resolution; timings below disable the detailed probe.
+
+| Workload | Indexed median / p95 (ms) | Full-scan median / p95 (ms) |
+| --- | ---: | ---: |
+| Sparse | 13.5 / 21.2 | 54.6 / 64.5 |
+| Sparse with far population | 10.9 / 16.7 | — |
+| Contact-heavy | 17.9 / 22.3 | 121.4 / 149.5 |
+
+Timing-only comparison: 12 warmed samples of 256 steps per adapter, no rendering; p95 equals max
+at this sample count. Both modes still maintain the indexes. The exact directional cylinder
+probe found 0 repeats in the sparse pass and 20/56 in the contact pass (all 20 repeated queries
+hit). This is geometric recurrence within a single mover/pass, not measured cache hits; no
+cache lookup, lifetime or invalidation was implemented. Probe key construction alone was about
+0.7 ms on the indexed contact pass, more than the measured cylinder solve.
+
+`npm run test:resources` verified three successive resets. Fresh counts (records / buckets /
+memberships) were 190 / 425 / 733 terrain, 25 / 27 / 36 motor bodies and 25 / 20 / 25 doorway
+centers. All retired owners returned zeros. Far-population peaks were 318 / 745 / 1,053 terrain
+and 153 / 345 / 354 motor bodies.
+
+Completed headless commands (exit 0):
+
+```sh
+node --test tests/collision-candidates.test.ts tests/occupancy.test.ts tests/navigation.test.ts # 32
+npm run check:full # 428 tests; typecheck, lint and format:check
+npm test # 410 everyday/model tests
+npm run build
+for suite in movement jump combat phalanx objective-work ragdoll:contacts skeleton:breakup resources cpu cpu:regressions; do
+  npm run "test:$suite"
+done
+npm run test:cpu:production
+npm run test:production
+```
+
+Movement finished with 17 checks. Local red/green logs are in `test-results/cpu4-round1-*`.
+Round 1 is not a follow-up independent approval.
+
 ### CPU3 — shared fixed-tick planning (option 2 independently reviewed READY)
 
 Player and AI requests share one 24-credit allowance. Admission and late publication reserve six

@@ -60,7 +60,9 @@ A1 shared rigs, A2 coordinated solving and A3 live locomotion/contact migration 
 and reviewed READY. A4 action/equipment/work/social migration is also verified and independently
 reviewed READY. A5 articulated tails is implemented, verified and independently reviewed READY.
 A6 shield motion is implemented, verified and independently reviewed READY; both blockers cleared.
-A7, P8–P9 and CPU0 are implemented, verified and independently reviewed READY. CPU1 is next.**
+A7, P8–P9 and CPU0–CPU3 are implemented, verified and independently reviewed READY.**
+Astra's [final independent CPU4 review](../VERIFICATION.md#cpu4--final-independent-review)
+returned **APPROVE with zero findings**. **CPU5 is next.**
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 

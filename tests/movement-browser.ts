@@ -154,6 +154,16 @@ try {
     window.movementTestLoops = [...window.__dungeon.engine.activeRenderLoops];
     window.__dungeon.engine.stopRenderLoop();
   });
+  const differential = await page.evaluate(async () => {
+    const modulePath = '/tests/collision-replay.ts';
+    const { collisionReplay } = (await import(
+      modulePath
+    )) as typeof import('./collision-replay.ts');
+    return collisionReplay(window.__dungeon);
+  });
+  console.log('CPU4 paired replay', differential);
+  pass('CPU4 indexed and full-scan motors agree at each step, including door thresholds');
+  await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
   assert.equal(
     await page.evaluate(() => window.__dungeon.game.player.navigator.occupancy!.bodies().length),
     24,

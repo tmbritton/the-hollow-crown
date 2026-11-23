@@ -293,7 +293,7 @@ export class ObjectiveWorkSystem {
       Math.hypot(p.x - at.x, p.z - at.z) > location.radius ||
       !actor.navigator.canOccupy(p) ||
       !actor.navigator.canOccupy(at) ||
-      !actor.navigator.segmentClear(p, at, false, actor.navigator.occupancy?.bodies()) ||
+      !actor.navigator.liveSegmentClear(p, at) ||
       !clearSight(this.world, p, at)
     )
       return deny('blocked', 'Work site out of reach or obstructed');

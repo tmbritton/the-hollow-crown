@@ -96,6 +96,8 @@ try {
         );
         animateActors(g.ecs, 0, g.time, g.world);
         const r = a.entity.require('ragdoll');
+        if (g.ecs.living.has(a.entity))
+          throw new Error('Skeleton remains entered living collision');
         if (selected.length && !selected.includes(clip)) {
           r.freeze();
           continue;

@@ -40,6 +40,15 @@ await withViteServer(base, 'dev', async () => {
     // Vite's first dependency optimization can reload the page (which intentionally randomizes).
     await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
     await page.waitForFunction(() => window.__dungeon.ready);
+    const collision = await page.evaluate(async () => {
+      const path = '/tests/collision-replay.ts';
+      const { collisionRetirement } = (await import(
+        path
+      )) as typeof import('./collision-replay.ts');
+      return collisionRetirement(window.__dungeon);
+    });
+    console.log('CPU4 collision retirement', JSON.stringify(collision));
+    await page.waitForFunction(() => window.__dungeon.ready);
     assert.equal(await page.evaluate(() => window.__dungeon.game.world.seed), 'MOURNING-731');
     // Real active frames, input, and menu pause, before the controlled/yielding probe.
     const start = await page.evaluate(() => window.__dungeon.game.player.root.position.asArray());

@@ -19,6 +19,12 @@ await withViteServer(base, 'dev', async () => {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${base}/?debug&seed=MOURNING-731`, { waitUntil: 'commit' });
     await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
+    const collision = await page.evaluate(async () => {
+      const path = '/tests/collision-replay.ts';
+      const { collisionCosts } = (await import(path)) as typeof import('./collision-replay.ts');
+      return collisionCosts(window.__dungeon);
+    });
+    console.log('CPU4 collision costs', JSON.stringify(collision));
     const result = await page.evaluate(async () => {
       const d = window.__dungeon,
         engine = d.engine;

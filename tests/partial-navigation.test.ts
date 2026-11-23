@@ -5,6 +5,7 @@ import type { NavigationWorld } from '../src/navigation.ts';
 import { createActor, moveActor, stopActor, teleportActor } from '../src/actors.ts';
 import type { Actor } from '../src/actors.ts';
 import { ECS } from '../src/ecs.ts';
+import { Occupancy } from '../src/occupancy.ts';
 import { generateDungeon, key } from '../src/world.ts';
 import type { DoorEntity, Point, Tile } from '../src/worldTypes.ts';
 
@@ -286,12 +287,38 @@ test('sub-cell frontier movement and swept-edge changes still invalidate dynamic
   const mover = createActor(ecs, corridor, 'hero', 'player', { x: -4, z: 0, h: 0 });
   const body = createActor(ecs, corridor, 'body', 'skeleton', { x: 0, z: 0, h: 0 });
   const n = mover.navigator,
-    target = { x: 3, z: 0 };
+    target = { x: 3, z: 0 },
+    plan = n.goTo.bind(n);
+  let searches = 0;
+  n.goTo = (...args) => {
+    searches++;
+    return plan(...args);
+  };
+  const occ = n.occupancy!;
+  const fingerprint = () => n['environment'](occ.bodies());
+  const mask = fingerprint();
   assert.ok(n.followFloor(mover.position, target, 0));
+  assert.ok(n.active && n.destination!.x < 0);
+  const oldEnd = n.destination;
+  assert.ok(n.followFloor(mover.position, target, 600));
+  assert.equal(searches, 1, 'unchanged active hold must not search after the retry window');
+  body.position.x = 0.06;
+  assert.equal(
+    fingerprint(),
+    mask,
+    'continuous approach changes without changing the cell/edge mask',
+  );
+  assert.ok(n.followFloor(mover.position, target, 1200));
+  assert.equal(searches, 2);
+  assert.notDeepEqual(n.destination, oldEnd);
+  const fresh = new Navigator(corridor, new Occupancy(() => occ.size, occ.bodies));
+  assert.ok(fresh.goTo(mover.position, target, partial));
+  assert.deepEqual(n.destination, fresh.destination);
+  assert.deepEqual(n.path, fresh.path);
   finishRoute(mover, corridor);
   const before = { ...mover.position };
-  body.position.x = 0.06;
-  assert.ok(n.followFloor(mover.position, target, 1000));
+  body.position.x = 0.12;
+  assert.ok(n.followFloor(mover.position, target, 2400));
   finishRoute(mover, corridor);
   assert.ok(
     mover.position.x - before.x > 0.045,

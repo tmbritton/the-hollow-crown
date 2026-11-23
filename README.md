@@ -104,7 +104,8 @@ A7 rig cutover/death handoff is implemented, verified and independently reviewed
 P8 directional, seed-varied ragdolls are implemented, verified and independently reviewed **READY**.
 P9 skeleton breakup is implemented, verified and independently reviewed **READY**.
 **CPU0 (reproducible performance baseline) is implemented, verified and independently reviewed READY.**
-CPU1 is next in the [CPU performance plan](docs/cpu-performance-plan.md).
+CPU1–CPU3 are also independently reviewed **READY**. Astra's [final independent CPU4 review](VERIFICATION.md#cpu4--final-independent-review)
+returned **APPROVE with zero findings**. **CPU5 is next** in the [CPU performance plan](docs/cpu-performance-plan.md).
 See the [CPU0 baseline and profiling commands](docs/cpu-baseline.md). EF0–EF4 follow the CPU pass before further
 procedural-feature expansion; see the [delivery sequence](docs/implementation-path.md).
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
@@ -569,6 +570,17 @@ game.ecs.remove(entity.id);
 
 `createActor` composes the standard character components. Player input and AI supply intents to the same movement/pathfinding/door and combat systems. Babylon collision and visual rigs are separate adapters. A door-opening capability distinguishes clever actors from skeletons; locked gates block everyone. New component types belong in the `Components` interface, with systems querying the combinations they require.
 
+Motor collision uses two run-owned spatial indexes: `terrainCandidates.ts` indexes authored
+collision meshes (not cutaways or décor) and supplies a conservative list for each Babylon sweep;
+`livingCandidates.ts` publishes ground-based cylinders and independent doorway centers through
+ECS geometry and health writes. Doorways still count a living actor without a motor body.
+Both health accessors and direct chart events publish eligibility changes at the same synchronous
+transition boundary. Held floor commands and partial-search trees are keyed by the mover's radius
+and height as well as their existing environment inputs.
+Multi-probe reads use one publication, and later movers see accepted travel immediately. Code
+that adds a motor collider must register it; an already-declared decorative mesh must not be
+promoted implicitly. Death physics keeps its separate discrete terrain and per-piece coverage.
+
 The fixed-step order is door state → objective prework → player intent/pursuit and movement → enemy decisions/movement and shared attacks → projectiles/particles → terrain damage → objective commit validation → player respawn → shared rig animation. Menus, inspection and hidden tabs suspend simulation. Blood/dust/shield sparks share a cap of 192 live particle entities; bolts and javelins share a cap of 32. Fixed thin-instance pools render them without allocating meshes per attack. Corpse entities retain their original meshes.
 
 ### Shared defense capability (P5; complete, independent review READY)
@@ -686,6 +698,9 @@ smoothed segment checks terrain/support, furniture, doors and living occupancy. 
 improve target distance by at least 0.025 units; genuinely immobile cases install no travel.
 Endpoints within 0.001 units of the best target distance prefer the shorter graph-travel estimate
 from the current position. Local refinement then aligns the chosen approach precisely.
+Synchronous planning uses a single pinned living-body view for local collision probes. Partial
+planning also captures a complete body list for cache fingerprints, which store signatures rather
+than retaining the view or list. Deferred planning keeps using its own detached body data.
 
 `followFloor(from, requested, now)` reuses unchanged held commands, including arrival and failure.
 Small cursor drift and changed-obstruction retries are limited to one per 500 ms; immediate

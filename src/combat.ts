@@ -157,7 +157,7 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
         ecs.remove(actor.id);
         continue;
       }
-      Object.assign(actor.position, spawn.tile);
+      actor.entity.setPosition(spawn.tile);
       actor.entity.add(
         'brain',
         makeBrain(kind, spawn.tile, kind === 'kobold' ? `pack:${room}` : '', slot),
@@ -402,12 +402,7 @@ export class CombatSystem {
       };
       if (
         actor.navigator.canOccupy(goal) &&
-        actor.navigator.segmentClear(
-          actor.position,
-          goal,
-          true,
-          actor.navigator.occupancy?.bodies(),
-        ) &&
+        actor.navigator.liveSegmentClear(actor.position, goal, true) &&
         this.route(actor, goal)
       ) {
         actor.attack.repath = 0.15;

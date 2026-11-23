@@ -73,7 +73,7 @@ export function seedSocialGroups(actors: Actor[], world: World): void {
           continue;
         center = { x: tile.x, z: tile.z, h: tile.h };
         members.forEach((actor, i) => {
-          Object.assign(actor.position, positions[i]);
+          actor.entity.setPosition({ ...actor.position, ...positions[i] });
           actor.brain!.home = { ...positions[i] };
         });
         placed = true;

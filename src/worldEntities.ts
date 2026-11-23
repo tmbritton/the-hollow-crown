@@ -83,15 +83,20 @@ export function registerDungeonRendering(ecs: ECS, dungeon: DungeonScene): void 
 export function updateDoors(ecs: ECS, dt: number): void {
   for (const entity of ecs.query('door')) {
     const door = entity.require('door');
-    const occupied = ecs.query('actor', 'transform', 'health').some((actor) => {
-      const p = actor.require('transform');
-      return (
-        actor.require('health').current > 0 &&
-        Math.abs(p.h - door.h) < 1.2 &&
-        Math.abs(p.x - door.x) < (door.axis === 'x' ? 0.55 : 1.5) &&
-        Math.abs(p.z - door.z) < (door.axis === 'x' ? 1.5 : 0.55)
-      );
-    });
+    const dx = door.axis === 'x' ? 0.55 : 1.5,
+      dz = door.axis === 'x' ? 1.5 : 0.55;
+    const occupied = ecs.living.doorwayOccupied(
+      {
+        minX: door.x - dx,
+        maxX: door.x + dx,
+        minZ: door.z - dz,
+        maxZ: door.z + dz,
+        minY: door.h - 1.2,
+        maxY: door.h + 1.2,
+      },
+      (p) =>
+        Math.abs(p.h - door.h) < 1.2 && Math.abs(p.x - door.x) < dx && Math.abs(p.z - door.z) < dz,
+    );
     animateDoor(door, occupied, dt);
   }
 }

@@ -42,9 +42,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
   The original notes remain the user's source of intent.
 - **CPU performance is the current workstream**, per the user's **2026-11-21** decision. CPU0
   precedes CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7. The historical
-  `3cfb378` measurements remain historical. **CPU0 is complete and independently reviewed READY**.
-  Its source-identified baseline pins the expensive replan and confirms instrumentation parity.
-  CPU1 is next; the [desktop hardware baseline](cpu-baseline.md) is recorded for comparison.
+  `3cfb378` measurements remain historical. **CPU0–CPU3 are independently reviewed READY**.
+  The [CPU0 desktop hardware baseline](cpu-baseline.md) pins the expensive replan and confirms
+  instrumentation parity. Astra's [final independent CPU4 review](../VERIFICATION.md#cpu4--final-independent-review)
+  returned **APPROVE with zero findings**. **CPU5 is next** and has not started.
 - **Effect adoption remains before the next procedural-feature expansion, after CPU7.**
   EF0–EF4 establish composed generation, typed failures and bounded local tracing;
   EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).

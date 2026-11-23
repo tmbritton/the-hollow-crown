@@ -1,4 +1,5 @@
 import { assign, setup } from 'xstate';
+import type { EventFromLogic } from 'xstate';
 import { Statechart } from '../statechart.ts';
 
 export const healthMachine = setup({
@@ -63,10 +64,29 @@ export const healthMachine = setup({
   },
 });
 
+class HealthChart extends Statechart<typeof healthMachine> {
+  private readonly onEligibilityChanged: () => void;
+  constructor(max: number, onEligibilityChanged: () => void) {
+    super(healthMachine, { max });
+    this.onEligibilityChanged = onEligibilityChanged;
+  }
+
+  override send(event: EventFromLogic<typeof healthMachine>) {
+    const wasAlive = this.snapshot.context.current > 0;
+    const effects = super.send(event);
+    // All writes, including direct chart events, publish from the final snapshot.
+    if (wasAlive !== this.snapshot.context.current > 0) this.onEligibilityChanged();
+    return effects;
+  }
+}
+
 export class Health {
   readonly chart: Statechart<typeof healthMachine>;
+  private readonly eligibility = new Set<() => void>();
   constructor(max: number) {
-    this.chart = new Statechart(healthMachine, { max });
+    this.chart = new HealthChart(max, () => {
+      for (const listener of this.eligibility) listener();
+    });
   }
   get current() {
     return this.chart.snapshot.context.current;
@@ -90,6 +110,10 @@ export class Health {
     if (!this.chart.snapshot.can({ type: 'DAMAGE', amount })) return false;
     this.chart.send({ type: 'DAMAGE', amount });
     return true;
+  }
+  observeEligibility(listener: () => void): () => void {
+    this.eligibility.add(listener);
+    return () => this.eligibility.delete(listener);
   }
   advance(dt: number): void {
     if (this.invulnerable > 0) this.chart.send({ type: 'TICK', dt });
