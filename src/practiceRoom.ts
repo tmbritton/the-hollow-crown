@@ -22,7 +22,7 @@ const layout = {
   foe: { x: 5, z: -2, h: 0 },
 };
 
-export const PRACTICE_NAME = 'Practice Room';
+export const PRACTICE_NAME = 'The Dojo';
 const { floor, door: doorway, pillar: footprint, spawn } = layout;
 const alongZ = doorway.axis === 'z';
 const doorwayOffset = (distance: number) => ({
