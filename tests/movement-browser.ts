@@ -13,6 +13,7 @@ declare const window: DebugWindow & {
     scene: DebugWindow['__dungeon']['game']['scene'];
   };
   finishPracticeLoading?: () => void;
+  heldSamples?: number;
 };
 const browserName = process.env.BROWSER || 'chromium';
 const browser = await (browserName === 'firefox' ? firefox : chromium).launch({
@@ -53,6 +54,8 @@ const state = () =>
       destination: p.navigator.destination,
       path: p.navigator.path,
       marker: p.destinationMarker.isEnabled(),
+      planning: p.navigator.planningResult,
+      sequence: p.navigator.requestSequence,
     };
   });
 async function reset(point: Point = { x: 0, z: 0 }) {
@@ -67,18 +70,19 @@ async function reset(point: Point = { x: 0, z: 0 }) {
     g.scene.render();
   }, point);
 }
-async function screenPoint(point: Point, elevation = 0) {
+async function screenPoint(point: Point, elevation = 0, voidHeight?: number) {
   const screen = await page.evaluate(
-    ({ point, elevation }) => {
+    ({ point, elevation, voidHeight }) => {
       const d = window.__dungeon,
         g = d.game,
         V = g.camera.target.constructor as typeof Vector3,
         M = g.camera.getWorldMatrix().constructor as typeof Matrix;
       const tile = g.world.tiles.get(`${Math.round(point.x)},${Math.round(point.z)}`);
-      if (!tile) throw new Error('No floor at click fixture');
+      if (!tile && voidHeight === undefined) throw new Error('No floor at click fixture');
+      if (tile && voidHeight !== undefined) throw new Error('Expected void at aim fixture');
       g.scene.render();
       const projected = V.Project(
-        new V(point.x, tile.h + elevation, point.z),
+        new V(point.x, (tile?.h ?? voidHeight ?? 0) + elevation, point.z),
         M.Identity(),
         g.scene.getTransformMatrix(),
         g.camera.viewport.toGlobal(d.engine.getRenderWidth(), d.engine.getRenderHeight()),
@@ -91,7 +95,7 @@ async function screenPoint(point: Point, elevation = 0) {
         y: rect.top + (projected.y * rect.height) / d.engine.getRenderHeight(),
       };
     },
-    { point, elevation },
+    { point, elevation, voidHeight },
   );
   assert.ok(
     screen.x > 0 && screen.x < 1440 && screen.y > 94 && screen.y < 780,
@@ -157,11 +161,165 @@ async function holdSettled(target: Point) {
 }
 
 const base = process.env.DEMO_URL || 'http://localhost:5173';
+const edgeOnly = process.argv.includes('--edge-only');
 
 async function openPractice() {
   await page.goto(new URL('?room=practice&debug&seed=MOURNING-731', base).href);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
-  await expect(page.locator('#room-name')).toHaveText('Practice Room');
+  await expect(page.locator('#room-name')).toHaveText('The Dojo');
+}
+
+async function pinEdgeCamera() {
+  // A fixed camera lets the absolute screen points name the same world targets
+  // on every held-input sample, independent of software-rendered frame pacing.
+  await page.evaluate(() => {
+    const { engine, game } = window.__dungeon;
+    const { camera } = game;
+    window.movementTestLoops ??= [...engine.activeRenderLoops];
+    engine.stopRenderLoop();
+    camera.lockedTarget = camera.target.clone();
+  });
+}
+
+async function edgePointer(aim: Point, voidHeight?: number) {
+  const screen = await screenPoint(aim, 0, voidHeight);
+  assert.equal(
+    await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.id, screen),
+    'game',
+  );
+  return screen;
+}
+
+async function edgeLeg(expected: Point) {
+  const result = await page.evaluate(() => {
+    const d = window.__dungeon;
+    const { world, player: p } = d.game;
+    const start = { ...p.actor.position };
+    const startTick = d.game.steps;
+    const closed = world.entities
+      .filter((entity) => entity.type === 'door')
+      .filter((door) => !door.open);
+    const advance = () => {
+      const previous = { ...p.actor.position };
+      d.step([], 1);
+      const next = p.actor.position;
+      if (!p.navigator.canOccupy(next) || !p.navigator.liveSegmentClear(previous, next))
+        throw Error(`Unsafe actual movement: ${JSON.stringify({ previous, next })}`);
+      if (d.game.routeBudget.used > d.game.routeBudget.limit) throw Error('Exceeded route credit');
+    };
+    for (let i = 0; i < 120 && p.navigator.pending; i++) advance();
+    const end = p.navigator.destination;
+    if (!end || !p.destinationMarker.isEnabled())
+      throw Error(
+        `No reachable destination marker: ${JSON.stringify({ end, pending: p.navigator.pending, result: p.navigator.planningResult, sequence: p.navigator.requestSequence, position: p.actor.position, seed: world.seed, step: d.game.steps })}`,
+      );
+    const marker = { x: p.destinationMarker.position.x, z: p.destinationMarker.position.z };
+    const publishTick = d.game.steps;
+    const sequence = p.navigator.requestSequence;
+    for (let i = 0; i < 240 && (p.navigator.active || p.motion.speed); i++) advance();
+    return {
+      seed: world.seed,
+      start,
+      startTick,
+      publishTick,
+      end,
+      marker,
+      final: { ...p.actor.position },
+      active: p.navigator.active,
+      stillClosed: closed.every((door) => !door.open),
+      closedDoors: closed.length,
+      rerouted: p.navigator.requestSequence !== sequence,
+    };
+  });
+  assert.ok(
+    Math.hypot(result.end.x - expected.x, result.end.z - expected.z) < 0.04,
+    JSON.stringify(result),
+  );
+  assert.deepEqual(result.marker, result.end);
+  assert.ok(Math.hypot(result.final.x - result.end.x, result.final.z - result.end.z) < 0.025);
+  assert.equal(result.active, false);
+  assert.equal(result.stillClosed, true);
+  assert.equal(result.rerouted, false);
+  return result;
+}
+
+async function resumeEdgeLoop() {
+  await page.evaluate(() => {
+    for (const loop of window.movementTestLoops ?? []) window.__dungeon.engine.runRenderLoop(loop);
+  });
+}
+
+async function heldEdgeSweep(dojo: boolean) {
+  if (dojo) await openPractice();
+  else await openSeededDungeon();
+  await pinEdgeCamera();
+  const targets = dojo
+    ? [
+        { x: 10, z: -2 },
+        { x: 10, z: 0 },
+        { x: 5, z: 0 },
+      ]
+    : [
+        { x: -12, z: -3 },
+        { x: -12, z: -5 },
+        { x: -7, z: -3 },
+      ];
+  const edge = dojo ? 8.18 : -9.18;
+  const legs = [];
+  for (const [i, aim] of targets.entries()) {
+    const screen = await edgePointer(aim, i < 2 ? 0 : undefined);
+    const { sequence } = await state();
+    await page.mouse.move(screen.x, screen.y);
+    if (i === 0) await page.mouse.down();
+    else {
+      await resumeEdgeLoop();
+      await page.waitForFunction(
+        (id) => window.__dungeon.game.player.navigator.requestSequence > id,
+        sequence,
+      );
+      await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
+    }
+    const leg = await edgeLeg(i < 2 ? { x: edge, z: aim.z } : aim);
+    legs.push(leg);
+    if (i < 2) {
+      const settled = await state();
+      await page.evaluate(() => {
+        const n = window.__dungeon.game.player.navigator;
+        const follow = n.followFloor.bind(n);
+        window.heldSamples = 0;
+        n.followFloor = (...args) => {
+          window.heldSamples = (window.heldSamples ?? 0) + 1;
+          return follow(...args);
+        };
+      });
+      await resumeEdgeLoop();
+      await page.waitForFunction(() => (window.heldSamples ?? 0) >= 6);
+      await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
+      const after = await state();
+      assert.equal(after.sequence, settled.sequence, JSON.stringify({ leg, settled, after }));
+      assert.equal(after.destination, null);
+      assert.equal(after.marker, false);
+      assert.deepEqual([after.x, after.z, after.speed], [settled.x, settled.z, 0]);
+    }
+  }
+  await page.mouse.up();
+  console.log(JSON.stringify({ heldEdge: dojo ? 'Dojo' : 'MOURNING-731', legs }));
+  pass(
+    `${dojo ? 'Dojo' : 'MOURNING-731'} held void/parallel/return sweep marks each safe endpoint and settles without rerouting`,
+  );
+}
+
+async function dungeonEdgeClick() {
+  const screen = await edgePointer({ x: -12, z: -3 }, 0);
+  await page.mouse.click(screen.x, screen.y);
+  const result = await edgeLeg({ x: -9.18, z: -3 });
+  assert.equal(result.seed, 'MOURNING-731');
+  assert.deepEqual([result.start.x, result.start.z], [0, 0]);
+  assert.ok(result.closedDoors > 0);
+  console.log(JSON.stringify({ dungeonEdge: result }));
+  pass(
+    'MOURNING-731 real mouse click into void arrives at marked safe frontier without opening doors',
+  );
 }
 
 async function quietRoom() {
@@ -572,6 +730,7 @@ async function practiceRetry() {
   await expect(retry).toBeFocused({ timeout: 5000 });
   assert.equal(await page.evaluate(() => window.practiceWitness?.engine.scenes.length), 0);
   await page.keyboard.press('Enter');
+  await page.waitForSelector('#loading.done', { state: 'attached', timeout: 90000 });
   await expect(page.locator('#practice-round')).toHaveText('Single-foe round');
   assert.deepEqual(
     await page.evaluate(() => {
@@ -609,17 +768,13 @@ async function practiceLoading() {
   await page.keyboard.press('KeyT');
   assert.equal(await sceneId(), loadingScene);
   await page.evaluate(() => window.finishPracticeLoading?.());
+  await page.waitForSelector('#loading.done', { state: 'attached', timeout: 90000 });
   await expect(page.locator('#practice-round')).toHaveText('Single-foe round');
   assert.equal(await sceneId(), loadingScene);
   pass('An opt-in still loading does not accept a second round request from the real shortcut');
 }
 
-try {
-  await practiceRetry();
-  await practiceLoading();
-  await practiceRounds();
-  await practiceControls();
-  await practiceDoor();
+async function openSeededDungeon() {
   await page.goto(`${base}/?debug&seed=MOURNING-731`);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
   // A development optimizer reload deliberately randomizes the run; pin this fixture explicitly.
@@ -629,6 +784,16 @@ try {
     window.movementTestLoops = [...window.__dungeon.engine.activeRenderLoops];
     window.__dungeon.engine.stopRenderLoop();
   });
+}
+
+async function fullMovement() {
+  await practiceRetry();
+  await practiceLoading();
+  await practiceRounds();
+  await practiceControls();
+  await practiceDoor();
+  await openSeededDungeon();
+  await dungeonEdgeClick();
   const differential = await page.evaluate(async () => {
     const modulePath = '/tests/collision-replay.ts';
     const { collisionReplay } = (await import(
@@ -1167,6 +1332,15 @@ try {
   await step([], 8);
   await page.evaluate(() => window.__dungeon.game.scene.render());
   await page.screenshot({ path: `test-results/${browserName}-movement-stop.png` });
+}
+
+try {
+  await heldEdgeSweep(true);
+  await heldEdgeSweep(false);
+  if (edgeOnly) {
+    await openSeededDungeon();
+    await dungeonEdgeClick();
+  } else await fullMovement();
   assert.deepEqual(errors, []);
   report.success = true;
 } catch (error) {
@@ -1180,7 +1354,7 @@ try {
     .catch(() => {});
 } finally {
   await writeFile(
-    `test-results/${browserName}-movement-report.json`,
+    `test-results/${browserName}-${edgeOnly ? 'edge' : 'movement'}-report.json`,
     JSON.stringify(report, null, 2),
   );
   await browser.close();

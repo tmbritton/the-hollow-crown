@@ -51,9 +51,11 @@ type FloorCommand = {
   endpoint: Point | null;
   route: readonly Point[];
   environment: string;
+  settledEnvironment?: string;
   footprint: string;
   accepted: boolean;
   partial: boolean;
+  proof?: RouteProof;
 };
 
 /** Pick the actual tile elevations, including stepped landings and liquid surfaces.
@@ -79,6 +81,22 @@ export function pickGround(world: Pick<World, 'tiles'>, ray: GroundRay): Point |
     }
   }
   return point;
+}
+
+/** A missed surface can still name a destination; it never proves support. */
+export function projectGroundAim(
+  world: Pick<World, 'tiles'>,
+  ray: GroundRay,
+  referenceHeight: number,
+): Point | null {
+  const hit = pickGround(world, ray);
+  if (hit) return hit;
+  if (!(ray.direction.y < -1e-6)) return null;
+  const t = (referenceHeight - ray.origin.y) / ray.direction.y;
+  if (!Number.isFinite(t) || t < 0) return null;
+  const x = ray.origin.x + ray.direction.x * t;
+  const z = ray.origin.z + ray.direction.z * t;
+  return Number.isFinite(x) && Number.isFinite(z) ? { x, z } : null;
 }
 
 /** Tile graph routing followed by clearance-checked line-of-sight smoothing. */
@@ -213,7 +231,22 @@ export class Navigator {
     return distance(body, command.from) <= radius + 1.5;
   }
 
-  private environment(bodies: readonly CollisionBody[] = [], command?: FloorCommand): string {
+  private environment(
+    bodies: readonly CollisionBody[] = [],
+    command?: FloorCommand,
+    settled = false,
+  ): string {
+    const gates = this.doors.map((door) => [
+      door.locked,
+      door.open,
+      !!door.collider?.checkCollisions,
+    ]);
+    if (command?.proof && this.occupancy)
+      return JSON.stringify([
+        this.opensDoors,
+        gates,
+        command.proof.fingerprint(this.occupancy, bodies, settled),
+      ]);
     // A moving cylinder affects only a small neighborhood of graph cells/edges. Cache
     // their actual occupancy decisions, not rounded positions or all-world coordinates.
     // Continuous connectors, smoothing and motor probes always use current geometry.
@@ -261,7 +294,7 @@ export class Navigator {
       }
     return JSON.stringify([
       this.opensDoors,
-      this.doors.map((door) => [door.locked, door.open, !!door.collider?.checkCollisions]),
+      gates,
       [...blocked].sort(),
       command ? this.bodyGeometry(bodies.filter((body) => this.nearCommand(body, command))) : null,
     ]);
@@ -279,7 +312,9 @@ export class Navigator {
       const sameRequest = distance(cached.requested, requested) < 0.08;
       const following = this.active && this.route === cached.route;
       const settled = distance(from, cached.endpoint ?? cached.from) < 0.025;
-      const unchanged = cached.environment === this.environment(this.occupancy?.bodies(), cached);
+      const atEnd = settled && !following && !!cached.settledEnvironment;
+      const baseline = atEnd ? cached.settledEnvironment : cached.environment;
+      const unchanged = baseline === this.environment(this.occupancy?.bodies(), cached, atEnd);
       if (sameRequest && unchanged && (following || settled)) return cached.accepted;
       if (
         (cached.partial || !unchanged) &&
@@ -794,14 +829,20 @@ export class Navigator {
         result = work.next();
       }
       if (result.done) {
+        yield* draft.proof.seal(result.value);
         if (budget.ticks !== admitted) {
           load.cost = 6;
           yield;
         }
         let checked = bodies;
+        const proof = draft.proof;
+        const signature = (snapshot: readonly CollisionBody[] = []) =>
+          footprint ? JSON.stringify(proof.fingerprint(footprint, snapshot)) : '';
+        let verified = signature(checked);
         for (let pass = 0; pass < 8; pass++) {
           const now = this.occupancy?.bodies().map((b) => ({ ...b }));
-          if (this.bodyGeometry(checked) === this.bodyGeometry(now)) {
+          const liveSignature = signature(now);
+          if (verified === liveSignature) {
             if (
               !current() ||
               [...draft.gates].some(([d, blocked]) => this.doorBlocks(d, true) !== blocked)
@@ -814,15 +855,27 @@ export class Navigator {
             if (draft.active)
               this.chart.send({ type: 'PLAN', route: draft.path.map((p) => ({ ...p })) });
             this.floorCommand = draft.floorCommand
-              ? { ...draft.floorCommand, route: this.route }
+              ? {
+                  ...draft.floorCommand,
+                  route: this.route,
+                  proof:
+                    draft.active && !tileAt(this.world, goal.x, goal.z) ? draft.proof : undefined,
+                }
               : null;
-            if (this.floorCommand)
+            if (this.floorCommand) {
               this.floorCommand.environment = this.environment(now, this.floorCommand);
+              if (this.floorCommand.proof)
+                this.floorCommand.settledEnvironment = this.environment(
+                  now,
+                  this.floorCommand,
+                  true,
+                );
+            }
             return result.value ? 'ready' : 'unreachable';
           }
-          if (!footprint || !(yield* draft.proof.validate(footprint, checked ?? [], now ?? [])))
-            break;
+          if (!footprint || !(yield* proof.validate(footprint, checked ?? [], now ?? []))) break;
           checked = now;
+          verified = liveSignature;
         }
       }
       load.cost = 6;
@@ -842,17 +895,18 @@ export class Navigator {
   ): Generator<void, boolean> {
     if (import.meta.env?.DEV) cpuTrace?.phase('goal');
     const tile = tileAt(this.world, requested.x, requested.z);
-    if (!tile) return false;
+    if (!tile && !partial) return false;
     // Near a wall edge, use the clicked tile's center rather than an unsafe offset.
     let goal =
-      partial || this.canStand(requested, true)
+      !tile || partial || this.canStand(requested, true)
         ? { x: requested.x, z: requested.z }
         : { x: tile.x, z: tile.z };
     const exact = this.canOccupy(goal, true, bodies);
     if (!exact && !partial) return false;
     if (exact && distance(from, goal) < 0.025) return true;
     if (this.proof && distance(from, goal) > 4) yield;
-    if (exact && (yield* this.checkedSegment(from, goal, bodies))) {
+    let usedFrontier = false;
+    if (exact && (yield* this.travelSegment(from, goal, bodies, () => usedFrontier))) {
       this.chart.send({ type: 'PLAN', route: [goal] });
       return true;
     }
@@ -881,11 +935,19 @@ export class Navigator {
     const { parents, costs, queue } = search;
     const grid = this.grid;
     const closed = new Map<DoorEntity, boolean>();
+    let goalKey: number | null = null;
+    let approaches: Set<number> | undefined;
+    // An unused edge becoming blocked cannot improve a successful plan. An edge
+    // reopening into the unreached component can expose a better partial endpoint.
+    const watchConnector = (cell: RouteCell) => {
+      if (this.proof) this.proof.scope = (clear) => !clear && !!approaches?.has(cell.index);
+    };
     if (!sameOrigin)
       for (let x = Math.round(from.x) - 1; x <= Math.round(from.x) + 1; x++)
         for (let z = Math.round(from.z) - 1; z <= Math.round(from.z) + 1; z++) {
           const start = { x, z };
           const cell = grid.get(start);
+          if (cell) watchConnector(cell);
           if (
             cell &&
             this.cellClear(start, bodies) &&
@@ -896,6 +958,7 @@ export class Navigator {
             queue.push(cell);
           }
         }
+    if (this.proof) this.proof.scope = undefined;
     if (!sameOrigin) queue.sort((a, b) => distance(a, from) - distance(b, from));
     // A blocked near click can finish as soon as all potentially winning anchors
     // have their ordinary FIFO costs. Never cache this prefix as an exhausted tree.
@@ -904,13 +967,16 @@ export class Navigator {
         ? this.localFrontier(from, goal, bodies)
         : null;
     if (pending) for (const cell of queue) pending.delete(cell.index);
-    let goalKey: number | null = null;
     if (import.meta.env?.DEV) cpuTrace?.phase('search');
     for (let i = 0; i < queue.length; i++) {
       if (this.proof && i % 16 === 0) yield;
       if (pending && pending.size === 0) {
         const local = yield* this.closestReachable(from, requested, search, bodies, true);
-        if (local && (yield* this.checkedSegment(from, local.point, bodies))) {
+        if (local && (yield* this.travelSegment(from, local.point, bodies))) {
+          usedFrontier = true;
+          if (this.proof)
+            approaches = yield* this.frontierApproaches(local.point, requested, parents);
+          this.bodyClear(local.point, bodies);
           if (import.meta.env?.DEV) cpuTrace?.count('route.localApproaches');
           this.floorSearch = null;
           this.floorBounds = this.searchBounds(from, requested, queue);
@@ -958,7 +1024,10 @@ export class Navigator {
           bodies &&
           (typeof bodies === 'function' || bodies.length || this.proof)
         ) {
-          if (!this.standBody(next, bodies) || !this.sweepBody(cell, next, bodies)) continue;
+          watchConnector(next);
+          const clear = this.standBody(next, bodies) && this.sweepBody(cell, next, bodies);
+          if (this.proof) this.proof.scope = undefined;
+          if (!clear) continue;
         }
         parents[id] = current.index + 1;
         costs[id] = costs[current.index] + 1;
@@ -979,7 +1048,10 @@ export class Navigator {
       this.floorBounds = this.searchBounds(from, requested, queue);
       const fallback = yield* this.closestReachable(from, requested, search, bodies);
       if (!fallback) return false;
+      usedFrontier = true;
       goal = { x: fallback.point.x, z: fallback.point.z };
+      if (this.proof) approaches = yield* this.frontierApproaches(goal, requested, parents);
+      this.bodyClear(goal, bodies);
       goalKey = fallback.anchor === from ? null : grid.get(fallback.anchor)!.index;
     }
     if (import.meta.env?.DEV) cpuTrace?.phase('reconstruction');
@@ -1003,7 +1075,7 @@ export class Navigator {
           continue;
         }
         if (this.proof) yield;
-        if (yield* this.checkedSegment(anchor, points[farthest], bodies)) break;
+        if (yield* this.travelSegment(anchor, points[farthest], bodies)) break;
       }
       if (farthest < i) {
         this.cancel();
@@ -1026,6 +1098,55 @@ export class Navigator {
       bounds.maxZ = Math.max(bounds.maxZ, p.z);
     }
     return bounds;
+  }
+
+  private *travelSegment(from: Point, to: Point, bodies?: BodyInput, keepRejection = () => false) {
+    let chosen = false;
+    if (this.proof) {
+      this.proof.scope = (clear) => chosen || (!clear && keepRejection());
+      this.proof.travel = { from, to };
+    }
+    chosen = yield* this.checkedSegment(from, to, bodies);
+    if (this.proof) {
+      this.proof.scope = undefined;
+      this.proof.travel = undefined;
+    }
+    return chosen;
+  }
+
+  /** An opening can improve a reachable endpoint only if it leads to an unseen
+   * competitive anchor. Trace those anchors backwards through the unseen graph,
+   * ignoring bodies but respecting the pinned door decisions. A previously
+   * reached cell already supplied all its forward edges to the search. */
+  private *frontierApproaches(end: Point, goal: Point, reached: Int32Array) {
+    const band = distance(end, goal) + FRONTIER_REACH + FRONTIER_TIE;
+    const unseen = new Set<number>();
+    const queue: RouteCell[] = [];
+    const add = (cell: RouteCell) => {
+      if (!reached[cell.index] && !unseen.has(cell.index)) {
+        unseen.add(cell.index);
+        queue.push(cell);
+      }
+    };
+    for (const cell of this.grid.byIndex) {
+      if (cell.index && cell.index % 128 === 0) yield;
+      if (distance(cell, goal) <= band) add(cell);
+    }
+    for (let i = 0; i < queue.length; i++) {
+      if (i && i % 16 === 0) yield;
+      const cell = queue[i];
+      for (const [dx, dz] of CARDINALS) {
+        const previous = this.grid.cells.get(key(cell.x + dx, cell.z + dz));
+        if (!previous || reached[previous.index] || unseen.has(previous.index)) continue;
+        if (
+          previous.edges.some(
+            (edge) => edge.next === cell && !edge.doors.some((door) => this.doorBlocks(door, true)),
+          )
+        )
+          add(previous);
+      }
+    }
+    return unseen;
   }
 
   private localFrontier(from: Point, goal: Point, bodies?: BodyInput): Set<number> | null {
@@ -1143,6 +1264,9 @@ export class Navigator {
     for (const anchor of anchors) {
       if (this.proof) yield;
       if (distance(anchor, requested) - 1.5 > score + tie) continue;
+      if (this.proof)
+        this.proof.scope = (clear) =>
+          !clear && distance(anchor, requested) - FRONTIER_REACH <= score + tie;
       consider(anchor, anchor);
       for (const start of [
         anchor,
@@ -1176,16 +1300,19 @@ export class Navigator {
     for (let step = 0.25; step >= 0.00048; step /= 2) {
       if (this.proof) yield;
       const origin = best.point;
+      if (this.proof) this.proof.scope = (clear) => !clear;
       for (const dx of [-step, 0, step])
         for (const dz of [-step, 0, step]) {
           const point = { x: origin.x + dx, z: origin.z + dz };
           if (distance(point, best.anchor) <= 1.5) consider(point, best.anchor, true);
         }
     }
-    return distance(from, requested) - distance(best.point, requested) >= 0.025 &&
-      distance(from, best.point) >= 0.025
-      ? best
-      : null;
+    if (this.proof) this.proof.scope = undefined;
+    // Off-floor aims can be far enough that a useful lateral step barely changes
+    // target distance. Keep the arrival dead zone on movement, not on that gain.
+    const gain = distance(from, requested) - distance(best.point, requested);
+    const improves = tileAt(this.world, requested.x, requested.z) ? gain >= 0.025 : gain > 1e-9;
+    return improves && distance(from, best.point) >= 0.025 ? best : null;
   }
 
   steer(position: Point, replan = true): SteeringTarget | null {
@@ -1252,6 +1379,8 @@ export class Navigator {
       floor.endpoint = { x: position.x, z: position.z };
       floor.accepted = false;
       floor.partial = true;
+      floor.proof = undefined;
+      floor.settledEnvironment = undefined;
       floor.environment = this.environment(this.occupancy?.bodies(), floor);
     }
   }

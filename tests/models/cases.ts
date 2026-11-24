@@ -554,10 +554,10 @@ export const modelCases = [
   }),
   modelCase(pointerMachine, {
     inputs: [undefined],
-    abstractContext: ({ context }) => context.pointer?.id,
+    abstractContext: ({ context }) => [context.pointer?.id, context.referenceHeight],
     events: (): EventFromLogic<typeof pointerMachine>[] => [
-      { type: 'DOWN', pointer: { id: 1, x: 0, y: 0 } },
-      { type: 'DOWN', pointer: { id: 2, x: 10, y: 20 } },
+      { type: 'DOWN', pointer: { id: 1, x: 0, y: 0 }, referenceHeight: 0 },
+      { type: 'DOWN', pointer: { id: 2, x: 10, y: 20 }, referenceHeight: 2 },
       ...[1, 2].flatMap((id) =>
         [false, true].map((pressed) => ({
           type: 'MOVE' as const,
@@ -572,6 +572,11 @@ export const modelCases = [
     ],
     invariant: (state, before, event) => {
       assert.equal(state.context.pointer === null, state.matches('idle'));
+      assert.equal(state.context.referenceHeight !== null, state.matches('floor'));
+      if (event?.type === 'DOWN')
+        assert.equal(state.context.referenceHeight, event.referenceHeight);
+      if (event?.type === 'MOVE' && state.matches('floor'))
+        assert.equal(state.context.referenceHeight, before?.context.referenceHeight);
       if (event?.type === 'MOVE' && event.pointer.id !== before?.context.pointer?.id)
         assert.deepEqual(state.context.pointer, before?.context.pointer);
       if (event?.type === 'MOVE' && event.pressed && before?.matches('target'))

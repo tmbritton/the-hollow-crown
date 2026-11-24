@@ -232,7 +232,7 @@ test('tab visibility preserves modal mode and stale close events cannot interrup
 
 test('held target pointer ignores unrelated pointers and never turns into floor steering', () => {
   const pointer = new Statechart(pointerMachine);
-  pointer.send({ type: 'DOWN', pointer: { id: 1, x: 10, y: 20 } });
+  pointer.send({ type: 'DOWN', pointer: { id: 1, x: 10, y: 20 }, referenceHeight: 2 });
   pointer.send({ type: 'SELECT_TARGET' });
   pointer.send({ type: 'MOVE', pointer: { id: 2, x: 90, y: 90 }, pressed: true });
   pointer.send({ type: 'UP', id: 2 });

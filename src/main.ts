@@ -31,7 +31,7 @@ import { createMaterials } from './materials.ts';
 import { buildDungeon } from './buildDungeon.ts';
 import { createPlayer, movePlayer, stopPlayer } from './player.ts';
 import { RouteBudget } from './routeBudget.ts';
-import { pickGround } from './navigation.ts';
+import { projectGroundAim } from './navigation.ts';
 import { MOVEMENT_KEYS } from './locomotion.ts';
 import { ECS } from './ecs.ts';
 import { CombatSystem, clearSight, seedEnemies } from './combat.ts';
@@ -167,12 +167,14 @@ function navigatePointer(clientX: number, clientY: number, initialPress = false)
     }
     cancelAttack(game.player.actor);
   }
-  const point = pickGround(game.world, ray);
+  const referenceHeight = pointer.snapshot.context.referenceHeight;
+  const point =
+    referenceHeight === null ? null : projectGroundAim(game.world, ray, referenceHeight);
   if (point) {
     if (initialPress)
       game.player.navigator.request(game.player.actor.position, point, { partial: true });
     else game.player.navigator.followFloor(game.player.actor.position, point, performance.now());
-  } else game.player.navigator.cancel();
+  }
   lastPointerRoute = performance.now();
 }
 
@@ -1187,6 +1189,7 @@ canvas.addEventListener('pointerdown', (event) => {
   pointer.send({
     type: 'DOWN',
     pointer: { id: event.pointerId, x: event.clientX, y: event.clientY },
+    referenceHeight: game.player.actor.position.h,
   });
   navigatePointer(event.clientX, event.clientY, true);
 });

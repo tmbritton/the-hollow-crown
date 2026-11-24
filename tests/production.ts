@@ -16,7 +16,9 @@ await withViteServer(base.href, 'preview', async () => {
     timeout: 15000,
     args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
-  const deadline = setTimeout(() => void browser.close().catch(() => {}), 120000);
+  // Cold shader compilation across multiple scene rebuilds can exceed two
+  // minutes in SwiftShader; keep per-operation limits while bounding the run.
+  const deadline = setTimeout(() => void browser.close().catch(() => {}), 300000);
   try {
     const page = await browser.newPage({ viewport: { width: 960, height: 640 } });
     page.setDefaultTimeout(15000);
@@ -67,7 +69,7 @@ await withViteServer(base.href, 'preview', async () => {
     const roundStatus = page.locator('#practice-round');
     const checkPractice = async () => {
       await page.waitForSelector('#loading.done', { state: 'attached', timeout: 45000 });
-      await expect(page.locator('#room-name')).toHaveText('Practice Room');
+      await expect(page.locator('#room-name')).toHaveText('The Dojo');
       await expect(page.locator('.quest-panel')).toBeHidden();
       await expect(page.locator('#game')).toBeVisible();
       await page.waitForFunction(
@@ -86,9 +88,9 @@ await withViteServer(base.href, 'preview', async () => {
       document.documentElement.dataset.practiceProbe = sentinel;
     }, documentSentinel);
     const checkRound = async (status: string) => {
+      await checkPractice();
       await expect(roundStatus).toHaveText(status);
       await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
-      await checkPractice();
       assert.equal(page.url(), practice.href);
       assert.equal(
         await page.evaluate(() => document.documentElement.dataset.practiceProbe),
@@ -123,7 +125,7 @@ await withViteServer(base.href, 'preview', async () => {
     await expect(page.locator('.quest-panel')).toBeVisible();
     await expect(resetPractice).toBeHidden();
     await expect(startFoe).toBeHidden();
-    await expect(page.locator('#room-name')).not.toHaveText('Practice Room');
+    await expect(page.locator('#room-name')).not.toHaveText('The Dojo');
     checkLocation(null);
     assert.equal(new URL(page.url()).searchParams.has('room'), false);
     checks.push(

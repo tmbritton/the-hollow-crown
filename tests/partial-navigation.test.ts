@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Navigator, pickGround } from '../src/navigation.ts';
+import { Navigator, pickGround, projectGroundAim } from '../src/navigation.ts';
 import type { NavigationWorld } from '../src/navigation.ts';
 import { createActor, moveActor, stopActor, teleportActor } from '../src/actors.ts';
 import type { Actor } from '../src/actors.ts';
@@ -16,6 +16,19 @@ function grid(width = 6, depth = 4): NavigationWorld {
   return { tiles, blockers: [], entities: [] };
 }
 const partial = { partial: true };
+
+test('ground aim prefers actual elevation and projects void at the gesture support height', () => {
+  const world = grid(0, 0);
+  world.tiles.get('0,0')!.h = 2;
+  const direction = { x: 1, y: -2, z: 0 };
+  const hit = { origin: { x: -1, y: 4, z: 0 }, direction };
+  assert.deepEqual(projectGroundAim(world, hit, 0), { x: 0, z: 0 });
+  const miss = { origin: { x: 3, y: 4, z: 0 }, direction };
+  assert.equal(pickGround(world, miss), null);
+  assert.deepEqual(projectGroundAim(world, miss, 1), { x: 4.5, z: 0 });
+  assert.equal(projectGroundAim(world, miss, 5), null);
+  assert.equal(projectGroundAim(world, { ...miss, direction: { ...direction, y: 0 } }, 1), null);
+});
 
 test('a fresh click on nearby furniture selects the exhaustive endpoint without visiting remote actors', () => {
   const w = grid(40, 25),
@@ -425,7 +438,7 @@ test('floor commands respect closed, locked and physically opening doors without
   assert.deepEqual(n.destination, target);
 });
 
-test('only requested floor is accepted, including floor under props and lava', () => {
+test('a supported pick stays truthful and exact routing still rejects void', () => {
   const world = grid();
   world.tiles.get('0,0')!.surface = 'lava';
   const ray = { origin: { x: 0, y: 10, z: 0 }, direction: { x: 0, y: -1, z: 0 } };
@@ -433,8 +446,124 @@ test('only requested floor is accepted, including floor under props and lava', (
   const n = new Navigator(world);
   assert.ok(n.goTo({ x: -3, z: 0 }, pickGround(world, ray)!, partial));
   safeRoute(n, { x: -3, z: 0 });
-  assert.equal(n.goTo({ x: -3, z: 0 }, { x: 100, z: 0 }, partial), false);
+  assert.equal(n.goTo({ x: -3, z: 0 }, { x: 100, z: 0 }), false);
   assert.equal(pickGround(world, { ...ray, origin: { x: 100, y: 10, z: 0 } }), null);
+});
+
+test('void aim uses the nearest legal frontier, including on the reachable side of a gate', () => {
+  const world = grid(6, 1);
+  const gate: DoorEntity = {
+    id: 'gate',
+    type: 'door',
+    x: 0,
+    z: 0,
+    h: 0,
+    axis: 'x',
+    open: false,
+    locked: true,
+    requiresAltar: true,
+  };
+  world.entities.push(gate);
+  const n = new Navigator(world);
+  const start = { x: -4, z: 0.21 };
+  const goTo = n.goTo.bind(n);
+  let plans = 0;
+  n.goTo = (...args) => {
+    plans++;
+    return goTo(...args);
+  };
+  for (const [aim, expected] of [
+    [
+      { x: 100, z: 0.21 },
+      { x: -0.495, z: 0.21 },
+    ],
+    [
+      { x: -100, z: 0.21 },
+      { x: -6.18, z: 0.21 },
+    ],
+  ] as const) {
+    assert.ok(n.followFloor(start, aim, 0));
+    const end = n.destination!;
+    assert.ok(distance(end, expected) < 0.015, JSON.stringify(end));
+    safeRoute(n, start);
+    n.arrive();
+    assert.equal(n.active, false);
+    const before = plans;
+    assert.ok(n.followFloor(end, aim, 1000));
+    assert.equal(n.destination, null);
+    assert.equal(plans, before);
+    assert.equal(gate.open, false);
+  }
+});
+
+test('small tangential sweeps advance a settled hero along a void frontier', () => {
+  const n = new Navigator(grid(6, 1));
+  assert.ok(n.followFloor({ x: 0, z: 0 }, { x: 10, z: 0 }, 0));
+  const edge = n.destination!;
+  n.arrive();
+  assert.ok(n.followFloor(edge, { x: 10, z: 0.25 }, 1000));
+  assert.ok(Math.abs(n.destination!.z - 0.25) < 0.01, JSON.stringify(n.destination));
+  safeRoute(n, edge);
+});
+
+test('partial routing agrees with exhaustive geometric projection on small gated and tied maps', () => {
+  type Box = readonly [minX: number, maxX: number, minZ: number, maxZ: number];
+  // In these level fixtures the clearance-eroded reachable set is a union of
+  // rectangles. Enumerate every rectangle and project onto it analytically;
+  // the oracle does not ask Navigator for cells, segments, candidates, or costs.
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const score = (boxes: readonly Box[], aim: Point) =>
+    Math.min(
+      ...boxes.map(([x, X, z, Z]) =>
+        distance(aim, { x: clamp(aim.x, x, X), z: clamp(aim.z, z, Z) }),
+      ),
+    );
+  const check = (n: Navigator, start: Point, aim: Point, reachable: readonly Box[]) => {
+    assert.ok(n.goTo(start, aim, partial));
+    safeRoute(n, start);
+    const end = n.destination!;
+    assert.ok(
+      Math.abs(distance(end, aim) - score(reachable, aim)) < 0.001,
+      JSON.stringify({ aim, end }),
+    );
+    return end;
+  };
+  const corridor = grid(4, 1);
+  corridor.entities.push({
+    type: 'door',
+    id: 'gate',
+    x: 0,
+    z: 0,
+    h: 0,
+    axis: 'x',
+    open: false,
+    locked: true,
+    requiresAltar: true,
+  });
+  const gated = new Navigator(corridor);
+  for (const aim of [
+    { x: 3.25, z: 0.21 },
+    { x: 10, z: 0.21 },
+    { x: -7, z: -2 },
+  ]) {
+    const end = check(gated, { x: -2, z: 0 }, aim, [[-4.18, -0.495, -1.18, 1.18]]);
+    assert.ok(end.x <= -0.495);
+  }
+  const exact = { x: -3.13, z: 0.22 };
+  assert.deepEqual(check(gated, { x: -2, z: 0 }, exact, [[-4.18, -0.495, -1.18, 1.18]]), exact);
+
+  const square = grid(4, 4);
+  square.blockers.push({ id: 'square', x: 0, z: 0, w: 2, d: 2 });
+  const reachable: Box[] = [
+    [-4.18, -1.32, -4.18, 4.18],
+    [1.32, 4.18, -4.18, 4.18],
+    [-1.32, 1.32, -4.18, -1.32],
+    [-1.32, 1.32, 1.32, 4.18],
+  ];
+  for (const side of [-1, 1]) {
+    const end = check(new Navigator(square), { x: side * 3, z: 0 }, { x: 0, z: 0 }, reachable);
+    assert.equal(Math.sign(end.x), side, 'among equal minima the nearer face wins');
+  }
 });
 
 test('living obstruction replans floor travel to a partial endpoint and held input resumes after release', () => {

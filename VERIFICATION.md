@@ -1,5 +1,69 @@
 # Verification — The Hollow Crown
 
+## Story 14.1 — Edge steering
+
+On `main` (baseline `d7f6562`), floor input now projects a missed downward ray onto the
+support height recorded at pointer-down. Actual tile hits retain priority. The partial
+route solver can accept a void request, but only publishes supported, clearance-checked
+destinations. Exact-only routing still rejects void requests.
+
+- **Red first:** the projection test failed on the missing API; the real-input Dojo case
+  timed out waiting for an edge destination. A subsequent focused routing test reproduced
+  the solver's separate rejection of void requests before that check changed.
+- **Unit and model gates:** `node --test tests/navigation.test.ts tests/partial-navigation.test.ts
+  tests/route-budget.test.ts` (58/58), `npm test` (530/530), `npm run typecheck`, `npm run lint`,
+  `npm run format:check`, and `npm run check:full` (550/550 plus lint and formatting). An independent
+  geometric oracle enumerates the clearance-eroded rectangles in two small maps and
+  analytically projects onto each; observed distances agree within 0.001 units for void,
+  the disconnected side of a locked gate, and symmetric furniture. Exact picks remain exact;
+  an unchanged held request after arrival does not start another plan.
+- **Released spawn blocker, red → green:** A real mouse click and release from `(0,0)` at
+  void aim `(-12,-3)` on `MOURNING-731` reproduced `invalidated`, with no route or ring
+  (step 49 in the red run; loading/render timing changes the starting step). The final
+  full Chromium run started at step 8 and published at step 21. The ring and endpoint
+  agreed at `(-9.17981,-3.00007)`; the hero stopped at `(-9.17081,-2.99713)`. No teleport,
+  frozen actors, or opened doors: all ten initially closed doors stayed closed.
+- **Shared proof fix:** Successful scheduled routes retain the chosen sweeps and endpoint,
+  plus rejected frontier probes and approaches that can expose a better endpoint. Failed
+  searches retain their full proof. Spatial envelopes and swept-leg capsules exclude
+  bodies that cannot touch the chosen legs. The settled void hold uses the same proof
+  without the traveled legs. Owner position, capability, mover size, world compatibility,
+  relevant doors, and live motor collision are still checked. Proof construction and
+  replay are sliced; no increase to the shared credit allowance or retry limits.
+- **Review-driven TDD:** A clear 101×4 corridor with 40 drifting bodies starved the
+  interim proof at tick 236; a clear 49×49 diagonal with 42 drifting bodies starved it
+  at tick 404, and the direct exact and partial-exact variants at tick 92. All now publish
+  oracle-matching routes using at most four credits per tick in the fixtures. A body
+  stepping into the traveled leg after arrival no longer starts another held search.
+  Existing choke-opening/closing, capability, footprint, and cancellation regressions pass.
+- **Held Chromium proof at 1.5 DPR:** `npm run test:movement -- --edge-only` (3 checks)
+  and `npm run test:movement` (27 checks) passed on the final worktree. One continuous
+  press per room covered void, parallel sweep, and return. Marker and destination
+  coincided on all six legs: about `(-9.17981,-3)`, `(-9.17981,-5)`, `(-7,-3)` in the
+  dungeon and `(8.17981,-2)`, `(8.17981,0)`, `(5,0)` in The Dojo. The test checks support
+  and live swept clearance on the stepped movement, and after each void leg observes
+  six real held-input samples with the camera fixed, no new request, no displacement,
+  and the ring hidden. Logs and reports: `test-results/14-1-{edge,movement}.log` and
+  `test-results/chromium-{edge,movement}-report.json`.
+- **Dojo test repairs:** the assembly retry was still loading when the five-second status
+  assertion fired. Waiting on scene readiness before checking the status and roster passed
+  without any runtime retry change. Kept the focus, keyboard retry, disposal, and same-engine
+  checks. Production assertions now expect **The Dojo**, as shipped in `d7f6562`, and wait for
+  readiness before checking round status. `npm run build` and `npm run build:pages`
+  each passed, with `npm run test:production` green at `http://localhost:4173/` and
+  with `DEMO_URL=http://localhost:4187/the-hollow-crown/`. The smoke keeps individual operation timeouts and a
+  five-minute overall deadline for software-rendered scene rebuilds.
+- **Independent review:** The initial read-only Explore review identified the tangential
+  dead-zone and spawn blocker. The quarter-unit tangent regression passed after separating
+  distance-to-aim gain from actual movement. Follow-ups exposed same-chunk churn, stale
+  traveled-leg dependence, diagonal boxes, and untagged direct legs. The final read-only
+  recheck passed the blocker follow-up: both direct modes published at tick 12 and a
+  moving blocker entering or leaving a rejected direct leg matched fresh live routes.
+  The reviewer did not run the final browser suite. Sustained changes to relevant probes
+  can still exhaust bounded validation; this is not an unconditional liveness guarantee.
+
+No roadmap or delivery-history changes. Work did not advance to 14.2–14.6 or 14.8.
+
 ## Player shield release timing
 
 `npm run check`, `npm run build`, and the Chromium `test:defense` suite passed. An independent review found that a second F tap between pose samples could finish the visible lowering early. After the fix, the reviewer reran the defense and rig-shield suites (23 tests) and approved the change; the rapid-tap regression checks that the guard pose and sword lockout end on the same simulation tick.

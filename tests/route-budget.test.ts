@@ -169,6 +169,132 @@ test('pending results observe bodies entering or leaving a choke without starvat
   }
 });
 
+test('off-route changes in the explored component do not invalidate a clear frontier route', () => {
+  const w: NavigationWorld = { tiles: new Map(), blockers: [], entities: [] };
+  for (let x = 0; x <= 18; x++)
+    for (let z = 0; z <= 8; z++) w.tiles.set(`${x},${z}`, { x, z, h: 0, surface: 'stone' });
+  const from = { x: 0, z: 2 },
+    aim = { x: 24, z: 2 },
+    runners = Array.from({ length: 8 }, (_, i) => ({
+      x: 2.5 + i * 2,
+      z: 7,
+      h: 0,
+      radius: 0.25,
+      height: 1,
+    })),
+    occupancy = new Occupancy({ radius: 0.3, height: 1.8 }, () => runners),
+    pool = new RouteBudget(4),
+    n = new Navigator(w, occupancy),
+    reference = new Navigator(w, occupancy);
+  assert.ok(reference.goTo(from, aim, { partial: true }));
+  n.scheduleWith(pool, () => from);
+  assert.equal(n.request(from, aim, { partial: true }), 'pending');
+  for (let i = 0; n.pending && i < 300; i++) {
+    for (const runner of runners) runner.z = (i % 3 ? 7 : 7.3) + i * 0.0001;
+    pool.tick();
+    assert.ok(pool.used <= pool.limit);
+  }
+  assert.equal(n.planningResult, 'ready');
+  assert.deepEqual(n.path, reference.path);
+  assert.ok(n.liveSegmentClear(from, n.destination!));
+  const end = n.destination!;
+  n.arrive();
+  const sequence = n.requestSequence;
+  for (let i = 0; i < 6; i++) {
+    for (const runner of runners) runner.z = i % 2 ? 7 : 7.3;
+    assert.ok(n.followFloor(end, aim, i * 1000));
+    assert.equal(n.requestSequence, sequence);
+    assert.equal(n.destination, null);
+  }
+});
+
+test('nonblocking bodies drifting in route chunks cannot starve budgeted publication', () => {
+  const { nav, pool, from, aim, bodies } = driftingBesideRoute(100, 40);
+  assert.equal(nav.request(from, aim, { partial: true }), 'pending');
+  for (let i = 0; nav.pending && i < 300; i++) {
+    for (const body of bodies) body.z += 0.00001;
+    assert.ok(nav.liveSegmentClear(from, { x: 100.179, z: 1 }));
+    pool.tick();
+    assert.ok(pool.used <= 4);
+  }
+  assert.equal(nav.planningResult, 'ready', `tick ${pool.ticks}`);
+  assert.deepEqual(nav.destination, { x: 100.1798095703125, z: 1 });
+});
+
+for (const mode of ['void', 'exact', 'partial-exact'] as const)
+  test(`nonblocking bodies drifting alongside a diagonal do not starve ${mode} publication`, () => {
+    const w: NavigationWorld = { tiles: new Map(), blockers: [], entities: [] };
+    for (let x = 0; x <= 48; x++)
+      for (let z = 0; z <= 48; z++) w.tiles.set(`${x},${z}`, { x, z, h: 0, surface: 'stone' });
+    const from = { x: 0, z: 0 },
+      aim = mode === 'void' ? { x: 54, z: 54 } : { x: 48, z: 48 },
+      options = { partial: mode !== 'exact' },
+      offset = 0.65 / Math.sqrt(2),
+      bodies = Array.from({ length: 42 }, (_, i) => ({
+        x: 3 + i + offset,
+        z: 3 + i - offset,
+        h: 0,
+        radius: 0.25,
+        height: 1,
+      })),
+      occupancy = new Occupancy({ radius: 0.3, height: 1.8 }, () => bodies),
+      pool = new RouteBudget(4),
+      nav = new Navigator(w, occupancy),
+      reference = new Navigator(w, occupancy);
+    assert.ok(reference.goTo(from, aim, options));
+    assert.equal(reference.path.length, 1);
+    nav.scheduleWith(pool, () => from);
+    assert.equal(nav.request(from, aim, options), 'pending');
+    for (let i = 0; nav.pending && i < 500; i++) {
+      for (const body of bodies) {
+        body.x += 0.000001;
+        body.z += 0.000001;
+      }
+      assert.ok(nav.liveSegmentClear(from, reference.destination!));
+      pool.tick();
+      assert.ok(pool.used <= 4);
+    }
+    assert.equal(nav.planningResult, 'ready', `tick ${pool.ticks}`);
+    assert.deepEqual(nav.path, reference.path);
+  });
+
+test('after arrival a body entering a traveled segment does not restart the held void aim', () => {
+  const { nav, pool, from, aim, bodies, moveOwner } = driftingBesideRoute(18, 1);
+  nav.request(from, aim, { partial: true });
+  for (let i = 0; nav.pending && i < 300; i++) pool.tick();
+  assert.equal(nav.planningResult, 'ready');
+  const end = nav.destination!;
+  moveOwner(end);
+  nav.arrive();
+  const sequence = nav.requestSequence;
+  bodies[0].z = 1; // Really blocks the old segment; it does not affect the settled endpoint.
+  assert.equal(nav.liveSegmentClear(from, end), false);
+  assert.ok(nav.followFloor(end, aim, 1000));
+  assert.equal(nav.requestSequence, sequence);
+  assert.equal(nav.destination, null);
+});
+
+function driftingBesideRoute(length: number, count: number) {
+  const w: NavigationWorld = { tiles: new Map(), blockers: [], entities: [] };
+  for (let x = 0; x <= length; x++)
+    for (let z = 0; z <= 3; z++) w.tiles.set(`${x},${z}`, { x, z, h: 0, surface: 'stone' });
+  const from = { x: 0, z: 1 },
+    aim = { x: length + 6, z: 1 },
+    bodies = Array.from({ length: count }, (_, i) => ({
+      x: 3 + 2 * i,
+      z: 1.85,
+      h: 0,
+      radius: 0.25,
+      height: 1,
+    })),
+    occupancy = new Occupancy({ radius: 0.3, height: 1.8 }, () => bodies),
+    pool = new RouteBudget(4),
+    nav = new Navigator(w, occupancy);
+  let owner = from;
+  nav.scheduleWith(pool, () => owner);
+  return { nav, pool, from, aim, bodies, moveOwner: (point: typeof from) => (owner = point) };
+}
+
 test('three concurrent long commands share one tick allowance and publish complete oracle paths', () => {
   const w = switchback(),
     pool = new RouteBudget(16);
