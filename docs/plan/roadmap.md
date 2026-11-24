@@ -9,10 +9,12 @@
 
 The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted synchronous Effect [generation](../generation-authoring.md), while movement and combat run in the fixed-step ECS. **Next: Epic 14**, using Epic 13's completed practice room to make mouse travel dependable before retiring keyboard navigation. Epic 1's rendered dungeon hitch investigation remains independent and open; neither it nor Epic 14 waits for the other. After both, deliver Epics 2–5, then 7–12; Epic 6 remains optional. Numbers are stable IDs, not priorities; story plans belong later at `docs/plan/epic-N/story-M.md`.
 
+Epic 15 is a separate opt-in visual study, not a prerequisite for the delivery queue.
+
 ## Progress
 
-- Epics: 2/15 complete
-- Stories: 9/54 complete
+- Epics: 2/16 complete
+- Stories: 9/59 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -337,7 +339,39 @@ Make discovery and room state matter without a required skill roll. Schedule thi
 - [ ] **Story 12.4 — Playtest the next build choice (12, 14)** — Review the forge and alarm outcomes and choose one small progression experiment: bounded equipment replacement for the Knight, or one additional solo kit. **Depends on**: 12.2, 12.3.
   - Compare an explicit slot swap with the existing blessing baseline, or demo Rogue mobility/opening or Arcanist ranged control through the same ability bar. Verify every offered kit can finish the altar and guardian; defer broader inventory, smithy upgrades/retraining and the remaining kits until the choice proves useful.
 
+### Epic 15 — Test a three-value dungeon in motion
+
+- [ ] **Epic 15 complete**
+
+Test whether a room composed of a few large color shapes makes the route and the fight easier to read. Use the 13 local studies in `ref/images/` (ignored) for room palettes, and [Hellboy Web of Wyrd](https://store.steampowered.com/app/2160480/Hellboy_Web_of_Wyrd/) for broad graphic shadows and characters that stay distinct in motion.
+
+- **Depends on**: Epic 13's completed practice room. Schedule separately; keep Epic 14 next and Epic 1's baseline unchanged.
+- **Scope**: Compare palette, outlines and silhouettes separately, then together in the practice room and a pinned dungeon. End with an adoption decision, not a default art change.
+
+#### Stories
+
+- [ ] **Story 15.1 — Pin two playable comparisons** — Keep the current renderer as the control and make each trial opt-in. Capture a reset practice round and the same route in `MOURNING-731` before changing the look.
+  - Add a small, collapsible practice-room panel. Introduce bounded sliders with their treatments: room hue and shadow coverage (15.2), ink width (15.3) and corner wear (15.4). Show each name and numeric value; dragging or using arrow keys updates the same scene immediately without sending pointer or keyboard commands to the game.
+  - Add a live **Lens** slider from wide to long showing vertical FOV in degrees (baseline: 0.65 rad, about 37°, in `src/main.ts`). Adjust orbit distance to keep the hero the same on-screen size: Lens changes perspective, not zoom. At both extremes, rotate past a wall and verify cutaways reveal the hero and clicks still pick the visible floor, door and foe.
+  - Add a live **Fisheye** strength slider independent of Lens and zoom: 0% is off; 100% gives strong barrel distortion. Distort only the scene, not the HUD or panel. At both extremes, check that clicks near screen edges pick the visible floor, door or foe under the pointer.
+  - Switch between Original and Tuned at the same orbit angle and gameplay zoom without losing settings. Include Lens and Fisheye in comparison, reset to defaults and copied numeric settings so paired captures can be reproduced without restarting practice.
+  - In practice, pass the pillar, open the door and fight the optional skeleton. In the dungeon, include stairs, a landmark and an occupied room; match starting state, inputs, action ticks, viewport, camera and quality between versions.
+  - Save paired views at all four camera orientations and near/far gameplay zooms, plus short motion clips. Set acceptable frame-time and draw-call deltas before judging variants.
+- [ ] **Story 15.2 — Compose the room in three values** — Compare the partial lighting bands and floor grid/noise in [`src/materials.ts`](../../src/materials.ts) with broad light, mid and dark shapes. **Depends on**: 15.1.
+  - Give each room one dominant hue against a dark saturated background. Try an icy blue stairwell with small amber lights, a purple chamber and a green shrine; reserve jewel accents for focal points. Use neither pure black nor neutral grey, even in deep shadow.
+  - Suppress tile seams and fine noise rather than outlining the grid. At far zoom, identify the stair landing, safe floor, hazard and shrine without relying on texture detail.
+- [ ] **Story 15.3 — Outline what the player must follow** — Trial thick, dark chromatic contours on the hero, foes and selected landmark silhouettes, not every voxel or internal joint. **Depends on**: 15.1.
+  - Compare the same approach, swing and shield raise with and without contours. Keep weapon and shield distinct against both lit floor and shadow; lines must not flicker on rotation, show through walls or masquerade as hover and target feedback.
+- [ ] **Story 15.4 — Break the visible right angles** — Trial render-only seeded skew on masonry, tapered pillars and chipped door and stair profiles. Aim for no apparent right angles in the room silhouette, not a different floor plan. **Depends on**: 15.1.
+  - Inspect corners and cutaways from each camera side. Repeat the seed: chips stay put, adjacent faces meet without cracks, and no cosmetic draw changes generation or placement.
+  - Click the same floor, door and foe and traverse the same stairs in both versions. Preserve picking, collision, navigation, support heights, actor rigs and grips; keep material/chunk batching and thin instances rather than adding a mesh per chip or outline.
+- [ ] **Story 15.5 — Decide which treatments to keep** — Replay both comparisons with individual treatments and the combined look. **Depends on**: 15.2–15.4.
+  - Have the player identify walkable edges, doors, hazards, the selected foe and attack wind-up while moving, rotating and zooming. Record misreads against the control and the view where each occurred; a strong still does not excuse a lost combat tell.
+  - Repeat matched Low/High runs on the same hardware; compare frame-interval p95/p99, repeat spread, draw calls and resource counts after reset/regeneration. Record adopt, revise or reject per treatment against the agreed limits and readability results. Unmatched runs are inconclusive; leave defaults alone pending approval.
+
 ## Out of scope
+
+- Epic 15 does not import reference art, remodel the keep, change simulation or roll out a new default style. The lighting trials are not hitch fixes or substitutes for Epic 1's measurements.
 
 - Epic 14 reserves menu bindings; it does not build character or inventory screens, import Diablo II assets, or redesign combat balance. The practice room stays empty by default; use its opt-in skeleton and the actual dungeon, not a second combat controller.
 - Epic 13 adds no rogue, ranged or spellcasting actions, loadouts, or control redesign. It needs no editor, art pass, formal play study or port of a mechanic to the dungeon. The later kit choice in 12.4 stays separate; the room does not replace Epic 1's dungeon measurements.
