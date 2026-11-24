@@ -5,7 +5,7 @@ import { createLocomotion, easeSpeed, WALK_SPEED } from './locomotion.ts';
 import { heightAt, tileAt } from './worldSpatial.ts';
 import type { Point, Spawn } from './worldTypes.ts';
 import { Attack } from './machines/actors/attack.ts';
-import { Defense } from './machines/actors/defense.ts';
+import { Defense, PLAYER_SHIELD_LOWER_SECONDS } from './machines/actors/defense.ts';
 import { createMonsterBehavior } from './machines/monsters/index.ts';
 import { Health } from './machines/actors/health.ts';
 import { Occupancy } from './occupancy.ts';
@@ -108,7 +108,13 @@ export function createActor(
       )
       .add('attack', new Attack()),
   );
-  if (kind === 'player') actor.entity.add('defense', new Defense());
+  if (kind === 'player')
+    actor.entity.add(
+      'defense',
+      new Defense(() => {
+        actor.attack.cooldown = PLAYER_SHIELD_LOWER_SECONDS;
+      }),
+    );
   actor.entity.add('blockFeedback', new BlockFeedback(ecs, actor.entity));
   return actor;
 }
@@ -119,6 +125,7 @@ export function requestDefense(actor: Actor, repeat = false, allowed = true): bo
     return false;
   cancelWork(actor);
   actor.attack.interrupt();
+  if (actor.kind === 'player') actor.attack.cooldown = 0;
   if (actor.attack.target) {
     actor.navigator.cancel();
     actor.attack.repath = 0;

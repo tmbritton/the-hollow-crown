@@ -9,7 +9,7 @@ import {
   teleportActor,
   moveActor,
 } from '../src/actors.ts';
-import { Defense } from '../src/machines/actors/defense.ts';
+import { Defense, PLAYER_SHIELD_LOWER_SECONDS } from '../src/machines/actors/defense.ts';
 import { WorkAction } from '../src/machines/actors/work.ts';
 import { CombatSystem } from '../src/combat.ts';
 import { key } from '../src/world.ts';
@@ -124,20 +124,27 @@ test('defense interrupts the final unresolved attack boundary, retains target an
   for (const elapsed of [0, 14 / 60, 0.25]) {
     const f = fixture();
     f.player.entity.require('defense').release();
+    f.combat.update(PLAYER_SHIELD_LOWER_SECONDS);
     f.combat.target(f.player, f.enemy);
     assert.ok(f.combat.startAttack(f.player, f.enemy));
     f.combat.update(elapsed);
     const hp = f.enemy.health.current;
     assert.ok(requestDefense(f.player));
+    assert.equal(f.player.attack.cooldown, 0);
     assert.equal(f.player.attack.swing, null);
     assert.equal(f.player.attack.target, f.enemy.id);
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < (elapsed === 0 ? 1 : 90); i++) {
       f.combat.pursue(f.player, 1 / 60);
       f.step(1);
     }
     assert.equal(f.enemy.health.current, hp, 'no delayed impact or autoswing');
     assert.equal(f.combat.startAttack(f.player, f.enemy), false);
     f.player.entity.require('defense').release();
+    assert.equal(f.player.attack.cooldown, PLAYER_SHIELD_LOWER_SECONDS);
+    f.combat.update(PLAYER_SHIELD_LOWER_SECONDS / 2);
+    f.player.entity.require('defense').release(); // duplicate key-up cannot restart recovery
+    assert.equal(f.combat.startAttack(f.player, f.enemy), false);
+    f.combat.update(PLAYER_SHIELD_LOWER_SECONDS / 2);
     f.combat.pursue(f.player, 1 / 60);
     f.step(16);
     assert.ok(f.enemy.health.current < hp, 'ordinary pursuit restarts');

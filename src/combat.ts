@@ -1008,7 +1008,8 @@ export class CombatSystem {
         .flatMap((e) => [...e.require('koboldSquad').movement(dt, this.world)]),
     );
     for (const actor of this.actors) {
-      if (!actor.defending) actor.entity.get('defense')?.cancel();
+      const defense = actor.entity.get('defense');
+      if (defense?.raised && !actor.defending) defense.cancel();
       actor.health.advance(dt);
       actor.attack.cool(dt);
       const corpse = actor.entity.get('corpse');

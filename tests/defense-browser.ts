@@ -252,6 +252,8 @@ try {
       48,
     );
     await page.keyboard.up('f');
+    await step(14);
+    assert.equal((await state()).swing, null, 'cannot swing while lowering');
     await step(17);
     assert.equal(
       await page.evaluate((id) => window.__dungeon.game.combat.actor(id)!.health.current, id),

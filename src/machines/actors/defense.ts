@@ -2,6 +2,9 @@ import { setup } from 'xstate';
 import { Statechart } from '../statechart.ts';
 import type { Point } from '../../worldTypes.ts';
 
+/** Seconds from releasing F until the guard pose clears and the next sword swing can start. */
+export const PLAYER_SHIELD_LOWER_SECONDS = 0.24;
+
 /** A cancelled physical hold must release before another press can raise the shield. */
 export const defenseMachine = setup({
   types: {
@@ -29,6 +32,12 @@ export const defenseMachine = setup({
 
 /** Opt-in actor capability. Controllers supply presses; no timers or background actors. */
 export class Defense {
+  /** A complete press and release can occur between two fixed-step pose samples. */
+  lowerSequence = 0;
+  private readonly onLower?: () => void;
+  constructor(onLower?: () => void) {
+    this.onLower = onLower;
+  }
   readonly chart = new Statechart(defenseMachine);
   get raised(): boolean {
     return this.chart.snapshot.matches('raised');
@@ -39,10 +48,19 @@ export class Defense {
     return !wasRaised && this.raised;
   }
   release(): void {
+    const wasRaised = this.raised;
     this.chart.send({ type: 'RELEASE' });
+    if (wasRaised) this.didLower();
   }
   cancel(): void {
+    const wasRaised = this.raised;
     this.chart.send({ type: 'CANCEL' });
+    this.lowerSequence = 0;
+    if (wasRaised) this.onLower?.();
+  }
+  private didLower(): void {
+    this.lowerSequence++;
+    this.onLower?.();
   }
 }
 

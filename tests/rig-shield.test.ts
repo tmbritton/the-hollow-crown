@@ -58,6 +58,28 @@ test('guard placement is immediate while supporting anticipation settles without
   assert.deepEqual(motion.snapshot(), snapshot);
 });
 
+test('a second guard tap between pose samples restarts both lowering and sword recovery', () => {
+  const ecs = new ECS(),
+    world: NavigationWorld = { tiles: new Map(), blockers: [], entities: [] },
+    actor = createActor(ecs, world, 'player', 'player', { x: 0, z: 0, h: 0 }),
+    defense = actor.entity.require('defense'),
+    motion = new ShieldMotion();
+  const tick = () => {
+    actor.attack.cool(1 / 60);
+    motion.sample({ ...input(actor.defending), playerLowerSequence: defense.lowerSequence });
+  };
+  requestDefense(actor);
+  for (let i = 0; i < 60; i++) tick();
+  defense.release();
+  for (let i = 0; i < 10; i++) tick();
+  requestDefense(actor);
+  defense.release();
+  for (let i = 0; i < 30; i++) {
+    tick();
+    assert.equal(motion.weight > 0, actor.attack.cooldown > 0);
+  }
+});
+
 test('lowering and rapid reversals preserve body spring state; resets clear all presentation channels', () => {
   const motion = new ShieldMotion();
   for (let i = 0; i < 60; i++) motion.sample(input(true, 1 / 60, i / 60));

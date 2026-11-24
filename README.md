@@ -311,8 +311,9 @@ even if the shooter moves or dies. A block emits a short gold spark burst withou
 new invulnerability window.
 
 Raising the shield interrupts your current sword action and unfinished work, and suspends
-automatic pursuit/attacks while retaining the selected enemy. Release F to resume ordinary
-pursuit and attack cooldowns. Floor routes and keyboard walk/run remain available at normal
+automatic pursuit/attacks while retaining the selected enemy. Raising the shield clears the hero's
+sword cooldown. Release F to resume pursuit immediately; the next swing can start once the shield
+finishes lowering (0.24 seconds), followed by the usual sword wind-up. Floor routes and keyboard walk/run remain available at normal
 speed; the shield faces travel, so moving away exposes your back. **Jumping lowers the shield
 immediately**, including preload. F pressed during a jump cannot raise it on landing: release
 and press again. **X**, blur, menu, inspection, hidden tabs, death and teleport cancel defense;
@@ -630,7 +631,7 @@ component and `requestDefense(actor)` boundary. The spearman has no shield capab
 latches a raised hold. `Actor.defending` also checks current life/corpse, jump and attack facts;
 combat clears invalid raised states. No independent held-F flag or render clock owns defense.
 
-`requestDefense` cancels work and interrupts the swing without refunding cooldown or undoing an
+`requestDefense` cancels work and interrupts the swing, clearing the player's cooldown without undoing an
 already-resolved impact. It preserves floor routes and selection, cancelling only a pursuit route.
 `startAttack`, pursuit and objective-work eligibility respect defense. The input adapter sends
 releases even while modal or editing; modified/text-field presses and repeats cannot raise a guard.

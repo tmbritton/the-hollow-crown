@@ -254,6 +254,8 @@ export class ActionRig {
     this.shield.sample(
       {
         guarded: defending,
+        playerLowerSequence:
+          actor.kind === 'player' ? actor.entity.get('defense')?.lowerSequence : undefined,
         opening: this.opening,
         openingActive: opening,
         gate: this.gate,

@@ -1,5 +1,9 @@
 # Verification — The Hollow Crown
 
+## Player shield release timing
+
+`npm run check`, `npm run build`, and the Chromium `test:defense` suite passed. An independent review found that a second F tap between pose samples could finish the visible lowering early. After the fix, the reviewer reran the defense and rig-shield suites (23 tests) and approved the change; the rapid-tap regression checks that the guard pose and sword lockout end on the same simulation tick.
+
 ## Result
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.

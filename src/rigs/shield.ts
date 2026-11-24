@@ -1,4 +1,5 @@
 import { Spring } from '../animationCurves.ts';
+import { PLAYER_SHIELD_LOWER_SECONDS } from '../machines/actors/defense.ts';
 import type { BlockFeedback } from '../blockFeedback.ts';
 
 const center = Object.freeze([-0.17, -0.02, 0.07] as const);
@@ -11,6 +12,7 @@ export const SHIELD_PROJECTION_STEPS = 12;
 
 export interface ShieldInput {
   guarded: boolean;
+  playerLowerSequence?: number;
   opening: number;
   openingActive?: boolean;
   gate: boolean;
@@ -44,6 +46,9 @@ export class ShieldMotion {
   private readonly aperture = new Spring();
   private releaseOpening = 0;
   private previousHold = false;
+  private lowerFrom = 0;
+  private lastLowerSequence = 0;
+  private lowerElapsed = 0;
   private previousOpening = 0;
   initialized = false;
   guarded = false;
@@ -78,6 +83,8 @@ export class ShieldMotion {
       s.value = s.velocity = 0;
     this.previousHold = this.gate = this.initialized = this.guarded = false;
     this.previousOpening = this.releaseOpening = 0;
+    this.lowerFrom = this.lowerElapsed = 0;
+    this.lastLowerSequence = 0;
   }
   snapshot() {
     return {
@@ -101,6 +108,7 @@ export class ShieldMotion {
   sample(input: ShieldInput, feedback?: BlockFeedback): void {
     if (input.forceReset) {
       this.reset();
+      this.lastLowerSequence = input.playerLowerSequence ?? 0;
       feedback?.reset();
       return;
     }
@@ -117,7 +125,15 @@ export class ShieldMotion {
       this.aperture.value = input.opening;
     }
     if (input.dt > 0) {
-      if (!hold && this.previousHold) this.releaseOpening = this.aperture.value;
+      const freshRelease =
+        !!input.playerLowerSequence && input.playerLowerSequence !== this.lastLowerSequence;
+      this.lastLowerSequence = input.playerLowerSequence ?? 0;
+      if (!hold && (this.previousHold || freshRelease)) {
+        this.releaseOpening = this.aperture.value;
+        if (freshRelease && !this.previousHold) this.placement.value = 1;
+        this.lowerFrom = this.weight;
+        this.lowerElapsed = 0;
+      }
       if (hold && !this.previousHold) this.load.velocity = clamp(this.load.velocity + 1.8, -3, 3);
       if (input.guarded && this.previousOpening > 0 && input.opening === 0)
         this.load.velocity = clamp(this.load.velocity + 0.9, -3, 3);
@@ -135,7 +151,13 @@ export class ShieldMotion {
       }
       const target = hold ? 1 : 0;
       if (this.placement.value !== target || this.placement.velocity !== 0) {
-        this.placement.advance(target, input.dt, 18, 0.82);
+        if (input.playerLowerSequence !== undefined && !hold) {
+          this.lowerElapsed += input.dt;
+          const remaining = Math.max(0, 1 - this.lowerElapsed / PLAYER_SHIELD_LOWER_SECONDS);
+          this.placement.value = this.lowerFrom * remaining ** 2 * (3 - 2 * remaining);
+          this.placement.velocity =
+            (-6 * this.lowerFrom * remaining * (1 - remaining)) / PLAYER_SHIELD_LOWER_SECONDS;
+        } else this.placement.advance(target, input.dt, 18, 0.82);
         if (
           Math.abs(this.placement.value - target) < 0.0001 &&
           Math.abs(this.placement.velocity) < 0.002
