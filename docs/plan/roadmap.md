@@ -1,19 +1,18 @@
 # The Hollow Crown Implementation Roadmap
 
-- **Source**: [Implementation path](../implementation-path.md), [Effect refactor plan](../effect-refactor-plan.md); `/var/home/tom/Documents/Tom's Vault/Notes/Game Demo Notes.md` (all nine notes); player observations; [README](../../README.md), [AGENTS](../../AGENTS.md), [CPU7 results](../cpu7-integrated-results.md), [CPU workloads](../../tests/cpu-workloads.ts).
+- **Source**: [Implementation path](../implementation-path.md), [Effect refactor plan](../effect-refactor-plan.md); `/var/home/tom/Documents/Tom's Vault/Notes/Game Demo Notes.md` (original nine encounter notes; twelve Practice Room Notes, lines 13–25); player observations; [README](../../README.md), [docs index](../README.md), [AGENTS](../../AGENTS.md), [CPU7 results](../cpu7-integrated-results.md), [CPU workloads](../../tests/cpu-workloads.ts).
 - **Expansion sources**: [4e incorporation plan](../4e-incorporation-plan.md) (item numbers and milestones A–D); [monster roster plan](../monster-roster-plan.md) (waves A–C).
-- **Greybox priority**: The user wants a place to try the current controls immediately after Epic 1.
 - **Updated**: 2026-11-24
 - **Status**: active
 
 ## Overview
 
-The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted synchronous Effect [generation](../generation-authoring.md), while movement and combat run in the fixed-step ECS. **Delivery order: finish Epic 1 → Epic 13 (greybox controls room) → Epics 2–5 → Epics 7–12**; numbers are stable IDs, not priorities. Epic 1 measures the reported phalanx and doorway hitches in rendered dungeon play, independently of generation timings. Epic 13 then gives the user a quiet room to try the current hero before deciding what, if anything, to change. Epic 6 remains a separate optional cleanup, not a prerequisite for the room. Story plans belong later at `docs/plan/epic-N/story-M.md`.
+The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted synchronous Effect [generation](../generation-authoring.md), while movement and combat run in the fixed-step ECS. **Next: Epic 14**, using Epic 13's completed practice room to make mouse travel dependable before retiring keyboard navigation. Epic 1's rendered dungeon hitch investigation remains independent and open; neither it nor Epic 14 waits for the other. After both, deliver Epics 2–5, then 7–12; Epic 6 remains optional. Numbers are stable IDs, not priorities; story plans belong later at `docs/plan/epic-N/story-M.md`.
 
 ## Progress
 
-- Epics: 2/14 complete
-- Stories: 7/46 complete
+- Epics: 2/15 complete
+- Stories: 8/54 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -73,17 +72,55 @@ CPU7 documented missed desktop budgets, not a matched speedup or a cause for thi
 
 Give the user a direct way to play the actual hero without starting a dungeon run. The deliverable is the room itself; the user can try it at their own pace and choose any follow-up.
 
-- **Depends on**: Epic 1 closeout, not a positive performance verdict.
+- **Depends on**: None outstanding. Epic 1 closeout was the original scheduling dependency, waived for delivery.
 - **Scope**: One quiet greybox room with an obstacle, an unlocked door and a fast reset. No enemies or objectives by default.
 
 #### Stories
 
 - [x] **Story 13.1 — Enter and move around** — Provide a direct entry alongside normal dungeon play. Use the dungeon hero, overhead camera and existing input, navigation and collision rather than a second controller. **Depends on**: 1.3 (original scheduling dependency; Epic 13 was explicitly started independently).
-  - Click the floor beyond a pillar to route around it, hold the mouse to steer, or take over with camera-relative WASD/arrows. Try Shift to run, Space to jump, held F to raise the shield and X to cancel travel.
+  - As shipped: floor click beyond a pillar, held mouse steering, camera-relative WASD/arrows, held Shift to run, Space to jump, held F defense and X to cancel travel. These are the baseline controls, not the target bindings for Epic 14.
   - Click the closed, unlocked door to approach and open it, or press E within reach; walk through the doorway.
 - [x] **Story 13.2 — Reset and try again** — Restore the hero and room to the same quiet start with one action, without reloading the page or generating a dungeon. **Depends on**: 13.1.
   - Reset after opening the door or starting a move: the door is closed, the hero is back at the start with starting health, and no travel or attack command carries over.
   - If the user wants to try attack targeting, allow one opt-in existing foe: click it to pursue and attack in reach. Reset removes it; no fight is required.
+
+### Epic 14 — Make the mouse-driven hero playable
+
+- [ ] **Epic 14 complete**
+
+Use the same hero and inputs in practice and the dungeon. First make travel reliable with the mouse alone, then teach the player what a click will do and let them switch from attacking to defending without fighting the controls.
+
+- **Depends on**: 13.2 (complete); start 14.1 now.
+- **Scope**:
+  - Floor steering, bindings, object interaction and truthful pointer feedback.
+  - Attack and shield response, followed by a distinct reaction to damage received.
+
+#### Stories
+
+- [ ] **Story 14.1 — Steer past the map edge** — Keep a held floor command active when the cursor leaves the walkable map. **Depends on**: 13.2.
+  - Hold out past a practice-room edge, then sweep along it: travel toward the nearest safely reachable square to the invalid click, with the gold ring at the effective destination. Steer back onto valid floor without releasing; exact reachable clicks stay precise.
+  - Repeat across a dungeon void or disconnected floor. Settle without jitter at the legal frontier; never step onto unsupported floor or cross a sealed gate.
+- [ ] **Story 14.2 — Get clear of an obstacle by mouse** — Make a reachable detour work even when the hero starts pressed against scenery. **Depends on**: 14.1.
+  - Click beyond the practice pillar, steer around its corner while held, then reverse away from contact without a key or reset. Repeat beside dungeon furniture and a doorway with living blockers present.
+  - When no path fits, stop without repeated retries; a clear new request or a blocker moving away permits progress. No clipping, teleport or change to the shared route budget.
+- [ ] **Story 14.3 — Switch to mouse travel and toggle running** — After both travel checks pass, retire WASD and its arrow-key movement alias. Use the [Diablo II PC shortcut guide](https://www.wowhead.com/diablo-2/guide/keyboard-shortcuts-pc) to reserve future menu keys (notably C for character and I for inventory) rather than binding movement to them. **Depends on**: 14.2.
+  - In both modes, rotate left/right with `[` / `]` instead of Q/R; press the run toggle once to run after release and again to walk. Held-key repeat must not flip it. Check bindings, including practice reset, for conflicts; align help, README and real-input checks with the delivered map.
+  - Remove the explicit X stop command, not cancellation itself: replace pursuit with a floor click and interrupt shrine work by moving. Preserve cleanup of pending travel, attacks, work, held defense and poses on pause/inspection, blur/hidden tab, teleport, death/respawn, practice reset and regeneration. No stale held input resumes play.
+- [ ] **Story 14.4 — Click what E can use** — Give each world interaction a mouse approach to the picked object and the same eligibility and outcome as E in reach. **Depends on**: 14.3.
+  - Hover the practice door before clicking: distinguish an actionable object from scenery (try a yellow geometry outline). The cue and click use the same pick; neighboring objects, occlusion and changing eligibility must not redirect or falsely promise an action.
+  - Compare E and click in equivalent dungeon states: doors, chests, altar, portraits, throne, shrine work, disabling the focus and recovering loose tribute. Approach legally, recheck reach and state on arrival, and never double-claim, inspect through cover or skip progression.
+- [ ] **Story 14.5 — Close a door from its swing path** — Let the closing leaf sweep through the hero just as the opening leaf can, without requiring precise positioning. **Depends on**: 14.4.
+  - In practice, stand in the sweep, close by click, then repeat with E. The hero is neither pushed through the threshold nor trapped; once closed the door blocks travel until reopened.
+  - Repeat from the other side in a dungeon. Closed doors still block routes and attacks; floor steering cannot operate them and the locked throne gate still requires the altar.
+- [ ] **Story 14.6 — Preview the actual enemy pick** — Show a locally generated animated pixel-art skeleton hand in ordinary play. Over a pickable enemy switch to a pixel-art sword and put a red ground ring beneath that enemy before the click. **Depends on**: 14.5.
+  - Hover, leave and return to the practice skeleton: preview alone never starts pursuit or changes selection. Click engages exactly the previewed foe; release retains the command.
+  - Rotate over overlapping enemies and an interactable in the dungeon. Sword/ring, object highlight and click agree on one actual pick; clear obsolete cues on occlusion, death, modal entry or reset without losing a valid committed target merely on pointer exit.
+- [x] **Story 14.7 — Attack on reach and defend on demand** — Accepted in the Practice Room playtest: defense still requires timing, but the player can interrupt a swing to guard and get back into the fight. Delivered in `9364596` ahead of the hover feedback in 14.6.
+  - Clicking selects the enemy; the hero pursues into reach and starts the usual sword wind-up. Damage still requires a valid target in reach at impact.
+  - Raising the shield interrupts the swing and clears its cooldown. Releasing F ends protection immediately and resumes pursuit; the next swing can start when the shield finishes lowering (240 ms). See [shield timing verification](../../VERIFICATION.md#player-shield-release-timing).
+- [ ] **Story 14.8 — Show the hero taking a hit** — Follow the responsiveness playtest with a readable player hit reaction driven by accepted damage, not the hero's own attack animation. **Depends on**: 14.7.
+  - At gameplay zoom compare the hero swinging, taking an unblocked skeleton hit, and blocking it frontally in practice. Only damage received produces the hurt pose; a block keeps its shield recoil and no HP loss.
+  - Repeat during a dungeon exchange. The pose must not determine damage, interrupt eligibility, delay defense or change attack clocks; death/respawn and reset leave no lingering flinch.
 
 ### Epic 2 — Assemble and reform on real terrain
 
@@ -91,12 +128,12 @@ Give the user a direct way to play the actual hero without starting a dungeon ru
 
 An alerted pack should break from its activity immediately and run to reachable slots. Change travel to the rank, not the original membership or the rules for fighting from it.
 
-- **Depends on**: Epic 1 baseline; the greybox room (Epic 13) ships first in delivery order.
+- **Depends on**: Epic 1 encounter investigation and Epic 14 controls closeout.
 - **Scope**: Slot assignment, scoped occupancy, obstacle recovery and narrow pursuit.
 
 #### Stories
 
-- [ ] **Story 2.1 — Rally to assigned slots** — The group chart assigns destinations; each original member requests its own route under the shared 24-credit fixed-tick budget. Show attention on alert and run to the slot rather than advancing at formed-rank speed. **Depends on**: 1.3; schedule after 13.2.
+- [ ] **Story 2.1 — Rally to assigned slots** — The group chart assigns destinations; each original member requests its own route under the shared 24-credit fixed-tick budget. Show attention on alert and run to the slot rather than advancing at formed-rank speed. **Depends on**: 1.3 and 14.8.
   - Reuse the controls room for an opt-in encounter with the existing kobold squad. Start before alert so the player can approach from either side of the pillar, watch the squad rally, then reset to the same unaware squad and immediately try a different approach. Keep the empty room as the default for controls practice.
   - Update the README/AGENTS living-blocker contract and tests for one intentional exception: same-pack movement may pass through packmates only while assembling/reforming. Apply it consistently to route and motor; require separated slots before engagement. No snaps, enemy/player pass-through, terrain/door bypass, or change to hit, projectile or shield interception.
   - Compare alert-to-first-motion, rank-ready and first attack against baseline; verify bounded retries/hold and safe cancellation on casualty, target loss or withdrawal, including interruption mid-crossing.
@@ -302,6 +339,7 @@ Make discovery and room state matter without a required skill roll. Schedule thi
 
 ## Out of scope
 
+- Epic 14 reserves menu bindings; it does not build character or inventory screens, import Diablo II assets, or redesign combat balance. The practice room stays empty by default; use its opt-in skeleton and the actual dungeon, not a second combat controller.
 - Epic 13 adds no rogue, ranged or spellcasting actions, loadouts, or control redesign. It needs no editor, art pass, formal play study or port of a mechanic to the dungeon. The later kit choice in 12.4 stays separate; the room does not replace Epic 1's dungeon measurements.
 - Population cuts, lower quality defaults, lighting changes and reviving CPU6b scheduler/LOD: controls are diagnostic, not proposed fixes. Keep full-rate simulation and presentation.
 - Unrelated keep variants and adventure grammars: EF4 permits new content but does not authorize a generator replacement. Existing animation, death, competing-objective and scenario initiatives keep their own contracts.
