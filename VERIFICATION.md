@@ -4,6 +4,155 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### EF1–EF4 — generation refactor and adoption decision
+
+**Implementation on `main`; EF4 adoption NOT READY.** The user authorized EF1–EF3 with the frozen
+EF0 kits and transferred the undecided generation latency decision to EF4, retaining all original
+margins. No further calibration was run to unblock implementation. The results below do not clear
+the prerequisite for new procedural content. No independent READY verdict, commits, checkbox
+changes, deployments or Epic 1 worktree operations.
+
+**Source-only checkpoint packaging (not a new cost result).** Preserved 122 original generated
+files byte-for-byte under ignored `test-results/ef-checkpoint/original/`. The
+[offline contract and optional history replay](docs/ef0-baseline.md#offline-oracle) replace the
+source-tree gzip kits. A disposable source snapshot with no Git history, installed offline from
+the lock, passed `npm test`, `npm run check:full` (both corpus roots, 112 inputs) and `npm run build`.
+Explicit historical replay matched both pinned manifests, compressed trees, and preserved
+originals. The [final paired protocol](docs/ef4-results.md#final-candidate-latency-campaign--predeclared-not-started)
+is predeclared, not frozen or sampled. It requires an exact pushed checkpoint; adoption remains
+**NOT READY**.
+
+- EF1 separates plain layout, reservation, placement and validation. Typed missing-site results
+  replace the old broad catches. The same-message navigator sentinel went red as exhaustion, then
+  green by strict throw identity. An import isolation probe went red on the indirect route-grid
+  import of the generation facade, then green on the lower spatial import. ECS identity is tested.
+- EF2 uses the exact `effect@4.1.5` release and EF0 integrity, with no unrelated lock changes. Both
+  public entries use one sync interpreter; tests cover repeated and reentrant execution, invalid
+  limits, skipped validation, final-slot acceptance, all 40 attempts, missing service, exact defect
+  values and cancellation/finalization of a test suspension with no late publication.
+- EF3 records real bounded stage/recipe spans separately from deterministic reports. Local tests
+  cover escaped-byte, record and run limits, reset/disposal, detached copies and sink failures.
+- EF4 has a real generation-exhaustion recovery path. The startup red test timed out waiting for a
+  retry button; the implementation keeps one application render loop, detaches and retires the old
+  run, does not allocate a scene on exhaustion and rejects stale readiness. It distinguishes a
+  defect from retryable exhaustion. See the [authoring guide](docs/generation-authoring.md).
+
+[EF4 cost scorecard](docs/ef4-results.md): the predeclared review follow-up retained public Effect
+subpaths: median cold import **200.201 ms** (limit **224.919 ms**), median native import-only test
+start **440.261 ms** (limit **469.346 ms**). One matched RTX 2070 `animateActors` check measured
+**4.100 → 4.400 ms p95** (ceiling **4.510 ms**), not an FPS or repeatability claim.
+
+The original candidate measured native cold import **393.419 ms** vs
+**224.919 ms** limit and native import-only test startup **657.747 ms** vs **469.346 ms** limit.
+Generation point differences fit the allowances in one adjacent run, but differing load, p95
+spread and lack of the paired campaign leave generation latency **inconclusive**. Original sampled
+allocation and settled resources were within their frozen limits. The startup-only comparison did
+not remeasure generation latency or allocation. EF4 remains open.
+
+Historical correctness: the then-current frozen comparator `node --test tests/generation-fixtures.test.ts`
+matched **112/112** unchanged inputs (103 original + nine supplemental). Final `npm test` passed
+**481** and final `npm run check:full` passed **501**, including typecheck, lint and format. These
+include the navigation import fix and the DEV-only clipped-identity reporting fix; the latter also
+went red/green in the focused diagnostics suite and left the shipped JS metrics unchanged. The corpus
+command with `GENERATION_TRACE_SEED=trial-23` exported all 100 seeds and a detached trace sidecar.
+Gallery on port 46378 passed 48 captures and five identical stability samples. All 48 room PNGs
+and all 12 generation reports matched the archived EF0 gallery byte-for-byte; representative images
+and the color overview were inspected. The resource suite on port 46375 passed three identical
+120-step runs and full retirement checks.
+
+The final `npm run test:generation` on 46385 passed. It exercises real `trial-23` exhaustion at
+startup and through menu replacement, repeated exhaustion during retry, no active game/report,
+zero scenes and no further old renders/steps, detached execution snapshots, and recovery to one
+scene/one loop. A previous attempt on 46374 was interrupted by a Vite reload on the route-grid
+import edit, which deliberately generates a random seed on reload; it was not counted as a pass.
+`npm run test:animation` (46379), `npm run test:rig` (46380; 428 binding samples) and
+`npm run test:ragdoll` (46381; 11 death sequences and reset checks) passed. A skeleton animation
+contact sequence, ragdoll capture and production defense captures were inspected. Full
+`npm run test:browser` passed in Chromium (46382) and with `BROWSER=firefox` (46383), including
+seed links/reload, traversal, input, render assets and regeneration. `npm run test:inspection`
+(46384) passed, including retirement of an active inspection on regeneration.
+
+The final `npm run build` and `npm run build:pages` passed. Local `npm run test:production` passed
+sequentially at `http://127.0.0.1:46386/` and `http://127.0.0.1:46387/the-hollow-crown/`, with
+seeded boot, menu/inputs, real frames and no browser/network errors. A `trial-23` load with
+debug/fault query inputs still succeeds normally in built code. Both builds passed
+`npm run test:cpu:production`; root was also scanned for erased generation diagnostics/fault
+symbols. The browsers used owned strict-port loopback servers, not a shared server or deployment.
+
+**Review follow-up — retained subpath candidate.** Red reproductions: the diagnostic sink could
+mutate identity/reasons, a throwing getter could replace the result, the no-op service was mutable,
+the sync runner interrupted a foreign fiber, and 17 helper-only modules resolved Effect. The
+focused green covered those findings plus the existing owned-suspension cancel/finalize/no-late-write
+case. Diagnostic arguments are copies only when enabled; property reads and calls are guarded with
+at most one best-effort warning per run. The runner separates the program exit from the outer sync
+interpreter exit, so foreign errors escape unchanged with no observer or interrupt on their fiber.
+Each of 19 helper consumers (including rigs and social) imports in a fresh process rejecting both
+`effect` and `effect/*`. Only `main.ts` now consumes the `world.ts` facade in application source.
+
+Fresh verification: `node --test tests/generation-{session,fixtures,pipeline,diagnostics,stages}.test.ts`
+passed 35; `npm test` passed 503; `npm run check:full` passed 523 plus strict typecheck, zero-warning
+lint and format. All 112 frozen inputs still match without recapture. `GENERATION_TRACE_SEED=trial-23
+npm run report:generation` exported 100 seeds, 12 gallery selections and a separate trace sidecar.
+Root Vite shipped JS and the startup/animation follow-up's full qualifications are in the
+[scorecard](docs/ef4-results.md).
+
+The retained candidate passed root `npm run build` and `npm run build:pages`, CPU production isolation
+on both builds, and `npm run test:production` at `http://127.0.0.1:46412/` and
+`http://127.0.0.1:46413/the-hollow-crown/`. No debug hooks, escaped-base requests, or errors.
+`npm run test:generation` (46414) passed recovery and detached trace/report checks.
+`GENERATION_TRACE_SEED=trial-23 npm run gallery:generation` (46415) passed 48 captures and five
+stable regenerations; all 48 room PNGs and all 12 serialized generation reports matched the archived
+gallery. Inspected the representative `MOURNING-731` entrance, baseline/candidate `trial-23` smithy
+pair and Pages production defense capture. `npm run test:resources` (46416) passed three resets;
+the full settled resource count objects matched the archived EF0 resource report exactly.
+`npm run test:animation` (46417), `npm run test:rig` (46418; 428 binding samples), and
+`npm run test:ragdoll` (46419; 11 death sequences and disposal) passed. Inspected the animation
+ramp-contact sheet. These browser correctness probes are separate from the RTX 2070 cost check.
+The full gameplay runs passed all 23 checks each in Chromium (`npm run test:browser`, 46420)
+and Firefox (`BROWSER=firefox npm run test:browser`, 46421).
+Focused teardown checks also passed: `test:inspection` (46422; 13 checks), `test:objective-work`
+(46423; 17 checks), `test:rig:handoff` (46424; 84 catalog entries), and `test:skeleton:breakup`
+(46425; seven sequences). All used owned strict-port loopback servers, sequentially. The run ledger
+and individual logs are under `test-results/ef4-review-*`.
+
+The independent `feature-reviewer` follow-up confirmed the diagnostic, helper-import and startup
+fixes, and confirmed the foreign-fiber ownership case. It noted the limit of owned-suspension
+cancellation: if interruption cannot finish synchronously the runner reports a boundary violation,
+not guaranteed termination. No such suspension was found in the production pipeline; source must
+remain synchronous. The reviewer also flagged the startup outlier count (two, now corrected in
+the text; neither sample was excluded). Overall verdict: **NOT READY**, since generation timing
+is unqualified. The review did not count browser checks still running at the time. Local review
+record: `test-results/ef4-review-subagent.log`.
+
+### EF0 — historical oracle, compatibility and pre-cutover timing results
+
+See the [baseline evidence sheet](docs/ef0-baseline.md) for the exact pre-refactor source, fixture
+checksums, allocation/startup/asset ceilings and reproduction commands. The original 103 captures
+and nine supplemental scenario extremes passed exact fresh-process comparisons. Focused Node tests
+passed (19), `npm test` passed (459), and `npm run check:full` passed (479, plus typecheck, lint and
+format). Build, generation corpus, generation/gallery/resources/animation browser checks and the root
+production smoke passed. The isolated `effect@4.1.5` probe passed strict typecheck, native Node and
+both production browser bases. Generation and warm animation timing remain inconclusive after the
+bounded retry at this checkpoint. No runtime or dependency changes were made in EF0.
+
+The [tooling follow-up](docs/ef0-baseline.md#correctness-follow-up-no-timing-retry) went red then
+green: capture rejects a foreign cwd before creating output, and the reference runner reports
+failure while skipping previews (and the asset inventory) that would read stale build output. Six
+tooling tests passed, as did `npm test` (465), `npm run build`, and `npm run check:full` (485 plus
+typecheck, lint and format). Both scratch captures matched the unchanged fixtures byte-for-byte.
+Prior browser and Effect evidence was reused; no hardware timing retry or gate change.
+
+The [2026-11-23 quiet-window follow-up](docs/ef0-baseline.md#quiet-window-follow-up-2026-11-23)
+qualified warm animation on matched RTX 2070 hardware (4.000 / 4.200 ms p95; 4.510 ms ceiling).
+Generation remains inconclusive: `tribute-12` failed the window p95 spread allowance, and all
+five seeds failed the process p95 spread allowance. No further EF0 timing retry was run.
+
+The [paired-v1 preflight](docs/ef0-evidence/paired-v1-preflight.md) verified two identical source
+kits. Seven focused tests, `npm test` (472), `npm run test:full` (492), strict typecheck, lint,
+format and build passed. The 16 separately reserved quiet windows were not available, so collection
+did not start. No new generation ceilings or independent timing clearance. The later user decision
+above supersedes the historical EF1 implementation block, not the original margins.
+
 ### CPU7 — approved investigation, not performance acceptance
 
 See the [execution report](docs/cpu7-integrated-results.md) for source identity, measured desktop

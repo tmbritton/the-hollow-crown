@@ -7,7 +7,7 @@ import type { CorpseBox, CorpseContactQuery } from './corpseTerrain.ts';
 import { corpseHeightAt } from './corpseTerrain.ts';
 import type { NavigationWorld } from './navigation.ts';
 import type { Spawn } from './worldTypes.ts';
-import { heightAt } from './world.ts';
+import { heightAt } from './worldSpatial.ts';
 import { cpuTrace } from './cpuMetrics.ts';
 import type { ActorGeometry } from './actorGeometry.ts';
 import { SupportTiles } from './supportTiles.ts';

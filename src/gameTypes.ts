@@ -91,4 +91,6 @@ export interface DungeonDebug {
   step(codes: string[], frames?: number): void;
   snapshot(): Snapshot;
   generationReport(): GenerationReport;
+  generationExecution(): import('./generation/localDiagnostics.ts').GenerationExecutionSnapshot;
+  failNextGeneration(): void;
 }

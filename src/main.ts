@@ -16,7 +16,8 @@ import { FxaaPostProcess } from '@babylonjs/core/PostProcesses/fxaaPostProcess';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Layers/effectLayerSceneComponent';
 import { CustomMaterial } from '@babylonjs/materials/custom/customMaterial';
-import { generateDungeonWithReport, validateDungeon, tileAt, heightAt } from './world.ts';
+import { generateDungeonWithReport, validateDungeon } from './world.ts';
+import { tileAt, heightAt } from './worldSpatial.ts';
 import { createGenerationReport } from './generation/report.ts';
 import type { GenerationReport } from './generation/report.ts';
 import { createMaterials } from './materials.ts';
@@ -36,7 +37,8 @@ import { createLastEmberRendering } from './lastEmberRendering.ts';
 import { prepareTribute } from './tribute.ts';
 import { createTributeRendering } from './tributeRendering.ts';
 import type { ObservedEvent } from './discoveries.ts';
-import { generationIdentity } from './generation/identity.ts';
+import { GenerationError, generationIdentity } from './generation/identity.ts';
+import { acceptsGenerationReady } from './machines/ui/session.ts';
 import { CameraObservation, updateInstanceMatrices } from './observation.ts';
 import { animateActors, ACTOR_OBSERVATION_RADIUS } from './actorRendering.ts';
 import { cpuTiming } from './cpuMetrics.ts';
@@ -59,6 +61,8 @@ import type { Game } from './gameTypes.ts';
 
 const canvas = element('game', HTMLCanvasElement);
 const loading = html('loading');
+const loadingCaption = required(loading.querySelector('p'), 'Loading caption missing');
+const retryButton = html('retry-generation');
 const ui = new UI(),
   keys = new Set<string>();
 const gameKeys = new Set([
@@ -83,7 +87,22 @@ const gameKeys = new Set([
 const editingText = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || !!target.closest('input,textarea,select'));
-let engine: DungeonEngine, game: Game;
+let engine: DungeonEngine,
+  game: Game | null = null;
+const debug = import.meta.env.DEV && new URLSearchParams(location.search).has('debug');
+const generationDiagnostics =
+  import.meta.env.DEV && debug
+    ? (await import('./generation/localDiagnostics.ts')).createLocalGenerationDiagnostics()
+    : undefined;
+let failNextGeneration =
+  import.meta.env.DEV &&
+  debug &&
+  new URLSearchParams(location.search).get('generationFailure') === '1';
+type GenerationRequest = { seed: string; pinSeed: boolean };
+let currentRequest: GenerationRequest | null = null;
+let retryRequest: GenerationRequest | null = null;
+const activeGame = () => required(game, 'No active dungeon');
+const currentGame = () => game;
 let animationReview: import('./animationReview.ts').AnimationReview | undefined;
 let initialGenerationReport: GenerationReport | null = null;
 let last = performance.now(),
@@ -106,7 +125,7 @@ function resetMovement(): void {
 }
 
 function navigatePointer(clientX: number, clientY: number, initialPress = false): void {
-  if (!ui.ready || paused() || game.inspection.active) return;
+  if (!game || !ui.ready || paused() || game.inspection.active) return;
   const rect = canvas.getBoundingClientRect();
   if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom)
     return;
@@ -170,23 +189,25 @@ function applyQuality() {
 }
 
 function discoveryRecord(): DiscoveryRecord {
-  return required(game.ecs.get('run'), 'Run entity missing').require('discoveries');
+  return required(activeGame().ecs.get('run'), 'Run entity missing').require('discoveries');
 }
 
 /** Player perception and actual rendered camera visibility must both permit observation. */
 function observesActor(actor: Actor): boolean {
-  if (!ui.ready || paused() || game.inspection.active || !game.player.actor.alive) return false;
-  const player = game.player.actor.position;
+  const current = game;
+  if (!current || !ui.ready || paused() || current.inspection.active || !current.player.actor.alive)
+    return false;
+  const player = current.player.actor.position;
   if (actor.entity.get('ragdoll')?.mode === 'separated') {
-    return game.observation.visible(
+    return current.observation.visible(
       actor.entity.require('render'),
       actor.entity.require('rigPose').bodyMeshes,
       (point) =>
         Math.hypot(player.x - point.x, player.z - point.z) <= 8 &&
-        clearSight(game.world, player, {
+        clearSight(current.world, player, {
           x: point.x,
           z: point.z,
-          h: heightAt(game.world, point.x, point.z) ?? actor.position.h,
+          h: heightAt(current.world, point.x, point.z) ?? actor.position.h,
         }),
     );
   }
@@ -194,10 +215,10 @@ function observesActor(actor: Actor): boolean {
   if (
     Math.hypot(player.x - position.x, player.z - position.z) > 8 ||
     !actor.entity.get('render')?.root?.isEnabled() ||
-    !clearSight(game.world, player, position)
+    !clearSight(current.world, player, position)
   )
     return false;
-  return game.observation.visible(actor.entity.require('render'));
+  return current.observation.visible(actor.entity.require('render'));
 }
 
 function observedLabel(actor: Actor): string {
@@ -208,6 +229,7 @@ function observedLabel(actor: Actor): string {
 }
 
 function recordEvent(event: ObservedEvent, notify = false): void {
+  if (!game) return;
   const record = discoveryRecord();
   if (record.recordEvent(event, game.playTime) && notify) {
     const entry = record.snapshot().events.at(-1);
@@ -216,6 +238,7 @@ function recordEvent(event: ObservedEvent, notify = false): void {
 }
 
 function observeDeath(victim: Actor, source?: Actor): void {
+  if (!game) return;
   const identity = victim.entity.get('inhabitant');
   if (!identity || !observesActor(victim)) return;
   const killer =
@@ -236,35 +259,76 @@ function observeDeath(victim: Actor, source?: Actor): void {
   );
 }
 
-function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
-  if (import.meta.env.DEV) animationReview?.reset();
+function retireGame(): void {
+  const old = game;
+  game = null;
   initialGenerationReport = null;
-  ui.transition({ type: 'LOAD' });
-  resetMovement();
-  accumulator = 0;
-  last = performance.now();
   inspectorToken?.dispose();
   inspectorToken = null;
   inspector.send({ type: 'CLOSE' });
-  if (game) {
-    game.ecs.get('run')?.get('objectiveWork')?.retire();
-    game.inspection.dispose();
-    const shaderNames = game.scene.materials
+  if (old) {
+    old.ecs.get('run')?.get('objectiveWork')?.retire();
+    old.inspection.dispose();
+    const shaderNames = old.scene.materials
       .filter((m): m is CustomMaterial => m instanceof CustomMaterial)
       .map((m) => m._createdShaderName)
       .filter(Boolean);
-    game.scene.dispose();
+    old.scene.dispose();
     engine.releaseEffects();
     for (const name of shaderNames) {
       delete Effect.ShadersStore[`${name}VertexShader`];
       delete Effect.ShadersStore[`${name}PixelShader`];
     }
   }
-  const { world, report } = generateDungeonWithReport(seed);
-  const errors = validateDungeon(world);
-  if (errors.length) throw new Error(`Dungeon validation failed: ${errors.join(', ')}`);
-  if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug'))
-    initialGenerationReport = createGenerationReport(world, report);
+}
+
+function showFailure(message: string, retry: GenerationRequest | null = null): void {
+  retryRequest = retry;
+  ui.transition({ type: 'FAIL' });
+  loading.inert = false;
+  loading.classList.remove('done');
+  loadingCaption.textContent = message;
+  retryButton.hidden = !retry;
+  if (retry) retryButton.focus();
+}
+
+function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
+  if (!engine) return;
+  const request = { seed, pinSeed };
+  currentRequest = request;
+  retryRequest = null;
+  retryButton.hidden = true;
+  loadingCaption.textContent = 'Carving the hollow…';
+  loading.inert = false;
+  loading.classList.remove('done');
+  if (import.meta.env.DEV) animationReview?.reset();
+  ui.unload();
+  resetMovement();
+  retireGame();
+  accumulator = 0;
+  last = performance.now();
+  let generated: ReturnType<typeof generateDungeonWithReport>;
+  let debugReport: GenerationReport | null = null;
+  try {
+    const maxAttempts = import.meta.env.DEV && failNextGeneration ? 1 : undefined;
+    if (import.meta.env.DEV) failNextGeneration = false;
+    generated = generateDungeonWithReport(seed, {
+      maxAttempts,
+      diagnostics: generationDiagnostics?.port,
+    });
+    if (import.meta.env.DEV && debug)
+      debugReport = createGenerationReport(generated.world, generated.report);
+  } catch (error) {
+    if (error instanceof GenerationError) {
+      const reason = error.report.attempts.at(-1)?.reasons[0];
+      showFailure(reason ? `${error.message}. ${reason}.` : error.message, request);
+    } else {
+      showFailure(`Unexpected dungeon generation error for seed ${seed}.`);
+      console.error(error);
+    }
+    return;
+  }
+  const { world } = generated;
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.044, 0.065, 0.075, 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
@@ -400,6 +464,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       footer: ui.inspection.getBoundingClientRect().height + 48,
     }),
     onOpen: (target) => {
+      if (game?.scene !== scene) return;
       resetMovement();
       accumulator = 0;
       playerVisibility = { root: player.root.isEnabled(), marker: player.marker.isEnabled() };
@@ -409,6 +474,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       if (target.id === ember.sites.clue.id) discoveries.present(emberClue(world), game.playTime);
     },
     onClose: () => {
+      if (game?.scene !== scene) return;
       keys.clear();
       accumulator = 0;
       player.root.setEnabled(playerVisibility.root);
@@ -477,6 +543,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     steps: 0,
     nearLights: [],
   };
+  initialGenerationReport = debugReport;
   ui.reset(world, discoveries);
   applyQuality();
   // Random runs must not write a seed back into the URL and pin future loads.
@@ -485,9 +552,18 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   else url.searchParams.delete('seed');
   history.replaceState(null, '', url);
   scene.executeWhenReady(() => {
-    if (scene !== game.scene) return;
+    if (
+      scene !== game?.scene ||
+      !acceptsGenerationReady(
+        ui.flow.snapshot.matches({ mode: 'loading' }),
+        currentRequest,
+        request,
+      )
+    )
+      return;
     ui.transition({ type: 'READY' });
     loading.classList.add('done');
+    loading.inert = true;
     ui.room(world.roomById.entrance, game.playTime);
     canvas.focus();
     ui.toast(
@@ -498,6 +574,7 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
 }
 
 function lineOfSight(entity: Entity): boolean {
+  const game = activeGame();
   const p = game.player.root.position,
     dx = entity.x - p.x,
     dz = entity.z - p.z;
@@ -516,6 +593,7 @@ function lineOfSight(entity: Entity): boolean {
   return true;
 }
 function findInteraction(): Entity | null {
+  const game = activeGame();
   const p = game.player.root.position;
   return (
     game.ecs
@@ -532,6 +610,7 @@ function findInteraction(): Entity | null {
   );
 }
 function promptFor(e: Entity | null): string {
+  const game = activeGame();
   if (!e) return '';
   if (e.inspection) return `Inspect ${e.inspection.title}`;
   if (e.type === 'door')
@@ -542,6 +621,7 @@ function promptFor(e: Entity | null): string {
   return e.type === 'chest' ? (e.open ? 'An empty reliquary' : 'Open the reliquary') : '';
 }
 function interact() {
+  if (!game || !ui.ready) return;
   if (!ui.ready || paused()) return;
   if (game.inspection.active) {
     game.inspection.close();
@@ -655,7 +735,7 @@ function interact() {
 }
 
 function tick(dt: number): void {
-  if (!ui.ready || paused() || game.inspection.active) return;
+  if (!game || !ui.ready || paused() || game.inspection.active) return;
   const cpu = import.meta.env.DEV ? cpuTiming : null;
   const cpuStart = cpu?.clock() ?? 0;
   game.time += dt;
@@ -739,6 +819,8 @@ function tick(dt: number): void {
 }
 
 function renderUpdate(dt: number): void {
+  const game = currentGame();
+  if (!game) return;
   const cpu = import.meta.env.DEV ? cpuTiming : null;
   const cpuStart = cpu?.clock() ?? 0;
   const { player, camera, sun, materials, dungeon } = game;
@@ -853,6 +935,7 @@ function renderUpdate(dt: number): void {
 }
 
 function toggleMenu() {
+  if (!game || !ui.ready) return;
   resetMovement();
   if (ui.victory.open) return;
   game?.inspection.close({ immediate: true });
@@ -863,7 +946,7 @@ function toggleMenu() {
 window.addEventListener('keydown', (event) => {
   if (import.meta.env.DEV && event.code === 'F2') {
     event.preventDefault();
-    if (!ui.ready || event.repeat) return;
+    if (!game || !ui.ready || event.repeat) return;
     resetMovement();
     inspector.send({ type: 'TOGGLE' });
     inspectorToken?.dispose();
@@ -874,7 +957,7 @@ window.addEventListener('keydown', (event) => {
       import('@babylonjs/inspector')
         .then(({ ShowInspector }) => {
           if (
-            scene !== game.scene ||
+            scene !== game?.scene ||
             !inspector.snapshot.matches('loading') ||
             inspector.snapshot.context.request !== request
           )
@@ -884,7 +967,7 @@ window.addEventListener('keydown', (event) => {
         })
         .catch((error) => {
           if (
-            scene !== game.scene ||
+            scene !== game?.scene ||
             !inspector.snapshot.matches('loading') ||
             inspector.snapshot.context.request !== request
           )
@@ -960,9 +1043,13 @@ window.addEventListener('pagehide', (event) => {
   // Release GPU resources promptly on a real reload/navigation. A page retained
   // by the back/forward cache keeps its engine so it can resume normally.
   if (!event.persisted) {
-    inspector.send({ type: 'CLOSE' });
-    inspectorToken?.dispose();
-    inspectorToken = null;
+    currentRequest = null;
+    if (import.meta.env.DEV) {
+      animationReview?.reset();
+      generationDiagnostics?.dispose();
+    }
+    ui.unload();
+    retireGame();
     engine?.dispose();
   }
 });
@@ -987,7 +1074,7 @@ canvas.addEventListener(
 canvas.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || !event.isPrimary || event.ctrlKey || event.metaKey || event.altKey)
     return;
-  if (!ui.ready || paused() || game.inspection.active) return;
+  if (!game || !ui.ready || paused() || game.inspection.active) return;
   event.preventDefault();
   canvas.focus();
   pointer.send({
@@ -1042,6 +1129,10 @@ html('continue').onclick = () => {
   canvas.focus();
 };
 html('another-run').onclick = () => start(freshSeed());
+retryButton.onclick = () => {
+  if (retryRequest && ui.flow.snapshot.matches({ mode: 'failed' }))
+    start(retryRequest.seed, retryRequest);
+};
 
 try {
   if (!Engine.isSupported())
@@ -1061,7 +1152,6 @@ try {
   const requestedSeed = reloading
     ? null
     : new URLSearchParams(location.search).get('seed')?.trim().slice(0, 40);
-  start(requestedSeed || freshSeed(), { pinSeed: !!requestedSeed });
   engine.runRenderLoop(() => {
     engine._drawCalls.fetchNewFrame();
     const now = performance.now(),
@@ -1097,19 +1187,18 @@ try {
       uiClock = 0;
     }
   });
+  start(requestedSeed || freshSeed(), { pinSeed: !!requestedSeed });
 } catch (error) {
-  ui.transition({ type: 'FAIL' });
+  showFailure(error instanceof Error ? error.message : String(error));
   console.error(error);
-  required(loading.querySelector('p'), 'Loading caption missing').textContent =
-    error instanceof Error ? error.message : String(error);
 }
 
 // Opt-in diagnostics for reproducible browser checks, never enabled in normal play.
-if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
+if (import.meta.env.DEV && debug && engine!) {
   const { createAnimationReview } = await import('./animationReview.ts');
   const { createCpuProfile } = await import('./cpuProfile.ts');
   animationReview = createAnimationReview(
-    () => game,
+    activeGame,
     () => {
       tick(1 / 60);
       renderUpdate(1 / 60);
@@ -1120,7 +1209,8 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
   );
   window.__dungeon = {
     cpu: createCpuProfile(
-      () => game,
+      engine,
+      activeGame,
       (codes) => {
         keys.clear();
         for (const code of codes) keys.add(code);
@@ -1138,7 +1228,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
     ),
     animation: animationReview,
     get game() {
-      return game;
+      return activeGame();
     },
     get ready() {
       return ui.ready;
@@ -1147,6 +1237,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
       return engine;
     },
     teleport(x, z) {
+      const game = activeGame();
       game.player.teleport(x, z, game.world);
       game.camera.target.copyFrom(game.player.root.position);
     },
@@ -1155,7 +1246,14 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
     generationReport() {
       return structuredClone(required(initialGenerationReport, 'Generation report unavailable'));
     },
+    generationExecution() {
+      return required(generationDiagnostics, 'Generation diagnostics unavailable').snapshot();
+    },
+    failNextGeneration() {
+      failNextGeneration = true;
+    },
     step(codes, frames = 1) {
+      if (!game || !ui.ready) return;
       keys.clear();
       for (const code of codes) keys.add(code);
       for (let i = 0; i < frames; i++) tick(1 / 60);
@@ -1163,6 +1261,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('debug')) {
       renderUpdate(1 / 60);
     },
     snapshot() {
+      const game = activeGame();
       return {
         seed: game.world.seed,
         position: game.player.root.position.asArray(),

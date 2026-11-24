@@ -78,6 +78,15 @@ export class UI {
     this.inspection = element('inspection', HTMLDialogElement);
     this.transition({ type: document.hidden ? 'HIDE' : 'SHOW' });
   }
+
+  unload(): void {
+    this.transition({ type: 'LOAD' });
+    this.currentWorld = null;
+    this.currentRecord = null;
+    this.roomId = null;
+    this.agenda([]);
+    this.combatTarget(null);
+  }
   reset(world: World, record: DiscoveryRecord): void {
     this.agenda([]);
     this.currentWorld = world;
@@ -97,7 +106,6 @@ export class UI {
     $('quest-description').innerHTML =
       'Find the sleeping altar.<br />Wake what the keep has forgotten.';
     this.setHealth(100);
-    this.transition({ type: 'LOAD' });
     for (const state of [this.toastState, this.roomState, this.damageState])
       state.send({ type: 'HIDE' });
     this.updateFeedback(performance.now());

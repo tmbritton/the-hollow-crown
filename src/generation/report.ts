@@ -1,6 +1,7 @@
 import { seedEnemies } from '../combat.ts';
 import { ECS } from '../ecs.ts';
-import { key, reachableTileDistances, tileAt, validateDungeon } from '../world.ts';
+import { key, reachableTileDistances, tileAt } from '../worldSpatial.ts';
+import { validateDungeon } from './stages.ts';
 import type { World } from '../worldTypes.ts';
 import type { GenerationTrace } from './identity.ts';
 import { SCENARIO_VERSION } from './identity.ts';

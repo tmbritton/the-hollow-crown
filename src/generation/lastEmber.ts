@@ -17,14 +17,13 @@ export interface EmberSite extends Spawn {
   approach: Spawn;
 }
 /** Reuse authored geometry and its reserved approaches; no late collider placement. */
-export function emberBlueprint(world: World) {
+export function findEmberSites(world: World) {
   const shrine = world.props.find((p) => p.type === 'shrine' && p.room === 'entrance');
   const focus = world.scenes
     .find((s) => s.room === 'smithy')
     ?.props.find((p) => p.type === 'anvil');
   const clue = world.entities.find((e) => e.type === 'portrait' && e.room === 'entrance');
-  if (!shrine?.frontClearance || !focus?.frontClearance || !clue?.approach)
-    throw new Error('Last Ember needs shrine, focus and clue approaches');
+  if (!shrine?.frontClearance || !focus?.frontClearance || !clue?.approach) return null;
   const site = (
     id: string,
     sourceId: string,
@@ -36,4 +35,10 @@ export function emberBlueprint(world: World) {
     focus: site(EMBER.focus, `prop:${focus.id}`, focus, focus.frontClearance),
     clue: site(clue.id, clue.id, clue, clue.approach),
   };
+}
+
+export function emberBlueprint(world: World) {
+  const sites = findEmberSites(world);
+  if (!sites) throw new Error('Last Ember needs shrine, focus and clue approaches');
+  return sites;
 }

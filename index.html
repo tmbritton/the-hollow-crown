@@ -10,7 +10,10 @@
   </head>
   <body>
     <canvas id="game" aria-label="The Hollow Crown. Click the floor to move, enemies to attack, or doors to open. WASD also moves." tabindex="0"></canvas>
-    <div id="loading"><span class="sigil">♜</span><p>Carving the hollow…</p></div>
+    <div id="loading">
+      <span class="sigil" aria-hidden="true">♜</span><p role="status">Carving the hollow…</p>
+      <button id="retry-generation" class="dialog-button" hidden>Retry this seed</button>
+    </div>
     <header class="masthead">
       <div class="brand-mark" aria-hidden="true">♜</div>
       <div><div class="eyebrow">A PROCEDURAL DESCENT</div><h1>THE HOLLOW CROWN</h1></div>

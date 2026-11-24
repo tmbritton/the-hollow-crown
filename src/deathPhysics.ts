@@ -1,6 +1,6 @@
 import type { ECS, Entity } from './ecs.ts';
 import type { NavigationWorld } from './navigation.ts';
-import { heightAt } from './world.ts';
+import { heightAt } from './worldSpatial.ts';
 import { Ragdoll, RAGDOLL_LIMIT } from './ragdoll.ts';
 import type { RagdollTerrain } from './ragdoll.ts';
 import type { DeathHandoff } from './deathHandoff.ts';

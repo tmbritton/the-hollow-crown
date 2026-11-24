@@ -1,6 +1,7 @@
 import { Body, Box, ConeTwistConstraint, GSSolver, SAPBroadphase, Vec3, World } from 'cannon-es';
 import type { NavigationWorld } from './navigation.ts';
-import { heightAt, key, randomFrom } from './world.ts';
+import { heightAt, key } from './worldSpatial.ts';
+import { randomFrom } from './generation/random.ts';
 import {
   WALL_BASE,
   WALL_CAP,

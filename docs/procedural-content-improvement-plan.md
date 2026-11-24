@@ -18,8 +18,8 @@ questions; it guides future content work in this plan.
 
 **Scheduling update — 2026-11-21:** the animation/death-physics queue through P9 is complete.
 The [CPU7 investigation](cpu7-integrated-results.md) was approved without performance acceptance.
-EF0–EF4 in the [Effect refactor plan](effect-refactor-plan.md) are next in the queue. This adds composable generation stages, typed
-failures and bounded diagnostics to the existing foundation. The phases below describe content
+The [Effect generation refactor](effect-refactor-plan.md) adds composable stages, typed failures
+and bounded diagnostics. Implementation does not clear the EF4 adoption gate. The phases below describe content
 work; their historical priority labels do not supersede the current
 [implementation path](implementation-path.md).
 

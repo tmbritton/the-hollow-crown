@@ -1,6 +1,6 @@
 import type { Actor } from './actors.ts';
 import type { Spawn, World } from './worldTypes.ts';
-import { randomFrom } from './world.ts';
+import { randomFrom } from './generation/random.ts';
 import type { ECS } from './ecs.ts';
 import { tributeBlueprint } from './generation/tribute.ts';
 

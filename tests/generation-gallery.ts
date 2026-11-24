@@ -66,6 +66,20 @@ try {
     const expected = reports.find((r) => r.trace.identity.seed === entry.seed);
     assert.ok(expected);
     assertGenerationReportsMatch(generation, expected);
+    if (entry.seed === process.env.GENERATION_TRACE_SEED) {
+      try {
+        const execution = await page.evaluate(() => window.__dungeon.generationExecution());
+        const run = execution.runs.at(-1);
+        if (run?.seed === entry.seed) {
+          await writeFile(
+            `${directory}/execution.json`,
+            JSON.stringify({ ...execution, runs: [run] }) + '\n',
+          );
+        }
+      } catch {
+        console.warn('Local gallery execution export failed');
+      }
+    }
     const captures: { file: string; resources: ReturnType<typeof galleryResources> }[] = [];
     for (const capture of entry.captures) {
       await page.evaluate((room) => {

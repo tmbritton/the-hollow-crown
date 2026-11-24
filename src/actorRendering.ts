@@ -5,7 +5,7 @@ import { Actor } from './actors.ts';
 import type { Components, ECS, Entity } from './ecs.ts';
 import { animateLocomotion } from './locomotion.ts';
 import { applyJumpPose } from './actionPoses.ts';
-import { heightAt, tileAt } from './world.ts';
+import { heightAt, tileAt } from './worldSpatial.ts';
 import type { NavigationWorld } from './navigation.ts';
 import '@babylonjs/core/Collisions/collisionCoordinator.js';
 import type { Spawn } from './worldTypes.ts';

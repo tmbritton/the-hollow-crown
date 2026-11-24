@@ -5,16 +5,18 @@ import { Ragdoll } from './ragdoll.ts';
 import { CpuMetrics, fingerprint, patchMethod, setCpuMetrics } from './cpuMetrics.ts';
 import type { CpuMethod } from './cpuMetrics.ts';
 import type { Game } from './gameTypes.ts';
+import type { Engine } from '@babylonjs/core/Engines/engine';
 
 export type CpuMode = 'off' | 'coarse' | 'detailed';
 /** Loaded only inside DEV + ?debug. Patches belong to one scene and restore exact descriptors. */
 export function createCpuProfile(
+  engine: Engine,
   current: () => Game,
   tick: (codes: string[]) => void,
   present: (dt: number) => void,
   resetClock: () => void,
 ) {
-  const applicationLoops = [...current().scene.getEngine().activeRenderLoops];
+  const applicationLoops = [...engine.activeRenderLoops];
   let cancelLive: (() => void) | null = null;
   let session: { game: Game; mode: CpuMode; metrics: CpuMetrics; restore: (() => void)[] } | null =
     null;

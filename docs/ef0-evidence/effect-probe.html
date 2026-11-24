@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <title>EF0 Effect probe</title>
+  <pre id="result">pending</pre>
+  <script type="module">
+    import { verifyEffect } from './src/effect-probe.ts';
+    document.querySelector('#result').textContent = JSON.stringify(await verifyEffect());
+  </script>
+</html>

@@ -2,7 +2,7 @@ import { Actor, stopActor } from './actors.ts';
 import type { ECS } from './ecs.ts';
 import { EMBER, emberBlueprint } from './generation/lastEmber.ts';
 import type { World } from './worldTypes.ts';
-import { tileAt } from './world.ts';
+import { tileAt } from './worldSpatial.ts';
 import type { DiscoveryEvidence } from './discoveries.ts';
 import type { ObjectiveOutcome, ObjectivePlan } from './objectives.ts';
 import { Statechart } from './machines/statechart.ts';

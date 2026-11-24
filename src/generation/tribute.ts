@@ -12,7 +12,7 @@ export const TRIBUTE = {
 /** Small passable cargo and a floor hatch reuse the broad reserved room-center network.
  * No late solid decoration: the network was protected before furnishings and populations.
  * At most 81 candidates per room, no RNG shared with keep/layout/art. */
-export function planTribute(world: World) {
+export function findTributePlan(world: World): TributeBlueprint | null {
   const random = randomFrom(`${world.seed}:tribute-v1`);
   const nav = new Navigator(world);
   const points = (room: 'stairs' | 'stable', count: number) => {
@@ -44,16 +44,32 @@ export function planTribute(world: World) {
         continue;
       chosen.push({ x: p.x, z: p.z, h: p.h });
     }
-    if (chosen.length !== count) throw new Error('Missing reserved tribute sites');
-    return chosen;
+    return chosen.length === count ? chosen : null;
   };
-  const cargo = points('stairs', 4).map((p, i) => ({ id: `tribute:cargo:${i}`, ...p }));
-  const exit = { id: TRIBUTE.exit, ...points('stable', 1)[0] };
+  const stairs = points('stairs', 4);
+  if (!stairs) return null;
+  const cargo = stairs.map((p, i) => ({ id: `tribute:cargo:${i}`, ...p }));
+  const stable = points('stable', 1);
+  if (!stable) return null;
+  const exit = { id: TRIBUTE.exit, ...stable[0] };
   return { cargo, exit, workers: [0, 1, 2, 3].map((i) => `kobold:stairs:${i}`) };
 }
 
-export type TributeBlueprint = ReturnType<typeof planTribute>;
+export interface TributeBlueprint {
+  cargo: (Spawn & { id: string })[];
+  exit: Spawn & { id: string };
+  workers: string[];
+}
+export function planTribute(world: World): TributeBlueprint {
+  const plan = findTributePlan(world);
+  if (!plan) throw new Error('Missing reserved tribute sites');
+  return plan;
+}
+export function findTributeSites(world: World): TributeBlueprint | null {
+  return world.tribute ? structuredClone(world.tribute) : null;
+}
 export function tributeBlueprint(world: World): TributeBlueprint {
-  if (!world.tribute) throw new Error('Missing reserved tribute sites');
-  return structuredClone(world.tribute);
+  const sites = findTributeSites(world);
+  if (!sites) throw new Error('Missing reserved tribute sites');
+  return sites;
 }

@@ -2,7 +2,7 @@ import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Game } from './gameTypes.ts';
 import type { Components } from './ecs.ts';
-import { heightAt } from './world.ts';
+import { heightAt } from './worldSpatial.ts';
 import { readCorpseTerrain } from './corpseRendering.ts';
 import { corpseHeightAt } from './corpseTerrain.ts';
 import { drawnCorpseHeightAt } from './animationReviewMetrics.ts';

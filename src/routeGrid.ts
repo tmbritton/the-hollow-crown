@@ -1,4 +1,4 @@
-import { heightAt, key } from './world.ts';
+import { heightAt, key } from './worldSpatial.ts';
 import type { DoorEntity, Footprint, Point, Spawn, Tile } from './worldTypes.ts';
 import type { NavigationWorld } from './navigation.ts';
 import { segmentIntersectsBox } from './generation/placement.ts';

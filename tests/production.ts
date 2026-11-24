@@ -56,26 +56,35 @@ await withViteServer(base.href, 'preview', async () => {
     };
     const ready = async () => {
       await page.waitForSelector('#loading.done', { state: 'attached', timeout: 45000 });
-      // The initial loading overlay stays done across runs. The welcome toast is hidden on
-      // reset and shown only by the new scene's readiness callback.
+      // Both the overlay and toast reflect the current scene, not a retired run.
       await expect(page.locator('#toast')).toHaveClass(/visible/, { timeout: 45000 });
     };
     const capture = (name: string) =>
       page.screenshot({ path: `test-results/production-${label}-${name}.png` });
     const start = new URL(base);
     start.searchParams.set('debug', '');
+    start.searchParams.set('generationFailure', '1');
     start.searchParams.set('seed', 'MOURNING-731');
     await page.goto(start.href);
     // Check real browser requests before waiting for bootstrap: a root-built bundle must fail
     // at a project mount, even if a permissive preview happens to serve its /assets requests.
     checkAssets();
     await ready();
+    await expect(page.locator('#retry-generation')).toBeHidden();
     await expect(page.locator('#seed-label')).toHaveText('MOURNING-731');
     checkLocation('MOURNING-731');
     await page.waitForFunction(
       () => Number.parseInt(document.querySelector('#fps')!.textContent!) > 0,
     );
     checks.push('seeded bootstrap, rendered frames, bundled JS/CSS under deployment base');
+    const faultProbe = new URL(start);
+    faultProbe.searchParams.set('seed', 'trial-23');
+    await page.goto(faultProbe.href);
+    await ready();
+    await expect(page.locator('#retry-generation')).toBeHidden();
+    assert.equal(await page.evaluate(() => '__dungeon' in window), false);
+    await page.goto(start.href);
+    await ready();
 
     await page.keyboard.press('Escape');
     await expect(page.locator('#menu')).toBeVisible();

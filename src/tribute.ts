@@ -1,7 +1,7 @@
 import { Actor, cancelWork } from './actors.ts';
 import type { ECS, Entity } from './ecs.ts';
 import type { World } from './worldTypes.ts';
-import { tileAt } from './world.ts';
+import { tileAt } from './worldSpatial.ts';
 import { Cargo } from './cargo.ts';
 import { TRIBUTE, tributeBlueprint } from './generation/tribute.ts';
 import type { ObjectivePlan } from './objectives.ts';

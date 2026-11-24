@@ -1,6 +1,6 @@
 import type { ECS, Entity } from './ecs.ts';
 import type { NavigationWorld } from './navigation.ts';
-import { heightAt } from './world.ts';
+import { heightAt } from './worldSpatial.ts';
 import { Statechart } from './machines/statechart.ts';
 import { cargoMachine } from './machines/world/cargo.ts';
 

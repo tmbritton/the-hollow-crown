@@ -116,7 +116,10 @@ recipes, keep variants, adventure grammars, or generated encounters/objectives. 
 moves, its Effect prerequisite moves with it.
 
 The [Effect refactor plan](effect-refactor-plan.md) defines architecture, determinism and failure
-contracts, implementation slices, measurements, and acceptance gates. All slices remain planned.
+contracts, implementation slices, measurements, and acceptance gates. The frozen EF0 kits allowed
+implementation to proceed by explicit user decision; undecided generation latency moved to EF4
+without changing the margins. The generation refactor is implemented on `main`, but **EF4 adoption
+is NOT READY**. See [verification](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision).
 
 | ID | Slice | Acceptance / verification |
 | --- | --- | --- |

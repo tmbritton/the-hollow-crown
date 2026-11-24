@@ -115,8 +115,14 @@ The scheduler/LOD is deferred after the historical trial missed its whole-frame 
 [CPU7 desktop investigation](docs/cpu7-integrated-results.md) was independently approved as a
 negative report, not a performance pass: measured desktop budgets were missed and matched-start
 speedup remains inconclusive.
-See the [CPU0 baseline and profiling commands](docs/cpu-baseline.md). EF0–EF4 follow the CPU pass before further
-procedural-feature expansion; see the [delivery sequence](docs/implementation-path.md).
+See the [CPU0 baseline and profiling commands](docs/cpu-baseline.md). The synchronous generation
+refactor is implemented on `main`; terrain, placement and random helper users do not load Effect.
+Public Effect subpaths met the native startup ceilings, but the
+[EF4 adoption gate](VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision) is not ready;
+it still precedes further procedural-feature expansion. The [EF0 oracle](docs/ef0-baseline.md#offline-oracle)
+checks canonical parity offline (`npm run check:full` covers all 112 inputs). The optional
+[historical recapture](docs/ef0-baseline.md#checks-and-reproduction) uses a pinned archive and writes
+only to ignored `test-results/`; it is not a timing campaign.
 See the [A0 baseline](docs/animation-baseline.md), [A1 architecture](docs/rig-foundation.md),
 [A2 solver contracts](docs/rig-solver.md), [A3 live grounding](docs/rig-grounding.md),
 [A4 action/grip contracts](docs/rig-actions.md), and [A5 articulated tails](docs/rig-tails.md).
@@ -327,12 +333,17 @@ The generator builds a connected spatial graph, assigns room roles, reserves pas
 
 Ordinary page loads and every browser refresh generate a fresh random seed. Random runs leave the URL unpinned. Opening an explicit link such as `/?seed=MOURNING-731`, or entering a seed in the pause menu, reproduces that world; refreshing it starts a new random run. To share the current world, use the seed displayed in the HUD/menu in a `?seed=` link. The revised generator changes what earlier-version seeds produce.
 
+If generation exhausts its candidate budget, the loading screen gives the seed, a rejection
+reason and **Retry this seed**. Retry uses the same seed and normal budget without reloading the
+page. Unexpected defects are reported separately and do not offer a generation retry. The
+[authoring guide](docs/generation-authoring.md) explains the synchronous boundary and local traces.
+
 ## Implementation
 
 | File | Responsibility |
 | --- | --- |
 | `src/worldTypes.ts` | Rooms, tiles, connections, props, and discriminated entity types |
-| `src/world.ts` | Deterministic generation, tile heights, room graph, progression validation |
+| `src/world.ts` / `src/worldSpatial.ts` | Synchronous generation facade and plain shared spatial lookups/reachability |
 | `src/generation/` | Version identity, semantic RNG streams, keep history/presentation, scene recipes and shared placement geometry, diagnostic reports and corpus selection |
 | `src/ecs.ts` | Typed component registry, entity lifecycle and indexed component queries |
 | `src/worldEntities.ts` | Generated world registration and shared door animation/collision system |

@@ -16,6 +16,15 @@ export type SessionEvent = {
     | 'TOGGLE_MAP';
 };
 
+/** The asynchronous renderer may only complete the current load. */
+export function acceptsGenerationReady(
+  loading: boolean,
+  current: object | null,
+  callback: object,
+): boolean {
+  return loading && current === callback;
+}
+
 /** Visibility is orthogonal to the modal mode, so tab changes preserve open menus. */
 export const sessionMachine = setup({
   types: { events: {} as SessionEvent },

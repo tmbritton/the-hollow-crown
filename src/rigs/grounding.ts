@@ -4,7 +4,7 @@ import type { NavigationWorld } from '../navigation.ts';
 import type { Spawn } from '../worldTypes.ts';
 import type { CorpseBox, CorpseContactQuery } from '../corpseTerrain.ts';
 import { corpseHeightAt, MAX_CORPSE_STEP } from '../corpseTerrain.ts';
-import { heightAt } from '../world.ts';
+import { heightAt } from '../worldSpatial.ts';
 import { volumeScale } from '../animationCurves.ts';
 import { gaitFootPhase } from '../skeletonGait.ts';
 import { cpuTiming } from '../cpuMetrics.ts';

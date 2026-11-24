@@ -2,7 +2,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { part } from './geometry.ts';
-import { tileAt, heightAt } from './world.ts';
+import { tileAt, heightAt } from './worldSpatial.ts';
 import { createActor, moveActor, stopActor, teleportActor } from './actors.ts';
 import { bindActorCollision, resetActorRig } from './actorRendering.ts';
 import { bindHumanoid } from './rigs/bindings.ts';

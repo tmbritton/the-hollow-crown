@@ -1,7 +1,7 @@
 import { Actor, cancelWork } from './actors.ts';
 import type { ECS, Entity } from './ecs.ts';
 import type { NavigationWorld } from './navigation.ts';
-import { heightAt } from './world.ts';
+import { heightAt } from './worldSpatial.ts';
 import { clearSight } from './combat.ts';
 import { ObjectiveRecord } from './objectives.ts';
 import type {

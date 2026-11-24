@@ -1,11 +1,16 @@
 # Effect adoption — procedural workflows and resource ownership
 
-**Status:** planned; no production adoption has started. **Date:** 2026-11-20.
+**Status:** EF1–EF4 implementation on `main`; **EF4 adoption NOT READY**. See the
+[verification record](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision)
+and [authoring guide](generation-authoring.md). This is not a release, deployment, or independent approval.
 
 **Scheduling (updated 2026-11-21):** A0–A7 and P8/P9 are complete and independently reviewed READY.
 The user placed CPU0–CPU7 ahead of EF0–EF4 in the [implementation path](implementation-path.md).
-The [CPU7 investigation](cpu7-integrated-results.md) is now approved without performance acceptance;
-EF0–EF4 are next in the queue, not started.
+The [CPU7 investigation](cpu7-integrated-results.md) is approved without performance acceptance.
+EF0 froze its fixture and cost kits and verified `effect@4.1.5`; generation timing was not qualified.
+The user explicitly authorized EF1–EF3 to proceed and moved the undecided generation latency
+decision from EF0 to EF4 with the original margins intact. No further EF0 calibration is required
+to implement the pilot. This does not qualify missing or noisy evidence at EF4.
 EF0–EF4 still precede **the next expansion of procedurally generated features**—new scene recipes,
 keep variants, adventure grammars, or generated encounters/objectives. If content work is rescheduled,
 carry this prerequisite with it; refresh EF0's measurements after the CPU pass.
@@ -165,7 +170,7 @@ failures deliberately; recovery must not catch defects indiscriminately.
 
 Follow the existing [delivery loop](implementation-path.md#delivery-loop): meaningful failing
 tests, a small implementation, relevant verification, independent review, and normal-hook commits.
-The following slices are all **planned**, not completed by the research prototype.
+The following sections record the approved scope and gates, distinct from the research prototype.
 
 ### EF0 — refresh baseline and pin the integration target
 
@@ -183,8 +188,8 @@ reaching the pre-content insertion point.
   animation budget. Before comparing the refactor, write explicit acceptable latency/allocation/
   bundle deltas based on these measurements; research timings are not acceptance thresholds.
 
-**Gate:** reproducible pre-refactor evidence exists, budgets are recorded, and the chosen version
-works with the project's strict TS, native Node tests, browser bundling and locally bundled assets.
+**Implementation entry:** use the frozen kits and verified pin. The user's later decision defers
+latency qualification to EF4, not the margins or any separate checks.
 
 ### EF1 — extract stage contracts and expected failures
 
@@ -245,7 +250,7 @@ data is bounded; production exposes no debug collector or new telemetry requests
 
 ### EF4 — integrate callers and pass the pre-content adoption gate
 
-**Depends on:** EF3. **This completes the refactor prerequisite for new procedural features.**
+**Depends on:** EF3. **Only an EF4 adoption pass clears the prerequisite for new procedural features.**
 
 - Audit startup/menu regeneration, debug generation, corpus export and gallery generation for the
   single pipeline boundary. Preserve explicit-seed/refresh behavior and UI readiness semantics.

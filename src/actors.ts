@@ -2,7 +2,7 @@ import type { ECS, Entity, ActorKind, EnemyKind, Components } from './ecs.ts';
 import { Navigator } from './navigation.ts';
 import type { NavigationWorld } from './navigation.ts';
 import { createLocomotion, easeSpeed, WALK_SPEED } from './locomotion.ts';
-import { heightAt, tileAt } from './world.ts';
+import { heightAt, tileAt } from './worldSpatial.ts';
 import type { Point, Spawn } from './worldTypes.ts';
 import { Attack } from './machines/actors/attack.ts';
 import { Defense } from './machines/actors/defense.ts';

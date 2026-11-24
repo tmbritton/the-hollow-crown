@@ -1,7 +1,7 @@
 import type { Actor } from '../actors.ts';
 import type { ECS, Entity } from '../ecs.ts';
 import type { NavigationWorld } from '../navigation.ts';
-import { heightAt, tileAt } from '../world.ts';
+import { heightAt, tileAt } from '../worldSpatial.ts';
 import type { DoorEntity, Footprint, Tile } from '../worldTypes.ts';
 import type { ActionRig } from './actions.ts';
 import type { XYZ } from './types.ts';

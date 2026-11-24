@@ -6,7 +6,7 @@ import { Statechart } from './machines/statechart.ts';
 import { koboldSquadMachine, PHALANX } from './machines/monsters/koboldSquad.ts';
 import type { Point } from './worldTypes.ts';
 import type { NavigationWorld } from './navigation.ts';
-import { tileAt } from './world.ts';
+import { tileAt } from './worldSpatial.ts';
 
 export interface SquadMember {
   readonly entity: Entity;
