@@ -161,6 +161,11 @@ test('pending results observe bodies entering or leaving a choke without starvat
     for (let i = 0; i < 2000 && n.pending; i++) {
       far.x += 0.1;
       pool.tick();
+      let start = from;
+      for (const end of n.path) {
+        assert.ok(n.liveSegmentClear(start, end), 'a stale positive must never publish');
+        start = end;
+      }
     }
     const ref = new Navigator(w, occupancy);
     assert.ok(ref.goTo(from, goal, { partial: true }));

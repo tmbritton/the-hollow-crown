@@ -10,6 +10,7 @@ export const CARDINALS = [
   [0, -1],
 ] as const;
 export const CLEARANCE = 0.32;
+export const TERRAIN_RADIUS = 0.3;
 export interface RouteCell extends Spawn {
   index: number;
   key: string;

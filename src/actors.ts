@@ -247,10 +247,10 @@ export function moveActor(
   const terrainMove = (from: Spawn, delta: Point): Spawn => {
     let next: Point;
     if (collision) next = collision.move(from, delta);
-    else {
-      next = { x: from.x + delta.x, z: from.z + delta.z };
-      if (!actor.navigator.segmentClear(from, next)) next = from;
-    }
+    else next = { x: from.x + delta.x, z: from.z + delta.z };
+    // A terrain adapter may slide away from the proposed leg. Commit only a
+    // legal floor-route step; Occupancy independently sweeps the living bodies.
+    if ((!collision || steering?.floor) && !actor.navigator.segmentClear(from, next)) next = from;
     return { ...next, h: heightAt(world, next.x, next.z) ?? from.h };
   };
   // A zero horizontal sweep cannot move or expel an overlapping body. Keep the common

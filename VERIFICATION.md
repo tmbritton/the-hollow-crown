@@ -1,5 +1,113 @@
 # Verification — The Hollow Crown
 
+## Story 14.2 — Mouse escape from obstacle contact
+
+- **Red → green on `40f2eee`:** The motor-contact unit fixture rejected its first outward
+  sweep, and the real Dojo mouse request beyond the pillar settled `unreachable` from
+  `(-1.972, -4)`. The boxed-in budget fixture also reproduced a new held search when a body
+  moved on a disconnected tile. The final implementation checks separating sweeps from the
+  continuous start, validates actual floor-route displacement, and retains the failed route's
+  body-clearance proof for held input. The ordinary destination margin and route credits are unchanged.
+- **Chromium:** `npm run test:movement` passed all 30 checks at 1.5 DPR, including mouse-only
+  escape, turn, and reversal after establishing motor contact at the Dojo pillar and seeded
+  `MOURNING-731` shrine and closed doorway. The doorway aim settled without repeated requests;
+  the hero retreated beside a living blocker and turned after it moved. The fixed-step checks
+  cover support, swept obstacle and living-body clearance, and route credits. The Story 14.1
+  held-edge checks also passed with the sample counter restored after each observation.
+  `npm run test:combat` passed all 15 checks.
+- **Other gates:** `node --test tests/navigation.test.ts tests/partial-navigation.test.ts
+  tests/route-budget.test.ts` (60/60), `npm test` (532/532), `npm run check:full` (552/552),
+  typecheck, lint, formatting, and `npm run build` passed.
+- **Independent read-only OpenCode review:** Approved after rechecking the impossible doorway
+  aim and fixed-step coverage across held turns. Logs: `test-results/14-2-review-final.log`,
+  `test-results/14-2-movement.log`, and `test-results/14-2-combat.log`.
+
+### 14.2 review follow-up — disconnected door retries
+
+- **Red:** In the one-tile-wide lane (hero `(0,0)`, blocker `(0.905,0)`, aim `(3,0)`),
+  toggling the disconnected door at `(30,30)` advanced the settled request sequence from 2 to 3.
+  Unlocking a relevant but still closed gate also retried unnecessarily. Both regressions are
+  recorded in `test-results/14-2-gates-red.log`.
+- **Green:** Failed scheduled floor holds fingerprint only the effective blocking decisions of
+  doors the search checked. Twelve disconnected toggles leave the sequence unchanged and queue
+  empty. Unlocking the lane gate while it stays closed does nothing; opening it queues exactly
+  one retry and restores the exact aim within the unchanged per-tick credit limit. Successful
+  partial commands keep their broader door stamp. The scheduled door-edge detour still selects
+  the same closer, sweep-checked endpoint as the synchronous solver.
+- **Checks:** Focused navigation/partial/budget suites **61/61** (`14-2-gates-green.log`);
+  `npm test` **533/533**, `npm run check:full` **553/553** including typecheck, lint and format,
+  and `npm run build` passed. Chromium `npm run test:movement -- --obstacle-only` passed all three
+  contact cases (`14-2-gates-obstacle.log`). The full movement rerun passed those cases and both
+  14.1 held-edge cases before the command timed out later in the practice-round checks; combat
+  was not rerun for this follow-up.
+- **Independent read-only review:** Astra 6.2 passed the follow-up with no blockers, checking
+  door-decision collection and publication, both retry regressions, and endpoint parity
+  (`test-results/14-2-gates-review.log`).
+
+### 14.2 review follow-up — reachable gate dependencies
+
+- **Red → green:** With the start at `(0.18, 0)` on a singleton tile and the aim and gate
+  at `(5, 0)` on the `x=4..6` island, a gate toggle used to enqueue another failed search.
+  The settled result, request sequence and empty queue now survive either toggle direction.
+  The same holds for a gate on an unsupported diagonal connector or behind a nearer gate
+  or living blocker. Toggling the island gate during planning no longer prevents settlement.
+- **Positive changes:** A closed gate on a supported approach remains a dependency even on a
+  sub-tile frontier with no graph edge. Opening it queues one retry. Bodies on unreachable
+  approaches do not retire the failure; a body leaving the reachable lane still does.
+- **Checks:** Focused navigation/partial/budget suites **70/70**, `npm test` **542/542**,
+  `npm run check:full` **562/562** including typecheck, lint and format, and `npm run build` passed.
+- **Independent read-only review:** Astra 6.2 passed the follow-up after rerunning 56 navigation
+  and partial-navigation tests and reaching the held aim in all 24 gate-opening timing and
+  orientation cases (`test-results/14-2-frontier-final-review.log`).
+
+### 14.2 follow-up 1 — effective reachable exits
+
+- The pre-crash working diff and test artifacts were present on `main` at `40f2eee`. The
+  earlier focused and review logs corroborate the historical gate checks; they did not test
+  masked or redundant blockers. The retained `14-2-frontier-movement-full.log` ends partway
+  through the suite, and `14-2-frontier-combat.log` ends with a closed-page error. Neither is
+  evidence of a complete browser pass on that revision.
+- **Red → green:** Nine regressions cover rear-body motion during planning and after settlement,
+  redundant bodies, mixed gate/body obstruction, minimum sub-tile progress, a prefix that
+  was already clear, and an exit whose approach closes before it opens. Masked changes leave
+  the result `unreachable`, destination null, sequence unchanged, and the four-credit queue idle.
+  A newly reachable opening gives the same hold one retry. Proofs compare whole supported
+  exits against the combined live occupancy and door decisions, not shape changes alone.
+- **Fresh checks:** The navigation, partial-navigation and route-budget suites passed **79/79**;
+  `npm run check:full` passed **571/571** including typecheck, lint and format, and `npm run build`
+  passed. Chromium `test:movement -- --obstacle-only` passed all three original contact cases,
+  and `test:combat` passed all 15 checks. Earlier full movement runs timed out waiting for
+  held-edge samples. The final rerun passed all three contact cases and both 14.1 held-edge
+  checks, then lost the timed development server during the practice suite. No fresh full
+  movement pass is claimed.
+- **Independent read-only re-review:** PASS on the reported findings; 65 navigation and
+  partial-navigation tests passed. A separate motor probe moved the hero to `x=0.0250000656`
+  after the front body moved to `x=0.9251`, without fresh input. Fresh logs are under
+  `test-results/14-2-follow-up-1-delivery-*.log`; red logs retain the same follow-up prefix.
+
+### 14.2 follow-up — failed-hold publication under shared load
+
+- **Red:** With four credits, three finite one-credit competitors, hero at `x=0`, front at
+  `0.905`, rear at `1.81 + tick * 1e-6`, and held aim at `3`, the original request was still
+  `pending` at tick 120. Every sliced recheck chased another body snapshot even though no exit
+  had opened (`test-results/14-2-publication-red.log`). Removing the resampling alone exposed
+  a second failure: the generic completion stamp swallowed the first hold retry after a late
+  opening (`14-2-publication-stamp-red.log`).
+- **Green:** A proof-backed floor failure settles with no destination using the snapshot it
+  actually checked. Later rear drift leaves the sequence and route work unchanged. If the front
+  body leaves after the validation snapshot, the next hold checks that newer geometry and queues
+  exactly one retry to a live-clear partial endpoint. Positive routes still require live body
+  and gate validation; the moving-choke regression checks every published leg for live clearance.
+- **Checks:** Focused navigation, partial-navigation, and route-budget suites **81/81**;
+  `npm test` **553/553**, `npm run check:full` **573/573**, typecheck, lint, formatting, `npm run build`, and
+  `git diff --check` passed. Chromium `npm run test:movement -- --obstacle-only` passed all three
+  contact cases and `npm run test:combat` passed all 15 checks. Full movement was not rerun.
+- **Independent read-only review:** Astra 6.2 reported PASS and reran the **81/81** focused tests.
+  With drift and competing work maintained through the retry, the reviewer moved the front body
+  at tick 37, observed a null-destination failure at tick 38, and verified that the next hold
+  retried at tick 39 and published a clear endpoint at `x=0.910034` at tick 78 while all three
+  competitors still had work. Logs: `test-results/14-2-publication-*.log`.
+
 ## Story 14.1 — Edge steering
 
 On `main` (baseline `d7f6562`), floor input now projects a missed downward ray onto the

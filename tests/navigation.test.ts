@@ -8,6 +8,7 @@ import type { DoorEntity, Point, Tile } from '../src/worldTypes.ts';
 import { ECS } from '../src/ecs.ts';
 import { createActor } from '../src/actors.ts';
 import { Occupancy } from '../src/occupancy.ts';
+import { RouteBudget } from '../src/routeBudget.ts';
 import type { BodyInput, BodyLookup, CollisionBody } from '../src/occupancy.ts';
 
 function grid(width = 5, depth = 5): NavigationWorld {
@@ -54,6 +55,547 @@ test('exact routes detour identically in indexed, forced scan and unsupported-bo
 });
 
 const partial = { partial: true };
+
+test('a boxed-in scheduled floor request retries only with a new aim or relevant clearance', () => {
+  const world = grid(5, 0);
+  for (const x of [3, 4]) world.tiles.set(key(x, 3), { x, z: 3, h: 0, surface: 'stone' });
+  world.tiles.set(key(30, 30), { x: 30, z: 30, h: 0, surface: 'stone' });
+  const remoteDoor: DoorEntity = {
+    type: 'door',
+    id: 'island',
+    x: 30,
+    z: 30,
+    h: 0,
+    axis: 'x',
+    open: false,
+    locked: false,
+    requiresAltar: false,
+  };
+  world.entities.push(remoteDoor);
+  const ecs = new ECS();
+  const hero = createActor(ecs, world, 'hero', 'player', { x: 0, z: 0, h: 0 });
+  const body = createActor(ecs, world, 'body', 'skeleton', { x: 0.905, z: 0, h: 0 });
+  const remote = createActor(ecs, world, 'remote', 'skeleton', { x: 3, z: 3, h: 0 });
+  const nav = hero.navigator;
+  const budget = new RouteBudget(4);
+  const aim = { x: 3, z: 0 };
+  nav.scheduleWith(budget, () => hero.position);
+  let now = 0;
+  const tick = () => {
+    budget.tick();
+    assert.ok(budget.used <= 4);
+    now += 120;
+  };
+  const drain = () => {
+    for (let i = 0; budget.size && i < 120; i++) tick();
+    assert.equal(budget.size, 0);
+  };
+  const hold = (target = aim) => nav.followFloor(hero.position, target, now);
+  hold();
+  drain();
+  assert.equal(nav.planningResult, 'unreachable');
+  const settled = nav.requestSequence;
+  for (let i = 0; i < 24; i++) {
+    tick();
+    remote.position.x = 3 + (i % 2) * 0.5;
+    assert.equal(hold(), false);
+    assert.equal(budget.used, 0, 'unchanged failed lane must not submit work');
+    assert.equal(nav.requestSequence, settled);
+  }
+  for (let i = 0; i < 12; i++) {
+    tick();
+    remoteDoor.open = !remoteDoor.open;
+    hold();
+    assert.equal(nav.requestSequence, settled, 'disconnected door must not restart a failed hold');
+    assert.equal(budget.size, 0);
+    assert.equal(nav.planningResult, 'unreachable');
+  }
+  const reverse = { x: -3, z: 0 };
+  assert.ok(hold(reverse));
+  drain();
+  assert.deepEqual(nav.destination, reverse);
+  hold();
+  drain();
+  assert.equal(nav.planningResult, 'unreachable');
+  body.position.x = 4.5;
+  for (let i = 0; i < 6; i++) {
+    tick();
+    hold();
+  }
+  drain();
+  assert.deepEqual(nav.destination, aim);
+});
+
+test('a failed scheduled floor hold retries when the gate stopping it opens', () => {
+  const world = grid(5, 0);
+  // The closed slab starts at x = 0.005 with clearance, inside the arrival dead zone.
+  const gate: DoorEntity = {
+    type: 'door',
+    id: 'lane',
+    x: 0.5,
+    z: 0,
+    h: 0,
+    axis: 'x',
+    open: false,
+    locked: true,
+    requiresAltar: true,
+  };
+  world.entities.push(gate);
+  const from = { x: 0, z: 0 },
+    aim = { x: 3, z: 0 };
+  const nav = new Navigator(world);
+  const budget = new RouteBudget(4);
+  nav.scheduleWith(budget, () => from);
+  const drain = () => {
+    for (let i = 0; budget.size && i < 120; i++) {
+      budget.tick();
+      assert.ok(budget.used <= budget.limit);
+    }
+    assert.equal(budget.size, 0);
+  };
+  assert.ok(nav.followFloor(from, aim, 0));
+  drain();
+  assert.equal(nav.planningResult, 'unreachable');
+  assert.equal(nav.destination, null);
+  const settled = nav.requestSequence;
+  gate.locked = false;
+  assert.equal(nav.followFloor(from, aim, 1000), false, 'unlock alone leaves the slab closed');
+  assert.equal(nav.requestSequence, settled);
+  assert.equal(budget.size, 0);
+  gate.open = true;
+  assert.ok(nav.followFloor(from, aim, 2000));
+  assert.equal(nav.requestSequence, settled + 1);
+  drain();
+  assert.equal(nav.planningResult, 'ready');
+  assert.deepEqual(nav.destination, aim);
+  assert.ok(nav.liveSegmentClear(from, aim));
+});
+
+test('a failed floor hold ignores a gate at the aim across an unsupported gap', () => {
+  const world = grid(0, 0);
+  for (const x of [4, 5, 6]) world.tiles.set(key(x, 0), { x, z: 0, h: 0, surface: 'stone' });
+  checkDisconnectedGate(world, { x: 0.18, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 0 });
+});
+
+test('a failed floor hold ignores a gate on an unsupported diagonal start connector', () => {
+  const world = grid(0, 0);
+  for (const x of [1, 2, 3]) world.tiles.set(key(x, 1), { x, z: 1, h: 0, surface: 'stone' });
+  checkDisconnectedGate(world, { x: 0.18, z: 0.18 }, { x: 3, z: 1 }, { x: 1, z: 1 });
+});
+
+test('a failed floor hold watches the first gate, not a second gate behind it', () => {
+  const world = grid(6, 0);
+  // List the far gate first so consult order cannot stand in for swept order.
+  const far = addTestGate(world, { x: 5, z: 0 });
+  const near = addTestGate(world, { x: 0.5, z: 0 });
+  const from = { x: 0, z: 0 };
+  const aim = { x: 5, z: 0 };
+  const nav = new Navigator(world);
+  const budget = new RouteBudget(4);
+  nav.scheduleWith(budget, () => from);
+  assert.ok(nav.followFloor(from, aim, 0));
+  drainRoutes(budget);
+  assert.equal(nav.planningResult, 'unreachable');
+  const settled = nav.requestSequence;
+  far.open = true;
+  assert.equal(nav.followFloor(from, aim, 1000), false);
+  assert.equal(nav.requestSequence, settled);
+  assert.equal(budget.size, 0);
+  near.open = true;
+  assert.ok(nav.followFloor(from, aim, 2000));
+  drainRoutes(budget);
+  assert.deepEqual(nav.destination, aim);
+});
+
+test('a disconnected gate can toggle during planning without preventing failure from settling', () => {
+  const world = grid(0, 0);
+  for (const x of [4, 5, 6]) world.tiles.set(key(x, 0), { x, z: 0, h: 0, surface: 'stone' });
+  const from = { x: 0.18, z: 0 },
+    aim = { x: 5, z: 0 };
+  const gate = addTestGate(world, aim);
+  const nav = new Navigator(world);
+  const budget = new RouteBudget(4);
+  nav.scheduleWith(budget, () => from);
+  assert.ok(nav.followFloor(from, aim, 0));
+  drainRoutes(budget, () => {
+    gate.open = !gate.open;
+  });
+  assert.equal(nav.planningResult, 'unreachable');
+  const settled = nav.requestSequence;
+  gate.open = !gate.open;
+  assert.equal(nav.followFloor(from, aim, 1000), false);
+  assert.equal(nav.requestSequence, settled);
+  assert.equal(budget.size, 0);
+});
+
+test('a failed floor hold ignores a gate behind a living blocker until the blocker leaves', () => {
+  const world = grid(6, 0);
+  const aim = { x: 5, z: 0 };
+  const gate = addTestGate(world, aim);
+  const ecs = new ECS();
+  const hero = createActor(ecs, world, 'hero', 'player', { x: 0, z: 0, h: 0 });
+  const body = createActor(ecs, world, 'body', 'skeleton', { x: 0.905, z: 0, h: 0 });
+  const nav = hero.navigator;
+  const budget = new RouteBudget(4);
+  nav.scheduleWith(budget, () => hero.position);
+  assert.ok(nav.followFloor(hero.position, aim, 0));
+  drainRoutes(budget);
+  assert.equal(nav.planningResult, 'unreachable');
+  const settled = nav.requestSequence;
+  gate.open = true;
+  assert.equal(nav.followFloor(hero.position, aim, 1000), false);
+  assert.equal(nav.requestSequence, settled);
+  assert.equal(budget.size, 0);
+  body.position.x = 6;
+  assert.ok(nav.followFloor(hero.position, aim, 2000));
+  drainRoutes(budget);
+  assert.deepEqual(nav.destination, aim);
+});
+
+test('a failed floor hold ignores a living body on the disconnected aim island', () => {
+  const world = grid(0, 0);
+  for (const x of [4, 5, 6]) world.tiles.set(key(x, 0), { x, z: 0, h: 0, surface: 'stone' });
+  const aim = { x: 5, z: 0 };
+  const ecs = new ECS();
+  const hero = createActor(ecs, world, 'hero', 'player', { x: 0.18, z: 0, h: 0 });
+  const body = createActor(ecs, world, 'body', 'skeleton', { ...aim, h: 0 });
+  const nav = hero.navigator;
+  const budget = new RouteBudget(4);
+  nav.scheduleWith(budget, () => hero.position);
+  assert.ok(nav.followFloor(hero.position, aim, 0));
+  drainRoutes(budget);
+  assert.equal(nav.planningResult, 'unreachable');
+  const settled = nav.requestSequence;
+  body.position.x = 5.1;
+  assert.equal(nav.followFloor(hero.position, aim, 1000), false);
+  assert.equal(nav.requestSequence, settled);
+  assert.equal(budget.size, 0);
+});
+
+test('a failed floor hold ignores the aim body behind a closed gate until the gate opens', () => {
+  const world = grid(6, 0);
+  const gate = addTestGate(world, { x: 0.5, z: 0 });
+  const aim = { x: 5, z: 0 };
+  const { hero, body, nav, budget } = startFailedBodyHold(world, { x: 0, z: 0 }, aim, aim);
+  const settled = nav.requestSequence;
+  body.position.x = 5.1;
+  assert.equal(nav.followFloor(hero.position, aim, 1000), false);
+  assert.equal(nav.requestSequence, settled);
+  assert.equal(budget.size, 0);
+  gate.open = true;
+  assert.ok(nav.followFloor(hero.position, aim, 2000));
+  drainRoutes(budget);
+  assert.equal(nav.planningResult, 'ready');
+  assert.ok(nav.destination && nav.destination.x > 0.5);
+});
+
+test('a failed floor hold ignores a body on an unsupported diagonal start connector', () => {
+  const world = grid(0, 0);
+  for (const x of [1, 2, 3]) world.tiles.set(key(x, 1), { x, z: 1, h: 0, surface: 'stone' });
+  const aim = { x: 3, z: 1 };
+  const { hero, body, nav, budget } = startFailedBodyHold(world, { x: 0.18, z: 0.18 }, aim, {
+    x: 1,
+    z: 1,
+  });
+  const settled = nav.requestSequence;
+  body.position.x = 1.1;
+  assert.equal(nav.followFloor(hero.position, aim, 1000), false);
+  assert.equal(nav.requestSequence, settled);
+  assert.equal(budget.size, 0);
+});
+
+function crowdedLane(rearX: number, gateX?: number) {
+  const world = grid(5, 0);
+  const gate = gateX === undefined ? undefined : addTestGate(world, { x: gateX, z: 0 });
+  const ecs = new ECS();
+  const hero = createActor(ecs, world, 'hero', 'player', { x: 0, z: 0, h: 0 });
+  const front = createActor(ecs, world, 'front', 'skeleton', { x: 0.905, z: 0, h: 0 });
+  const rear = createActor(ecs, world, 'rear', 'skeleton', { x: rearX, z: 0, h: 0 });
+  const nav = hero.navigator;
+  const budget = new RouteBudget(4);
+  const aim = { x: 3, z: 0 };
+  nav.scheduleWith(budget, () => hero.position);
+  const hold = (now: number) => nav.followFloor(hero.position, aim, now);
+  assert.ok(hold(0));
+  const sequence = nav.requestSequence;
+  const staysFailed = (now: number) => {
+    const used = budget.used;
+    assert.equal(hold(now), false);
+    assert.equal(nav.planningResult, 'unreachable');
+    assert.equal(nav.destination, null);
+    assert.equal(nav.requestSequence, sequence);
+    assert.equal(budget.size, 0);
+    assert.equal(budget.used, used);
+    drainRoutes(budget);
+  };
+  const opens = (now: number) => {
+    assert.ok(hold(now));
+    assert.equal(nav.requestSequence, sequence + 1);
+    assert.equal(budget.size, 1);
+    assert.ok(budget.used <= 4);
+    assert.ok(hold(now + 1000), 'continued hold shares the queued request');
+    assert.equal(nav.requestSequence, sequence + 1);
+    assert.equal(budget.size, 1);
+    drainRoutes(budget);
+    assert.equal(nav.planningResult, 'ready');
+    assert.ok(nav.destination && nav.liveSegmentClear(hero.position, nav.destination));
+    return nav.destination;
+  };
+  return { nav, front, rear, budget, aim, gate, hold, staysFailed, opens };
+}
+
+function occupySharedBudget(budget: RouteBudget) {
+  const remaining = [120, 120, 120];
+  remaining.forEach((_, i) => {
+    budget.submit({
+      cost: () => 1,
+      advance: () => --remaining[i] === 0,
+      retire: () => assert.fail('competing work must not be retired'),
+    });
+  });
+  return remaining;
+}
+
+test('masked rear drift cannot starve failure publication under shared budget pressure', () => {
+  const { nav, front, rear, budget, aim, hold, staysFailed, opens } = crowdedLane(1.81);
+  const sequence = nav.requestSequence;
+  const remaining = occupySharedBudget(budget);
+  for (let tick = 1; nav.pending && tick <= 120; tick++) {
+    rear.position.x = 1.81 + tick * 1e-6;
+    assert.ok(hold(tick * 16));
+    budget.tick();
+    assert.ok(budget.used <= 4);
+    assert.equal(nav.requestSequence, sequence);
+    assert.equal(nav.destination, null);
+  }
+  assert.equal(nav.planningResult, 'unreachable');
+  assert.ok(
+    remaining.every((n) => n > 0 && n < 120),
+    'must settle amid competing work',
+  );
+  drainRoutes(budget, () => (rear.position.x += 1e-6));
+  assert.deepEqual(remaining, [0, 0, 0]);
+  budget.tick();
+  for (let i = 1; i <= 12; i++) {
+    rear.position.x += 1e-6;
+    staysFailed(i * 1000);
+  }
+  front.position.z = 2;
+  const end = opens(13000);
+  assert.ok(end.x > 0 && end.x < rear.position.x && end.x < aim.x);
+});
+
+test('an opening after a sliced failure snapshot wakes the next hold without new input', (t) => {
+  const { nav, front, rear, budget, aim, opens } = crowdedLane(1.81);
+  occupySharedBudget(budget);
+  const occupancy = nav.occupancy!;
+  const bodies = occupancy.bodies.bind(occupancy);
+  // Admission already sampled the draft. The next live sample starts the
+  // publication check, which must span ticks under this load and rear drift.
+  const sample = t.mock.method(occupancy, 'bodies', bodies);
+  for (let tick = 1; sample.mock.callCount() === 0 && tick <= 120; tick++) {
+    rear.position.x = 1.81 + tick * 1e-6;
+    budget.tick();
+    assert.ok(budget.used <= 4);
+  }
+  assert.equal(sample.mock.callCount(), 1);
+  assert.ok(nav.pending, 'validation must still be in flight when the lane opens');
+  front.position.z = 2;
+  for (let tick = 0; nav.pending && tick < 120; tick++) {
+    budget.tick();
+    assert.ok(budget.used <= 4);
+  }
+  assert.equal(nav.planningResult, 'unreachable');
+  assert.equal(nav.destination, null);
+  drainRoutes(budget);
+  const end = opens(2000);
+  assert.ok(end.x > 0 && end.x < rear.position.x && end.x < aim.x);
+});
+
+for (const duringPlanning of [false, true]) {
+  test(`masked rear motion does not reopen a failed floor hold (pending motion: ${duringPlanning})`, () => {
+    const { front, rear, budget, aim, staysFailed, opens } = crowdedLane(1.81);
+    const moveRear = () => (rear.position.x = rear.position.x === 1.81 ? 1.811 : 1.81);
+    drainRoutes(budget, duringPlanning ? moveRear : undefined);
+    for (let i = 1; i <= 12; i++) {
+      moveRear();
+      staysFailed(i * 1000);
+    }
+    front.position.z = 2;
+    const end = opens(13000);
+    assert.ok(end.x > 0 && end.x < rear.position.x && end.x < aim.x);
+  });
+}
+
+for (const removeFrontFirst of [false, true]) {
+  test(`removing one redundant blocker does not retry a failed floor hold (front first: ${removeFrontFirst})`, () => {
+    const { front, rear, budget, aim, staysFailed, opens } = crowdedLane(0.9);
+    drainRoutes(budget);
+    (removeFrontFirst ? front : rear).position.z = 2;
+    staysFailed(1000);
+    (removeFrontFirst ? rear : front).position.z = 2;
+    assert.deepEqual(opens(2000), aim);
+  });
+}
+
+test('a real sub-tile opening wakes a failed hold below the first advancing sample', () => {
+  const { front, budget, staysFailed, opens } = crowdedLane(1.81);
+  drainRoutes(budget);
+  front.position.x = 0.923;
+  staysFailed(1000);
+  front.position.x = 0.9251;
+  const end = opens(1001);
+  assert.ok(end.x >= 0.025 && end.x <= 0.0251);
+});
+
+test('a frontier prefix already clear in the failed draft is not a new opening', () => {
+  const { front, rear, budget, staysFailed, opens } = crowdedLane(1.81);
+  front.position.x = 0.9249;
+  drainRoutes(budget);
+  for (let i = 1; i <= 12; i++) {
+    rear.position.x = i % 2 ? 1.811 : 1.81;
+    staysFailed(i * 1000);
+  }
+  front.position.x = 0.93;
+  assert.ok(opens(13000).x >= 0.025);
+});
+
+test('an opened exit behind a newly closed approach waits for reachability to return', () => {
+  const world = grid(6, 0);
+  const front = addTestGate(world, { x: 0.5, z: 0 });
+  const near = addTestGate(world, { x: -1.5, z: 0 });
+  const far = addTestGate(world, { x: -3.5, z: 0 });
+  near.open = true;
+  const from = { x: 0, z: 0 },
+    aim = { x: 3, z: 0 };
+  const nav = new Navigator(world);
+  const budget = new RouteBudget(4);
+  nav.scheduleWith(budget, () => from);
+  assert.ok(nav.followFloor(from, aim, 0));
+  drainRoutes(budget);
+  assert.equal(nav.planningResult, 'unreachable');
+  const sequence = nav.requestSequence;
+  near.open = false;
+  assert.equal(nav.followFloor(from, aim, 1000), false);
+  far.open = true;
+  assert.equal(nav.followFloor(from, aim, 2000), false);
+  assert.equal(nav.requestSequence, sequence);
+  assert.equal(budget.size, 0);
+  near.open = true;
+  assert.ok(nav.followFloor(from, aim, 3000));
+  assert.equal(nav.requestSequence, sequence + 1);
+  drainRoutes(budget);
+  assert.equal(
+    nav.planningResult,
+    'unreachable',
+    'rear exit opens but still cannot improve the aim',
+  );
+  front.open = true;
+  assert.ok(nav.followFloor(from, aim, 4000));
+  drainRoutes(budget);
+  assert.deepEqual(nav.destination, aim);
+});
+
+for (const openGateFirst of [false, true]) {
+  test(`a gate and body can redundantly deny a reachable exit (gate first: ${openGateFirst})`, () => {
+    const { front, rear, budget, aim, gate, staysFailed, opens } = crowdedLane(1.81, 0.5);
+    assert.ok(gate);
+    rear.position.z = 2;
+    drainRoutes(budget);
+    if (openGateFirst) gate.open = true;
+    else front.position.z = 2;
+    staysFailed(1000);
+    if (openGateFirst) front.position.z = 2;
+    else gate.open = true;
+    assert.deepEqual(opens(2000), aim);
+  });
+}
+
+function startFailedBodyHold(world: NavigationWorld, from: Point, aim: Point, at: Point) {
+  const ecs = new ECS();
+  const hero = createActor(ecs, world, 'hero', 'player', { ...from, h: 0 });
+  const body = createActor(ecs, world, 'body', 'skeleton', { ...at, h: 0 });
+  const nav = hero.navigator;
+  const budget = new RouteBudget(4);
+  nav.scheduleWith(budget, () => hero.position);
+  assert.ok(nav.followFloor(hero.position, aim, 0));
+  drainRoutes(budget);
+  assert.equal(nav.planningResult, 'unreachable');
+  return { hero, body, nav, budget };
+}
+
+function checkDisconnectedGate(world: NavigationWorld, from: Point, aim: Point, at: Point) {
+  const gate = addTestGate(world, at);
+  // Test both initial decisions: a closed target can be consulted by the stand probe,
+  // while an open gate can be consulted by a sweep that later fails on support.
+  for (const initiallyOpen of [false, true]) {
+    gate.open = initiallyOpen;
+    const nav = new Navigator(world);
+    const budget = new RouteBudget(4);
+    nav.scheduleWith(budget, () => from);
+    assert.ok(nav.followFloor(from, aim, 0));
+    drainRoutes(budget);
+    assert.equal(nav.planningResult, 'unreachable');
+    assert.equal(nav.destination, null);
+    const settled = nav.requestSequence;
+    for (let i = 1; i <= 4; i++) {
+      gate.open = !gate.open;
+      assert.equal(nav.followFloor(from, aim, i * 1000), false);
+      assert.equal(nav.requestSequence, settled);
+      assert.equal(nav.planningResult, 'unreachable');
+      assert.equal(budget.size, 0);
+    }
+  }
+}
+
+test('a failed floor hold watches a gate on reachable sub-tile frontier probes', () => {
+  const world = grid(0, 0);
+  const gate = addTestGate(world, { x: 0.62, z: 0 });
+  const from = { x: 0.12, z: 0 };
+  const aim = { x: 3, z: 0 };
+  const nav = new Navigator(world);
+  const budget = new RouteBudget(4);
+  nav.scheduleWith(budget, () => from);
+  assert.ok(nav.followFloor(from, aim, 0));
+  drainRoutes(budget);
+  assert.equal(nav.planningResult, 'unreachable');
+  const settled = nav.requestSequence;
+  // No graph edge or exact goal probe can witness this gate. Opening it exposes
+  // just enough supported floor for the held request to move.
+  gate.open = true;
+  assert.ok(nav.followFloor(from, aim, 1000));
+  assert.equal(nav.requestSequence, settled + 1);
+  assert.equal(budget.size, 1);
+  drainRoutes(budget);
+  assert.equal(nav.planningResult, 'ready');
+  assert.ok(nav.destination && nav.destination.x - from.x >= 0.025);
+  assert.ok(nav.liveSegmentClear(from, nav.destination));
+});
+
+function addTestGate(world: NavigationWorld, at: Point): DoorEntity {
+  const gate: DoorEntity = {
+    ...at,
+    type: 'door',
+    id: 'test-gate',
+    h: 0,
+    axis: 'x',
+    open: false,
+    locked: false,
+    requiresAltar: false,
+  };
+  world.entities.push(gate);
+  return gate;
+}
+
+function drainRoutes(budget: RouteBudget, beforeTick?: () => void) {
+  for (let i = 0; budget.size && i < 120; i++) {
+    beforeTick?.();
+    budget.tick();
+    assert.ok(budget.used <= budget.limit);
+  }
+  assert.equal(budget.size, 0);
+}
+
 function route(nav: Navigator, from: Point, goal: Point, options = partial) {
   return { accepted: nav.goTo(from, goal, options), end: nav.destination, path: [...nav.path] };
 }

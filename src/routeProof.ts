@@ -1,5 +1,5 @@
 import type { CollisionBody, Occupancy } from './occupancy.ts';
-import type { Point, Spawn } from './worldTypes.ts';
+import type { DoorEntity, Point, Spawn } from './worldTypes.ts';
 type Leg = { from: Point; to: Point };
 
 type Probe = {
@@ -25,6 +25,164 @@ function span(x: number, z: number, X: number, Z: number, each: (key: string) =>
 }
 const shape = (b: CollisionBody) => `${b.x}/${b.z}/${b.h}/${b.radius}/${b.height}`;
 
+function* changedBodies(previous: readonly CollisionBody[], current: readonly CollisionBody[]) {
+  const before = new Map(previous.map((b) => [shape(b), b]));
+  const after = new Map(current.map((b) => [shape(b), b]));
+  for (const [first, other] of [
+    [before, after],
+    [after, before],
+  ] as const)
+    for (const [id, b] of first) if (!other.has(id)) yield b;
+}
+
+type BodyCheck = { a: Spawn; b?: Spawn };
+export type Exit = { checks: BodyCheck[]; doors: readonly DoorEntity[]; from: Point; to: Point };
+export type ExitSnapshot = {
+  bodies: readonly CollisionBody[];
+  gates: ReadonlyMap<DoorEntity, boolean>;
+  masked: ReadonlySet<Exit>;
+};
+
+export function* exitClear(
+  exit: Exit,
+  occ: Occupancy | undefined,
+  bodies: readonly CollisionBody[],
+  blocks: (door: DoorEntity) => boolean,
+): Generator<void, boolean> {
+  if (exit.doors.some(blocks)) return false;
+  if (occ)
+    for (let i = 0; i < exit.checks.length; i++) {
+      if (i && i % 64 === 0) yield;
+      const { a, b } = exit.checks[i];
+      if (!(b ? occ.segmentClear(a, b, bodies) : occ.canStand(a, bodies))) return false;
+    }
+  return true;
+}
+
+/** A witness opens only when its entire supported exit clears. Individual sweep
+ * samples and door slabs are dependencies, never independent reasons to retry. */
+export class FailureProof {
+  private readonly root: Point;
+  private readonly chunks = new Map<string, Set<Exit>>();
+  private readonly gates = new Map<DoorEntity, Set<Exit>>();
+  private readonly incoming = new Map<Point, Exit[]>();
+  private readonly linkChunks = new Set<string>();
+  private readonly linkGates = new Set<DoorEntity>();
+
+  constructor(root: Point) {
+    this.root = root;
+  }
+
+  *add(exit: Exit, link: boolean): Generator<void> {
+    if (link) {
+      const incoming = this.incoming.get(exit.to);
+      if (incoming) incoming.push(exit);
+      else this.incoming.set(exit.to, [exit]);
+    }
+    for (const door of exit.doors) {
+      let exits = this.gates.get(door);
+      if (!exits) this.gates.set(door, (exits = new Set()));
+      if (link) this.linkGates.add(door);
+      else exits.add(exit);
+    }
+    for (let i = 0; i < exit.checks.length; i++) {
+      if (i && i % 64 === 0) yield;
+      const { a, b = a } = exit.checks[i];
+      span(
+        Math.min(a.x, b.x),
+        Math.min(a.z, b.z),
+        Math.max(a.x, b.x),
+        Math.max(a.z, b.z),
+        (key) => {
+          if (link) this.linkChunks.add(key);
+          else {
+            let exits = this.chunks.get(key);
+            if (!exits) this.chunks.set(key, (exits = new Set()));
+            exits.add(exit);
+          }
+        },
+      );
+    }
+  }
+
+  snapshot(
+    bodies: readonly CollisionBody[] = [],
+    blocks: (door: DoorEntity) => boolean,
+  ): ExitSnapshot {
+    return {
+      bodies,
+      gates: new Map([...this.gates.keys()].map((door) => [door, blocks(door)])),
+      masked: new Set(),
+    };
+  }
+
+  *recheck(
+    occ: Occupancy | undefined,
+    previous: ExitSnapshot,
+    current: ExitSnapshot,
+  ): Generator<void, ExitSnapshot | undefined> {
+    const groups = new Set<ReadonlySet<Exit>>();
+    let linksChanged = false;
+    // Closing a gate alone cannot open an exit. Body changes use both the old
+    // and new bounds; shape identity is only a broad-phase negative filter.
+    for (const [door, blocked] of previous.gates) {
+      if (!blocked || current.gates.get(door)) continue;
+      groups.add(this.gates.get(door)!);
+      linksChanged ||= this.linkGates.has(door);
+    }
+    if (occ)
+      for (const b of changedBodies(previous.bodies, current.bodies)) {
+        const r = b.radius + occ.size.radius;
+        span(b.x - r, b.z - r, b.x + r, b.z + r, (key) => {
+          const exits = this.chunks.get(key);
+          if (exits) groups.add(exits);
+          linksChanged ||= this.linkChunks.has(key);
+        });
+      }
+    if (linksChanged) groups.add(previous.masked);
+    const masked = new Set(previous.masked);
+    const seen = new Set<Exit>();
+    const reachable = new Set([this.root]);
+    let count = 0;
+    const clear = (exit: Exit) =>
+      exitClear(exit, occ, current.bodies, (door) => !!current.gates.get(door));
+    // Only a locally open exit needs a reachability query. Walk backwards on the
+    // retained component, not the world: includes alternate approaches if a
+    // previously clear path has since closed. Cache proven paths for this snapshot.
+    const canReach = function* (this: FailureProof, anchor: Point): Generator<void, boolean> {
+      const queue = [anchor];
+      const towardExit = new Map<Point, Point>();
+      const visited = new Set(queue);
+      for (let i = 0; i < queue.length; i++) {
+        if (++count % 64 === 0) yield;
+        const node = queue[i];
+        if (reachable.has(node)) {
+          for (let p = towardExit.get(node); p; p = towardExit.get(p)) reachable.add(p);
+          return true;
+        }
+        for (const link of this.incoming.get(node) ?? []) {
+          if (++count % 16 === 0) yield;
+          if (visited.has(link.from) || !(yield* clear(link))) continue;
+          visited.add(link.from);
+          towardExit.set(link.from, node);
+          queue.push(link.from);
+        }
+      }
+      return false;
+    }.bind(this);
+    for (const group of groups)
+      for (const exit of group) {
+        if (++count % 16 === 0) yield;
+        if (seen.has(exit)) continue;
+        seen.add(exit);
+        if (!(yield* clear(exit))) masked.delete(exit);
+        else if (yield* canReach(exit.from)) return undefined;
+        else masked.add(exit);
+      }
+    return { ...current, masked };
+  }
+}
+
 /** Keep the checks that justify the result, then replay only those that a changed
  * cylinder could affect. A failed search keeps its full proof. */
 export class RouteProof {
@@ -34,7 +192,13 @@ export class RouteProof {
   private readonly chunks = new Map<string, Chunk>();
   private readonly settledChunks = new Map<string, Envelope>();
   watch(a: Spawn, b: Spawn | undefined, clear: boolean) {
-    this.probes.push({ a, b, clear, needed: this.scope, travel: this.travel });
+    this.probes.push({
+      a,
+      b,
+      clear,
+      needed: this.scope,
+      travel: this.travel,
+    });
     return clear;
   }
   *seal(success: boolean): Generator<void> {
@@ -130,17 +294,8 @@ export class RouteProof {
     previous: readonly CollisionBody[],
     current: readonly CollisionBody[],
   ): Generator<void, boolean> {
-    const before = new Map(previous.map((b) => [shape(b), b])),
-      after = new Map(current.map((b) => [shape(b), b]));
     const keys = new Set<string>();
-    for (const [first, other] of [
-      [before, after],
-      [after, before],
-    ] as const)
-      for (const [id, b] of first) {
-        if (other.has(id)) continue;
-        this.nearby(b, occ, (k) => keys.add(k));
-      }
+    for (const b of changedBodies(previous, current)) this.nearby(b, occ, (k) => keys.add(k));
     const seen = new Set<Probe>();
     let count = 0;
     for (const key of keys)

@@ -2,6 +2,16 @@ import type { Footprint, Frame, Point } from '../worldTypes.ts';
 
 /** Exact slab intersection against an axis-aligned box, shared with runtime navigation. */
 export function segmentIntersectsBox(from: Point, to: Point, box: Footprint, padding = 0): boolean {
+  return segmentBoxEntry(from, to, box, padding) !== null;
+}
+
+/** First point of slab entry, as a fraction of the segment. */
+export function segmentBoxEntry(
+  from: Point,
+  to: Point,
+  box: Footprint,
+  padding = 0,
+): number | null {
   let enter = 0,
     exit = 1;
   for (const axis of ['x', 'z'] as const) {
@@ -10,16 +20,16 @@ export function segmentIntersectsBox(from: Point, to: Point, box: Footprint, pad
       low = box[axis] - half,
       high = box[axis] + half;
     if (Math.abs(delta) < 1e-10) {
-      if (from[axis] <= low || from[axis] >= high) return false;
+      if (from[axis] <= low || from[axis] >= high) return null;
     } else {
       const a = (low - from[axis]) / delta,
         b = (high - from[axis]) / delta;
       enter = Math.max(enter, Math.min(a, b));
       exit = Math.min(exit, Math.max(a, b));
-      if (enter >= exit) return false;
+      if (enter >= exit) return null;
     }
   }
-  return enter < exit;
+  return enter < exit ? enter : null;
 }
 
 export function localPoint(frame: Frame, x: number, z: number): Point {

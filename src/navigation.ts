@@ -1,5 +1,5 @@
 import { heightAt, key, tileAt } from './worldSpatial.ts';
-import type { DoorEntity, Footprint, Point, Spawn, World } from './worldTypes.ts';
+import type { DoorEntity, Footprint, Point, Spawn, Tile, World } from './worldTypes.ts';
 import { segmentIntersectsBox } from './generation/placement.ts';
 export { segmentIntersectsBox } from './generation/placement.ts';
 import { Statechart } from './machines/statechart.ts';
@@ -7,10 +7,10 @@ import { navigationMachine } from './machines/navigation/travel.ts';
 import { Occupancy, type BodyInput, type CollisionBody } from './occupancy.ts';
 import { cpuTrace, cpuTiming } from './cpuMetrics.ts';
 import { nearSegment, segmentBounds } from './queryBounds.ts';
-import { CARDINALS, CLEARANCE, routeGrid } from './routeGrid.ts';
+import { CARDINALS, CLEARANCE, TERRAIN_RADIUS, routeGrid } from './routeGrid.ts';
 import type { RouteCell } from './routeGrid.ts';
 import type { RouteBudget, RouteJob } from './routeBudget.ts';
-import { RouteProof } from './routeProof.ts';
+import { exitClear, FailureProof, RouteProof, type Exit, type ExitSnapshot } from './routeProof.ts';
 type Options = { openDoors?: boolean; partial?: boolean };
 export type RouteResult = 'ready' | 'pending' | 'unreachable' | 'invalidated';
 function finish<T>(g: Generator<void, T>): T {
@@ -33,12 +33,43 @@ export interface SteeringTarget {
   distance: number;
   remaining: number;
   final: boolean;
+  floor: boolean;
 }
 
 const SAMPLE_SPACING = 0.18;
 const FRONTIER_REACH = 1.5;
 const FRONTIER_TIE = 0.001;
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
+
+function insideMargin(point: Point, box: Footprint): boolean {
+  return (
+    Math.abs(point.x - box.x) < box.w / 2 + CLEARANCE &&
+    Math.abs(point.z - box.z) < box.d / 2 + CLEARANCE
+  );
+}
+
+/** The normal to the nearest point of the solid defines a separating half-plane,
+ * including at rounded ellipsoid contacts with a corner. */
+function separates(from: Point, to: Point, box: Footprint): boolean {
+  const x = from.x - box.x,
+    z = from.z - box.z;
+  const w = box.w / 2,
+    d = box.d / 2;
+  const nx = Math.sign(x) * Math.max(0, Math.abs(x) - w),
+    nz = Math.sign(z) * Math.max(0, Math.abs(z) - d);
+  return (
+    Math.hypot(nx, nz) >= TERRAIN_RADIUS - 1e-9 && nx * (to.x - from.x) + nz * (to.z - from.z) >= 0
+  );
+}
+
+function doorFootprint(door: DoorEntity): Footprint {
+  return {
+    x: door.x,
+    z: door.z,
+    w: door.axis === 'x' ? 0.35 : 2.95,
+    d: door.axis === 'x' ? 2.95 : 0.35,
+  };
+}
 type Search = {
   from: Point;
   parents: Int32Array;
@@ -56,7 +87,12 @@ type FloorCommand = {
   accepted: boolean;
   partial: boolean;
   proof?: RouteProof;
+  failure?: { proof: FailureProof; snapshot: ExitSnapshot };
 };
+type GridExit = RouteCell['edges'][number];
+type RejectedExit =
+  | { from: Point; to: Point; stand: boolean; connector?: RouteCell }
+  | { from: RouteCell; edge: GridExit };
 
 /** Pick the actual tile elevations, including stepped landings and liquid surfaces.
  * Decorative meshes and camera cutaways do not change the navigation surface. */
@@ -116,6 +152,8 @@ export class Navigator {
   private failure?: { key: string; stamp: string };
   private proof?: RouteProof;
   private gates?: Map<DoorEntity, boolean>;
+  private rejectedExits?: RejectedExit[];
+  private reached?: Search;
   get pending() {
     return !!this.work;
   }
@@ -314,9 +352,13 @@ export class Navigator {
       const settled = distance(from, cached.endpoint ?? cached.from) < 0.025;
       const atEnd = settled && !following && !!cached.settledEnvironment;
       const baseline = atEnd ? cached.settledEnvironment : cached.environment;
-      const unchanged = baseline === this.environment(this.occupancy?.bodies(), cached, atEnd);
+      const bodies = this.occupancy?.bodies();
+      const unchanged = cached.failure
+        ? this.reuseFailure(cached.failure, bodies)
+        : baseline === this.environment(bodies, cached, atEnd);
       if (sameRequest && unchanged && (following || settled)) return cached.accepted;
       if (
+        !(cached.failure && sameRequest && !unchanged) &&
         (cached.partial || !unchanged) &&
         distance(cached.requested, requested) < 0.5 &&
         now - this.floorSearchTime < 500
@@ -328,33 +370,45 @@ export class Navigator {
     return accepted;
   }
 
-  private staticClear(point: Point, blockers: readonly Footprint[] = this.world.blockers): boolean {
+  private reuseFailure(
+    failure: NonNullable<FloorCommand['failure']>,
+    bodies?: readonly CollisionBody[],
+  ) {
+    const live = failure.proof.snapshot(
+      bodies?.map((body) => ({ ...body })),
+      (door) => this.doorBlocks(door, true),
+    );
+    const settled = finish(failure.proof.recheck(this.occupancy, failure.snapshot, live));
+    if (!settled) return false;
+    failure.snapshot = settled;
+    return true;
+  }
+
+  private staticClear(
+    point: Point,
+    blockers: readonly Footprint[] = this.world.blockers,
+    escapingTile?: Tile,
+  ): boolean {
     if (import.meta.env?.DEV) cpuTrace?.count('route.staticClear');
     const tile = tileAt(this.world, point.x, point.z);
-    if (!tile || tile.blocked || tile.surface === 'lava') return false;
+    if (!tile || (tile.blocked && tile !== escapingTile) || tile.surface === 'lava') return false;
     for (const dx of [-CLEARANCE, CLEARANCE])
       for (const dz of [-CLEARANCE, CLEARANCE]) {
         const support = tileAt(this.world, point.x + dx, point.z + dz);
         if (!support || support.surface === 'lava' || Math.abs(support.h - tile.h) > 0.65)
           return false;
       }
-    return !blockers.some(
-      (blocker) =>
-        Math.abs(point.x - blocker.x) < blocker.w / 2 + CLEARANCE &&
-        Math.abs(point.z - blocker.z) < blocker.d / 2 + CLEARANCE,
+    return !blockers.some((box) => insideMargin(point, box));
+  }
+
+  private blockingDoorAt(point: Point, planning = false, doors = this.doors) {
+    return doors.find(
+      (door) => insideMargin(point, doorFootprint(door)) && this.doorBlocks(door, planning),
     );
   }
 
   private doorsClear(point: Point, planning = false, doors = this.doors): boolean {
-    return !doors.some((door) => {
-      const w = door.axis === 'x' ? 0.35 : 2.95;
-      const d = door.axis === 'x' ? 2.95 : 0.35;
-      return (
-        Math.abs(point.x - door.x) < w / 2 + CLEARANCE &&
-        Math.abs(point.z - door.z) < d / 2 + CLEARANCE &&
-        this.doorBlocks(door, planning)
-      );
-    });
+    return !this.blockingDoorAt(point, planning, doors);
   }
 
   private doorBlocks(door: DoorEntity, planning: boolean): boolean {
@@ -369,25 +423,11 @@ export class Navigator {
     return blocks;
   }
 
-  private doorsSegmentClear(
-    from: Point,
-    to: Point,
-    planning: boolean,
-    doors = this.doors,
-  ): boolean {
-    return !doors.some((door) => {
+  private blockingDoorAlong(from: Point, to: Point, planning: boolean, doors = this.doors) {
+    return doors.find((door) => {
       return (
-        segmentIntersectsBox(
-          from,
-          to,
-          {
-            x: door.x,
-            z: door.z,
-            w: door.axis === 'x' ? 0.35 : 2.95,
-            d: door.axis === 'x' ? 2.95 : 0.35,
-          },
-          CLEARANCE,
-        ) && this.doorBlocks(door, planning)
+        segmentIntersectsBox(from, to, doorFootprint(door), CLEARANCE) &&
+        this.doorBlocks(door, planning)
       );
     });
   }
@@ -485,7 +525,7 @@ export class Navigator {
         if (
           ph === null ||
           Math.abs(h - ph) > 0.65 ||
-          !this.doorsSegmentClear(prev, p, true) ||
+          this.blockingDoorAlong(prev, p, true) ||
           (this.occupancy && bodies && !this.sweepBody({ ...prev, h: ph }, { ...p, h }, bodies))
         )
           continue;
@@ -564,6 +604,79 @@ export class Navigator {
     if (!this.proof || distance(a, b) <= 2) return this.segmentClear(a, b, true, bodies);
     return yield* this.sweep(a, b, true, bodies, false, this.world.blockers, this.doors, true);
   }
+
+  private *sealFailure(
+    root: Point,
+    exits: readonly RejectedExit[],
+    bodies: readonly CollisionBody[] = [],
+  ): Generator<void, FailureProof> {
+    const proof = new FailureProof(root);
+    const reached = this.reached;
+    const wasReached = (cell: RouteCell) => !!reached?.parents[cell.index];
+    const graphExit = (from: RouteCell, { next, doors }: GridExit): Exit => ({
+      from,
+      to: next,
+      doors,
+      checks: this.occupancy ? [{ a: next }, { a: from, b: next }] : [],
+    });
+    if (reached) {
+      for (let i = 0; i < reached.queue.length; i++) {
+        if (i && i % 16 === 0) yield;
+        const cell = reached.queue[i];
+        for (const edge of cell.edges)
+          if (wasReached(edge.next)) yield* proof.add(graphExit(cell, edge), true);
+      }
+      for (let x = Math.round(root.x) - 1; x <= Math.round(root.x) + 1; x++)
+        for (let z = Math.round(root.z) - 1; z <= Math.round(root.z) + 1; z++) {
+          const cell = this.grid.get({ x, z });
+          if (!cell || !wasReached(cell)) continue;
+          const link = yield* this.compileExit(root, cell, true);
+          if (link) yield* proof.add(link, true);
+        }
+    }
+    const seen = new Set<string>();
+    let count = 0;
+    for (const exit of exits) {
+      if (++count % 16 === 0) yield;
+      if ('edge' in exit) {
+        if (!wasReached(exit.edge.next)) yield* proof.add(graphExit(exit.from, exit.edge), false);
+        continue;
+      }
+      const { from, to, stand, connector } = exit;
+      if (connector && wasReached(connector)) continue;
+      const id = JSON.stringify([from.x, from.z, to.x, to.z, stand]);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const witness = yield* this.compileExit(from, to, stand);
+      // A derived progress prefix may have been clear even though the actual
+      // sample failed. Only a blocked-to-open transition can wake this hold.
+      if (
+        witness &&
+        !(yield* exitClear(witness, this.occupancy, bodies, (door) => this.doorBlocks(door, true)))
+      )
+        yield* proof.add(witness, false);
+    }
+    return proof;
+  }
+
+  private *compileExit(from: Point, to: Point, stand: boolean): Generator<void, Exit | undefined> {
+    const doors = new Set<DoorEntity>();
+    const checks: Exit['checks'] = [];
+    if (stand) {
+      if (!this.staticClear(to)) return undefined;
+      for (const door of this.doors) if (insideMargin(to, doorFootprint(door))) doors.add(door);
+      if (this.occupancy)
+        checks.push({ a: { x: to.x, z: to.z, h: heightAt(this.world, to.x, to.z)! } });
+    }
+    if (
+      yield* this.sweep(from, to, true, undefined, false, this.world.blockers, this.doors, true, {
+        doors,
+        checks,
+      })
+    )
+      return { from, to, checks, doors: [...doors] };
+  }
+
   private *sweep(
     from: Point,
     to: Point,
@@ -573,12 +686,30 @@ export class Navigator {
     blockers: readonly Footprint[],
     doors: DoorEntity[],
     paced: boolean,
+    witness?: { doors: Set<DoorEntity>; checks: Exit['checks'] },
   ): Generator<void, boolean> {
     if (import.meta.env?.DEV) cpuTrace?.count('route.segmentClear');
     const bounds = segmentBounds(from, to);
-    const nearby = blockers.filter((box) => nearSegment(bounds, box, CLEARANCE));
+    const escaping = (box: Footprint) => insideMargin(from, box) && separates(from, to, box);
+    const nearby = blockers.filter((box) => nearSegment(bounds, box, CLEARANCE) && !escaping(box));
     if (nearby.some((box) => segmentIntersectsBox(from, to, box, CLEARANCE))) return false;
-    if (!terrainOnly && !this.doorsSegmentClear(from, to, planning, doors)) return false;
+    const sweptDoors = terrainOnly
+      ? []
+      : doors.filter((door) => {
+          const box = doorFootprint(door);
+          return nearSegment(bounds, box, CLEARANCE) && !escaping(box);
+        });
+    if (witness) {
+      for (const door of sweptDoors)
+        if (segmentIntersectsBox(from, to, doorFootprint(door), CLEARANCE)) witness.doors.add(door);
+    } else if (this.blockingDoorAlong(from, to, planning, sweptDoors)) return false;
+    // Generation marks the centers of prop-covered tiles. The tile can extend
+    // well outside the solid: leave only the initial tile, and only on the safe
+    // side of every footprint that could have marked it.
+    const startTile = tileAt(this.world, from.x, from.z);
+    const claims = startTile?.blocked ? blockers.filter((box) => insideMargin(startTile, box)) : [];
+    const escapingTile =
+      claims.length && claims.every((box) => separates(from, to, box)) ? startTile : undefined;
     // Uniform samples can miss a very short unsupported interval at a room corner.
     // Partition at every center/corner tile crossing; support is constant between
     // these boundaries. A long smoothed route and its short steering probes agree.
@@ -604,6 +735,7 @@ export class Navigator {
         !this.staticClear(
           { x: from.x + (to.x - from.x) * t, z: from.z + (to.z - from.z) * t },
           nearby,
+          escapingTile,
         )
       )
         return false;
@@ -622,12 +754,16 @@ export class Navigator {
       };
       const height = heightAt(this.world, point.x, point.z);
       if (
-        !this.staticClear(point, nearby) ||
-        (!terrainOnly && !this.doorsClear(point, planning, doors)) ||
+        !this.staticClear(point, nearby, escapingTile) ||
         height === null ||
         Math.abs(height - previous) > 0.65
       )
         return false;
+      if (witness) {
+        for (const door of sweptDoors)
+          if (insideMargin(point, doorFootprint(door))) witness.doors.add(door);
+        if (this.occupancy) witness.checks.push({ a: previousPoint, b: { ...point, h: height } });
+      } else if (this.blockingDoorAt(point, planning, sweptDoors)) return false;
       if (
         bodies &&
         this.occupancy &&
@@ -693,7 +829,7 @@ export class Navigator {
           partial: !this.destination || distance(this.destination, requested) > 0.025,
         }
       : null;
-    if (this.floorCommand)
+    if (this.floorCommand && !this.proof)
       this.floorCommand.environment = this.environment(fingerprintBodies, this.floorCommand);
     return accepted;
   }
@@ -754,7 +890,10 @@ export class Navigator {
           cpuTiming?.count('route.latencyTicks', budget.ticks - submitted);
         }
         this.work = undefined;
-        if (state === 'unreachable') this.failure = { key: id, stamp: stamp() };
+        // A floor failure keeps its own checked snapshot. Stamping newer live
+        // geometry here could swallow the retry when the next hold sees an opening.
+        if (state === 'unreachable' && !this.floorCommand?.failure)
+          this.failure = { key: id, stamp: stamp() };
         return true;
       },
       retire: () => {
@@ -801,6 +940,7 @@ export class Navigator {
       const draft = new Navigator(this.world, footprint);
       draft.proof = new RouteProof();
       draft.gates = new Map();
+      if (options.partial) draft.rejectedExits = [];
       const work = draft.steps(
         start,
         goal,
@@ -829,7 +969,10 @@ export class Navigator {
         result = work.next();
       }
       if (result.done) {
-        yield* draft.proof.seal(result.value);
+        const failed = !result.value && draft.rejectedExits;
+        const failureProof = failed ? yield* draft.sealFailure(start, failed, bodies) : undefined;
+        const failureStart = failureProof?.snapshot(bodies, (door) => draft.doorBlocks(door, true));
+        if (!failureProof) yield* draft.proof.seal(result.value);
         if (budget.ticks !== admitted) {
           load.cost = 6;
           yield;
@@ -838,14 +981,31 @@ export class Navigator {
         const proof = draft.proof;
         const signature = (snapshot: readonly CollisionBody[] = []) =>
           footprint ? JSON.stringify(proof.fingerprint(footprint, snapshot)) : '';
-        let verified = signature(checked);
+        let verified = failureProof ? '' : signature(checked);
         for (let pass = 0; pass < 8; pass++) {
           const now = this.occupancy?.bodies().map((b) => ({ ...b }));
-          const liveSignature = signature(now);
+          const live = failureProof?.snapshot(now, (door) => this.doorBlocks(door, true));
+          let settledFailure: ExitSnapshot | undefined;
+          const liveSignature = failureProof ? '' : signature(now);
+          if (failureProof && failureStart && live) {
+            // A negative installs no route. Publish against the snapshot actually
+            // checked, even if it took several ticks. The next hold checks changes
+            // since that snapshot; resampling here can chase masked motion forever.
+            const validation = failureProof.recheck(footprint, failureStart, live);
+            let step = validation.next();
+            while (!step.done) {
+              yield;
+              if (!current()) break;
+              step = validation.next();
+            }
+            if (!step.done || !step.value) break;
+            settledFailure = step.value;
+          }
           if (verified === liveSignature) {
             if (
               !current() ||
-              [...draft.gates].some(([d, blocked]) => this.doorBlocks(d, true) !== blocked)
+              (!failureProof &&
+                [...draft.gates].some(([d, blocked]) => this.doorBlocks(d, true) !== blocked))
             )
               break;
             this.grid = draft.grid;
@@ -860,9 +1020,13 @@ export class Navigator {
                   route: this.route,
                   proof:
                     draft.active && !tileAt(this.world, goal.x, goal.z) ? draft.proof : undefined,
+                  failure:
+                    failureProof && settledFailure
+                      ? { proof: failureProof, snapshot: settledFailure }
+                      : undefined,
                 }
               : null;
-            if (this.floorCommand) {
+            if (this.floorCommand && !failureProof) {
               this.floorCommand.environment = this.environment(now, this.floorCommand);
               if (this.floorCommand.proof)
                 this.floorCommand.settledEnvironment = this.environment(
@@ -901,7 +1065,8 @@ export class Navigator {
       !tile || partial || this.canStand(requested, true)
         ? { x: requested.x, z: requested.z }
         : { x: tile.x, z: tile.z };
-    const exact = this.canOccupy(goal, true, bodies);
+    const goalStand = this.canStand(goal, true);
+    const exact = goalStand && this.bodyClear(goal, bodies);
     if (!exact && !partial) return false;
     if (exact && distance(from, goal) < 0.025) return true;
     if (this.proof && distance(from, goal) > 4) yield;
@@ -910,6 +1075,7 @@ export class Navigator {
       this.chart.send({ type: 'PLAN', route: [goal] });
       return true;
     }
+    this.rejectedExits?.push({ from, to: goal, stand: true });
     // Near another body the rounded starting cell can be occupied. Connect to nearby
     // free cells instead of abandoning a valid route around the creature.
     if (import.meta.env?.DEV) cpuTrace?.phase('connectors');
@@ -933,6 +1099,7 @@ export class Navigator {
           queue: [],
         };
     const { parents, costs, queue } = search;
+    if (this.rejectedExits) this.reached = search;
     const grid = this.grid;
     const closed = new Map<DoorEntity, boolean>();
     let goalKey: number | null = null;
@@ -956,7 +1123,8 @@ export class Navigator {
             parents[cell.index] = -1;
             costs[cell.index] = distance(from, start);
             queue.push(cell);
-          }
+          } else if (cell)
+            this.rejectedExits?.push({ from, to: cell, stand: true, connector: cell });
         }
     if (this.proof) this.proof.scope = undefined;
     if (!sameOrigin) queue.sort((a, b) => distance(a, from) - distance(b, from));
@@ -1003,6 +1171,8 @@ export class Navigator {
         goalKey = current.index;
         break;
       }
+      if (distance(current, goal) <= FRONTIER_REACH)
+        this.rejectedExits?.push({ from: current, to: goal, stand: true });
       if (sameOrigin) continue;
       if (import.meta.env?.DEV) cpuTrace?.count('route.expanded');
       const cell = current;
@@ -1011,14 +1181,14 @@ export class Navigator {
         const next = edge.next,
           id = next.index;
         if (parents[id] !== 0) continue;
-        if (
-          edge.doors.length &&
-          edge.doors.some((door) => {
-            if (!closed.has(door)) closed.set(door, this.doorBlocks(door, true));
-            return closed.get(door);
-          })
-        )
+        const gate = edge.doors.find((door) => {
+          if (!closed.has(door)) closed.set(door, this.doorBlocks(door, true));
+          return closed.get(door);
+        });
+        if (gate) {
+          this.rejectedExits?.push({ from: cell, edge });
           continue;
+        }
         if (
           this.occupancy &&
           bodies &&
@@ -1027,7 +1197,10 @@ export class Navigator {
           watchConnector(next);
           const clear = this.standBody(next, bodies) && this.sweepBody(cell, next, bodies);
           if (this.proof) this.proof.scope = undefined;
-          if (!clear) continue;
+          if (!clear) {
+            this.rejectedExits?.push({ from: cell, edge });
+            continue;
+          }
         }
         parents[id] = current.index + 1;
         costs[id] = costs[current.index] + 1;
@@ -1076,6 +1249,7 @@ export class Navigator {
         }
         if (this.proof) yield;
         if (yield* this.travelSegment(anchor, points[farthest], bodies)) break;
+        this.rejectedExits?.push({ from: anchor, to: points[farthest], stand: false });
       }
       if (farthest < i) {
         this.cancel();
@@ -1232,20 +1406,51 @@ export class Navigator {
             ),
           )
         : bodies;
-    const occupiable = (p: Point) =>
-      local
-        ? this.staticClear(p, blockers) &&
-          this.doorsClear(p, true, doors) &&
-          this.bodyClear(p, relevant)
-        : this.canOccupy(p, true, bodies);
-    const clear = (a: Point, b: Point) =>
-      local
-        ? this.sweptClear(a, b, true, relevant, false, blockers, doors)
-        : this.segmentClear(a, b, true, bodies);
+    const advances = (point: Point) => {
+      const gain = distance(from, requested) - distance(point, requested);
+      return (
+        distance(from, point) >= 0.025 &&
+        (tileAt(this.world, requested.x, requested.z) ? gain >= 0.025 : gain > 1e-9)
+      );
+    };
+    const minimumProgress: { anchor: Point; point: Point }[] = [];
+    const rememberMinimumProgress = (anchor: Point, start: Point, end: Point) => {
+      if (advances(start) || !advances(end)) return;
+      // This ray can cross the progress threshold between ordinary samples. Test
+      // its minimum advancing point only if ordinary selection finds no endpoint.
+      let low = 0,
+        high = 1;
+      const at = (t: number) => ({
+        x: start.x + (end.x - start.x) * t,
+        z: start.z + (end.z - start.z) * t,
+      });
+      for (let i = 0; i < 24; i++) {
+        const t = (low + high) / 2;
+        if (advances(at(t))) high = t;
+        else low = t;
+      }
+      const point = at(high);
+      if (distance(anchor, point) <= FRONTIER_REACH) minimumProgress.push({ anchor, point });
+    };
+    const connected = (anchor: Point, point: Point) => {
+      if (!this.staticClear(point, blockers)) return false;
+      const rejected = () => {
+        if (this.rejectedExits && advances(point))
+          this.rejectedExits.push({ from: anchor, to: point, stand: true });
+        return false;
+      };
+      if (!this.doorsClear(point, true, doors)) return rejected();
+      const sweep = () => this.sweptClear(anchor, point, true, relevant, false, blockers, doors);
+      const stand =
+        this.occupancy && !relevant && !local
+          ? this.occupancy.withView((view) => this.bodyClear(point, view))
+          : this.bodyClear(point, relevant);
+      return (stand && sweep()) || rejected();
+    };
     const consider = (point: Point, anchor: Point, refining = false) => {
       if (import.meta.env?.DEV) cpuTrace?.count('route.candidates');
       const d = distance(point, requested);
-      if (d <= score + tie && occupiable(point) && clear(anchor, point)) {
+      if (d <= score + tie && connected(anchor, point)) {
         score = Math.min(score, d);
         const nextTravel = cost(anchor) + distance(anchor, point);
         if (
@@ -1273,9 +1478,13 @@ export class Navigator {
         { x: anchor.x, z: requested.z },
         { x: requested.x, z: anchor.z },
       ]) {
-        if (distance(start, anchor) > 1.5 || !occupiable(start) || !clear(anchor, start)) continue;
+        if (distance(start, anchor) > 1.5 || !connected(anchor, start)) continue;
         let low = 0,
           high = Math.min(1, 1.5 / Math.max(distance(start, requested), 0.001));
+        rememberMinimumProgress(anchor, start, {
+          x: start.x + (requested.x - start.x) * high,
+          z: start.z + (requested.z - start.z) * high,
+        });
         for (let i = 0; i < 12; i++) {
           if (this.proof && i % 4 === 0) yield;
           const t = (low + high) / 2;
@@ -1283,7 +1492,7 @@ export class Navigator {
             x: start.x + (requested.x - start.x) * t,
             z: start.z + (requested.z - start.z) * t,
           };
-          if (distance(anchor, point) <= 1.5 && occupiable(point) && clear(anchor, point)) low = t;
+          if (distance(anchor, point) <= 1.5 && connected(anchor, point)) low = t;
           else high = t;
         }
         consider(
@@ -1310,9 +1519,13 @@ export class Navigator {
     if (this.proof) this.proof.scope = undefined;
     // Off-floor aims can be far enough that a useful lateral step barely changes
     // target distance. Keep the arrival dead zone on movement, not on that gain.
-    const gain = distance(from, requested) - distance(best.point, requested);
-    const improves = tileAt(this.world, requested.x, requested.z) ? gain >= 0.025 : gain > 1e-9;
-    return improves && distance(from, best.point) >= 0.025 ? best : null;
+    if (advances(best.point)) return best;
+    for (let i = 0; i < minimumProgress.length; i++) {
+      if (this.proof && i && i % 8 === 0) yield;
+      const { point, anchor } = minimumProgress[i];
+      if (connected(anchor, point)) return { point, anchor };
+    }
+    return null;
   }
 
   steer(position: Point, replan = true): SteeringTarget | null {
@@ -1361,7 +1574,13 @@ export class Navigator {
     let remaining = d;
     for (let i = this.next; i < this.route.length - 1; i++)
       remaining += distance(this.route[i], this.route[i + 1]);
-    return { point, distance: d, remaining, final: this.next === this.route.length - 1 };
+    return {
+      point,
+      distance: d,
+      remaining,
+      final: this.next === this.route.length - 1,
+      floor: !!floor,
+    };
   }
 
   recordProgress(moved: number, dt: number, position: Point): void {

@@ -12,7 +12,7 @@ The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted
 ## Progress
 
 - Epics: 2/15 complete
-- Stories: 9/54 complete
+- Stories: 10/54 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -100,7 +100,7 @@ Use the same hero and inputs in practice and the dungeon. First make travel reli
 - [x] **Story 14.1 — Steer past the map edge** — Keep a held floor command active when the cursor leaves the walkable map. **Depends on**: 13.2.
   - Hold out past a practice-room edge, then sweep along it: travel toward the nearest safely reachable square to the invalid click, with the gold ring at the effective destination. Steer back onto valid floor without releasing; exact reachable clicks stay precise.
   - Repeat across a dungeon void or disconnected floor. Settle without jitter at the legal frontier; never step onto unsupported floor or cross a sealed gate.
-- [ ] **Story 14.2 — Get clear of an obstacle by mouse** — Make a reachable detour work even when the hero starts pressed against scenery. **Depends on**: 14.1.
+- [x] **Story 14.2 — Get clear of an obstacle by mouse** — Make a reachable detour work even when the hero starts pressed against scenery. **Depends on**: 14.1.
   - Click beyond the practice pillar, steer around its corner while held, then reverse away from contact without a key or reset. Repeat beside dungeon furniture and a doorway with living blockers present.
   - When no path fits, stop without repeated retries; a clear new request or a blocker moving away permits progress. No clipping, teleport or change to the shared route budget.
 - [ ] **Story 14.3 — Switch to mouse travel and toggle running** — After both travel checks pass, retire WASD and its arrow-key movement alias. Use the [Diablo II PC shortcut guide](https://www.wowhead.com/diablo-2/guide/keyboard-shortcuts-pc) to reserve future menu keys (notably C for character and I for inventory) rather than binding movement to them. **Depends on**: 14.2.

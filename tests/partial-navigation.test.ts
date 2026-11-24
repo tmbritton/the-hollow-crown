@@ -6,6 +6,8 @@ import { createActor, moveActor, stopActor, teleportActor } from '../src/actors.
 import type { Actor } from '../src/actors.ts';
 import { ECS } from '../src/ecs.ts';
 import { Occupancy } from '../src/occupancy.ts';
+import { buildPracticeRoom, practiceDestinations } from '../src/practiceRoom.ts';
+import { RouteBudget } from '../src/routeBudget.ts';
 import { generateDungeon, key } from '../src/world.ts';
 import type { DoorEntity, Point, Tile } from '../src/worldTypes.ts';
 
@@ -79,6 +81,17 @@ test('a door-edge detour retains the closer exhaustive approach on a blocked cli
     assert.ok(Math.abs(n.destination!.z - 0.370034) < 0.000001);
     safeRoute(n, from);
   }
+  const scheduled = new Navigator(w);
+  const budget = new RouteBudget(4);
+  scheduled.scheduleWith(budget, () => from);
+  assert.ok(scheduled.followFloor(from, g, 0));
+  for (let i = 0; budget.size && i < 120; i++) {
+    budget.tick();
+    assert.ok(budget.used <= budget.limit);
+  }
+  assert.equal(scheduled.planningResult, 'ready');
+  assert.deepEqual(scheduled.destination, n.destination);
+  safeRoute(scheduled, from);
 });
 
 test('removing a solid footprint retires a held partial tree and its cached cells', () => {
@@ -145,6 +158,39 @@ function finishRoute(actor: Actor, world: NavigationWorld) {
   assert.ok(distance(actor.position, end) < 0.015, JSON.stringify(actor.position));
   return travelled;
 }
+
+test('the motor can leave pillar contact without cutting inward through the pillar', () => {
+  const world = buildPracticeRoom();
+  const hero = createActor(new ECS(), world, 'hero', 'player', world.spawn);
+  const [pillar] = world.props;
+  const face = pillar.x + pillar.w / 2 + 0.3;
+  // A flat face of the collision adapter stops the motor at its physical radius,
+  // inside the planner's conservative margin. Establish contact by advancing the motor.
+  hero.entity.add('collision', {
+    move: (from, delta) => ({
+      x: from.z === pillar.z && delta.x < 0 ? Math.max(face, from.x + delta.x) : from.x + delta.x,
+      z: from.z + delta.z,
+    }),
+  });
+  for (let i = 0; i < 80; i++) moveActor(hero, world, { direction: { x: -1, z: 0 } }, 1 / 60);
+  assert.equal(hero.position.x, face);
+  const nav = hero.navigator;
+  const start = { ...hero.position };
+  assert.equal(nav.canStand(start), false, 'contact does not relax endpoint clearance');
+  assert.equal(nav.liveSegmentClear(start, { x: face - 0.01, z: start.z }), false);
+  assert.equal(nav.liveSegmentClear(start, { x: face + 0.01, z: start.z }), true);
+  assert.equal(nav.liveSegmentClear(start, { x: face, z: start.z + 0.05 }), true);
+  const target = practiceDestinations.beyondPillar;
+  assert.ok(nav.goTo(start, target, partial));
+  assert.deepEqual(nav.destination, target);
+  safeRoute(nav, start);
+  for (let i = 0; i < 360 && nav.active; i++) {
+    const before = { ...hero.position };
+    moveActor(hero, world, {}, 1 / 60);
+    assert.ok(nav.liveSegmentClear(before, hero.position));
+  }
+  assert.ok(distance(hero.position, target) < 0.015);
+});
 
 function routeLength(from: Point, path: readonly Point[]) {
   let length = 0;

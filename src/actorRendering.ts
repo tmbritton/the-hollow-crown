@@ -7,6 +7,7 @@ import { animateLocomotion } from './locomotion.ts';
 import { applyJumpPose } from './actionPoses.ts';
 import { heightAt, tileAt } from './worldSpatial.ts';
 import type { NavigationWorld } from './navigation.ts';
+import { TERRAIN_RADIUS } from './routeGrid.ts';
 import '@babylonjs/core/Collisions/collisionCoordinator.js';
 import type { Spawn } from './worldTypes.ts';
 import { publishCorpseContacts } from './corpseRendering.ts';
@@ -24,7 +25,7 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
   const proxy = MeshBuilder.CreateBox(`${actor.id} collision proxy`, { size: 1 }, scene);
   proxy.isVisible = false;
   proxy.isPickable = false;
-  proxy.ellipsoid.set(0.3, 0.72, 0.3);
+  proxy.ellipsoid.set(TERRAIN_RADIUS, 0.72, TERRAIN_RADIUS);
   const sync = (position: Spawn) => {
     proxy.position.set(position.x, position.h + actor.jump.height + 0.72, position.z);
     proxy.computeWorldMatrix(true);

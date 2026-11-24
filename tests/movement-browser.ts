@@ -13,7 +13,7 @@ declare const window: DebugWindow & {
     scene: DebugWindow['__dungeon']['game']['scene'];
   };
   finishPracticeLoading?: () => void;
-  heldSamples?: number;
+  heldSamples?: { count: number; restore: () => void };
 };
 const browserName = process.env.BROWSER || 'chromium';
 const browser = await (browserName === 'firefox' ? firefox : chromium).launch({
@@ -162,6 +162,7 @@ async function holdSettled(target: Point) {
 
 const base = process.env.DEMO_URL || 'http://localhost:5173';
 const edgeOnly = process.argv.includes('--edge-only');
+const obstacleOnly = process.argv.includes('--obstacle-only');
 
 async function openPractice() {
   await page.goto(new URL('?room=practice&debug&seed=MOURNING-731', base).href);
@@ -190,8 +191,8 @@ async function edgePointer(aim: Point, voidHeight?: number) {
   return screen;
 }
 
-async function edgeLeg(expected: Point) {
-  const result = await page.evaluate(() => {
+async function edgeLeg(expected: Point, contact = false) {
+  const result = await page.evaluate((contact) => {
     const d = window.__dungeon;
     const { world, player: p } = d.game;
     const start = { ...p.actor.position };
@@ -203,11 +204,16 @@ async function edgeLeg(expected: Point) {
       const previous = { ...p.actor.position };
       d.step([], 1);
       const next = p.actor.position;
-      if (!p.navigator.canOccupy(next) || !p.navigator.liveSegmentClear(previous, next))
+      if (
+        (!contact && !p.navigator.canOccupy(next)) ||
+        !p.navigator.occupancy?.canStand(next) ||
+        !p.navigator.liveSegmentClear(previous, next)
+      )
         throw Error(`Unsafe actual movement: ${JSON.stringify({ previous, next })}`);
       if (d.game.routeBudget.used > d.game.routeBudget.limit) throw Error('Exceeded route credit');
     };
     for (let i = 0; i < 120 && p.navigator.pending; i++) advance();
+    if (p.navigator.active && !p.destinationMarker.isEnabled()) advance();
     const end = p.navigator.destination;
     if (!end || !p.destinationMarker.isEnabled())
       throw Error(
@@ -230,7 +236,7 @@ async function edgeLeg(expected: Point) {
       closedDoors: closed.length,
       rerouted: p.navigator.requestSequence !== sequence,
     };
-  });
+  }, contact);
   assert.ok(
     Math.hypot(result.end.x - expected.x, result.end.z - expected.z) < 0.04,
     JSON.stringify(result),
@@ -247,6 +253,180 @@ async function resumeEdgeLoop() {
   await page.evaluate(() => {
     for (const loop of window.movementTestLoops ?? []) window.__dungeon.engine.runRenderLoop(loop);
   });
+}
+
+async function heldAim(aim: Point, first: boolean) {
+  const screen = await edgePointer(aim);
+  const { sequence } = await state();
+  await page.mouse.move(screen.x, screen.y);
+  if (first) await page.mouse.down();
+  else {
+    await resumeEdgeLoop();
+    await page.waitForFunction(
+      (id) => window.__dungeon.game.player.navigator.requestSequence > id,
+      sequence,
+    );
+    await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
+  }
+}
+
+async function obstacleEscape(dojo: boolean) {
+  if (dojo) await openPractice();
+  else await openSeededDungeon();
+  await page.evaluate(() => {
+    const { game, engine } = window.__dungeon;
+    window.movementTestLoops ??= [...engine.activeRenderLoops];
+    engine.stopRenderLoop();
+    game.camera.alpha = game.desiredAlpha = -Math.PI / 2;
+    game.camera.beta = 0.55;
+  });
+  await step([], 1);
+  await pinEdgeCamera();
+  await pauseClock();
+  if (!dojo) {
+    await click({ x: 6, z: 5 });
+    await arrive({ x: 6, z: 5 });
+  }
+  // Use the real keyboard motor only to establish the physical contact the
+  // conservative floor frontier normally stops short of. Every escape is mouse-only.
+  await step([dojo ? 'KeyA' : 'KeyD'], 60);
+  await step([], 20);
+  const contact = await page.evaluate(() => {
+    const { player, world } = window.__dungeon.game;
+    const { x, z } = player.actor.position;
+    return {
+      x,
+      z,
+      seed: world.seed,
+      stand: player.navigator.canStand({ x, z }),
+    };
+  });
+  assert.equal(contact.stand, false, JSON.stringify(contact));
+  assert.ok(Math.abs(contact.x - (dojo ? -1.975 : 6.95)) < 0.02, JSON.stringify(contact));
+  const targets = dojo
+    ? [
+        { x: -6, z: -4 },
+        { x: -4, z: -1.4 },
+        { x: 0, z: -4 },
+      ]
+    : [
+        { x: 7.5, z: 1 },
+        { x: 5.7, z: 2 },
+        { x: 5.7, z: 5 },
+      ];
+  for (const [i, target] of targets.entries()) {
+    await heldAim(target, i === 0);
+    await edgeLeg(target, true);
+  }
+  await page.mouse.up();
+  pass(
+    `${contact.seed}: real held mouse detours, turns and reverses from ${JSON.stringify(contact)}`,
+  );
+}
+
+async function crowdedDoorEscape() {
+  await openSeededDungeon();
+  await pauseClock();
+  const staging = { x: -10.8, z: 0.2 };
+  await page.evaluate(() => {
+    const g = window.__dungeon.game;
+    g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
+    g.camera.beta = 0.55;
+    g.camera.radius = g.desiredRadius = 36;
+    // Keep the roster and collision bodies. This fixture drives the doorway
+    // blocker explicitly so AI decisions cannot open the door or move it early.
+    for (const enemy of g.combat.enemies) enemy.entity.remove('brain');
+  });
+  await click(staging);
+  await arrive(staging);
+  const blockerId = await page.evaluate(() => {
+    const { combat, world } = window.__dungeon.game;
+    const gate = world.entities.find((e) => e.id === 'door-0');
+    const blocker = combat.enemies[0];
+    if (!blocker?.alive || gate?.type !== 'door' || gate.open || gate.x !== -14)
+      throw Error('Seeded doorway fixture changed');
+    blocker.entity.setPosition({ x: -12.35, z: 1.65, h: 0 });
+    blocker.entity.get('collision')?.sync?.(blocker.position);
+    return blocker.id;
+  });
+  await step(['KeyA'], 70);
+  await step([], 20);
+  const contact = await state();
+  assert.ok(Math.abs(contact.x + 13.522) < 0.015, JSON.stringify(contact));
+  await pinEdgeCamera();
+
+  // Aim at floor too close to the leaf for the hero's radius (not across it:
+  // the far side of this particular door can be reached by a long detour).
+  // Keep the press, verify settled samples, then steer back beside the body.
+  await heldAim({ x: -13.65, z: contact.z }, true);
+  const settled = await page.evaluate(() => {
+    const d = window.__dungeon;
+    for (let i = 0; i < 120; i++) d.step([], 1);
+    return d.game.player.navigator.planningResult;
+  });
+  assert.equal(settled, 'unreachable', JSON.stringify(await state()));
+  const denied = await state();
+  await observeHeldSamples(6);
+  assert.deepEqual(await state(), denied);
+  assert.deepEqual([denied.x, denied.z], [contact.x, contact.z]);
+
+  const retreat = { x: -11.1, z: 0.18 };
+  await heldAim(retreat, false);
+  await edgeLeg(retreat, true);
+  await page.evaluate(async (id) => {
+    const modulePath = '/src/actors.ts';
+    const { moveActor, stopActor } = (await import(
+      modulePath
+    )) as typeof import('../src/actors.ts');
+    const { world, combat } = window.__dungeon.game;
+    const blocker = combat.actor(id);
+    if (!blocker?.alive) throw Error('Doorway blocker must still be alive');
+    const start = blocker.position.x;
+    for (let i = 0; i < 80; i++)
+      moveActor(blocker, world, { direction: { x: 1, z: 0 }, speed: 4 }, 1 / 60);
+    stopActor(blocker);
+    if (blocker.position.x < start + 1.5 || !blocker.alive)
+      throw Error(`Blocker did not vacate the lane: ${JSON.stringify(blocker.position)}`);
+  }, blockerId);
+  const turn = { x: -12.8, z: 1.45 };
+  await heldAim(turn, false);
+  await edgeLeg(turn, true);
+  await heldAim(retreat, false);
+  await edgeLeg(retreat, true);
+  await page.mouse.up();
+  assert.equal(
+    await page.evaluate(() => {
+      const gate = window.__dungeon.game.world.entities.find((e) => e.id === 'door-0');
+      return gate?.type === 'door' && !gate.open && gate.collider?.checkCollisions;
+    }),
+    true,
+  );
+  pass(
+    'MOURNING-731: held mouse settles at closed door contact, retreats beside a living body, and turns after it vacates',
+  );
+}
+
+async function observeHeldSamples(count: number) {
+  await page.evaluate(() => {
+    const n = window.__dungeon.game.player.navigator;
+    const follow = n.followFloor;
+    const samples = { count: 0, restore: () => (n.followFloor = follow) };
+    window.heldSamples = samples;
+    n.followFloor = (...args) => {
+      samples.count++;
+      return follow.call(n, ...args);
+    };
+  });
+  try {
+    await resumeEdgeLoop();
+    await page.waitForFunction((count) => (window.heldSamples?.count ?? 0) >= count, count);
+  } finally {
+    await page.evaluate(() => {
+      window.__dungeon.engine.stopRenderLoop();
+      window.heldSamples?.restore();
+      delete window.heldSamples;
+    });
+  }
 }
 
 async function heldEdgeSweep(dojo: boolean) {
@@ -283,18 +463,7 @@ async function heldEdgeSweep(dojo: boolean) {
     legs.push(leg);
     if (i < 2) {
       const settled = await state();
-      await page.evaluate(() => {
-        const n = window.__dungeon.game.player.navigator;
-        const follow = n.followFloor.bind(n);
-        window.heldSamples = 0;
-        n.followFloor = (...args) => {
-          window.heldSamples = (window.heldSamples ?? 0) + 1;
-          return follow(...args);
-        };
-      });
-      await resumeEdgeLoop();
-      await page.waitForFunction(() => (window.heldSamples ?? 0) >= 6);
-      await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
+      await observeHeldSamples(6);
       const after = await state();
       assert.equal(after.sequence, settled.sequence, JSON.stringify({ leg, settled, after }));
       assert.equal(after.destination, null);
@@ -1335,12 +1504,19 @@ async function fullMovement() {
 }
 
 try {
-  await heldEdgeSweep(true);
-  await heldEdgeSweep(false);
-  if (edgeOnly) {
-    await openSeededDungeon();
-    await dungeonEdgeClick();
-  } else await fullMovement();
+  if (!edgeOnly) {
+    await obstacleEscape(true);
+    await obstacleEscape(false);
+    await crowdedDoorEscape();
+  }
+  if (!obstacleOnly) {
+    await heldEdgeSweep(true);
+    await heldEdgeSweep(false);
+    if (edgeOnly) {
+      await openSeededDungeon();
+      await dungeonEdgeClick();
+    } else await fullMovement();
+  }
   assert.deepEqual(errors, []);
   report.success = true;
 } catch (error) {
@@ -1354,7 +1530,7 @@ try {
     .catch(() => {});
 } finally {
   await writeFile(
-    `test-results/${browserName}-${edgeOnly ? 'edge' : 'movement'}-report.json`,
+    `test-results/${browserName}-${edgeOnly ? 'edge' : obstacleOnly ? 'obstacle' : 'movement'}-report.json`,
     JSON.stringify(report, null, 2),
   );
   await browser.close();
