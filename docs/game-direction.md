@@ -125,10 +125,10 @@ With A0–A7/P8/P9 complete, the user's **2026-11-21** scheduling update makes
 followed by further procedural-feature expansion. CPU0–CPU6a have cleared independent review;
 CPU6b scheduler/LOD is deferred; only full-rate ownership, profiling and parity checks are retained.
 The [CPU7 investigation](cpu7-integrated-results.md) was approved without performance acceptance.
-EF0–EF4 are next in the queue. See the [CPU plan](cpu-performance-plan.md)
-and [implementation path](implementation-path.md). EF5 remains a separate follow-up. The
-[Effect generation adoption gate](effect-refactor-plan.md) still precedes additional generated
-encounters/objectives.
+The generation refactor followed at published `a423dae`, but [EF4 adoption remains blocked](ef4-results.md)
+after the inconclusive latency campaign. The gate still precedes additional generated encounters
+and objectives. See the [CPU plan](cpu-performance-plan.md) and [implementation path](implementation-path.md).
+EF5 remains a separate follow-up.
 
 After those gates, use small scenario experiments to guide content expansion. The
 [procedural content plan](procedural-content-improvement-plan.md) supplies generation foundations,

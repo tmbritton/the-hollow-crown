@@ -1,11 +1,60 @@
 # EF4 — cost comparison and adoption decision
 
-**NOT READY.** Production integration is implemented on `main`. Public Effect subpaths brought
-both native startup medians within their unchanged limits. Generation latency is still inconclusive,
-and the retained candidate does not have an independent READY verdict. The content prerequisite
-remains open; no timing margin was increased.
+**NOT READY.** Candidate `a423dae` was published on `main`. The final generation-latency campaign
+stopped when host CPU idle fell below the frozen floor in block 2. The reviewer approved the
+stopped-campaign evidence, not adoption. Generation latency remains inconclusive, and the
+retained candidate has no independent READY verdict. New procedural features remain blocked;
+no timing margin was increased.
 
-## Final candidate latency campaign — predeclared, not started
+## Final candidate latency campaign — stopped, inconclusive
+
+On 2026-11-24 UTC, `freeze` succeeded from clean `main` at published candidate B
+`a423daed2d452a00e363ed480ecccb7e4d58e322`, versus historical A
+`398a1cf01fdebf8c072741c3de20670012795439`. Both locks were verified with offline installs before
+freeze; the runner then independently archived and installed each arm. On the Ryzen 5 2600X host
+with Node 26.0.0, competing browser/Steam processes were closed before freeze. The runner used
+sequential exclusive arm launches and its frozen host checks; no build, profile or browser suite
+was run alongside collection. The manifest was written at **01:48:38.494 UTC** and the sole attempt
+was claimed at **01:48:38.819 UTC**.
+
+| Block / arm | Process ID | Start → end (UTC) | Measured rotations | Minimum interval CPU idle | Outcome |
+| --- | ---: | --- | ---: | ---: | --- |
+| 1 / A | 341217 | 01:53:43.716 → 01:54:32.780 | 100 | 85.76% | Accepted |
+| 1 / B | 341522 | 01:54:37.941 → 01:55:26.490 | 100 | 85.85% | Accepted |
+| 2 / A | 359463 | 02:23:43.640 → 02:24:18.739 | 69 (partial) | **71.22%** | Killed by the monitor |
+
+The failing interval was **02:24:13.705 → 02:24:18.702 UTC**: 4,287 idle ticks out of 6,019
+total, below the frozen 80% floor. At the failing sample, one-minute load was 2.08, runnable count
+was 3, and temperature was 51.75 °C. Boot/governor/boost were unchanged and the sampled competitor
+list was empty; the telemetry does not identify the source of the extra CPU activity.
+
+`collect` exited **1** and wrote `stop.json` at **02:24:18.785 UTC**. Block 2 B and blocks 3–16
+were not launched. `replay` then verified the frozen inputs and exited **1** with `Stopped campaign`;
+no `report.json` was written. With **1 of 16** complete pairs, no endpoint has a qualified control
+match, spread, or `[d5,d12]` decision. This is not a latency pass or evidence of a budget overrun.
+No pair was replaced, no second attempt was made, and no separate Story 5 acceptance checks were
+rerun or upgraded after the terminal stop.
+
+Local evidence remains in ignored `test-results/ef4-final-latency/`: both archives,
+`manifest.json`, `attempt.json`, `1-block.json`, the `1-A`, `1-B` and `2-A` process records,
+rotation transcripts and telemetry, `stop.json`, and `commands.log` (collection and replay exits).
+
+| Evidence file | SHA-256 |
+| --- | --- |
+| `manifest.json` | `f9214aa4a89f49b177be8b41f109bae12e2ab0d27e3091a4286b0e1c3bdbd980` |
+| `2-A.telemetry.jsonl` | `0ccd7040cb60681bd69c98b1ce24651930124f621d28a51adc0a2b634155dfc1` |
+| `stop.json` | `66d710b165c51dcd341839749e16a1a91fe27da025f83c0368f791a7ac0f77b4` |
+| `commands.log` | `8916e0f9c1b66d3dfb93e9e78e2177c113b553272a8b104567b26ebaea1b93af` |
+
+To check the terminal replay disposition, run `node tests/measure-generation-paired.ts replay` on
+the original host, from the clean published candidate in the original `main` checkout with the
+ignored evidence and pinned Node binary intact. That includes the published bytes of this file,
+which the manifest hashes; the working-tree results update is not the frozen input. Expected
+exit: **1**, `Stopped campaign`. Do not run `freeze` or `collect` again.
+
+<a id="final-candidate-latency-campaign--predeclared-not-started"></a>
+
+## Final candidate latency campaign — predeclared protocol
 
 After the source-only checkpoint is reviewed and pushed to `origin/main`, record its full SHA as
 the candidate in the write-once manifest. Do not run `freeze` before that push. A is the historical
@@ -38,7 +87,7 @@ from the original `native-1/2.json`. No calibration or per-candidate recalculati
   inconclusive. All ten must pass. No pooled rotations, trimming, replacement blocks or retry.
 
 ```sh
-# After publication, from the exact clean main checkout:
+# Recorded procedure, already executed; do not start another attempt.
 node tests/measure-generation-paired.ts freeze "$CHECKPOINT_SHA"
 node tests/measure-generation-paired.ts collect
 node tests/measure-generation-paired.ts replay
@@ -120,7 +169,7 @@ No new sampled allocation or generation latency numbers were collected in the st
   rotations, separate profiled batches of ten worlds per seed/process, and 20 fresh processes per
   startup lane. No browser, build or other verification benchmark ran alongside the native arms.
   Boundary one-minute load fell **6.39 → 4.16 → 2.80**; the arms had different host load. This is
-  one adjacent comparison, not the 16 independent paired blocks from the unexecuted design.
+  one adjacent comparison, not a qualified 16-block campaign.
 - Local raw artifacts: `test-results/ef4-native-{baseline,candidate}.json`,
   `ef4-native-{baseline,candidate}-host.txt`, `ef4-hardware-{baseline,candidate}.log`,
   `ef4-resources.json` and the Vite asset inventories. Baseline/candidate raw native file SHA-256:

@@ -40,7 +40,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
    and the [complete A0 inventory/baseline](animation-baseline.md).
   Dependency order and acceptance gates are in `implementation-path.md`.
   The original notes remain the user's source of intent.
-- **CPU performance is the current workstream**, per the user's **2026-11-21** decision. CPU0
+- **CPU performance preceded the generation refactor**, per the user's **2026-11-21** decision. CPU0
   precedes CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7. The historical
   `3cfb378` measurements remain historical. **CPU0–CPU3 are independently reviewed READY**.
   The [CPU0 desktop hardware baseline](cpu-baseline.md) pins the expensive replan and confirms
@@ -52,10 +52,11 @@ Execution record for [implementation path](implementation-path.md). Started **20
   received final independent **APPROVE** for correctness only. Scheduler/LOD is deferred and the
   whole-frame criterion remains unmet. The [CPU7 investigation](cpu7-integrated-results.md) was
   independently approved as a negative report, not performance acceptance.
-- **Effect adoption remains before the next procedural-feature expansion, after CPU7.**
-  EF0–EF4 establish composed generation, typed failures and bounded local tracing;
-  EF5 is a separate resource-lifecycle follow-up. See the [refactor plan](effect-refactor-plan.md).
-  The source evaluation/scratch prototype does not constitute production implementation.
+- **EF0 tooling and EF1–EF4 implementation are published on `main` at `a423dae`.** The
+  [final A/B campaign](ef4-results.md#final-candidate-latency-campaign--stopped-inconclusive) stopped
+  after 1 of 16 pairs. The reviewer approved the stopped-campaign evidence, not adoption. Generation
+  latency remains inconclusive, with no retry or qualified endpoint verdict. **EF4 adoption is NOT
+  READY**; new procedural features remain blocked. EF5 is a separate resource-lifecycle follow-up.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
   seeded assembly, plus javelin **90 versus 100 HP** by ECS order. Local-detour/progress recovery
   and earliest swept body contact fix both. **315 tests in 304.51s**, format (**148 files**), lint
@@ -180,11 +181,10 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | CPU5 | Independently approved; later cap/replacement coverage landed | Settled transform publication and scene-owned resource retirement | Fresh reviewer hardware: 4,344 → 0 unchanged root writes, 1.0–1.2 → 0.2 ms death advance; full 434 and 3 resets. [Later regression](../VERIFICATION.md#cpu5--final-independent-review): full 435 | `f3fa9a3` |
 | CPU6a | Final independent APPROVE, including both follow-ups | Demand-driven clearance, certified geometry reuse, indexed settled contacts and one combined surface budget | [Closeout](../VERIFICATION.md#cpu6a--animation-geometry): 37 fresh focused tests and static/diff checks; existing 456-test full gate and matched RTX 2070 replay | `96849ae` |
 | CPU6b | Exact retained subset: final independent APPROVE for correctness only; scheduler/LOD deferred, whole-frame criterion unmet | Full-rate ownership, development attribution and parity tests only | [Subset evidence](../VERIFICATION.md#cpu6b--retained-full-rate-subset): 46 fresh focused tests; typecheck, lint, format and production isolation passed; 459 full tests and hardware/browser results reused | `88a297e` |
-| CPU7 | Investigation independently approved; no performance acceptance | Integrated desktop study on the retained tree | [Results and scorecard](cpu7-integrated-results.md): measured budgets unmet, matched-start speedup inconclusive, GPU attribution unresolved | Uncommitted on `main` |
-| EF0 | Frozen oracle and exact pin; timing decision moved to EF4 by user | Original evidence and limits preserved | [Baseline](ef0-baseline.md); undecided generation latency is not a pass | Uncommitted on `main` |
-| EF1–EF3 | Implemented | Selective typed stages, one Effect interpreter and bounded DEV/local execution traces | [Verification](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision) | Uncommitted on `main` |
-| EF4 | Caller integration and review fixes implemented; adoption **NOT READY** | Safe failure/retry, single live loop, detached diagnostics and isolated helper imports | [Checks and costs](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision); both startup medians now within ceiling, generation latency still inconclusive; no content clearance | Uncommitted on `main` |
-| EF0–EF4 | Next in the agreed queue, before new procedural features | Fresh baseline, stage/error contracts, Effect pipeline, tracing and application cutover | Acceptance gates in effect-refactor-plan.md; production adoption not started | — |
+| CPU7 | Investigation independently approved; no performance acceptance | Integrated desktop study on the retained tree | [Results and scorecard](cpu7-integrated-results.md): measured budgets unmet, matched-start speedup inconclusive, GPU attribution unresolved | `398a1cf` |
+| EF0 | Frozen oracle and exact pin; timing decision moved to EF4 by user | Original evidence and limits preserved | [Baseline](ef0-baseline.md); undecided generation latency is not a pass | `a423dae` |
+| EF1–EF3 | Implemented and published | Selective typed stages, one Effect interpreter and bounded DEV/local execution traces | [Verification](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision) | `a423dae` |
+| EF4 | Caller integration and review fixes published; adoption **NOT READY** | Safe recovery from generation failure, single live loop, detached diagnostics and isolated helper imports | [Final A/B](ef4-results.md#final-candidate-latency-campaign--stopped-inconclusive) stopped in block 2 on 71.22% host idle (80% floor); 1/16 pairs; replay rejected the stopped campaign. Evidence approved, generation latency inconclusive; no retry, READY verdict, or content clearance | `a423dae` |
 | EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
 
 ## Work log

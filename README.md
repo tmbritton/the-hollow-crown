@@ -116,10 +116,12 @@ The scheduler/LOD is deferred after the historical trial missed its whole-frame 
 negative report, not a performance pass: measured desktop budgets were missed and matched-start
 speedup remains inconclusive.
 See the [CPU0 baseline and profiling commands](docs/cpu-baseline.md). The synchronous generation
-refactor is implemented on `main`; terrain, placement and random helper users do not load Effect.
-Public Effect subpaths met the native startup ceilings, but the
-[EF4 adoption gate](VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision) is not ready;
-it still precedes further procedural-feature expansion. The [EF0 oracle](docs/ef0-baseline.md#offline-oracle)
+refactor was published on `main` at `a423dae`; terrain, placement and random helper users do not
+load Effect. Public Effect subpaths met the native startup ceilings in the startup-only trial.
+The [final generation-latency campaign](docs/ef4-results.md#final-candidate-latency-campaign--stopped-inconclusive)
+stopped after 1 of 16 pairs. The reviewer approved the evidence, not adoption: latency remains
+inconclusive, and **EF4 adoption is NOT READY**. New procedural features remain blocked. The
+[EF0 oracle](docs/ef0-baseline.md#offline-oracle)
 checks canonical parity offline (`npm run check:full` covers all 112 inputs). The optional
 [historical recapture](docs/ef0-baseline.md#checks-and-reproduction) uses a pinned archive and writes
 only to ignored `test-results/`; it is not a timing campaign.

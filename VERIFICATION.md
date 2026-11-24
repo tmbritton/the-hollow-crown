@@ -18,9 +18,16 @@ files byte-for-byte under ignored `test-results/ef-checkpoint/original/`. The
 source-tree gzip kits. A disposable source snapshot with no Git history, installed offline from
 the lock, passed `npm test`, `npm run check:full` (both corpus roots, 112 inputs) and `npm run build`.
 Explicit historical replay matched both pinned manifests, compressed trees, and preserved
-originals. The [final paired protocol](docs/ef4-results.md#final-candidate-latency-campaign--predeclared-not-started)
-is predeclared, not frozen or sampled. It requires an exact pushed checkpoint; adoption remains
-**NOT READY**.
+originals.
+
+**Final candidate latency — terminal stop, inconclusive.** On 2026-11-24 UTC the [final A/B
+campaign](docs/ef4-results.md#final-candidate-latency-campaign--stopped-inconclusive) froze published
+`a423daed2d452a00e363ed480ecccb7e4d58e322` and completed 1 of 16 pairs. Block 2 control was killed
+after host idle fell to **71.22%** against the frozen **80%** minimum. `collect` exited 1; `replay`
+verified the frozen inputs and exited 1 with `Stopped campaign`. No endpoint verdict, replacement
+pair or second attempt. The reviewer approved the stopped-campaign evidence only. Ignored evidence:
+`test-results/ef4-final-latency/`. Separate Story 5 gates were not requalified after this stop;
+no independent adoption READY verdict or content clearance.
 
 - EF1 separates plain layout, reservation, placement and validation. Typed missing-site results
   replace the old broad catches. The same-message navigator sentinel went red as exhaustion, then
@@ -45,9 +52,9 @@ start **440.261 ms** (limit **469.346 ms**). One matched RTX 2070 `animateActors
 The original candidate measured native cold import **393.419 ms** vs
 **224.919 ms** limit and native import-only test startup **657.747 ms** vs **469.346 ms** limit.
 Generation point differences fit the allowances in one adjacent run, but differing load, p95
-spread and lack of the paired campaign leave generation latency **inconclusive**. Original sampled
-allocation and settled resources were within their frozen limits. The startup-only comparison did
-not remeasure generation latency or allocation. EF4 remains open.
+spread and the terminally incomplete paired campaign leave generation latency **inconclusive**.
+Original sampled allocation and settled resources were within their frozen limits. The
+startup-only comparison did not remeasure generation latency or allocation. EF4 remains open.
 
 Historical correctness: the then-current frozen comparator `node --test tests/generation-fixtures.test.ts`
 matched **112/112** unchanged inputs (103 original + nine supplemental). Final `npm test` passed

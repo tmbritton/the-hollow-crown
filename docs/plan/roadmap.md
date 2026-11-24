@@ -14,7 +14,7 @@ EF1–EF4 implementation followed CPU7. The user moved the undecided generation 
 - Epics: 0/13 complete
 - Stories: 4/44 complete
 
-Stories 0.1–0.4 have independent architecture approval in the working tree. Generation latency was deferred to 0.5; [the adoption review](../ef4-results.md) remains open before release or new procedural content.
+Stories 0.1–0.4 were independently approved and published at `a423dae`. The [final generation-latency comparison](../ef4-results.md) stopped after one of sixteen pairs. Story 0.5 remains open: latency is inconclusive, and new procedural content has not been cleared.
 
 ## Epics
 

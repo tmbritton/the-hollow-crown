@@ -26,6 +26,7 @@ use [implementation path](implementation-path.md) for the dependency-ordered del
 | [Ragdoll deaths](ragdoll-deaths.md) | P8 directional launches with seeded variation, bounded articulated physics, world/tread contacts, relocated remains and reset/disposal ownership. |
 | [Skeleton breakup](skeleton-breakup.md) | P9 separated anatomical chunks, seeded scatter, per-piece terrain coverage, scattered-remains perception and bounded settled decoration. |
 | [Effect refactor plan](effect-refactor-plan.md) | Implemented generation stages, typed failures and bounded local tracing. EF4 adoption is not ready; procedural-feature expansion remains gated. EF5 is a separate follow-up. |
+| [EF4 results](ef4-results.md) | Candidate `a423dae` published on `main`. Final latency campaign stopped after 1 of 16 pairs; evidence approved, latency inconclusive, adoption blocked. |
 | [Generation authoring](generation-authoring.md) | Required stages, optional omissions, semantic random streams, and a local trace walkthrough. |
 | [Procedural content improvement plan](procedural-content-improvement-plan.md) | Shared keep identities, composed scenes, memorable inhabitants, discoveries, adventure grammars, and seed-review tooling. Further expansion follows the Effect gate and uses compact scenario playtests to guide reusable content systems. |
 | [Encounter narrative design notes](encounter-narrative-design-notes.md) | Jon Ingold's Narrative Sorcery talk: order-independent encounters, defensive logic, player knowledge, consequences, and a proposed watchkeeper scenario. |
