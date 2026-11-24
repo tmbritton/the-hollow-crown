@@ -1,6 +1,8 @@
 # Effect adoption — procedural workflows and resource ownership
 
-**Status:** EF1–EF4 implementation on `main`; **EF4 adoption NOT READY**. See the
+**Status:** Epic 0 closed by [user delivery decision](ef4-results.md#epic-0-delivery-closeout).
+The synchronous boundary is adopted for further content. Generation latency is inconclusive and
+nonblocking; the original technical gate and independent NOT READY verdict are unchanged. See the
 [verification record](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision)
 and [authoring guide](generation-authoring.md). This is not a release, deployment, or independent approval.
 
@@ -11,12 +13,11 @@ EF0 froze its fixture and cost kits and verified `effect@4.1.5`; generation timi
 The user explicitly authorized EF1–EF3 to proceed and moved the undecided generation latency
 decision from EF0 to EF4 with the original margins intact. No further EF0 calibration is required
 to implement the pilot. This does not qualify missing or noisy evidence at EF4.
-EF0–EF4 still precede **the next expansion of procedurally generated features**—new scene recipes,
-keep variants, adventure grammars, or generated encounters/objectives. If content work is rescheduled,
-carry this prerequisite with it; refresh EF0's measurements after the CPU pass.
+The original order put EF0–EF4 before new scene recipes, keep variants, adventure grammars, or
+generated encounters/objectives. That delivery prerequisite is closed by the user decision above.
 
 EF5 is a separately scoped resource-lifecycle follow-up, evaluated after the generation pilot.
-It is not required to resume content work once EF4's adoption gate passes.
+It is not required for content work.
 
 ## 1. Goal and rationale
 
@@ -248,9 +249,9 @@ failing diagnostic sink that leaves generation outcomes unchanged.
 **Gate:** a rejected/retried seed can be explained from a useful stage trace; retained diagnostic
 data is bounded; production exposes no debug collector or new telemetry requests.
 
-### EF4 — integrate callers and pass the pre-content adoption gate
+### EF4 — integrate callers and assess the original adoption gate
 
-**Depends on:** EF3. **Only an EF4 adoption pass clears the prerequisite for new procedural features.**
+**Depends on:** EF3. The criteria below are the original technical gate, not the delivery decision.
 
 - Audit startup/menu regeneration, debug generation, corpus export and gallery generation for the
   single pipeline boundary. Preserve explicit-seed/refresh behavior and UI readiness semantics.
@@ -264,7 +265,7 @@ data is bounded; production exposes no debug collector or new telemetry requests
 - Remove temporary migration switches and duplicate adapters. Record results and any measured
   tradeoffs in README/VERIFICATION and the progress tracker; mark adoption complete only here.
 
-**Gate:** full correctness/resource/production checks pass within EF0 budgets, reviewer READY, and
+**Original gate (not cleared):** full correctness/resource/production checks pass within EF0 budgets, reviewer READY, and
 the implementation demonstrates typed stage recovery plus usable tracing. If it fails the gate,
 fix or revise the integration before expanding content; do not bless changed seed fixtures merely
 to make the refactor pass. Reconsider adoption if its measured value does not justify its costs.
@@ -309,7 +310,10 @@ rendering-heavy checks sequentially, with bounded deadlines and owned browser/se
 Reuse completed full-gate evidence; rerun broad suites only for relevant changes, failures, or
 unresolved concerns. Record only checks actually run. No new npm command is assumed by this plan.
 
-### Before authoring the next procedural feature
+### Original technical acceptance checklist
+
+Retained as planned criteria, not a claim of completion or a current content block. For the
+recorded results and profiling trigger, see the [delivery closeout](ef4-results.md#epic-0-delivery-closeout).
 
 - [ ] EF0–EF4 complete with recorded budgets, results, and independent review.
 - [ ] Same-version worlds, rejection reports, reserved routes, optional omissions and object

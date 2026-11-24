@@ -2,7 +2,7 @@
 
 - **Task source**: `docs/plan/roadmap.md:19–32`; `docs/effect-refactor-plan.md:91–162,170–187,290–316`
 - **Epic / Story**: 0 / 1; after the reviewed CPU7 investigation, not conditional on an FPS win
-- **Status**: proposed
+- **Status**: frozen oracle and exact-version probe delivered; latency qualification moved to EF4 by user decision. See the [baseline record](../../ef0-baseline.md). Criteria below describe the original gate.
 - **Branch**: main
 
 ## Goal

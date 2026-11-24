@@ -167,8 +167,9 @@ CPU5–CPU6 must preserve the completed rig, ragdoll and separated-remains owner
 
 The [implementation path](implementation-path.md) records the user's promotion of this queue after
 P9. Refresh CPU0 on the delivered revision, including A7's cutover, P8's pose/velocity handoff and P9's
-separated anatomy, per-piece terrain and scattered-remains perception. The Effect prerequisite
-remains attached to future procedural-feature expansion and follows CPU7.
+separated anatomy, per-piece terrain and scattered-remains perception. The Effect refactor followed
+CPU7 and is now [adopted for delivery](ef4-results.md#epic-0-delivery-closeout); its unresolved
+generation latency is separate from the rendered-play performance investigation.
 
 ## 4. Scoped work and acceptance
 

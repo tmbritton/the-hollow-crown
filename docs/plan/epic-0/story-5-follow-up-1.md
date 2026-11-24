@@ -1,6 +1,6 @@
 # EF4 follow-up — package the checkpoint, then decide adoption
 
-**Proposed; NOT READY.** A source-only checkpoint makes the [EF0 oracle](../../ef0-baseline.md) reproducible. It does not close [Story 5](story-5.md) or authorize content work.
+**Source-only checkpoint delivered at `a423dae`.** It makes the [EF0 oracle](../../ef0-baseline.md) reproducible. The two latency campaigns stopped without qualified endpoints; the original technical gate below was not cleared. The [later user delivery decision](../../ef4-results.md#epic-0-delivery-closeout) closes [Story 5](story-5.md) for delivery without changing its original criteria.
 
 ## Tests first
 
@@ -16,7 +16,7 @@
 4. In `tests/generation-fixtures.ts`, separate canonical observation/digest from filesystem and replay. For routine native checks hash each candidate observation once per selected case: compare named leaves and an ordered corpus SHA-256 over framed input identity and canonical-byte digest for extended coverage. Derive expected roots from independently verified historical payloads. Keep byte-level first-difference diagnosis via explicit replay; ordinary tests need neither gzip trees nor a second generator run.
 5. Audit every old path (including paired runner, scripts, README, `VERIFICATION.md`, baseline and scorecard). Link to maintained procedures; label local evidence paths and distinguish reproducible fixtures from historical measurements that cannot be recreated exactly. Document offline prerequisites and exact replay commands. In a disposable clean checkout run `npm ci --ignore-scripts --offline`, `npm test`, `npm run check:full`, `npm run build` and explicit archive replay. Inspect `git status --short` and staged file inventory. Obtain independent packaging review and hand only source/docs to the committer; record the resulting candidate SHA before any final timings.
 
-## Final latency decision (after checkpoint only)
+## Original final latency protocol (historical)
 
 - Predeclare one diagnostics-off A/B campaign in `docs/ef4-results.md` before sampling. Adapt `tests/measure-generation-paired.ts` and its pure analyzer for historical A versus checkpoint B, each with its own verified lock/deps; identical harness, Node, flags, host and five EF0 seeds. Freeze hashes, ten original **unrounded** allowances, warmup/rotation counts and seeded balanced order (eight AB, eight BA). Use 16 separated paired blocks, one fresh process per arm, 100 measured rotations per process; 180 s/process, two active hours, seven elapsed days, one campaign. No preliminary A/A gate or manual bookings: automate spaced windows with predeclared interval, quiet thresholds and deadline; require operator coordination only if isolation actually needs it.
 - Freeze → collect → replay → review; invalidity after start is terminal, never replace a pair. Record actual timestamps, commands, per-rotation samples, process identities, CPU/governor, interval CPU idle/load, competing processes and temperature before/during/after arms. No simultaneous build, browser or profile. Write once under ignored `test-results/`; retain partial failures. Missing telemetry, drift, dependence between blocks or unmatched control (median control outside historical midpoint ± original addition) prevents clearance.

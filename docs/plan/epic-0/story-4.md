@@ -2,7 +2,7 @@
 
 - **Task source**: `docs/plan/roadmap.md:39–41`; `docs/effect-refactor-plan.md:146–162,228–244`
 - **Epic / Story**: 0 / 4; depends on EF2
-- **Status**: proposed
+- **Status**: implemented at `a423dae`; see [verification](../../../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision) and the [trace walkthrough](../../generation-authoring.md#read-an-execution-trace).
 - **Branch**: main
 
 ## Goal

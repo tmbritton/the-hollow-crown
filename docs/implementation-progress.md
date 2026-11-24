@@ -52,11 +52,11 @@ Execution record for [implementation path](implementation-path.md). Started **20
   received final independent **APPROVE** for correctness only. Scheduler/LOD is deferred and the
   whole-frame criterion remains unmet. The [CPU7 investigation](cpu7-integrated-results.md) was
   independently approved as a negative report, not performance acceptance.
-- **EF0 tooling and EF1–EF4 implementation are published on `main` at `a423dae`.** The
-  [final A/B campaign](ef4-results.md#final-candidate-latency-campaign--stopped-inconclusive) stopped
-  after 1 of 16 pairs. The reviewer approved the stopped-campaign evidence, not adoption. Generation
-  latency remains inconclusive, with no retry or qualified endpoint verdict. **EF4 adoption is NOT
-  READY**; new procedural features remain blocked. EF5 is a separate resource-lifecycle follow-up.
+- **Epic 0 closed for delivery by user decision.** EF0 tooling and EF1–EF4 implementation are
+  published on `main` at `a423dae`. The [two campaign stops and adoption decision](ef4-results.md)
+  leave generation latency inconclusive and nonblocking, with the original technical gate and
+  independent **NOT READY** verdict unchanged. Further content uses the [authoring guide](generation-authoring.md);
+  EF5 is a separate resource-lifecycle follow-up.
 - P6b review correction: actual reds reproduced **0 impacts / 100 HP** after 60s circular and 20s
   seeded assembly, plus javelin **90 versus 100 HP** by ECS order. Local-detour/progress recovery
   and earliest swept body contact fix both. **315 tests in 304.51s**, format (**148 files**), lint
@@ -184,8 +184,8 @@ Execution record for [implementation path](implementation-path.md). Started **20
 | CPU7 | Investigation independently approved; no performance acceptance | Integrated desktop study on the retained tree | [Results and scorecard](cpu7-integrated-results.md): measured budgets unmet, matched-start speedup inconclusive, GPU attribution unresolved | `398a1cf` |
 | EF0 | Frozen oracle and exact pin; timing decision moved to EF4 by user | Original evidence and limits preserved | [Baseline](ef0-baseline.md); undecided generation latency is not a pass | `a423dae` |
 | EF1–EF3 | Implemented and published | Selective typed stages, one Effect interpreter and bounded DEV/local execution traces | [Verification](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision) | `a423dae` |
-| EF4 | Caller integration and review fixes published; adoption **NOT READY** | Safe recovery from generation failure, single live loop, detached diagnostics and isolated helper imports | [Final A/B](ef4-results.md#final-candidate-latency-campaign--stopped-inconclusive) stopped in block 2 on 71.22% host idle (80% floor); 1/16 pairs; replay rejected the stopped campaign. Evidence approved, generation latency inconclusive; no retry, READY verdict, or content clearance | `a423dae` |
-| EF5 | Separate follow-up after EF4 | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content after EF4 | — |
+| EF4 | Caller integration and review fixes published; adopted for delivery by user decision | Safe recovery from generation failure, single live loop, detached diagnostics and isolated helper imports | [Results and closeout](ef4-results.md): 1/16 and 0/16 pairs; neither stop qualified latency. Original independent NOT READY stands; no budget change. | `a423dae` |
+| EF5 | Separate follow-up | Run-owned construction, partial-failure cleanup and retirement | Evaluate against completed animation/physics resources; not a prerequisite for content | — |
 
 ## Work log
 
@@ -246,7 +246,7 @@ Execution record for [implementation path](implementation-path.md). Started **20
 - Promoted the existing CPU plan to **CPU0 → CPU1 → CPU2 → CPU3 → CPU4 → CPU5 → CPU6a → CPU6b → CPU7**.
   CPU0 refreshes the older `3cfb378` investigation against completed rigs, ragdolls and bone debris.
   CPU2 retains an independent baseline comparison; CPU6a/b retain separate review gates.
-- EF0–EF4 follow CPU7 and still precede further procedural content. Updated the global queue,
+- The queue placed EF0–EF4 after CPU7 and before further procedural content. Updated the global queue,
   planning index, game direction and related plans; CPU implementation/performance gains are not
   claimed by this documentation-only scheduling change.
 

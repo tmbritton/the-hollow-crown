@@ -19,8 +19,9 @@ questions; it guides future content work in this plan.
 **Scheduling update — 2026-11-21:** the animation/death-physics queue through P9 is complete.
 The [CPU7 investigation](cpu7-integrated-results.md) was approved without performance acceptance.
 The [Effect generation refactor](effect-refactor-plan.md) adds composable stages, typed failures
-and bounded diagnostics. Implementation does not clear the EF4 adoption gate. The phases below describe content
-work; their historical priority labels do not supersede the current
+and bounded diagnostics. The later [Epic 0 delivery decision](ef4-results.md#epic-0-delivery-closeout)
+adopts that boundary for content while leaving latency inconclusive. Follow the
+[authoring guide](generation-authoring.md); the phases below do not supersede the current
 [implementation path](implementation-path.md).
 
 **First delivery:** three recognizably different keep identities, coordinated scenes in the forge and bakery, one memorable inhabitant per keep, and tools for comparing seeds.

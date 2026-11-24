@@ -6,11 +6,18 @@ The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and stri
 
 ### EF1–EF4 — generation refactor and adoption decision
 
-**Implementation on `main`; EF4 adoption NOT READY.** The user authorized EF1–EF3 with the frozen
-EF0 kits and transferred the undecided generation latency decision to EF4, retaining all original
-margins. No further calibration was run to unblock implementation. The results below do not clear
-the prerequisite for new procedural content. No independent READY verdict, commits, checkbox
-changes, deployments or Epic 1 worktree operations.
+**Epic 0 closed for delivery by user decision; original EF4 technical gate not cleared.** The
+user first authorized EF1–EF3 with the frozen EF0 kits and moved undecided generation latency to
+EF4 without changing any margins. After both collection stops, the user directed “Just finish
+this epic.” The [delivery decision](docs/ef4-results.md#epic-0-delivery-closeout) adopts the
+implemented architecture for further procedural content and records generation latency as
+inconclusive and nonblocking. The original independent **NOT READY** verdict stands; no independent
+READY verdict or qualified timing result is claimed.
+
+**Docs closeout check:** `npm run check:full` passed 532 tests, strict typecheck, lint and format.
+A focused Chromium check on an owned dev server (46429) confirmed the authoring guide's `trial-23`
+trace: two validation rejections with the documented reasons, then success. These were correctness
+checks, not a rerun of any cost lane or a new independent review.
 
 **Source-only checkpoint packaging (not a new cost result).** Preserved 122 original generated
 files byte-for-byte under ignored `test-results/ef-checkpoint/original/`. The
@@ -28,6 +35,14 @@ verified the frozen inputs and exited 1 with `Stopped campaign`. No endpoint ver
 pair or second attempt. The reviewer approved the stopped-campaign evidence only. Ignored evidence:
 `test-results/ef4-final-latency/`. Separate Story 5 gates were not requalified after this stop;
 no independent adoption READY verdict or content clearance.
+
+**Reopened EF4 campaign — terminal stop during collection.** The unchanged runner froze the
+[explicitly selected published tip `4bc382e`](docs/ef4-results.md#reopened-campaign-at-the-published-tip--stopped-inconclusive)
+after the full diff confirmed only eight Markdown changes from `a423dae`. Block 1 A was killed
+after 28/100 measured rotations: **10 runnable tasks** exceeded the frozen maximum of **6**.
+Freeze/collect/replay exited **0/1/1**. With **0/16 pairs**, latency is inconclusive and no separate
+gate was requalified. The original stopped evidence was preserved and its recorded SHA-256 hashes
+matched. The technical disposition at the stop remained NOT READY.
 
 - EF1 separates plain layout, reservation, placement and validation. Typed missing-site results
   replace the old broad catches. The same-message navigator sentinel went red as exhaustion, then
@@ -54,7 +69,8 @@ The original candidate measured native cold import **393.419 ms** vs
 Generation point differences fit the allowances in one adjacent run, but differing load, p95
 spread and the terminally incomplete paired campaign leave generation latency **inconclusive**.
 Original sampled allocation and settled resources were within their frozen limits. The
-startup-only comparison did not remeasure generation latency or allocation. EF4 remains open.
+startup-only comparison did not remeasure generation latency or allocation. These observations do
+not establish a generation timing pass.
 
 Historical correctness: the then-current frozen comparator `node --test tests/generation-fixtures.test.ts`
 matched **112/112** unchanged inputs (103 original + nine supplemental). Final `npm test` passed

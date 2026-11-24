@@ -125,12 +125,12 @@ With A0–A7/P8/P9 complete, the user's **2026-11-21** scheduling update makes
 followed by further procedural-feature expansion. CPU0–CPU6a have cleared independent review;
 CPU6b scheduler/LOD is deferred; only full-rate ownership, profiling and parity checks are retained.
 The [CPU7 investigation](cpu7-integrated-results.md) was approved without performance acceptance.
-The generation refactor followed at published `a423dae`, but [EF4 adoption remains blocked](ef4-results.md)
-after the inconclusive latency campaign. The gate still precedes additional generated encounters
-and objectives. See the [CPU plan](cpu-performance-plan.md) and [implementation path](implementation-path.md).
-EF5 remains a separate follow-up.
+The generation refactor followed at published `a423dae` and was [adopted for delivery by user decision](ef4-results.md#epic-0-delivery-closeout).
+Inconclusive generation latency no longer blocks generated encounters or objectives; this is not a
+technical performance pass. See the [CPU plan](cpu-performance-plan.md) and
+[implementation path](implementation-path.md). EF5 remains a separate follow-up.
 
-After those gates, use small scenario experiments to guide content expansion. The
+Use small scenario experiments to guide content expansion. The
 [procedural content plan](procedural-content-improvement-plan.md) supplies generation foundations,
 the [Ravenloft notes](ravenloft-scenario-design-notes.md) supply adventure structures, and the
 [competing-objectives design](competing-objectives-design.md) supplies autonomous agenda contracts.

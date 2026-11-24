@@ -1,8 +1,8 @@
 # EF1 — Extract stages and classify failures
 
 - **Task source**: `docs/plan/roadmap.md:33–35`; `docs/effect-refactor-plan.md:65–145,189–205`
-- **Epic / Story**: 0 / 2; blocked on reviewed EF0 oracle and budgets
-- **Status**: proposed
+- **Epic / Story**: 0 / 2; follows EF0
+- **Status**: implemented at `a423dae` after the user authorized work with frozen EF0 kits. See [verification](../../../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision).
 - **Branch**: main
 
 ## Goal

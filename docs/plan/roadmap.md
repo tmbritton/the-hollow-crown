@@ -7,20 +7,20 @@
 
 ## Overview
 
-EF1–EF4 implementation followed CPU7. The user moved the undecided generation latency decision to EF4 without changing any margins. [EF4 adoption is not ready](../ef4-results.md) and still gates new procedural content; optional EF5 gates nothing. Encounter profiling measures rendered play, not generation spans, and has no technical dependency on Effect. The player reports better FPS with fewer enemies, the largest hitch at phalanx activation and occasional doorway hitches; baseline those before changing squad tactics and motion. Build the solo hero's recovery and positioning choices before asking the player to handle mixed factions, zones and a throne guardian. Grow the roster in tested waves, then use playtests to choose optional exploration and progression work rather than importing party rules wholesale. Story plans belong later at `docs/plan/epic-N/story-M.md`.
+Epic 0 adopts the synchronous Effect generation pipeline for new procedural content; see the [authoring guide](../generation-authoring.md). Encounter profiling measures rendered play, not generation spans, and has no technical dependency on Effect. The player reports better FPS with fewer enemies, the largest hitch at phalanx activation and occasional doorway hitches; baseline those before changing squad tactics and motion. Build the solo hero's recovery and positioning choices before asking the player to handle mixed factions, zones and a throne guardian. Grow the roster in tested waves, then use playtests to choose optional exploration and progression work rather than importing party rules wholesale. Story plans belong later at `docs/plan/epic-N/story-M.md`.
 
 ## Progress
 
-- Epics: 0/13 complete
-- Stories: 4/44 complete
+- Epics: 1/13 complete
+- Stories: 5/44 complete
 
-Stories 0.1–0.4 were independently approved and published at `a423dae`. The [final generation-latency comparison](../ef4-results.md) stopped after one of sixteen pairs. Story 0.5 remains open: latency is inconclusive, and new procedural content has not been cleared.
+Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
 ## Epics
 
 ### Epic 0 — Adopt Effect at the generation boundary
 
-- [ ] **Epic 0 complete**
+- [x] **Epic 0 complete**
 
 Use Effect to compose required generation stages and explain why a candidate failed without changing which world a seed produces. Keep geometry, RNG and search in ordinary functions; the fixed-step ECS, XState clocks, combat, navigation and rig solvers stay outside Effect.
 
@@ -41,9 +41,9 @@ Use Effect to compose required generation stages and explain why a candidate fai
 - [x] **Story 0.4 — EF3: Explain a rejected seed locally** — Trace generation → attempt → stage, with seed/version, room/recipe and failure context. Store timing and trace IDs in a separate versioned execution envelope, never in deterministic reports or generation decisions. **Depends on**: 0.3.
   - Expose detached snapshots only through the DEV/debug harness and local tooling. Cap records, payload and retained runs; indicate truncation, use bounded metric labels and retain no worlds or scenes.
   - Explain a rejection followed by success; close spans on defects too. Verify tracing off/on and a failing sink produce identical worlds/reports, reset clears retained data, and production exposes no collector or telemetry requests.
-- [ ] **Story 0.5 — EF4: Decide readiness for procedural content** — Route startup, menu regeneration, debug, corpus and gallery callers through the same facade. Inject failure at the application boundary: show an error without publishing a partial world or updating disposed state; preserve seed/refresh and readiness behavior. **Depends on**: 0.4.
+- [x] **Story 0.5 — EF4: Decide readiness for procedural content** — Route startup, menu regeneration, debug, corpus and gallery callers through the same facade. Inject failure at the application boundary: show an error without publishing a partial world or updating disposed state; preserve seed/refresh and readiness behavior. **Depends on**: 0.4.
   - Compare the complete EF0 corpus and rejection reports exactly; inspect representative gallery captures. Recheck EF0 cost budgets, full correctness/model and resource suites, browser play, and root/Pages production smokes. Do not rewrite fixtures to obtain parity.
-  - Remove migration switches; document required stages, optional omissions, RNG, recovery and traces for content authors. Record costs, tradeoffs and independent **READY** review before admitting new content; fix or reconsider adoption if parity, value or budgets fail.
+  - Remove migration switches; document required stages, optional omissions, RNG, recovery and traces for content authors. The architecture and delivery closeout were independently approved. The original latency gate remains inconclusive.
 
 ### Epic 1 — Capture the encounter hitch
 

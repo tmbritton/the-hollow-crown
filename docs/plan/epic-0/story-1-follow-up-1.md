@@ -1,6 +1,6 @@
 # EF0 follow-up 1 — Can we resolve a generation-time regression?
 
-**Proposed, not measured. EF1 remains blocked.** Close the old series as inconclusive. Before any candidate exists, approve or reject one new measurement design, not another attempt to pass the old spread check. The question for EF4 is whether the refactor adds more latency than allowed, not whether it makes generation faster.
+**Historical proposal; A/A reached preflight only.** It did not qualify timing. The user subsequently authorized EF1 and moved latency qualification to EF4 without changing the margins. See the [baseline decision](../../ef0-baseline.md#later-decision--generation-latency-moves-to-ef4) and [Epic 0 closeout](../../ef4-results.md#epic-0-delivery-closeout). The original proposed protocol follows.
 
 ## Why change the design?
 

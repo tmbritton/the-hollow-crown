@@ -68,7 +68,7 @@ returned **APPROVE** for settled transform publication; the later cap/replacemen
 including both follow-ups at `96849ae`. CPU6b retains only full-rate ownership, profiling,
 and parity checks; its scheduler/LOD is deferred. The [CPU7 investigation](cpu7-integrated-results.md)
 was independently approved, with performance targets unmet or inconclusive. The generation
-refactor followed at published `a423dae`; [EF4 adoption remains blocked](#before-the-next-procedural-feature-expansion--effect-refactor).
+refactor followed at published `a423dae`; [Epic 0 is closed for delivery](#before-the-next-procedural-feature-expansion--effect-refactor).
 P1's application investigation is closed; its bounded checks
 do not establish a cause or fix for the original machine freeze.
 
@@ -111,19 +111,20 @@ in the CPU plan. CPU7 assesses the integrated tree without the deferred CPU6b sc
 ## Before the next procedural-feature expansion — Effect refactor
 
 The user requested this pre-content boundary on **2026-11-20** and inserted the CPU pass on
-**2026-11-21**. Complete **CPU0–CPU7 → EF0–EF4** before authoring additional procedural scene
-recipes, keep variants, adventure grammars, or generated encounters/objectives. If content work
-moves, its Effect prerequisite moves with it.
+**2026-11-21**. The requested order was **CPU0–CPU7 → EF0–EF4**, then additional procedural scene
+recipes, keep variants, adventure grammars, or generated encounters/objectives.
 
 The [Effect refactor plan](effect-refactor-plan.md) defines architecture, determinism and failure
 contracts, implementation slices, measurements, and acceptance gates. The frozen EF0 kits allowed
 implementation to proceed by explicit user decision; undecided generation latency moved to EF4
 without changing the margins. The EF0 tooling and EF1–EF4 implementation were published on `main`
 at `a423dae`. The [final A/B campaign](ef4-results.md#final-candidate-latency-campaign--stopped-inconclusive)
-stopped after 1 of 16 pairs when block 2 fell below the frozen host-idle floor. The reviewer approved
-the stopped-campaign evidence, not EF4 adoption. Generation latency remains inconclusive, the
-campaign will not be retried, and **EF4 adoption is NOT READY**. New procedural features remain
-blocked. See [verification](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision).
+stopped at 1/16 pairs on host idle; the [reopened campaign](ef4-results.md#reopened-campaign-at-the-published-tip--stopped-inconclusive)
+stopped at 0/16 on runnable tasks. The user [closed Epic 0 for delivery](ef4-results.md#epic-0-delivery-closeout)
+and adopted the generation boundary for further content. Latency remains inconclusive and nonblocking;
+the original technical gate was not cleared and the independent **NOT READY** verdict stands.
+See [verification](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision) and the
+[authoring guide](generation-authoring.md).
 
 | ID | Slice | Acceptance / verification |
 | --- | --- | --- |
@@ -131,7 +132,7 @@ blocked. See [verification](../VERIFICATION.md#ef1ef4--generation-refactor-and-a
 | EF1 | Extract generation stages and expected failures | Pure stage contracts; selective rejection handling; exact world/report and retry-budget parity. |
 | EF2 | Compose the generation pipeline with Effect | One bounded recovery policy, fresh execution state, typed failures/services, compatible synchronous facade; simulation hot paths retain ordinary calls. |
 | EF3 | Bounded local stage tracing | Useful seed/attempt/room/recipe traces; detached capped snapshots; diagnostic on/off parity and production debug isolation. |
-| EF4 | Caller integration published; pre-content adoption gate **NOT READY** | The prerequisite remains open. Adoption requires passing the full corpus, application/production and cost gates and receiving an independent READY verdict. |
+| EF4 | Caller integration published; adopted for delivery by user decision | One-loop recovery and bounded tracing verified; unresolved generation latency retained as a nonblocking follow-up, with original limits and verdict unchanged. |
 | EF5 | Run-owned construction and cleanup — separate follow-up | Evaluate after EF4; scope partial-build cleanup and regeneration resources against the completed animation/physics lifecycle. Not required to resume content after EF4. |
 
 ## Chosen starting point (historical)

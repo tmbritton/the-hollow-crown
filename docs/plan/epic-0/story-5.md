@@ -2,14 +2,16 @@
 
 - **Task source**: `docs/plan/roadmap.md:42–44`; `docs/effect-refactor-plan.md:246–265,290–319`
 - **Epic / Story**: 0 / 5; after EF3, final pre-content gate
-- **Status**: proposed
+- **Status**: caller integration implemented at `a423dae`; adopted for delivery by [user decision](../../ef4-results.md#epic-0-delivery-closeout), not by passing the original gate. Generation latency remains inconclusive; original independent **NOT READY** stands.
 - **Branch**: main
 
 ## Goal
 
 Prove adoption in the game that ships: a failed generation leaves a usable retry action and nothing disposed still running. Admit content only if the unchanged seed corpus, actual stage traces, resource checks and measured costs justify the new boundary.
 
-## Acceptance criteria
+## Original acceptance criteria
+
+Retained below as the original plan. See [verification](../../../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision) for checks actually run and the [authoring guide](../../generation-authoring.md) for the supported path. Neither terminal stop requalified separate gates.
 
 - [ ] Startup seed link, refresh, explicit menu rebuild, fresh regeneration, another-run, debug, gallery and Node corpus use the single generation facade. No legacy orchestration or migration switch. Opening a seed link reproduces it; refreshing deliberately does not pin it.
 - [ ] A real initial or replacement `GenerationError` shows failure with seed/reason, no READY, no stale report or active game, no update/render/input/debug step of retired objects. A visible user retry works without reload and installs exactly one working render loop. No partial scene created on generation failure. Unexpected defect is reported distinctly, never converted to expected retry.

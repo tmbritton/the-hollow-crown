@@ -1,10 +1,36 @@
 # EF4 — cost comparison and adoption decision
 
-**NOT READY.** Candidate `a423dae` was published on `main`. The final generation-latency campaign
-stopped when host CPU idle fell below the frozen floor in block 2. The reviewer approved the
-stopped-campaign evidence, not adoption. Generation latency remains inconclusive, and the
-retained candidate has no independent READY verdict. New procedural features remain blocked;
-no timing margin was increased.
+## Epic 0 delivery closeout
+
+**Adopted for delivery by user decision; original technical gate not cleared.** After two
+inconclusive collection stops, the user emphasized the architectural goal and directed “Just
+finish this epic.” Keep the synchronous generation architecture published on `main` at `a423dae`
+(runtime-equivalent at `4bc382e`), close Epic 0, and allow further procedural content using the
+[authoring guide](generation-authoring.md). Unresolved generation latency is a nonblocking follow-up.
+EF5 remains a separate resource-lifecycle follow-up, not a content prerequisite.
+
+The [implementation evidence](../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision)
+includes 112 unchanged oracle inputs, typed stage rejection and one bounded synchronous retry
+policy, real bounded traces, and fail/retry recovery with one application loop. The recorded
+gallery, teardown/resource, and local root/Pages checks support the architecture decision. Their
+scope is unchanged: sampled allocation was measured on the original candidate, the retained
+subpaths were tested for startup, and the matched animation result is a single spot check.
+
+**Technical record:** generation latency remains **inconclusive** (neither non-regression nor
+overrun established); the original independent **NOT READY** verdict stands. The reviewer
+approved the original stopped-campaign evidence only. Neither stop requalified the separate
+Story 5 checks, and this closeout supplies no new qualification. All original budgets, per-seed
+median/p95 allowances, host controls and decision rules remain unchanged.
+
+### When to profile again
+
+Open a separate performance follow-up if repeatable seed loads or regeneration show a noticeable
+stall, or representative new content materially increases generation work (for example, more
+attempts, placement search or validation). Record the seed, revision and whether this is startup
+or regeneration; use stage traces to locate work, then measure generation with diagnostics off
+against a matched control on a quiet host. Keep the original allowances if assessing the old
+technical gate; publish any new comparison separately. Do not resume either stopped campaign,
+replace pairs, or combine their partial samples. No further campaign is required to close Epic 0.
 
 ## Final candidate latency campaign — stopped, inconclusive
 
@@ -51,6 +77,62 @@ the original host, from the clean published candidate in the original `main` che
 ignored evidence and pinned Node binary intact. That includes the published bytes of this file,
 which the manifest hashes; the working-tree results update is not the frozen input. Expected
 exit: **1**, `Stopped campaign`. Do not run `freeze` or `collect` again.
+
+## Reopened campaign `ef4-reopened-20261124` — blocked at freeze
+
+On 2026-11-24 at 03:14 UTC, the unmodified runner was invoked in the clean, separate clone
+`/tmp/opencode/ef4-reopened-20261124` with Node 26.0.0:
+
+```sh
+node tests/measure-generation-paired.ts freeze a423daed2d452a00e363ed480ecccb7e4d58e322
+```
+
+`freeze` exited **1** at the published-ref check. The pinned candidate is an ancestor of the
+live `origin/main`, but the runner requires the candidate to equal its tip, which had advanced
+to the docs-only `4bc382e8f8d458cd01f9c4e346e5bba5a65a2d09`. The check was not bypassed.
+Local log: `/tmp/opencode/ef4-reopened-20261124-freeze.log`.
+
+**0 of 16 pairs.** No manifest, attempt claim, arm, or telemetry was written. `collect` and
+`replay` require the manifest and were not run. The 80% interval-idle floor and all timing
+limits were unchanged; no samples were taken. No replacement blocks, retry, compiler, build,
+or tests ran. The four original evidence hashes above still match. There is no new latency
+verdict, and no separate Story 5 gate was requalified. **EF4 remains NOT READY.**
+
+## Reopened campaign at the published tip — stopped, inconclusive
+
+The user explicitly selected published B `4bc382e8f8d458cd01f9c4e346e5bba5a65a2d09` as
+runtime-equivalent to `a423daed2d452a00e363ed480ecccb7e4d58e322`. The full Git diff changed
+only eight Markdown files; every non-Markdown blob, including runtime, dependency manifests
+and locks, harness and configuration, was identical. Historical A remained
+`398a1cf01fdebf8c072741c3de20670012795439`. The runner checked the actual `origin/main` tip
+without modification. The first freeze at the new tip hit `ENOSPC` in `/tmp` installing B,
+before a manifest or attempt claim existed. Its partial files and command log were retained;
+the clean clone on the project filesystem was used for the sole collection attempt.
+
+On 2026-11-24 UTC, `node tests/measure-generation-paired.ts freeze` with the full B SHA
+exited **0** after both offline installs. The manifest was written at **03:19:30.924** and
+`collect` claimed the attempt at **03:19:41.496**. Block 1 A (PID 416085) ran from
+**03:24:36.150** to **03:24:51.279**, recording **28 of 100** measured rotations. The sample
+at **03:24:51.230** recorded **10 runnable tasks** against the frozen maximum of **6**. The
+one-minute load was **1.33** (limit 3), temperature **49.50 °C** (limit below 75 °C), and
+interval idle **86.71%** (floor 80%); the competitor list was empty. The monitor killed A
+with `SIGKILL`. `collect` exited **1** and wrote `stop.json`; B and blocks 2–16 did not run.
+`replay` verified the frozen inputs and exited **1** with `Stopped campaign`.
+
+**0 of 16 pairs; no endpoint verdict or report.** No blocks were replaced, no further
+collection was attempted, and no compiler, build, or test suite ran alongside collection.
+No separate Story 5 gate was requalified. The original stopped evidence remains unchanged.
+
+New local evidence: `test-results/ef4-reopened-20261124/test-results/ef4-final-latency/`;
+command log: `/tmp/opencode/ef4-reopened-20261124-live.log`. For a terminal replay check,
+run `node tests/measure-generation-paired.ts replay` from the clean isolated clone on the
+same host with the frozen inputs intact. Expected exit: **1**, `Stopped campaign`.
+
+| Evidence file | SHA-256 |
+| --- | --- |
+| `manifest.json` | `58fb4409301909b1021f4d3fffed6db974080ad5a5701b1ddb6e1227ba342c06` |
+| `1-A.telemetry.jsonl` | `cf5561853e07ffb2a00130437fa6909adaaaa2a910e6de2d6515b30c90023d43` |
+| `stop.json` | `f3c42090944d580cc552e656cbc9d81e72531eb0c1ba179f9ed8389477b446b3` |
 
 <a id="final-candidate-latency-campaign--predeclared-not-started"></a>
 

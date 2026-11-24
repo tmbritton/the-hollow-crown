@@ -118,10 +118,12 @@ speedup remains inconclusive.
 See the [CPU0 baseline and profiling commands](docs/cpu-baseline.md). The synchronous generation
 refactor was published on `main` at `a423dae`; terrain, placement and random helper users do not
 load Effect. Public Effect subpaths met the native startup ceilings in the startup-only trial.
-The [final generation-latency campaign](docs/ef4-results.md#final-candidate-latency-campaign--stopped-inconclusive)
-stopped after 1 of 16 pairs. The reviewer approved the evidence, not adoption: latency remains
-inconclusive, and **EF4 adoption is NOT READY**. New procedural features remain blocked. The
-[EF0 oracle](docs/ef0-baseline.md#offline-oracle)
+**Epic 0 is closed for delivery by user decision.** The synchronous architecture is adopted for
+further procedural content; see the [generation authoring guide](docs/generation-authoring.md).
+The two [generation-latency campaigns](docs/ef4-results.md#epic-0-delivery-closeout) stopped at
+1/16 and 0/16 pairs. Latency remains inconclusive and is a nonblocking follow-up; thresholds are
+unchanged, the original technical gate was not cleared, and the independent **NOT READY** verdict
+stands. The [EF0 oracle](docs/ef0-baseline.md#offline-oracle)
 checks canonical parity offline (`npm run check:full` covers all 112 inputs). The optional
 [historical recapture](docs/ef0-baseline.md#checks-and-reproduction) uses a pinned archive and writes
 only to ignored `test-results/`; it is not a timing campaign.

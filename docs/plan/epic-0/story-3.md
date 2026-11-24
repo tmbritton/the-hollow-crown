@@ -2,7 +2,7 @@
 
 - **Task source**: `docs/plan/roadmap.md:36–38`; `docs/effect-refactor-plan.md:91–145,207–226`
 - **Epic / Story**: 0 / 3; after EF1 parity and EF0's exact pin evidence
-- **Status**: proposed
+- **Status**: implemented at `a423dae`; see [verification](../../../VERIFICATION.md#ef1ef4--generation-refactor-and-adoption-decision).
 - **Branch**: main
 
 ## Goal
