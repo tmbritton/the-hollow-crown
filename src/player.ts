@@ -14,7 +14,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import type { Materials, MaterialName } from './materials.ts';
-import type { Triple, World } from './worldTypes.ts';
+import type { PlayableLayout, Triple } from './worldTypes.ts';
 import '@babylonjs/core/Collisions/collisionCoordinator';
 import '@babylonjs/core/Rendering/edgesRenderer';
 
@@ -24,7 +24,7 @@ export function createPlayer(
   scene: Scene,
   materials: Materials,
   shadow: ShadowGenerator,
-  world: World,
+  world: PlayableLayout,
   ecs: ECS,
 ) {
   const spawn = world.spawn;
@@ -141,7 +141,7 @@ export function createPlayer(
     mesh.receiveShadows = true;
     shadow.addShadowCaster(mesh);
   }
-  const teleport = (x: number, z: number, world: World) => {
+  const teleport = (x: number, z: number, world: PlayableLayout) => {
     teleportActor(actor, world, { x, z });
     resetActorRig(actor.entity.require('rig'), actor.position);
     destinationMarker.setEnabled(false);
@@ -209,7 +209,7 @@ export function stopPlayer(player: Player): void {
 
 export function movePlayer(
   player: Player,
-  world: World,
+  world: PlayableLayout,
   input: ReadonlySet<string>,
   camera: ArcRotateCamera,
   dt: number,

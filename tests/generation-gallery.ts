@@ -85,7 +85,7 @@ try {
       await page.evaluate((room) => {
         const d = window.__dungeon,
           g = d.game;
-        const position = g.world.roomById[room];
+        const position = g.scenario!.world.roomById[room];
         d.teleport(position.x, position.z);
         g.player.actor.health.invulnerable = 1000;
         g.camera.alpha = g.desiredAlpha = -Math.PI / 4;

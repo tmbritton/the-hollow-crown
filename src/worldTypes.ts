@@ -184,20 +184,37 @@ export function hasApproach(entity: Entity): entity is ApproachableEntity {
   return entity.approach !== undefined;
 }
 
-export interface World {
-  tribute?: TributeBlueprint;
+export interface PlayableLayout {
   seed: string;
-  keep: KeepIdentity;
-  attempt: number;
   rooms: Room[];
-  roomById: Record<RoomId, Room>;
+  roomById: Partial<Record<RoomId, Room>>;
   tiles: Map<string, Tile>;
   entities: Entity[];
   connections: Connection[];
   props: Prop[];
-  scenes: ScenePlacement[];
   blockers: (Footprint & { id: string })[];
   reserved: Set<string>;
   spawn: Spawn;
   bounds: Bounds;
 }
+
+export interface World extends PlayableLayout {
+  tribute?: TributeBlueprint;
+  keep: KeepIdentity;
+  attempt: number;
+  roomById: Record<RoomId, Room>;
+  scenes: ScenePlacement[];
+}
+
+export interface InteriorWall extends Footprint, Spawn {
+  id: string;
+  height: number;
+}
+
+export interface PracticeLayout extends PlayableLayout {
+  partition: InteriorWall[];
+}
+
+export type PlayableContent =
+  | { kind: 'dungeon'; world: World }
+  | { kind: 'practice'; world: PracticeLayout };

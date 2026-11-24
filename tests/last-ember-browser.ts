@@ -291,7 +291,7 @@ try {
     const { teleportActor }: typeof import('../src/actors.ts') = await import(path);
     const g = window.__dungeon.game,
       a = g.combat.actor('goblin:smithy:0')!;
-    teleportActor(a, g.world, g.world.roomById.smithy);
+    teleportActor(a, g.world, g.scenario!.world.roomById.smithy);
   });
   await at('focus');
   await page.keyboard.press('e');

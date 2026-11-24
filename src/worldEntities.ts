@@ -1,10 +1,10 @@
 import type { ECS } from './ecs.ts';
-import type { World } from './worldTypes.ts';
+import type { PlayableLayout } from './worldTypes.ts';
 import type { DungeonScene } from './buildDungeon.ts';
 import { animateDoor, bindDoor, bindChest } from './machines/world/interactions.ts';
 
-/** Register generated data by reference, so interactions and ECS never diverge. */
-export function registerWorld(ecs: ECS, world: World): void {
+/** Register layout data by reference, so interactions and ECS never diverge. */
+export function registerWorld(ecs: ECS, world: PlayableLayout): void {
   for (const tile of world.tiles.values()) ecs.create(`tile:${tile.x},${tile.z}`).add('tile', tile);
   for (const room of world.rooms) ecs.create(`room:${room.id}`).add('room', room);
   for (const prop of world.props)

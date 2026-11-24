@@ -348,7 +348,7 @@ export function createReviewStage(g: Game) {
             synchronizeCargo(g.ecs, g.world);
             animateActors(g.ecs, dt, g.time, g.world);
             g.enemyRendering.update();
-            g.tributeRendering.update();
+            g.scenario!.tributeRendering.update();
           }
           return frame;
         },

@@ -134,7 +134,7 @@ await withViteServer(base, 'dev', async () => {
           };
           try {
             const start = performance.now();
-            for (let i = 0; i < 20; i++) g.emberRendering.update();
+            for (let i = 0; i < 20; i++) g.scenario!.emberRendering.update();
             return { reads, updates: 20, ms: performance.now() - start };
           } finally {
             record.get = get;

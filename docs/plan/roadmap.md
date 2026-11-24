@@ -2,17 +2,18 @@
 
 - **Source**: [Implementation path](../implementation-path.md), [Effect refactor plan](../effect-refactor-plan.md); `/var/home/tom/Documents/Tom's Vault/Notes/Game Demo Notes.md` (all nine notes); player observations; [README](../../README.md), [AGENTS](../../AGENTS.md), [CPU7 results](../cpu7-integrated-results.md), [CPU workloads](../../tests/cpu-workloads.ts).
 - **Expansion sources**: [4e incorporation plan](../4e-incorporation-plan.md) (item numbers and milestones A–D); [monster roster plan](../monster-roster-plan.md) (waves A–C).
-- **Updated**: 2026-11-23
+- **Greybox priority**: The user wants a place to try the current controls immediately after Epic 1.
+- **Updated**: 2026-11-24
 - **Status**: active
 
 ## Overview
 
-Epic 0 adopts the synchronous Effect generation pipeline for new procedural content; see the [authoring guide](../generation-authoring.md). Encounter profiling measures rendered play, not generation spans, and has no technical dependency on Effect. The player reports better FPS with fewer enemies, the largest hitch at phalanx activation and occasional doorway hitches; baseline those before changing squad tactics and motion. Build the solo hero's recovery and positioning choices before asking the player to handle mixed factions, zones and a throne guardian. Grow the roster in tested waves, then use playtests to choose optional exploration and progression work rather than importing party rules wholesale. Story plans belong later at `docs/plan/epic-N/story-M.md`.
+The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted synchronous Effect [generation](../generation-authoring.md), while movement and combat run in the fixed-step ECS. **Delivery order: finish Epic 1 → Epic 13 (greybox controls room) → Epics 2–5 → Epics 7–12**; numbers are stable IDs, not priorities. Epic 1 measures the reported phalanx and doorway hitches in rendered dungeon play, independently of generation timings. Epic 13 then gives the user a quiet room to try the current hero before deciding what, if anything, to change. Epic 6 remains a separate optional cleanup, not a prerequisite for the room. Story plans belong later at `docs/plan/epic-N/story-M.md`.
 
 ## Progress
 
-- Epics: 1/13 complete
-- Stories: 5/44 complete
+- Epics: 1/14 complete
+- Stories: 6/46 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -66,18 +67,37 @@ CPU7 documented missed desktop budgets, not a matched speedup or a cause for thi
 - [ ] **Story 1.3 — Decide whether to fix a measured hotspot** — Select one contributor only if the baseline distinguishes it from doorway and population effects. Otherwise record the unresolved question and the next discriminating measurement. **Depends on**: 1.2.
   - Retain a bounded change only with a repeatable improvement beyond spread in the affected phase, intact gameplay and no displaced hitch in controls. A negative finding closes the investigation, not the performance target.
 
+### Epic 13 — Greybox controls room
+
+- [ ] **Epic 13 complete**
+
+Give the user a direct way to play the actual hero without starting a dungeon run. The deliverable is the room itself; the user can try it at their own pace and choose any follow-up.
+
+- **Depends on**: Epic 1 closeout, not a positive performance verdict.
+- **Scope**: One quiet greybox room with an obstacle, an unlocked door and a fast reset. No enemies or objectives by default.
+
+#### Stories
+
+- [x] **Story 13.1 — Enter and move around** — Provide a direct entry alongside normal dungeon play. Use the dungeon hero, overhead camera and existing input, navigation and collision rather than a second controller. **Depends on**: 1.3 (original scheduling dependency; Epic 13 was explicitly started independently).
+  - Click the floor beyond a pillar to route around it, hold the mouse to steer, or take over with camera-relative WASD/arrows. Try Shift to run, Space to jump, held F to raise the shield and X to cancel travel.
+  - Click the closed, unlocked door to approach and open it, or press E within reach; walk through the doorway.
+- [ ] **Story 13.2 — Reset and try again** — Restore the hero and room to the same quiet start with one action, without reloading the page or generating a dungeon. **Depends on**: 13.1.
+  - Reset after opening the door or starting a move: the door is closed, the hero is back at the start with starting health, and no travel or attack command carries over.
+  - If the user wants to try attack targeting, allow one opt-in existing foe: click it to pursue and attack in reach. Reset removes it; no fight is required.
+
 ### Epic 2 — Assemble and reform on real terrain
 
 - [ ] **Epic 2 complete**
 
 An alerted pack should break from its activity immediately and run to reachable slots. Change travel to the rank, not the original membership or the rules for fighting from it.
 
-- **Depends on**: Epic 1
+- **Depends on**: Epic 1 baseline; the greybox room (Epic 13) ships first in delivery order.
 - **Scope**: Slot assignment, scoped occupancy, obstacle recovery and narrow pursuit.
 
 #### Stories
 
-- [ ] **Story 2.1 — Rally to assigned slots** — The group chart assigns destinations; each original member requests its own route under the shared 24-credit fixed-tick budget. Show attention on alert and run to the slot rather than advancing at formed-rank speed. **Depends on**: 1.3.
+- [ ] **Story 2.1 — Rally to assigned slots** — The group chart assigns destinations; each original member requests its own route under the shared 24-credit fixed-tick budget. Show attention on alert and run to the slot rather than advancing at formed-rank speed. **Depends on**: 1.3; schedule after 13.2.
+  - Reuse the controls room for an opt-in encounter with the existing kobold squad. Start before alert so the player can approach from either side of the pillar, watch the squad rally, then reset to the same unaware squad and immediately try a different approach. Keep the empty room as the default for controls practice.
   - Update the README/AGENTS living-blocker contract and tests for one intentional exception: same-pack movement may pass through packmates only while assembling/reforming. Apply it consistently to route and motor; require separated slots before engagement. No snaps, enemy/player pass-through, terrain/door bypass, or change to hit, projectile or shield interception.
   - Compare alert-to-first-motion, rank-ready and first attack against baseline; verify bounded retries/hold and safe cancellation on casualty, target loss or withdrawal, including interruption mid-crossing.
 - [ ] **Story 2.2 — Regroup beyond an obstacle** — Select a reachable footprint beyond furniture or a bend and let members run different legal paths to it. Keep useful progress instead of issuing fresh searches every tick. **Depends on**: 2.1.
@@ -282,6 +302,7 @@ Make discovery and room state matter without a required skill roll. Schedule thi
 
 ## Out of scope
 
+- Epic 13 adds no rogue, ranged or spellcasting actions, loadouts, or control redesign. It needs no editor, art pass, formal play study or port of a mechanic to the dungeon. The later kit choice in 12.4 stays separate; the room does not replace Epic 1's dungeon measurements.
 - Population cuts, lower quality defaults, lighting changes and reviving CPU6b scheduler/LOD: controls are diagnostic, not proposed fixes. Keep full-rate simulation and presentation.
 - Unrelated keep variants and adventure grammars: EF4 permits new content but does not authorize a generator replacement. Existing animation, death, competing-objective and scenario initiatives keep their own contracts.
 - Wider Effect migration, workers, remote telemetry and persistent schemas: the pilot needs only synchronous generation and bounded local diagnostics. EF5 addresses run lifetime, not a new simulation runtime.

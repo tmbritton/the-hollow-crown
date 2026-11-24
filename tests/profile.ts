@@ -43,7 +43,7 @@ try {
   for (const room of rooms) {
     await page.evaluate((id) => {
       const d = window.__dungeon,
-        w = d.game.world;
+        w = d.game.scenario!.world;
       let target = w.entities.find((e) => e.type === id)?.approach || w.roomById[id];
       if (id === 'stairs') {
         const c = w.connections.find((c) => c.ramp);

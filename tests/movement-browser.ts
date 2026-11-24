@@ -1,4 +1,4 @@
-import { chromium, firefox } from '@playwright/test';
+import { chromium, expect, firefox } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -58,29 +58,32 @@ async function reset(point: Point = { x: 0, z: 0 }) {
     g.scene.render();
   }, point);
 }
-async function screenPoint(point: Point) {
-  const screen = await page.evaluate((point) => {
-    const d = window.__dungeon,
-      g = d.game,
-      V = g.camera.target.constructor as typeof Vector3,
-      M = g.camera.getWorldMatrix().constructor as typeof Matrix;
-    const tile = g.world.tiles.get(`${Math.round(point.x)},${Math.round(point.z)}`);
-    if (!tile) throw new Error('No floor at click fixture');
-    g.scene.render();
-    const projected = V.Project(
-      new V(point.x, tile.h, point.z),
-      M.Identity(),
-      g.scene.getTransformMatrix(),
-      g.camera.viewport.toGlobal(d.engine.getRenderWidth(), d.engine.getRenderHeight()),
-    );
-    const canvas = document.querySelector<HTMLCanvasElement>('#game');
-    if (!canvas) throw new Error('Missing canvas');
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: rect.left + (projected.x * rect.width) / d.engine.getRenderWidth(),
-      y: rect.top + (projected.y * rect.height) / d.engine.getRenderHeight(),
-    };
-  }, point);
+async function screenPoint(point: Point, elevation = 0) {
+  const screen = await page.evaluate(
+    ({ point, elevation }) => {
+      const d = window.__dungeon,
+        g = d.game,
+        V = g.camera.target.constructor as typeof Vector3,
+        M = g.camera.getWorldMatrix().constructor as typeof Matrix;
+      const tile = g.world.tiles.get(`${Math.round(point.x)},${Math.round(point.z)}`);
+      if (!tile) throw new Error('No floor at click fixture');
+      g.scene.render();
+      const projected = V.Project(
+        new V(point.x, tile.h + elevation, point.z),
+        M.Identity(),
+        g.scene.getTransformMatrix(),
+        g.camera.viewport.toGlobal(d.engine.getRenderWidth(), d.engine.getRenderHeight()),
+      );
+      const canvas = document.querySelector<HTMLCanvasElement>('#game');
+      if (!canvas) throw new Error('Missing canvas');
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: rect.left + (projected.x * rect.width) / d.engine.getRenderWidth(),
+        y: rect.top + (projected.y * rect.height) / d.engine.getRenderHeight(),
+      };
+    },
+    { point, elevation },
+  );
   assert.ok(
     screen.x > 0 && screen.x < 1440 && screen.y > 94 && screen.y < 780,
     JSON.stringify(screen),
@@ -144,8 +147,225 @@ async function holdSettled(target: Point) {
   assert.ok(Math.hypot(after.x - settled.x, after.z - settled.z) < 0.015);
 }
 
+const base = process.env.DEMO_URL || 'http://localhost:5173';
+
+async function openPractice() {
+  await page.goto(new URL('?room=practice&debug', base).href);
+  await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
+  await expect(page.locator('#room-name')).toHaveText('Practice Room');
+}
+
+async function quietRoom() {
+  await expect(page.locator('.quest-panel')).toBeHidden();
+  await expect(page.locator('#agenda')).toBeHidden();
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const { ecs, combat } = window.__dungeon.game;
+      const run = ecs.get('run');
+      return [
+        combat.actors.length,
+        combat.enemies.length,
+        ...(['lastEmber', 'tribute', 'objectiveWork'] as const).map((key) => !!run?.has(key)),
+      ];
+    }),
+    [1, 0, false, false, false],
+  );
+}
+
+async function pointerAt(point: Point, elevation = 0) {
+  const { x, y } = await screenPoint(point, elevation);
+  await page.mouse.move(x, y);
+}
+
+const waitForStep = async (count: number) => {
+  const from = await page.evaluate(() => window.__dungeon.game.steps);
+  await page.waitForFunction((goal) => window.__dungeon.game.steps >= goal, from + count, {
+    timeout: 20000,
+  });
+};
+
+// Drive the fixed clock without substituting any movement input for real DOM events.
+const pauseClock = () => page.evaluate(() => window.__dungeon.animation.pause());
+const tickInput = (frames: number) =>
+  page.evaluate((frames) => window.__dungeon.animation.step(frames), frames);
+
+async function practiceControls() {
+  await openPractice();
+  await quietRoom();
+  await expect(page.locator('#interaction')).toBeHidden();
+  await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
+  await page.screenshot({ path: `test-results/${browserName}-practice-spawn.png` });
+  const {
+    practiceDestinations: { beyondPillar },
+  } = await import('../src/practiceRoom.ts');
+  const pillar = await page.evaluate(() => window.__dungeon.game.world.props[0]);
+  await pointerAt(beyondPillar);
+  await page.mouse.down();
+  await page.mouse.up();
+  const detour = await page.waitForFunction(
+    ({ target, pillar }) => {
+      const p = window.__dungeon.game.player;
+      const { x, z } = p.root.position;
+      if (
+        Math.abs(x - pillar.x) < pillar.w / 2 + 0.29 &&
+        Math.abs(z - pillar.z) < pillar.d / 2 + 0.29
+      )
+        throw Error('hero clipped through pillar');
+      return Math.hypot(x - target.x, z - target.z) < 0.11;
+    },
+    { target: beyondPillar, pillar },
+  );
+  await detour.dispose();
+
+  await openPractice();
+  await pauseClock();
+  await page.keyboard.down('KeyW');
+  await page.keyboard.down('KeyA');
+  await tickInput(80);
+  await page.keyboard.up('KeyW');
+  await page.keyboard.up('KeyA');
+  assert.ok((await state()).x > pillar.x + pillar.w / 2, 'manual travel stops at pillar');
+  assert.ok((await state()).x < -1, 'manual travel reaches pillar');
+
+  await openPractice();
+  await pointerAt({ x: 4, z: -4 });
+  await page.mouse.down();
+  await page.waitForFunction(
+    () => (window.__dungeon.game.player.navigator.destination?.x ?? 0) > 3,
+  );
+  await pointerAt({ x: 1, z: -1 });
+  await page.waitForFunction(
+    () => (window.__dungeon.game.player.navigator.destination?.z ?? -4) > -2,
+  );
+  await page.mouse.up();
+  await page.keyboard.press('KeyX');
+  await waitForStep(30);
+  const stopped = await state();
+  assert.equal(stopped.destination, null);
+  assert.equal(stopped.speed, 0);
+  await waitForStep(12);
+  const after = await state();
+  assert.equal(after.destination, null);
+  assert.equal(after.marker, false);
+  assert.equal(Math.hypot(after.x - stopped.x, after.z - stopped.z), 0);
+
+  await openPractice();
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(
+    () => Math.abs(window.__dungeon.game.camera.alpha - Math.PI / 4) < 0.01,
+  );
+  await pointerAt({ x: 4, z: -4 });
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForFunction(() => window.__dungeon.game.player.navigator.active);
+  const start = await state();
+  await page.keyboard.down('ArrowUp');
+  await waitForStep(18);
+  const walk = await state();
+  assert.ok(walk.x < start.x - 0.4 && walk.z < start.z - 0.4);
+  assert.equal(walk.destination, null);
+  await page.keyboard.up('ArrowUp');
+
+  const stride = async (running: boolean) => {
+    await openPractice();
+    // Freeze wall-clock advancement only. Animation review's fixed clock ticks the
+    // actual held keyboard events; __dungeon.step would overwrite those inputs.
+    await pauseClock();
+    const from = await state();
+    if (running) await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('KeyD');
+    await tickInput(20);
+    const to = await state();
+    await page.keyboard.up('KeyD');
+    if (running) await page.keyboard.up('ShiftLeft');
+    return Math.hypot(to.x - from.x, to.z - from.z);
+  };
+  const walking = await stride(false);
+  const running = await stride(true);
+  assert.ok(walking > 0.8 && running > 1.45 * walking, JSON.stringify({ walking, running }));
+  await openPractice();
+
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => window.__dungeon.game.player.actor.jump.airborne);
+  await page.waitForFunction(() => !window.__dungeon.game.player.actor.jump.airborne);
+  assert.equal((await state()).h, 0);
+  await page.keyboard.down('KeyF');
+  await page.waitForFunction(() =>
+    window.__dungeon.game.player.actor.entity.require('defense').chart.snapshot.matches('raised'),
+  );
+  await page.keyboard.up('KeyF');
+  await page.waitForFunction(() =>
+    window.__dungeon.game.player.actor.entity.require('defense').chart.snapshot.matches('lowered'),
+  );
+  pass(
+    'Practice real floor click, pillar detour and motor, held steering, rotated arrows, WASD, Shift, X, Space and F',
+  );
+}
+
+async function practiceDoor() {
+  const {
+    practiceDestinations: { landing },
+  } = await import('../src/practiceRoom.ts');
+  const door = () =>
+    page.evaluate(() => {
+      const e = window.__dungeon.game.world.entities[0];
+      if (e?.type !== 'door') throw Error('No practice door');
+      return { x: e.x, z: e.z, open: e.open, collides: e.collider?.checkCollisions };
+    });
+  const forward = async (down: boolean) => {
+    const action = down
+      ? page.keyboard.down.bind(page.keyboard)
+      : page.keyboard.up.bind(page.keyboard);
+    await action('KeyW');
+    await action('KeyD');
+  };
+  const cross = async () => {
+    await tickInput(60);
+    assert.equal((await door()).open, true);
+    assert.equal((await door()).collides, false);
+    await forward(true);
+    for (let i = 0; i < 10 && (await state()).z <= landing.z - 0.4; i++) await tickInput(12);
+    await forward(false);
+    const crossed = await state();
+    assert.ok(crossed.z > landing.z - 0.4, JSON.stringify(crossed));
+    await quietRoom();
+  };
+  await openPractice();
+  const closed = await door();
+  assert.equal(closed.collides, true);
+  const start = await state();
+  await pointerAt(closed, 1.35);
+  await page.mouse.down();
+  await page.mouse.up();
+  assert.equal((await door()).open, false);
+  await expect.poll(door, { timeout: 15000 }).toMatchObject({ open: true });
+  assert.ok((await state()).z > start.z + 2, 'door click approaches before opening');
+  await pauseClock();
+  await cross();
+  await page.screenshot({ path: `test-results/${browserName}-practice-through-door.png` });
+
+  await openPractice();
+  await pauseClock();
+  await page.keyboard.press('KeyE');
+  await tickInput(6);
+  assert.equal((await door()).open, false);
+  await forward(true);
+  await tickInput(120);
+  await forward(false);
+  const blocked = await state();
+  assert.ok(blocked.z < closed.z - 0.3 && blocked.z > closed.z - 1, JSON.stringify(blocked));
+  assert.equal((await door()).open, false);
+  await page.keyboard.press('KeyE');
+  await cross();
+  pass(
+    'Practice door blocks manual movement; remote click approaches and opens; E opens only within reach; both admit crossing',
+  );
+}
+
 try {
-  await page.goto(`${process.env.DEMO_URL || 'http://localhost:5173'}/?debug&seed=MOURNING-731`);
+  await practiceControls();
+  await practiceDoor();
+  await page.goto(`${base}/?debug&seed=MOURNING-731`);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
   // A development optimizer reload deliberately randomizes the run; pin this fixture explicitly.
   await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
@@ -194,14 +414,15 @@ try {
     }
   });
   const scenes = await page.evaluate(() => {
-    const g = window.__dungeon.game;
-    return g.world.scenes.map((scene) => ({
+    const { world } = window.__dungeon.game.scenario!;
+    const { scene: renderScene } = window.__dungeon.game;
+    return world.scenes.map((scene) => ({
       room: scene.room,
-      center: { x: g.world.roomById[scene.room].x, z: g.world.roomById[scene.room].z },
+      center: { x: world.roomById[scene.room].x, z: world.roomById[scene.room].z },
       props: scene.props.map((prop) => ({
         id: prop.id,
         front: prop.frontClearance!,
-        collider: g.scene.getMeshByName(prop.id)?.checkCollisions ?? false,
+        collider: renderScene.getMeshByName(prop.id)?.checkCollisions ?? false,
       })),
     }));
   });

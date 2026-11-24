@@ -13,8 +13,8 @@ import type { DungeonScene } from './buildDungeon.ts';
 import type { Player } from './player.ts';
 import type { InspectionController } from './inspection.ts';
 import type { LightSource } from './renderTypes.ts';
-import type { Entity, RoomId, Spawn, World } from './worldTypes.ts';
-import type { ECS } from './ecs.ts';
+import type { Entity, PlayableLayout, RoomId, Spawn, World } from './worldTypes.ts';
+import type { ECS, Entity as EcsEntity } from './ecs.ts';
 import type { CombatSystem } from './combat.ts';
 import type { EnemyRendering } from './enemyRendering.ts';
 import type { Statechart } from './machines/statechart.ts';
@@ -23,11 +23,22 @@ import type { GenerationReport } from './generation/report.ts';
 import type { CameraObservation } from './observation.ts';
 import type { AnimationReview } from './animationReview.ts';
 import type { CpuProfile } from './cpuProfile.ts';
+import type { emberClue } from './lastEmber.ts';
+
+export interface DungeonScenario {
+  world: World;
+  run: EcsEntity;
+  clue: ReturnType<typeof emberClue>;
+  emberRendering: { update(): void };
+  tributeRendering: { update(): void };
+  progression: Statechart<typeof progressionMachine>;
+}
 
 export interface Game {
   routeBudget: import('./routeBudget.ts').RouteBudget;
   scene: Scene;
-  world: World;
+  world: PlayableLayout;
+  scenario: DungeonScenario | null;
   camera: ArcRotateCamera;
   ambient: HemisphericLight;
   sun: DirectionalLight;
@@ -43,15 +54,12 @@ export interface Game {
   ecs: ECS;
   combat: CombatSystem;
   enemyRendering: EnemyRendering;
-  emberRendering: { update(): void };
-  tributeRendering: { update(): void };
   observation: CameraObservation;
   inspection: InspectionController;
   time: number;
   playTime: number;
   desiredAlpha: number;
   desiredRadius: number;
-  progression: Statechart<typeof progressionMachine>;
   readonly active: boolean;
   readonly complete: boolean;
   chests: number;

@@ -3,7 +3,7 @@ import { required } from './assert.ts';
 import type { InspectionTarget } from './inspection.ts';
 import type { Player } from './player.ts';
 import type { Actor } from './actors.ts';
-import type { Room, RoomId, World } from './worldTypes.ts';
+import type { PlayableContent, PlayableLayout, Room, RoomId } from './worldTypes.ts';
 import { Statechart } from './machines/statechart.ts';
 import { sessionMachine } from './machines/ui/session.ts';
 import type { SessionEvent } from './machines/ui/session.ts';
@@ -22,7 +22,7 @@ export class UI {
   private readonly toastState = new Statechart(feedbackMachine);
   private readonly roomState = new Statechart(feedbackMachine);
   private readonly damageState = new Statechart(feedbackMachine);
-  private currentWorld: World | null = null;
+  private currentWorld: PlayableLayout | null = null;
   private currentRecord: DiscoveryRecord | null = null;
   private visited = new Set<RoomId>();
   private revealed = new Set<RoomId>();
@@ -64,7 +64,7 @@ export class UI {
       this.flow.snapshot.matches({ map: 'hidden' });
   }
 
-  private get world(): World {
+  private get world(): PlayableLayout {
     return required(this.currentWorld, 'UI has not been initialized');
   }
   private get record(): DiscoveryRecord {
@@ -87,7 +87,9 @@ export class UI {
     this.agenda([]);
     this.combatTarget(null);
   }
-  reset(world: World, record: DiscoveryRecord): void {
+  reset(content: PlayableContent, record: DiscoveryRecord): void {
+    const { world } = content;
+    const practice = content.kind === 'practice';
     this.agenda([]);
     this.currentWorld = world;
     this.currentRecord = record;
@@ -99,7 +101,15 @@ export class UI {
     const b = world.bounds;
     this.mapScale = Math.min(216 / (b.maxX - b.minX), 188 / (b.maxZ - b.minZ));
     this.mapCenter = { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 };
-    $('seed-label').textContent = world.seed.toUpperCase();
+    $('quest-panel').hidden = practice;
+    $('dungeon-menu-content').hidden = practice;
+    $('leave-practice').hidden = !practice;
+    $('enemy-tip').hidden = practice;
+    $('world-label').textContent = practice ? 'PRACTICE ROOM' : 'SEED-BORN WORLD';
+    $('map-heading').textContent = practice ? 'TRAINING GROUND' : 'THE KEEP';
+    $('seed-label').textContent = practice
+      ? required(world.roomById.entrance, 'Missing practice room').name
+      : world.seed.toUpperCase();
     element('seed-input', HTMLInputElement).value = world.seed;
     $('altar-check').classList.remove('done');
     $('throne-check').classList.remove('done');

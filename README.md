@@ -3,6 +3,7 @@
 A playable, entirely code-generated dark-fantasy voxel dungeon built with **Babylon.js, XState 5.33.4, strict TypeScript, and HTML canvas**. The art direction draws on Hades' elevated compositions, Darkest Dungeon's atmosphere, and Mike Mignola's angular silhouettes and graphic shadows.
 
 **[Play the live demo](https://tmbritton.github.io/the-hollow-crown/)** ·
+**[Practice room](https://tmbritton.github.io/the-hollow-crown/?room=practice)** ·
 **[Source on GitHub](https://github.com/tmbritton/the-hollow-crown)**
 
 P7 is published and verified at **`3934e17`** (2026-11-20). The repository is public and the
@@ -31,6 +32,11 @@ npm run dev
 ```
 
 Open **http://localhost:5173**. The development server prints its address if that port is occupied.
+
+Open **[the local practice room](http://localhost:5173/?room=practice)** to try the same hero and
+controls on a small floor with a pillar and an unlocked door, without enemies or objectives.
+Refresh keeps you in practice; the bare URL starts the normal dungeon. Edit the authored layout in
+[`src/practiceRoom.ts`](src/practiceRoom.ts).
 
 ```sh
 npm run build

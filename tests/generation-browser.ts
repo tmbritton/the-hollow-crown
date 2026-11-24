@@ -148,7 +148,7 @@ try {
     detached.trace.identity.seed = 'caller mutation';
     detached.rooms[0].name = 'caller mutation';
     detached.scenes[0].sockets[0].reason = 'omitted';
-    d.game.world.scenes[0].reserved[0].x += 100;
+    d.game.scenario!.world.scenes[0].reserved[0].x += 100;
     d.game.world.rooms[0].name = 'mutated live blueprint';
     const enemy = d.game.combat.enemies[0];
     d.game.combat.damage(enemy, 1000);

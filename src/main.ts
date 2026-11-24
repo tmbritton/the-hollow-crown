@@ -17,6 +17,7 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Layers/effectLayerSceneComponent';
 import { CustomMaterial } from '@babylonjs/materials/custom/customMaterial';
 import { generateDungeonWithReport, validateDungeon } from './world.ts';
+import { buildPracticeRoom, selectContent } from './practiceRoom.ts';
 import { tileAt, heightAt } from './worldSpatial.ts';
 import { createGenerationReport } from './generation/report.ts';
 import type { GenerationReport } from './generation/report.ts';
@@ -56,8 +57,8 @@ import { inspectorMachine } from './machines/ui/inspector.ts';
 import { required } from './assert.ts';
 import { element, html } from './dom.ts';
 import type { ShowInspector } from '@babylonjs/inspector';
-import type { Entity } from './worldTypes.ts';
-import type { Game } from './gameTypes.ts';
+import type { Entity, PlayableContent, World } from './worldTypes.ts';
+import type { DungeonScenario, Game } from './gameTypes.ts';
 
 const canvas = element('game', HTMLCanvasElement);
 const loading = html('loading');
@@ -89,16 +90,15 @@ const editingText = (target: EventTarget | null) =>
   (target.isContentEditable || !!target.closest('input,textarea,select'));
 let engine: DungeonEngine,
   game: Game | null = null;
-const debug = import.meta.env.DEV && new URLSearchParams(location.search).has('debug');
+const entry = new URLSearchParams(location.search);
+const requestedRoom = entry.get('room');
+const debug = import.meta.env.DEV && entry.has('debug');
 const generationDiagnostics =
   import.meta.env.DEV && debug
     ? (await import('./generation/localDiagnostics.ts')).createLocalGenerationDiagnostics()
     : undefined;
-let failNextGeneration =
-  import.meta.env.DEV &&
-  debug &&
-  new URLSearchParams(location.search).get('generationFailure') === '1';
-type GenerationRequest = { seed: string; pinSeed: boolean };
+let failNextGeneration = import.meta.env.DEV && debug && entry.get('generationFailure') === '1';
+type GenerationRequest = { seed: string | null; pinSeed: boolean };
 let currentRequest: GenerationRequest | null = null;
 let retryRequest: GenerationRequest | null = null;
 const activeGame = () => required(game, 'No active dungeon');
@@ -267,7 +267,7 @@ function retireGame(): void {
   inspectorToken = null;
   inspector.send({ type: 'CLOSE' });
   if (old) {
-    old.ecs.get('run')?.get('objectiveWork')?.retire();
+    old.scenario?.run.get('objectiveWork')?.retire();
     old.inspection.dispose();
     const shaderNames = old.scene.materials
       .filter((m): m is CustomMaterial => m instanceof CustomMaterial)
@@ -292,13 +292,55 @@ function showFailure(message: string, retry: GenerationRequest | null = null): v
   if (retry) retryButton.focus();
 }
 
-function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
+function installDungeonScenario(
+  world: World,
+  ecs: ECS,
+  player: Actor,
+  scene: Scene,
+  materials: ReturnType<typeof createMaterials>,
+  shadow: ShadowGenerator,
+): DungeonScenario {
+  const emberPlan = prepareLastEmber(ecs, world, player);
+  const tributePlan = prepareTribute(ecs, world, player);
+  installObjectiveWork(
+    ecs,
+    world,
+    {
+      objectives: [...emberPlan.plan.objectives, ...tributePlan.plan.objectives],
+      races: [...emberPlan.plan.races, ...tributePlan.plan.races],
+    },
+    [...emberPlan.bindings, ...tributePlan.bindings],
+  );
+  const emberRendering = createLastEmberRendering(scene, ecs, materials);
+  const tributeRendering = createTributeRendering(scene, ecs, materials, shadow);
+  const clue = emberClue(world);
+  const landmark = world.entities.find((e) => e.id === emberPlan.scenario.sites.clue.id);
+  if (landmark?.inspection) landmark.inspection.description += `\n\n${clue.description}`;
+  const progression = new Statechart(progressionMachine);
+  for (const entity of world.entities)
+    if (entity.type === 'altar')
+      Object.defineProperty(entity, 'active', {
+        enumerable: true,
+        get: () => !progression.snapshot.matches('seekingAltar'),
+      });
+  return {
+    world,
+    run: required(ecs.get('run'), 'Run entity missing'),
+    clue,
+    progression,
+    emberRendering,
+    tributeRendering,
+  };
+}
+
+function start(seed: string | null, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
   if (!engine) return;
   const request = { seed, pinSeed };
   currentRequest = request;
   retryRequest = null;
   retryButton.hidden = true;
-  loadingCaption.textContent = 'Carving the hollow…';
+  loadingCaption.textContent =
+    requestedRoom === 'practice' ? 'Opening the practice room…' : 'Carving the hollow…';
   loading.inert = false;
   loading.classList.remove('done');
   if (import.meta.env.DEV) animationReview?.reset();
@@ -307,28 +349,40 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   retireGame();
   accumulator = 0;
   last = performance.now();
-  let generated: ReturnType<typeof generateDungeonWithReport>;
+  let content: PlayableContent;
   let debugReport: GenerationReport | null = null;
   try {
-    const maxAttempts = import.meta.env.DEV && failNextGeneration ? 1 : undefined;
-    if (import.meta.env.DEV) failNextGeneration = false;
-    generated = generateDungeonWithReport(seed, {
-      maxAttempts,
-      diagnostics: generationDiagnostics?.port,
+    content = selectContent(requestedRoom, seed, {
+      practice: buildPracticeRoom,
+      dungeon(requestedSeed) {
+        const actualSeed = requestedSeed ?? freshSeed();
+        request.seed = actualSeed;
+        const maxAttempts = import.meta.env.DEV && failNextGeneration ? 1 : undefined;
+        if (import.meta.env.DEV) failNextGeneration = false;
+        const generated = generateDungeonWithReport(actualSeed, {
+          maxAttempts,
+          diagnostics: generationDiagnostics?.port,
+        });
+        if (import.meta.env.DEV && debug)
+          debugReport = createGenerationReport(generated.world, generated.report);
+        return generated.world;
+      },
     });
-    if (import.meta.env.DEV && debug)
-      debugReport = createGenerationReport(generated.world, generated.report);
   } catch (error) {
     if (error instanceof GenerationError) {
       const reason = error.report.attempts.at(-1)?.reasons[0];
       showFailure(reason ? `${error.message}. ${reason}.` : error.message, request);
     } else {
-      showFailure(`Unexpected dungeon generation error for seed ${seed}.`);
+      showFailure(
+        requestedRoom === 'practice'
+          ? 'Could not open the practice room.'
+          : `Unexpected dungeon generation error for seed ${request.seed}.`,
+      );
       console.error(error);
     }
     return;
   }
-  const { world } = generated;
+  const { world } = content;
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.044, 0.065, 0.075, 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
@@ -380,9 +434,9 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   // Smooth shader/shadow edges as well as silhouettes; DOM text stays crisp.
   const fxaa = new FxaaPostProcess('edge antialiasing', 1, camera);
   const materials = createMaterials(scene);
-  const dungeon = buildDungeon(scene, world, materials, shadow, glow);
+  const dungeon = buildDungeon(scene, content, materials, shadow, glow);
   const ecs = new ECS();
-  const discoveries = new DiscoveryRecord(generationIdentity(seed));
+  const discoveries = new DiscoveryRecord(generationIdentity(world.seed));
   ecs.create('run').add('discoveries', discoveries);
   world.tiles = new SupportTiles(world.tiles);
   registerWorld(ecs, world);
@@ -391,11 +445,12 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
   const combat = new CombatSystem(
     ecs,
     world,
-    [player.actor, ...seedEnemies(ecs, world)],
+    content.kind === 'dungeon'
+      ? [player.actor, ...seedEnemies(ecs, content.world)]
+      : [player.actor],
     world.seed,
     { onDeath: observeDeath },
   );
-  const emberPlan = prepareLastEmber(ecs, world, player.actor);
   const routeBudget = new RouteBudget();
   for (const actor of combat.actors)
     actor.navigator.scheduleWith(routeBudget, () =>
@@ -407,21 +462,10 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     routeBudget.dispose();
     ecs.living.dispose();
   });
-  const tributePlan = prepareTribute(ecs, world, player.actor);
-  installObjectiveWork(
-    ecs,
-    world,
-    {
-      objectives: [...emberPlan.plan.objectives, ...tributePlan.plan.objectives],
-      races: [...emberPlan.plan.races, ...tributePlan.plan.races],
-    },
-    [...emberPlan.bindings, ...tributePlan.bindings],
-  );
-  const ember = emberPlan.scenario;
-  const emberRendering = createLastEmberRendering(scene, ecs, materials);
-  const tributeRendering = createTributeRendering(scene, ecs, materials, shadow);
-  const clue = world.entities.find((e) => e.id === ember.sites.clue.id);
-  if (clue?.inspection) clue.inspection.description += `\n\n${emberClue(world).description}`;
+  const scenario =
+    content.kind === 'dungeon'
+      ? installDungeonScenario(content.world, ecs, player.actor, scene, materials, shadow)
+      : null;
   const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
   for (const actor of combat.actors) new ActorGeometry(actor.entity);
   // This closed bootstrap builds only authored motor colliders and permanent render meshes
@@ -471,7 +515,8 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       player.root.setEnabled(false);
       player.marker.setEnabled(false);
       ui.openInspection(target, game.playTime);
-      if (target.id === ember.sites.clue.id) discoveries.present(emberClue(world), game.playTime);
+      if (scenario && target.id === scenario.clue.subjectId)
+        discoveries.present(scenario.clue, game.playTime);
     },
     onClose: () => {
       if (game?.scene !== scene) return;
@@ -485,17 +530,11 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
       canvas.focus();
     },
   });
-  const progression = new Statechart(progressionMachine);
-  for (const entity of world.entities)
-    if (entity.type === 'altar')
-      Object.defineProperty(entity, 'active', {
-        enumerable: true,
-        get: () => !progression.snapshot.matches('seekingAltar'),
-      });
   game = {
     routeBudget,
     scene,
     world,
+    scenario,
     camera,
     ambient,
     sun,
@@ -511,8 +550,6 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     ecs,
     combat,
     enemyRendering,
-    emberRendering,
-    tributeRendering,
     observation: new CameraObservation(camera, [
       ...ecs.query('rig').map((entity) => ({
         root: entity.require('rig').root,
@@ -529,12 +566,11 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     playTime: 0,
     desiredAlpha: camera.alpha,
     desiredRadius: 27,
-    progression,
     get active() {
-      return !progression.snapshot.matches('seekingAltar');
+      return !!scenario && !scenario.progression.snapshot.matches('seekingAltar');
     },
     get complete() {
-      return progression.snapshot.matches('complete');
+      return scenario?.progression.snapshot.matches('complete') ?? false;
     },
     chests: 0,
     checkpoint: { ...world.spawn },
@@ -544,13 +580,15 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     nearLights: [],
   };
   initialGenerationReport = debugReport;
-  ui.reset(world, discoveries);
+  ui.reset(content, discoveries);
   applyQuality();
   // Random runs must not write a seed back into the URL and pin future loads.
-  const url = new URL(location.href);
-  if (pinSeed) url.searchParams.set('seed', seed);
-  else url.searchParams.delete('seed');
-  history.replaceState(null, '', url);
+  if (content.kind === 'dungeon') {
+    const url = new URL(location.href);
+    if (pinSeed) url.searchParams.set('seed', required(request.seed, 'Missing pinned seed'));
+    else url.searchParams.delete('seed');
+    history.replaceState(null, '', url);
+  }
   scene.executeWhenReady(() => {
     if (
       scene !== game?.scene ||
@@ -564,10 +602,12 @@ function start(seed: string, { pinSeed = false }: { pinSeed?: boolean } = {}): v
     ui.transition({ type: 'READY' });
     loading.classList.add('done');
     loading.inert = true;
-    ui.room(world.roomById.entrance, game.playTime);
+    ui.room(required(world.roomById.entrance, 'Missing entrance'), game.playTime);
     canvas.focus();
     ui.toast(
-      'Click an enemy to pursue and attack. Hold F to defend. Space jumps. X cancels commands.',
+      scenario
+        ? 'Click an enemy to pursue and attack. Hold F to defend. Space jumps. X cancels commands.'
+        : 'Click or hold the floor to move. Click the door or press E nearby to open it.',
       6500,
     );
   });
@@ -627,7 +667,8 @@ function interact() {
     game.inspection.close();
     return;
   }
-  const tribute = game.ecs.get('run')?.get('tribute');
+  const { scenario } = game;
+  const tribute = scenario?.run.get('tribute');
   if (tribute?.recover()) {
     ui.setHealth(game.player.health);
     ui.toast(
@@ -635,7 +676,7 @@ function interact() {
     );
     return;
   }
-  const ember = game.ecs.get('run')?.get('lastEmber');
+  const ember = scenario?.run.get('lastEmber');
   const site = ember?.nearby();
   if (ember && site) {
     if (site === 'focus') {
@@ -686,8 +727,8 @@ function interact() {
     }
     e.open = !e.open;
     if (!e.open) required(e.collider, 'Door collider missing').checkCollisions = true;
-  } else if (e.type === 'altar') {
-    game.progression.send({ type: 'KINDLE' });
+  } else if (scenario && e.type === 'altar') {
+    scenario.progression.send({ type: 'KINDLE' });
     recordEvent({ kind: 'altar-kindled', subjectId: 'altar', label: 'The violet altar' });
     game.player.health = 100;
     ui.setHealth(100);
@@ -707,7 +748,7 @@ function interact() {
     required(e.crystal, 'Altar crystal missing').scaling.setAll(1.25);
     ui.altar();
     ui.toast('The oath is rekindled. The crowned chamber is unsealed.', 6000);
-  } else if (e.type === 'throne') {
+  } else if (scenario && e.type === 'throne') {
     if (game.complete) {
       ui.toast('The keep is yours. There are still quiet corners to explore.');
       return;
@@ -716,16 +757,16 @@ function interact() {
       ui.toast('The crown waits for the altar’s flame.');
       return;
     }
-    game.progression.send({ type: 'CLAIM' });
+    scenario.progression.send({ type: 'CLAIM' });
     recordEvent({ kind: 'crown-claimed', subjectId: 'throne', label: 'The Hollow Crown' });
     resetMovement();
     ui.complete(game.playTime, game.chests);
-  } else if (e.type === 'chest' && !e.open) {
+  } else if (scenario && e.type === 'chest' && !e.open) {
     e.open = true;
     recordEvent({
       kind: 'reliquary-claimed',
       subjectId: e.id,
-      label: `Reliquary · ${game.world.roomById[e.room].name}`,
+      label: `Reliquary · ${scenario.world.roomById[e.room].name}`,
     });
     game.chests++;
     game.player.health = Math.min(100, game.player.health + 30);
@@ -751,8 +792,9 @@ function tick(dt: number): void {
   }
   updateDoors(game.ecs, dt);
   game.routeBudget.tick();
-  const ember = game.ecs.get('run')?.get('lastEmber');
-  const tribute = game.ecs.get('run')?.get('tribute');
+  const { scenario } = game;
+  const ember = scenario?.run.get('lastEmber');
+  const tribute = scenario?.run.get('tribute');
   const emberWarning = ember?.approachActivation(),
     tributeWarning = tribute?.approachActivation();
   if (emberWarning || tributeWarning)
@@ -770,12 +812,13 @@ function tick(dt: number): void {
       10000,
     );
   tribute?.update();
-  const work = game.ecs.get('run')?.get('objectiveWork');
+  const work = scenario?.run.get('objectiveWork');
   work?.advance(game.steps, dt);
   const locked = game.combat.pursue(game.player.actor, dt);
   const tile = movePlayer(game.player, game.world, keys, game.camera, dt, locked);
   game.combat.update(dt);
-  if (tile?.room) ui.room(game.world.roomById[tile.room], game.playTime);
+  const room = tile?.room && game.world.roomById[tile.room];
+  if (room) ui.room(room, game.playTime);
   game.damageCooldown -= dt;
   if (tile?.surface === 'lava' && !game.player.actor.jump.airborne && game.damageCooldown <= 0) {
     game.combat.damage(game.player.actor, 18);
@@ -844,7 +887,7 @@ function renderUpdate(dt: number): void {
     dungeon.sparkMatrices[o + 13] = p.y + life;
     dungeon.sparkMatrices[o + 14] = p.z + Math.cos(game.time + p.phase) * life * 0.15;
   });
-  updateInstanceMatrices(dungeon.sparkMesh, dungeon.sparkMatrices);
+  if (dungeon.particles.length) updateInstanceMatrices(dungeon.sparkMesh, dungeon.sparkMatrices);
   for (const entity of game.ecs.query('floating')) {
     const a = entity.require('floating');
     a.mesh.position.y = a.y + Math.sin(game.time * 1.6 + a.phase) * 0.12;
@@ -897,9 +940,10 @@ function renderUpdate(dt: number): void {
       Math.sin(game.time * 13 + source.phase) * 0.06;
   });
   game.nearest = game.inspection.active ? null : findInteraction();
-  const ember = game.ecs.get('run')?.get('lastEmber');
+  const { scenario } = game;
+  const ember = scenario?.run.get('lastEmber');
   const emberSite = !game.inspection.active && ember?.nearby();
-  const tribute = game.ecs.get('run')?.get('tribute');
+  const tribute = scenario?.run.get('tribute');
   ui.prompt(
     !game.inspection.active && tribute?.nearby()
       ? 'Recover royal tribute (+10 health)'
@@ -907,13 +951,15 @@ function renderUpdate(dt: number): void {
         ? ember.prompt(emberSite)
         : promptFor(game.nearest),
   );
-  const worker = ember ? game.combat.actor(EMBER.worker) : undefined;
-  ui.agenda([
-    ...(tribute?.agenda() ?? []),
-    ...(ember?.agenda(!!worker && observesActor(worker)) ?? []),
-  ]);
-  game.emberRendering.update();
-  game.tributeRendering.update();
+  if (scenario) {
+    const worker = ember ? game.combat.actor(EMBER.worker) : undefined;
+    ui.agenda([
+      ...(tribute?.agenda() ?? []),
+      ...(ember?.agenda(!!worker && observesActor(worker)) ?? []),
+    ]);
+    scenario.emberRendering.update();
+    scenario.tributeRendering.update();
+  }
   const target = game.combat.actor(game.player.actor.attack.target);
   ui.combatTarget(target && observesActor(target) ? target : null, game.playTime);
   const record = discoveryRecord();
@@ -1149,9 +1195,7 @@ try {
   const navigation = performance.getEntriesByType('navigation')[0];
   const reloading =
     navigation instanceof PerformanceNavigationTiming && navigation.type === 'reload';
-  const requestedSeed = reloading
-    ? null
-    : new URLSearchParams(location.search).get('seed')?.trim().slice(0, 40);
+  const requestedSeed = reloading ? null : entry.get('seed')?.trim().slice(0, 40);
   engine.runRenderLoop(() => {
     engine._drawCalls.fetchNewFrame();
     const now = performance.now(),
@@ -1187,7 +1231,7 @@ try {
       uiClock = 0;
     }
   });
-  start(requestedSeed || freshSeed(), { pinSeed: !!requestedSeed });
+  start(requestedSeed || null, { pinSeed: !!requestedSeed });
 } catch (error) {
   showFailure(error instanceof Error ? error.message : String(error));
   console.error(error);
@@ -1281,7 +1325,7 @@ if (import.meta.env.DEV && debug && engine!) {
         doors: game.world.entities
           .filter((e) => e.type === 'door')
           .map((e) => ({ id: e.id, open: e.open, locked: e.locked })),
-        errors: validateDungeon(game.world),
+        errors: game.scenario ? validateDungeon(game.scenario.world) : [],
       };
     },
   };

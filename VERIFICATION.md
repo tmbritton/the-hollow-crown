@@ -4,6 +4,48 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Story 13.1 — Practice Room
+
+Implemented the [approved story](docs/plan/epic-13/story-1.md) on `main` (2026-11-24).
+`?room=practice` selects an editable authored layout before dungeon generation, even with a seed.
+It uses the existing hero, overhead camera, fixed-step movement, navigation, motor colliders, and
+door statechart. The normal and seeded dungeon remain separate from this opt-in entry.
+
+- **Red first:** `node --test tests/practiceRoom.test.ts` failed on the missing authored provider.
+  The Chromium movement test against the development server and the production check against a
+  baseline Vite bundle both failed on the room label: “The Ashen Vestibule” instead of
+  “Practice Room.” The latter was bundled directly with Vite because strict typecheck correctly
+  rejected the red tests' missing import.
+- **Units and static gates:** `node --test tests/practiceRoom.test.ts` passed all three focused
+  cases (dispatch precedence, independent layout builds, and navigation clearance). `npm test`
+  passed 515 tests; `npm run check:full` passed 535 tests, strict typecheck, lint and format.
+- **Chromium input:** `test:movement`, `test:jump`, and `test:defense` passed sequentially on
+  `http://127.0.0.1:13734`. The practice cases use actual mouse and keyboard events, including
+  held-pointer steering, camera-relative arrow takeover, equal-tick walk/run, jump/landing,
+  hold/release F, X without resumed motion, and pillar collision and detour. Separate fresh visits
+  verify closed-door collision, remote click approach, out-of-reach and in-reach E, swing clearance,
+  and walking through without triggering any scenario work or objective UI. The seeded movement
+  cases still cover active enemies, the ordinary obstacle and stair routes, and locked doors.
+  On the same isolated server, `test:browser`, `test:generation`, `test:objective-work`,
+  `test:last-ember`, and `test:tribute` passed, including normal dungeon progression and
+  replacing/retiring live objective work.
+- **Production:** `npm run build` then `DEMO_URL=http://127.0.0.1:13732/ npm run test:production`,
+  and `npm run build:pages` then
+  `DEMO_URL=http://127.0.0.1:13733/the-hollow-crown/ npm run test:production` passed on the final
+  source. Both builds also passed `npm run test:cpu:production` (82 bundled JavaScript chunks
+  each). Chromium reported no out-of-base requests, browser errors, or development API exposure.
+  All owned preview and development ports were checked clear after the runs.
+- **Visual and links:** inspected `test-results/chromium-practice-spawn.png`,
+  `test-results/chromium-practice-through-door.png`, and
+  `test-results/production-the-hollow-crown-practice.png`: the hero, pillar bypass, closed door,
+  open leaf, and landing are legible in the shared overhead view. The README links to the exact
+  project-site practice URL. Production smoke navigates directly without debug, reloads practice
+  with both query parameters, and clicks the in-game exit to return to the bare base. No live-site
+  deployment was made for this change.
+- **Independent review (Astra 6.2): APPROVE, no actionable findings.** The reviewer checked the
+  retained diff and both new files, inspected the practice captures, and confirmed the final
+  unit, browser, and production evidence after the ECS scenario ownership correction.
+
 ### EF1–EF4 — generation refactor and adoption decision
 
 **Epic 0 closed for delivery by user decision; original EF4 technical gate not cleared.** The

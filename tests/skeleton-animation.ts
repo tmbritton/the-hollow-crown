@@ -34,7 +34,7 @@ export async function captureSkeletonGait(page: Page) {
       window.__dungeon.animation.pause();
       // The suite stops the loop immediately after regeneration, before this renderer's
       // first update. Place its coffers at their real sites instead of leaving them at (0,0).
-      g.tributeRendering.update();
+      g.scenario!.tributeRendering.update();
       const actor = g.combat.enemies.find((a) => a.kind === 'skeleton')!;
       const dead = g.combat.enemies.find((a) => a.kind === 'skeleton' && a.id !== actor.id)!;
       for (const other of g.combat.actors) {

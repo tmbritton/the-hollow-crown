@@ -395,7 +395,8 @@ try {
   await page.evaluate(() => {
     const d = window.__dungeon,
       g = d.game;
-    d.teleport(g.world.roomById.altar.x, g.world.roomById.altar.z);
+    const altar = g.scenario!.world.roomById.altar;
+    d.teleport(altar.x, altar.z);
     g.camera.target.copyFrom(g.player.root.position);
     g.scene.render();
   });

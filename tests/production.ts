@@ -61,6 +61,38 @@ await withViteServer(base.href, 'preview', async () => {
     };
     const capture = (name: string) =>
       page.screenshot({ path: `test-results/production-${label}-${name}.png` });
+    const practice = new URL('?room=practice', base);
+    const checkPractice = async () => {
+      await page.waitForSelector('#loading.done', { state: 'attached', timeout: 45000 });
+      await expect(page.locator('#room-name')).toHaveText('Practice Room');
+      await expect(page.locator('.quest-panel')).toBeHidden();
+      await expect(page.locator('#game')).toBeVisible();
+      await page.waitForFunction(
+        () => Number.parseInt(document.querySelector('#fps')!.textContent!) > 0,
+      );
+      assert.equal(await page.evaluate(() => '__dungeon' in window), false);
+      assert.equal(new URL(page.url()).searchParams.get('room'), 'practice');
+      checkAssets();
+    };
+    await page.goto(practice.href);
+    await checkPractice();
+    await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
+    await capture('practice');
+    practice.searchParams.set('seed', 'MOURNING-731');
+    await page.goto(practice.href);
+    await checkPractice();
+    await page.reload();
+    await checkPractice();
+    await page.keyboard.press('Escape');
+    await page.locator('#leave-practice').click();
+    await ready();
+    await expect(page.locator('.quest-panel')).toBeVisible();
+    await expect(page.locator('#room-name')).not.toHaveText('Practice Room');
+    checkLocation(null);
+    assert.equal(new URL(page.url()).searchParams.has('room'), false);
+    checks.push(
+      'direct practice entry and reload without debug, then bare base returns to dungeon',
+    );
     const start = new URL(base);
     start.searchParams.set('debug', '');
     start.searchParams.set('generationFailure', '1');

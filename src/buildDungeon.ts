@@ -23,7 +23,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { GlowLayer } from '@babylonjs/core/Layers/glowLayer';
 import type { Materials, MaterialName } from './materials.ts';
-import type { Frame, Triple, World } from './worldTypes.ts';
+import type { Frame, PlayableContent, Triple } from './worldTypes.ts';
 import type { BoxInstance } from './geometry.ts';
 import type { Creature, FloatingObject, LightSource, Obstacle, Wall } from './renderTypes.ts';
 
@@ -42,11 +42,12 @@ interface WallGroup {
 
 export function buildDungeon(
   scene: Scene,
-  world: World,
+  content: PlayableContent,
   materials: Materials,
   shadow: ShadowGenerator,
   glow: GlowLayer,
 ) {
+  const { world } = content;
   const random = randomFrom(`${world.seed}:decoration`);
   const batch = new Batcher(scene, materials, shadow);
   const walls: Wall[] = [];
@@ -176,9 +177,11 @@ export function buildDungeon(
     }
     if (t.surface === 'stair') box('trim', t.x, h + 0.015, t.z, 0.98, 0.03, 0.98, 0.8);
   }
-  const pool = required(world.roomById.water.pool, 'Water room needs a pool');
-  materials.water.setVector3('center', new Vector3(pool.x, 0, pool.z));
-  materials.water.setVector3('bounds', new Vector3(pool.hw + 0.5, pool.hd + 0.5, 0));
+  if (content.kind === 'dungeon') {
+    const pool = required(content.world.roomById.water.pool, 'Water room needs a pool');
+    materials.water.setVector3('center', new Vector3(pool.x, 0, pool.z));
+    materials.water.setVector3('bounds', new Vector3(pool.hw + 0.5, pool.hd + 0.5, 0));
+  }
 
   // Perimeter masonry, with separately transformable upper sections for camera cutaways.
   const wallGroups = new Map<string, WallGroup>();
@@ -275,7 +278,7 @@ export function buildDungeon(
   }
 
   const rubble: BoxInstance[] = [];
-  for (const r of world.rooms) {
+  for (const r of content.kind === 'dungeon' ? world.rooms : []) {
     const roomTiles = [...world.tiles.values()].filter((t) => t.room === r.id);
     const clear = roomTiles.filter(
       (t) => t.surface === 'stone' && !t.blocked && !world.reserved.has(key(t.x, t.z)),
@@ -333,7 +336,10 @@ export function buildDungeon(
     let height = 1.5;
     if (prop.type === 'pillar') {
       height = required(prop.height, 'Pillar needs a height');
-      pillar(x, h, z, height);
+      if (content.kind === 'practice') {
+        box('stone', x, h + (height - 0.24) / 2, z, prop.w, height - 0.24, prop.d);
+        box('trim', x, h + height - 0.12, z, prop.w, 0.24, prop.d);
+      } else pillar(x, h, z, height);
       if (prop.torch) torch(x, h + height + 0.12, z, prop.room === 'altar');
     } else if (prop.type === 'shrine') {
       height = 3.9;
@@ -408,13 +414,21 @@ export function buildDungeon(
     collision(x, h + height / 2, z, prop.w, height, prop.d, prop.id);
     frame = null;
   }
-  const forge = world.roomById.lava;
-  const lavaPool = required(forge.pool, 'Lava room needs a pool');
-  lights.push({
-    position: new Vector3(lavaPool.x, forge.h + 1.6, lavaPool.z),
-    color: new Color3(1, 0.21, 0.045),
-    phase: 0,
-  });
+  if (content.kind === 'dungeon') {
+    const forge = content.world.roomById.lava;
+    const lavaPool = required(forge.pool, 'Lava room needs a pool');
+    lights.push({
+      position: new Vector3(lavaPool.x, forge.h + 1.6, lavaPool.z),
+      color: new Color3(1, 0.21, 0.045),
+      phase: 0,
+    });
+  } else {
+    for (const { x, z, w, d, h, height, id } of content.world.partition) {
+      box('stone', x, h + (height - 0.18) / 2, z, w, height - 0.18, d);
+      box('trim', x, h + height - 0.09, z, w + 0.08, 0.18, d + 0.08);
+      collision(x, h + height / 2, z, w, height, d, id);
+    }
+  }
 
   for (const entity of world.entities) {
     const { x, z, h } = entity;
@@ -570,7 +584,7 @@ export function buildDungeon(
       if (mesh.material.name === 'water') glow.addExcludedMesh(mesh);
     }
   }
-  for (const r of world.rooms) {
+  for (const r of content.kind === 'dungeon' ? world.rooms : []) {
     const entries = rubble.filter(
       (e) => Math.abs(e.position[0] - r.x) < r.w / 2 && Math.abs(e.position[2] - r.z) < r.d / 2,
     );
@@ -584,7 +598,8 @@ export function buildDungeon(
     light.intensity = 0;
     return light;
   });
-  const portraits = buildPortraits(scene, world, materials, shadow);
+  const portraits =
+    content.kind === 'dungeon' ? buildPortraits(scene, content.world, materials, shadow) : [];
   const particles = flames.flatMap((flame) =>
     Array.from({ length: 3 }, () => ({
       x: flame.position.x,
@@ -606,8 +621,10 @@ export function buildDungeon(
   const sparkMesh = MeshBuilder.CreateBox('pooled embers', { size: 1 }, scene);
   sparkMesh.material = materials.ember;
   sparkMesh.isPickable = false;
-  sparkMesh.thinInstanceSetBuffer('matrix', sparkMatrices, 16, false);
-  sparkMesh.thinInstanceRefreshBoundingInfo();
+  if (particles.length) {
+    sparkMesh.thinInstanceSetBuffer('matrix', sparkMatrices, 16, false);
+    sparkMesh.thinInstanceRefreshBoundingInfo();
+  } else sparkMesh.setEnabled(false);
   return {
     walls,
     colliders,

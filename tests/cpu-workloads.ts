@@ -128,7 +128,7 @@ export function cpuWorkload(d: DungeonDebug, name: CpuCase) {
   let keys: (frame: number) => string[] = () => [];
   let validate = () => {};
   if (name === 'stable' || name === 'hitch' || rendering) {
-    const room = g.world.roomById.stable;
+    const room = g.scenario!.world.roomById.stable;
     d.teleport(room.x, room.z);
   }
   if (name === 'movement') keys = (i) => (i < 90 ? ['KeyD', 'Shift'] : i < 150 ? ['KeyW'] : []);

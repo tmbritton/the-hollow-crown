@@ -89,7 +89,7 @@ await withViteServer(base, 'dev', async () => {
     }
     async function room(id: RoomId) {
       return page.evaluate((id) => {
-        const r = window.__dungeon.game.world.roomById[id];
+        const r = window.__dungeon.game.scenario!.world.roomById[id];
         return { x: r.x, z: r.z, h: r.h };
       }, id);
     }

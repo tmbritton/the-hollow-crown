@@ -28,7 +28,7 @@ try {
   for (const room of ['entrance', 'crypt', 'altar'] as const) {
     const evidence = await page.evaluate((room) => {
       const d = window.__dungeon,
-        w = d.game.world;
+        w = d.game.scenario!.world;
       d.teleport(w.roomById[room].x, w.roomById[room].z);
       d.step([], 1);
       return { description: w.roomById[room].description, title: w.keep.monarchs[2].title };
