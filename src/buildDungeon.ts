@@ -12,7 +12,9 @@ import {
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
-import { Batcher, part, thinBoxes } from './geometry.ts';
+import { Batcher, part, tagRoomBand, thinBoxes } from './geometry.ts';
+import { roomRole, roomRoles } from './roomPalette.ts';
+import { stairLandingTops } from './stairLandings.ts';
 import { key, tileAt, heightAt } from './worldSpatial.ts';
 import { randomFrom } from './generation/random.ts';
 import { localPoint } from './generation/placement.ts';
@@ -23,8 +25,8 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { GlowLayer } from '@babylonjs/core/Layers/glowLayer';
 import type { Materials, MaterialName } from './materials.ts';
-import type { Frame, PlayableContent, Triple } from './worldTypes.ts';
-import type { BoxInstance } from './geometry.ts';
+import type { Frame, PlayableContent, Tile, Triple } from './worldTypes.ts';
+import type { BoxInstance, RoomBand } from './geometry.ts';
 import type { Creature, FloatingObject, LightSource, Obstacle, Wall } from './renderTypes.ts';
 
 export type DungeonScene = ReturnType<typeof buildDungeon>;
@@ -46,10 +48,11 @@ export function buildDungeon(
   materials: Materials,
   shadow: ShadowGenerator,
   glow: GlowLayer,
+  withRoomBands: boolean,
 ) {
   const { world } = content;
   const random = randomFrom(`${world.seed}:decoration`);
-  const batch = new Batcher(scene, materials, shadow);
+  const batch = new Batcher(scene, materials, shadow, withRoomBands);
   const walls: Wall[] = [];
   const colliders: Mesh[] = [];
   const flames: Mesh[] = [];
@@ -58,6 +61,18 @@ export function buildDungeon(
   const creatures: Creature[] = [];
   const obstacles: Obstacle[] = [];
   let frame: Frame | null = null;
+  const band = (tile?: Pick<Tile, 'room' | 'surface'>, bias = 0, overlay = false): RoomBand => [
+    roomRoles.indexOf(roomRole(tile)),
+    bias,
+    Number(overlay),
+    0,
+  ];
+  const landingTops = withRoomBands ? stairLandingTops(world) : undefined;
+  const landingBand: RoomBand = [roomRoles.indexOf('stair'), 0, 0, 1];
+  function tagPart(mesh: Mesh, x: number, z: number) {
+    if (withRoomBands) tagRoomBand(mesh, band(tileAt(world, x, z)));
+    return mesh;
+  }
   function transform(x: number, z: number, w = 0, d = 0) {
     if (!frame) return { x, z, w, d };
     const p = localPoint(frame, x - frame.x, z - frame.z);
@@ -95,7 +110,8 @@ export function buildDungeon(
     t = 1,
   ) {
     const p = transform(x, z, w, d);
-    batch.box(mat, p.x, y, p.z, p.w, h, p.d, t);
+    const tile = tileAt(world, frame?.x ?? p.x, frame?.z ?? p.z);
+    batch.box(mat, p.x, y, p.z, p.w, h, p.d, t, 63, '', band(tile));
   }
   function torch(x: number, y: number, z: number, violet = false) {
     box('dark', x, y - 0.32, z, 0.48, 0.18, 0.48);
@@ -171,11 +187,25 @@ export function buildDungeon(
         : t.surface === 'dais'
           ? 'trim'
           : 'floor';
-    batch.box(mat, t.x, h - depth / 2, t.z, 1, depth, 1, 0.88 + random() * 0.18, mask);
+    batch.box(
+      mat,
+      t.x,
+      h - depth / 2,
+      t.z,
+      1,
+      depth,
+      1,
+      0.88 + random() * 0.18,
+      mask,
+      '',
+      band(t, t.surface === 'bridge' || t.surface === 'dais' ? 0.09 : 0),
+      landingTops?.has(key(t.x, t.z)) ? landingBand : undefined,
+    );
     if (t.surface === 'water' || t.surface === 'lava') {
       batch.box(t.surface, t.x, h + 0.09, t.z, 1, 0.04, 1, 1, 1, `liquid-${t.surface}`);
     }
-    if (t.surface === 'stair') box('trim', t.x, h + 0.015, t.z, 0.98, 0.03, 0.98, 0.8);
+    if (t.surface === 'stair')
+      batch.box('trim', t.x, h + 0.015, t.z, 0.98, 0.03, 0.98, 0.8, 63, '', band(t, 0, true));
   }
   if (content.kind === 'dungeon') {
     const pool = required(content.world.roomById.water.pool, 'Water room needs a pool');
@@ -205,7 +235,7 @@ export function buildDungeon(
       const w = dx ? WALL_THICKNESS : WALL_LENGTH,
         d = dz ? WALL_THICKNESS : WALL_LENGTH;
       for (const section of WALL_BASE)
-        box(
+        batch.box(
           section.material,
           x,
           t.h + section.center,
@@ -214,12 +244,15 @@ export function buildDungeon(
           section.height,
           d + section.overhang,
           section.shade,
+          63,
+          '',
+          band(t),
         );
       wallColliderBatch.box('collider', x, t.h + 1.7, z, w, 3.4, d);
       const groupId = `${t.room || 'corridor'}:${dx},${dz}:${Math.floor(t.x / 18)},${Math.floor(t.z / 18)}:${t.h.toFixed(2)}`;
       if (!wallGroups.has(groupId))
         wallGroups.set(groupId, {
-          batch: new Batcher(scene, materials, shadow),
+          batch: new Batcher(scene, materials, shadow, withRoomBands),
           dx,
           dz,
           base: t.h + 0.72,
@@ -247,6 +280,7 @@ export function buildDungeon(
           0.78 + random() * 0.3,
           63,
           groupId,
+          band(t),
         );
       }
       g.batch.box(
@@ -260,6 +294,7 @@ export function buildDungeon(
         0.76,
         63,
         groupId,
+        band(t),
       );
     }
   }
@@ -291,7 +326,7 @@ export function buildDungeon(
         [0, -1],
       ]) {
         if (!tileAt(world, t.x + dx, t.z + dz))
-          box(
+          batch.box(
             'trim',
             t.x + dx * 0.34,
             t.h + 0.015,
@@ -300,6 +335,9 @@ export function buildDungeon(
             0.025,
             dz ? 0.07 : 0.4,
             0.65,
+            63,
+            '',
+            band(t, 0, true),
           );
         if (
           t.surface === 'bridge' &&
@@ -315,7 +353,19 @@ export function buildDungeon(
         const across = r.ports[0]?.axis === 'x' ? t.z - r.z : t.x - r.x;
         const along = r.ports[0]?.axis === 'x' ? t.x - r.x : t.z - r.z;
         if (Math.abs(across) <= 1 && Math.abs(along) <= 4)
-          box('cloth', t.x, t.h + 0.018, t.z, 0.98, 0.025, 0.98, 0.7);
+          batch.box(
+            'cloth',
+            t.x,
+            t.h + 0.018,
+            t.z,
+            0.98,
+            0.025,
+            0.98,
+            0.7,
+            63,
+            '',
+            band(t, 0, true),
+          );
       }
     }
     for (let i = 0; i < 18 && clear.length; i++) {
@@ -439,7 +489,7 @@ export function buildDungeon(
       root.position.set(x, h, z);
       root.rotation.y = alongX ? Math.PI / 2 : 0;
       const frame = (mat: MaterialName, name: string, size: Triple, pos: Triple) =>
-        part(scene, materials[mat], name, size, pos, root, shadow);
+        tagPart(part(scene, materials[mat], name, size, pos, root, shadow), x, z);
       for (const sign of [-1, 1]) {
         frame('dark', 'door pier', [0.65, 3.3, 0.85], [sign * 1.77, 1.65, 0]);
         frame('trim', 'pier base', [0.86, 0.24, 1], [sign * 1.77, 0.12, 0]);
@@ -450,27 +500,18 @@ export function buildDungeon(
       const pivot = new TransformNode(`${entity.id}-hinge`, scene);
       pivot.parent = root;
       pivot.position.x = -1.45;
+      const doorPart = (mat: MaterialName, name: string, size: Triple, pos: Triple) =>
+        tagPart(part(scene, materials[mat], name, size, pos, pivot, shadow), x, z);
       for (let i = 0; i < 6; i++)
-        part(
-          scene,
-          materials[entity.locked ? 'iron' : 'wood'],
+        doorPart(
+          entity.locked ? 'iron' : 'wood',
           'door plank',
           [0.47, DOOR_HEIGHT, 0.22],
           [0.25 + i * 0.48, DOOR_HEIGHT / 2, 0],
-          pivot,
-          shadow,
         );
       for (const y of [0.4, 2.3])
-        part(
-          scene,
-          materials[entity.locked ? 'gold' : 'iron'],
-          'door band',
-          [2.9, 0.13, 0.3],
-          [1.45, y, 0],
-          pivot,
-          shadow,
-        );
-      part(scene, materials.gold, 'latch', [0.12, 0.25, 0.18], [2.45, 1.35, -0.22], pivot, shadow);
+        doorPart(entity.locked ? 'gold' : 'iron', 'door band', [2.9, 0.13, 0.3], [1.45, y, 0]);
+      doorPart('gold', 'latch', [0.12, 0.25, 0.18], [2.45, 1.35, -0.22]);
       if (entity.locked) {
         const seal = part(
           scene,
@@ -530,7 +571,7 @@ export function buildDungeon(
           [0.18, 0.3, 0.18],
           [x + Math.cos(angle) * 1.1, h + 2.2, z + Math.sin(angle) * 1.1],
         );
-        animated.push({ mesh: shard, y: h + 2.2, phase: i, spin: 0.7 });
+        animated.push({ mesh: tagPart(shard, x, z), y: h + 2.2, phase: i, spin: 0.7 });
       }
     }
     if (entity.type === 'throne') {
@@ -588,7 +629,9 @@ export function buildDungeon(
     const entries = rubble.filter(
       (e) => Math.abs(e.position[0] - r.x) < r.w / 2 && Math.abs(e.position[2] - r.z) < r.d / 2,
     );
-    thinBoxes(scene, materials.stone, entries, `rubble-${r.id}`);
+    const mesh = thinBoxes(scene, materials.stone, entries, `rubble-${r.id}`);
+    // Each existing thin group belongs to one room, so its base vertices can carry the role.
+    if (mesh && withRoomBands) tagRoomBand(mesh, band({ room: r.id, surface: 'stone' }));
   }
 
   // Reuse a small pool of lights instead of giving every torch a live light.

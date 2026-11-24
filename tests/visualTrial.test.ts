@@ -46,17 +46,58 @@ test('trial applies only effective settings, preserves the saved preset and copi
   assert.equal(trial.send({ type: 'EDIT', key: 'unknown', value: 25 }), false);
   trial.send({ type: 'EDIT', key: 'lensDegrees', value: 30.123456789 });
   trial.send({ type: 'EDIT', key: 'fisheyePercent', value: 120 });
-  assert.deepEqual(trial.settings, { lensDegrees: 30.123456789, fisheyePercent: 100 });
+  const preset = { ...DEFAULT_VIEW, lensDegrees: 30.123456789, fisheyePercent: 100 };
+  assert.deepEqual(trial.settings, preset);
   trial.send({ type: 'SELECT', mode: 'original' });
   assert.deepEqual(trial.settings, DEFAULT_VIEW);
   trial.send({ type: 'COPY' });
   assert.deepEqual(JSON.parse(copied[0]), {
     mode: 'original',
-    lensDegrees: 30.123456789,
-    fisheyePercent: 100,
+    ...preset,
   });
   trial.send({ type: 'SELECT', mode: 'tuned' });
-  assert.deepEqual(applied.at(-1), { lensDegrees: 30.123456789, fisheyePercent: 100 });
+  assert.deepEqual(applied.at(-1), preset);
+  trial.send({ type: 'RESET' });
+  assert.deepEqual(applied.at(-1), DEFAULT_VIEW);
+});
+
+test('palette-only edits clamp, remain separate from camera settings, and copy saved Tuned values', () => {
+  const applied: unknown[] = [];
+  let copied = '';
+  const trial = createVisualTrial({
+    applyView: (v) => applied.push(v),
+    copySettings: (v) => (copied = v),
+  });
+  const enable = { type: 'PALETTE', enabled: true } as const;
+  const edit = (key: string, value: number) => trial.send({ type: 'EDIT', key, value });
+  assert.equal(trial.settings.paletteEnabled, false);
+  assert.equal(trial.send(enable), false);
+  assert.equal(edit('roomHue', 0), false);
+  trial.send({ type: 'SELECT', mode: 'tuned' });
+  assert.equal(trial.settings.paletteEnabled, false);
+  assert.equal(trial.send(enable), true);
+  assert.equal(edit('roomHue', NaN), false);
+  assert.equal(edit('shadowCoverage', Infinity), false);
+  assert.equal(edit('roomHue', -1), true);
+  assert.equal(edit('shadowCoverage', 101), true);
+  assert.deepEqual(trial.settings, {
+    ...DEFAULT_VIEW,
+    paletteEnabled: true,
+    roomHue: 0,
+    shadowCoverage: 100,
+  });
+  edit('roomHue', 361);
+  edit('shadowCoverage', -1);
+  const preset = { ...DEFAULT_VIEW, paletteEnabled: true, roomHue: 360, shadowCoverage: 0 };
+  assert.deepEqual(trial.settings, preset);
+  trial.send({ type: 'SELECT', mode: 'original' });
+  assert.deepEqual(trial.settings, DEFAULT_VIEW);
+  trial.send({ type: 'COPY' });
+  assert.deepEqual(JSON.parse(copied), { mode: 'original', ...preset });
+  trial.send({ type: 'SELECT', mode: 'tuned' });
+  assert.deepEqual(applied.at(-1), preset);
+  trial.send({ type: 'PALETTE', enabled: false });
+  assert.deepEqual(trial.settings, { ...preset, paletteEnabled: false });
   trial.send({ type: 'RESET' });
   assert.deepEqual(applied.at(-1), DEFAULT_VIEW);
 });

@@ -4,20 +4,31 @@ export const BARREL_COEFFICIENT = 0.42;
 export interface ViewSettings {
   readonly lensDegrees: number;
   readonly fisheyePercent: number;
+  readonly paletteEnabled: boolean;
+  readonly roomHue: number;
+  readonly shadowCoverage: number;
 }
 
 export const DEFAULT_VIEW: ViewSettings = Object.freeze({
   lensDegrees: (BASE_FOV * 180) / Math.PI,
   fisheyePercent: 0,
+  paletteEnabled: false,
+  roomHue: 275,
+  shadowCoverage: 50,
 });
 
 export const VIEW_RANGES = {
   lensDegrees: [25, 60],
   fisheyePercent: [0, 100],
-} as const satisfies Record<keyof ViewSettings, readonly [number, number]>;
+  roomHue: [0, 360],
+  shadowCoverage: [0, 100],
+} as const satisfies Record<
+  Exclude<keyof ViewSettings, 'paletteEnabled'>,
+  readonly [number, number]
+>;
 
-export function viewKey(key: string): key is keyof ViewSettings {
-  return key === 'lensDegrees' || key === 'fisheyePercent';
+export function viewKey(key: string): key is keyof typeof VIEW_RANGES {
+  return Object.hasOwn(VIEW_RANGES, key);
 }
 
 export function lensFov(degrees: number): number {

@@ -14,7 +14,7 @@ Epic 15 is a separate opt-in visual study, not a prerequisite for the delivery q
 ## Progress
 
 - Epics: 2/16 complete
-- Stories: 10/59 complete
+- Stories: 11/59 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -357,7 +357,7 @@ Test whether a room composed of a few large color shapes makes the route and the
   - Switch between Original and Tuned at the same orbit angle and gameplay zoom without losing settings. Include Lens and Fisheye in comparison, reset to defaults and copied numeric settings so paired captures can be reproduced without restarting practice.
   - In practice, pass the pillar, open the door and fight the optional skeleton. In the dungeon, include stairs, a landmark and an occupied room; match starting state, inputs, action ticks, viewport, camera and quality between versions.
   - Save paired views at all four camera orientations and near/far gameplay zooms, plus short motion clips. Set acceptable frame-time and draw-call deltas before judging variants.
-- [ ] **Story 15.2 — Compose the room in three values** — Compare the partial lighting bands and floor grid/noise in [`src/materials.ts`](../../src/materials.ts) with broad light, mid and dark shapes. **Depends on**: 15.1.
+- [x] **Story 15.2 — Compose the room in three values** — Compare the partial lighting bands and floor grid/noise in [`src/materials.ts`](../../src/materials.ts) with broad light, mid and dark shapes. **Depends on**: 15.1.
   - Give each room one dominant hue against a dark saturated background. Try an icy blue stairwell with small amber lights, a purple chamber and a green shrine; reserve jewel accents for focal points. Use neither pure black nor neutral grey, even in deep shadow.
   - Suppress tile seams and fine noise rather than outlining the grid. At far zoom, identify the stair landing, safe floor, hazard and shrine without relying on texture detail.
 - [ ] **Story 15.3 — Outline what the player must follow** — Trial thick, dark chromatic contours on the hero, foes and selected landmark silhouettes, not every voxel or internal joint. **Depends on**: 15.1.

@@ -19,12 +19,15 @@ import type { ViewMode, VisualTrialEvent } from './machines/ui/visualTrial.ts';
 export function bindVisualTrialPanel(send: (event: VisualTrialEvent) => boolean) {
   const original = element('view-original', HTMLButtonElement);
   const tuned = element('view-tuned', HTMLButtonElement);
+  const palette = element('view-palette', HTMLInputElement);
   const text = element('view-copy-text', HTMLTextAreaElement);
   const status = $('view-copy-status');
   const inputs = (
     [
       ['lensDegrees', 'view-lens'],
       ['fisheyePercent', 'view-fisheye'],
+      ['roomHue', 'view-hue'],
+      ['shadowCoverage', 'view-coverage'],
     ] as const
   ).map(([key, id]) => {
     const range = element(id, HTMLInputElement);
@@ -53,6 +56,7 @@ export function bindVisualTrialPanel(send: (event: VisualTrialEvent) => boolean)
   });
   original.onclick = () => send({ type: 'SELECT', mode: 'original' });
   tuned.onclick = () => send({ type: 'SELECT', mode: 'tuned' });
+  palette.onchange = () => send({ type: 'PALETTE', enabled: palette.checked });
   $('view-reset').onclick = () => send({ type: 'RESET' });
   $('view-copy').onclick = () => send({ type: 'COPY' });
   let copyRequest = 0;
@@ -63,6 +67,8 @@ export function bindVisualTrialPanel(send: (event: VisualTrialEvent) => boolean)
       status.textContent = '';
       original.setAttribute('aria-pressed', String(mode === 'original'));
       tuned.setAttribute('aria-pressed', String(mode === 'tuned'));
+      palette.disabled = mode === 'original';
+      palette.checked = settings.paletteEnabled;
       for (const { key, range, value } of inputs) {
         range.disabled = value.disabled = mode === 'original';
         range.value = value.value = String(settings[key]);

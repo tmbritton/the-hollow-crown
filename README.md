@@ -50,8 +50,14 @@ Open **Visual trial** in The Dojo. **Original** is the default. Switch to **Tune
 the Lens (25–60° vertical FOV) or Fisheye (0–100%) slider, use its arrow keys, or enter an exact
 value in the adjacent field. Lens changes perspective without changing gameplay zoom; Fisheye
 bends the scene, not the HUD. Switching modes keeps your orbit, zoom and saved Tuned values.
-**Reset settings** restores the original camera values without restarting the round.
-**Copy settings** copies JSON (degrees and percent); if clipboard access fails, select the
+Enable **Three-value rooms** separately to try broad lit, mid and shadow shapes on dungeon
+architecture. The treatment distinguishes flat stair arrivals from the surrounding floor
+without changing walkable geometry. **Room hue** (0–360°, default 275°) rotates the room colors
+together. **Shadow coverage** (0–100%, default 50%) moves the cutoff for the darkest band, not a percentage of
+screen pixels. Leave the checkbox off for camera-only comparisons, or keep Lens and Fisheye at
+their defaults for a palette-only comparison.
+**Reset settings** restores the default recipe without restarting the round.
+**Copy settings** copies the mode and saved Tuned settings as JSON; if clipboard access fails, select the
 displayed text. On a short window, scroll inside the open panel to reach the lower controls;
 the wheel won't zoom the camera there. To reproduce a view, enter those values in Tuned and use
 the same orbit and zoom.
@@ -65,7 +71,10 @@ desktop with Playwright Chromium, `ffmpeg` and `ffprobe` installed:
 node tests/visual-trial-browser.ts           # live controls, picks, paired stills and clips
 ```
 
-`--panel` runs just the live practice checks. `DEMO_URL` overrides the dev URL. Full replay
+`--panel` runs just the live practice checks. `DEMO_URL` overrides the dev URL. For the
+three-value trial, `node tests/visual-trial-palette.ts` captures matched Dojo and seeded dungeon
+views to a fresh `test-results/visual-trial/15.2/palette-run-*/` directory. The lava and altar
+stills use supplemental camera targets, not route progression. Full 15.1 replay
 reads the untouched controls from `test-results/visual-trial/15.1/` (or `VISUAL_TRIAL_OUTPUT`).
 It compares decoded stills and all clip frames, not encoded bytes. Each invocation publishes
 its own `paired-run-*/evidence/` (or `panel-run-*/evidence/`) only after all its checks pass.

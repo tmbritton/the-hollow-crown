@@ -18,6 +18,17 @@ interface BatchGroup<Name extends string> {
   indices: number[];
   colors: number[];
   uvs: number[];
+  roomBands: number[];
+}
+export const roomBandAttribute = 'roomBand';
+export type RoomBand = readonly [role: number, lightBias: number, overlay: number, landing: number];
+const neutralRoomBand: RoomBand = [0, 0, 0, 0];
+
+export function tagRoomBand(mesh: Mesh, band: RoomBand): Mesh {
+  const values = new Float32Array(mesh.getTotalVertices() * 4);
+  for (let i = 0; i < values.length; i += 4) values.set(band, i);
+  mesh.setVerticesData(roomBandAttribute, values, false, 4);
+  return mesh;
 }
 export interface BoxInstance {
   size: Triple;
@@ -89,15 +100,18 @@ export class Batcher<Name extends string> {
   private readonly scene: Scene;
   private readonly materials: Record<Name, Material>;
   private readonly shadow: Pick<ShadowGenerator, 'addShadowCaster'>;
+  private readonly withRoomBands: boolean;
 
   constructor(
     scene: Scene,
     materials: Record<Name, Material>,
     shadow: Pick<ShadowGenerator, 'addShadowCaster'>,
+    withRoomBands = false,
   ) {
     this.scene = scene;
     this.materials = materials;
     this.shadow = shadow;
+    this.withRoomBands = withRoomBands;
   }
   box(
     material: Name,
@@ -110,6 +124,8 @@ export class Batcher<Name extends string> {
     tint = 1,
     mask = 63,
     group = '',
+    band: RoomBand = neutralRoomBand,
+    topBand: RoomBand = band,
   ): void {
     const id = `${material}:${group || `${Math.floor(x / 10)},${Math.floor(z / 10)}`}`;
     if (!this.groups.has(id))
@@ -120,6 +136,7 @@ export class Batcher<Name extends string> {
         indices: [],
         colors: [],
         uvs: [],
+        roomBands: [],
       });
     const b = required(this.groups.get(id), 'Missing batch group');
     faces.forEach((face, f) => {
@@ -130,6 +147,7 @@ export class Batcher<Name extends string> {
         b.normals.push(...face.n);
         b.colors.push(tint, tint, tint, 1);
         b.uvs.push(i === 1 || i === 2 ? 1 : 0, i >= 2 ? 1 : 0);
+        if (this.withRoomBands) b.roomBands.push(...(face.n[1] === 1 ? topBand : band));
       });
       b.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
     });
@@ -147,6 +165,7 @@ export class Batcher<Name extends string> {
         uvs: b.uvs,
       });
       data.applyToMesh(mesh);
+      if (this.withRoomBands) mesh.setVerticesData(roomBandAttribute, b.roomBands, false, 4);
       mesh.material = this.materials[b.material];
       mesh.receiveShadows = true;
       mesh.isPickable = false;

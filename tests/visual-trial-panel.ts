@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type { Page } from '@playwright/test';
 import type { DebugWindow } from './browserTypes.ts';
+import { DEFAULT_VIEW } from '../src/visualTrial.ts';
 
 declare const window: DebugWindow;
 const probes = '/tests/visual-trial-probes.ts';
@@ -17,6 +18,9 @@ async function state(page: Page) {
       guarded: g.player.actor.defending,
       jumping: g.player.actor.jump.active,
       desiredAlpha: g.desiredAlpha,
+      alpha: g.camera.alpha,
+      beta: g.camera.beta,
+      cameraTarget: g.camera.target.asArray(),
       logicalRadius: g.logicalRadius,
       desiredRadius: g.desiredRadius,
       fov: g.camera.fov,
@@ -32,6 +36,11 @@ export async function checkPanel(page: Page, output: string) {
   assert.equal(await page.locator('#view-original').getAttribute('aria-pressed'), 'true');
   await panel.locator('summary').click();
   assert.equal(await lens.isDisabled(), true);
+  assert.equal(await page.locator('#view-palette').count(), 1, 'room palette control absent');
+  const palette = page.locator('#view-palette');
+  const hue = page.locator('#view-hue');
+  assert.ok(await palette.isDisabled());
+  assert.ok(await hue.isDisabled());
   await page.evaluate(() => {
     const d = window.__dungeon;
     d.visualTrial.orbit(-Math.PI / 4, 0.64, 18);
@@ -73,7 +82,7 @@ export async function checkPanel(page: Page, output: string) {
   const copied = page.locator('#view-copy-text');
   await copied.waitFor({ state: 'visible' });
   const saved = JSON.parse(await copied.inputValue());
-  assert.deepEqual(saved, { mode: 'original', lensDegrees: dragged - 1, fisheyePercent: 0 });
+  assert.deepEqual(saved, { mode: 'original', ...DEFAULT_VIEW, lensDegrees: dragged - 1 });
   await page.locator('#view-tuned').click();
   assert.deepEqual(await state(page), adjusted);
   await page.locator('#view-reset').click();
@@ -95,10 +104,53 @@ export async function checkPanel(page: Page, output: string) {
     start,
     'Fisheye cannot change FOV, zoom or a gameplay command',
   );
+  await page.locator('#view-reset').click();
+  assert.equal(await palette.isChecked(), false);
+  await palette.check();
+  const treated = await frame(page);
+  assert.notEqual(treated, neutral, 'palette-only selection must affect the rendered scene');
+  const hueBox = await hue.boundingBox();
+  assert.ok(hueBox);
+  const y = hueBox.y + hueBox.height / 2;
+  await page.mouse.move(hueBox.x + hueBox.width * 0.76, y);
+  await page.mouse.down();
+  await page.mouse.move(hueBox.x + hueBox.width * 0.3, y, { steps: 4 });
+  await page.mouse.up();
+  const draggedHue = Number(await hue.inputValue());
+  assert.ok(draggedHue > 0 && draggedHue < 180, `dragged hue ${draggedHue}`);
+  await hue.press('ArrowRight');
+  assert.equal(Number(await hue.inputValue()), draggedHue + 1);
+  await page.locator('#view-coverage-value').fill('83.125');
+  await page.locator('#view-coverage-value').press('Tab');
+  const editedPalette = await frame(page);
+  assert.notEqual(editedPalette, treated);
+  assert.deepEqual(await state(page), start);
+  await page.locator('#view-original').click();
+  assert.equal(await frame(page), neutral);
+  await page.locator('#view-copy').click();
+  await copied.waitFor({ state: 'visible' });
+  const palettePreset = {
+    ...DEFAULT_VIEW,
+    paletteEnabled: true,
+    roomHue: draggedHue + 1,
+    shadowCoverage: 83.125,
+  };
+  assert.deepEqual(JSON.parse(await copied.inputValue()), { mode: 'original', ...palettePreset });
+  await page.locator('#view-tuned').click();
+  assert.equal(await frame(page), editedPalette);
+  await page.locator('#view-reset').click();
+  assert.equal(await frame(page), neutral);
+  await page.locator('#view-hue-value').fill(String(palettePreset.roomHue));
+  await page.locator('#view-hue-value').press('Tab');
+  await page.locator('#view-coverage-value').fill(String(palettePreset.shadowCoverage));
+  await page.locator('#view-coverage-value').press('Tab');
+  await palette.check();
+  assert.equal(await frame(page), editedPalette);
   await page.screenshot({ path: `${output}/practice-panel.png` });
   await page.locator('#reset-practice').click();
   await page.waitForFunction(() => window.__dungeon.ready);
-  assert.equal(await page.locator('#view-fisheye-value').inputValue(), '1');
+  assert.equal(await palette.isChecked(), true);
+  assert.equal(await page.locator('#view-coverage-value').inputValue(), '83.125');
   assert.equal(await page.locator('#view-tuned').getAttribute('aria-pressed'), 'true');
   assert.notEqual((await state(page)).scene, start.scene);
 }
@@ -164,7 +216,7 @@ export async function checkShortPanel(page: Page, output: string) {
   const summary = await page.locator('#visual-trial summary').boundingBox();
   assert.ok(summary);
   await page.mouse.move(summary.x + 12, summary.y + summary.height / 2);
-  await page.mouse.wheel(0, 350);
+  await page.mouse.wheel(0, 85);
   // Observe native scrolling, not Playwright's locator.click() auto-scroll.
   const fisheye = page.locator('#view-fisheye');
   await page.waitForFunction(
@@ -181,6 +233,16 @@ export async function checkShortPanel(page: Page, output: string) {
   );
   await click('#view-fisheye');
   assert.ok(Number(await fisheye.inputValue()) > 0);
+  await click('#view-palette');
+  const scroller = await panelPoint(page);
+  await page.mouse.move(scroller.x, scroller.y);
+  await page.mouse.wheel(0, 350);
+  await page.waitForFunction(() => {
+    const control = document.querySelector('#view-coverage')!;
+    const rect = control.getBoundingClientRect();
+    return control === document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  });
+  await click('#view-coverage');
   await click('#view-reset');
   assert.equal(await fisheye.inputValue(), '0');
   await click('#view-copy');
@@ -188,8 +250,7 @@ export async function checkShortPanel(page: Page, output: string) {
   await fallback.waitFor({ state: 'visible' });
   assert.deepEqual(JSON.parse(await fallback.inputValue()), {
     mode: 'tuned',
-    lensDegrees: (start.fov * 180) / Math.PI,
-    fisheyePercent: 0,
+    ...DEFAULT_VIEW,
   });
   assert.ok(
     await fallback.evaluate((text: HTMLTextAreaElement) => {
@@ -205,6 +266,12 @@ export async function checkShortPanel(page: Page, output: string) {
   );
   assert.deepEqual(await state(page), start, 'panel pointer and wheel must not affect gameplay');
   await page.screenshot({ path: `${output}/practice-panel-short.png` });
+}
+
+async function panelPoint(page: Page) {
+  const box = await page.locator('#visual-trial').boundingBox();
+  assert.ok(box);
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
 async function frame(page: Page) {

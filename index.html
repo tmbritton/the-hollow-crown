@@ -31,7 +31,7 @@
       <details id="visual-trial">
         <summary>Visual trial</summary>
         <fieldset>
-          <legend>Camera treatment</legend>
+          <legend>Camera and room treatments</legend>
           <button id="view-original" type="button" aria-pressed="true">Original</button>
           <button id="view-tuned" type="button" aria-pressed="false">Tuned</button>
           <label for="view-lens">Lens (° vertical FOV)</label>
@@ -40,6 +40,13 @@
           <label for="view-fisheye">Fisheye (%)</label>
           <input id="view-fisheye" type="range" step="any" disabled>
           <input id="view-fisheye-value" type="number" step="any" aria-label="Exact fisheye percentage" disabled>
+          <label><input id="view-palette" type="checkbox" disabled> Three-value rooms</label>
+          <label for="view-hue">Room hue (degrees)</label>
+          <input id="view-hue" type="range" step="any" disabled>
+          <input id="view-hue-value" type="number" step="any" aria-label="Exact room hue in degrees" disabled>
+          <label for="view-coverage">Shadow coverage (%)</label>
+          <input id="view-coverage" type="range" step="any" disabled>
+          <input id="view-coverage-value" type="number" step="any" aria-label="Exact shadow coverage percentage" disabled>
           <button id="view-reset" type="button">Reset settings</button>
           <button id="view-copy" type="button">Copy settings</button>
           <p id="view-copy-status" role="status"></p>

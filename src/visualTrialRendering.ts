@@ -4,10 +4,53 @@ import { ShaderStore } from '@babylonjs/core/Engines/shaderStore';
 import type { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { barrelStrength, lensFov, lensRadius, sceneAxes, sceneSample } from './visualTrial.ts';
 import type { ViewSettings } from './visualTrial.ts';
+import { roomInk } from './roomPalette.ts';
+import type { Materials, createRoomBandUniforms } from './materials.ts';
+import type { Scene } from '@babylonjs/core/scene';
 
 const shader = 'hollowCrownVisualTrial';
 
-export function createVisualTrialRenderer(camera: ArcRotateCamera) {
+export function createPaletteRenderer(
+  scene: Scene,
+  materials: Materials,
+  bands: ReturnType<typeof createRoomBandUniforms> | null,
+) {
+  const originalClear = scene.clearColor.clone();
+  const originalFog = scene.fogColor.clone();
+  for (const liquid of [materials.water, materials.lava])
+    liquid.setColor3('liquidInk', originalFog);
+  let previous: ViewSettings | undefined;
+  return (settings: ViewSettings) => {
+    if (!bands || previous === settings) return;
+    const enabled = settings.paletteEnabled;
+    if (enabled !== (previous?.paletteEnabled ?? false)) {
+      if (enabled) {
+        scene.clearColor.set(...roomInk, originalClear.a);
+        scene.fogColor.set(...roomInk);
+      } else {
+        scene.clearColor.copyFrom(originalClear);
+        scene.fogColor.copyFrom(originalFog);
+      }
+      for (const liquid of [materials.water, materials.lava]) {
+        liquid.setFloat('liquidFog', enabled ? scene.fogDensity : 0);
+        liquid.setColor3('liquidInk', scene.fogColor);
+      }
+    }
+    if (
+      enabled !== previous?.paletteEnabled ||
+      (enabled &&
+        (settings.roomHue !== previous.roomHue ||
+          settings.shadowCoverage !== previous.shadowCoverage))
+    )
+      bands.update(settings);
+    previous = settings;
+  };
+}
+
+export function createVisualTrialRenderer(
+  camera: ArcRotateCamera,
+  applyPalette: (settings: ViewSettings) => void,
+) {
   const engine = camera.getEngine();
   let pass: PostProcess | null = null;
   let strength = 0;
@@ -31,19 +74,20 @@ varying vec2 vUV;
 uniform sampler2D textureSampler;
 uniform vec2 axes;
 uniform float strength;
+uniform vec4 voidColor;
 void main(void) {
   vec2 delta = vUV - 0.5;
   vec2 q = 2.0 * delta * axes;
   vec2 source = 0.5 + delta * (1.0 + strength * (dot(q, q) - 1.0));
   if (any(lessThan(source, vec2(0.0))) || any(greaterThan(source, vec2(1.0))))
-    gl_FragColor = vec4(0.044, 0.065, 0.075, 1.0);
+    gl_FragColor = voidColor;
   else
     gl_FragColor = texture2D(textureSampler, source);
 }`;
       pass = new PostProcess(
         'Visual trial fisheye',
         shader,
-        ['axes', 'strength'],
+        ['axes', 'strength', 'voidColor'],
         null,
         1,
         camera,
@@ -53,12 +97,14 @@ void main(void) {
         const [x, y] = sceneAxes(aspect());
         effect.setFloat2('axes', x, y);
         effect.setFloat('strength', barrelStrength(strength));
+        effect.setDirectColor4('voidColor', camera.getScene().clearColor);
       };
     }
   };
   camera.getScene().onDisposeObservable.addOnce(() => setDistortion(0));
   return {
     apply(settings: ViewSettings, logicalRadius: number, inspecting: boolean) {
+      applyPalette(settings);
       setDistortion(inspecting ? 0 : settings.fisheyePercent);
       if (!inspecting) {
         camera.fov = lensFov(settings.lensDegrees);

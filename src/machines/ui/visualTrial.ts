@@ -7,6 +7,7 @@ export type ViewMode = 'original' | 'tuned';
 export type VisualTrialEvent =
   | { type: 'SELECT'; mode: ViewMode }
   | { type: 'EDIT'; key: string; value: number }
+  | { type: 'PALETTE'; enabled: boolean }
   | { type: 'RESET' | 'COPY' };
 
 const originalSelection = ({ event }: { event: VisualTrialEvent }) =>
@@ -44,6 +45,14 @@ export const visualTrialMachine = setup({
     },
     tuned: {
       on: {
+        PALETTE: {
+          actions: [
+            assign({
+              saved: ({ context, event }) => ({ ...context.saved, paletteEnabled: event.enabled }),
+            }),
+            'apply',
+          ],
+        },
         SELECT: [
           { guard: originalSelection, target: 'original', actions: 'apply' },
           { guard: tunedSelection, actions: 'apply' },

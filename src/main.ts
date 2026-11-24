@@ -27,7 +27,7 @@ import type { PracticeCommand, PracticeRound } from './practiceRoom.ts';
 import { tileAt, heightAt } from './worldSpatial.ts';
 import { createGenerationReport } from './generation/report.ts';
 import type { GenerationReport } from './generation/report.ts';
-import { createMaterials } from './materials.ts';
+import { createMaterials, createRoomBandUniforms } from './materials.ts';
 import { buildDungeon } from './buildDungeon.ts';
 import { createPlayer, movePlayer, stopPlayer } from './player.ts';
 import { RouteBudget } from './routeBudget.ts';
@@ -57,7 +57,7 @@ import { TerrainCandidates } from './terrainCandidates.ts';
 import { UI, bindVisualTrialPanel, fromVisualTrial } from './ui.ts';
 import { createVisualTrial } from './machines/ui/visualTrial.ts';
 import { BASE_FOV } from './visualTrial.ts';
-import { createVisualTrialRenderer } from './visualTrialRendering.ts';
+import { createPaletteRenderer, createVisualTrialRenderer } from './visualTrialRendering.ts';
 import { InspectionController } from './inspection.ts';
 import { Statechart } from './machines/statechart.ts';
 import { animateChest, progressionMachine } from './machines/world/interactions.ts';
@@ -505,9 +505,14 @@ function assembleScene(
   glow.intensity = 0.38;
   // Smooth shader/shadow edges as well as silhouettes; DOM text stays crisp.
   const fxaa = new FxaaPostProcess('edge antialiasing', 1, camera);
-  const trialRenderer = createVisualTrialRenderer(camera);
-  const materials = createMaterials(scene);
-  const dungeon = buildDungeon(scene, content, materials, shadow, glow);
+  const bands =
+    content.kind === 'practice' || (import.meta.env.DEV && debug) ? createRoomBandUniforms() : null;
+  const materials = createMaterials(scene, bands);
+  const dungeon = buildDungeon(scene, content, materials, shadow, glow, bands !== null);
+  const trialRenderer = createVisualTrialRenderer(
+    camera,
+    createPaletteRenderer(scene, materials, bands),
+  );
   const ecs = new ECS();
   const discoveries = new DiscoveryRecord(generationIdentity(world.seed));
   ecs.create('run').add('discoveries', discoveries);

@@ -108,17 +108,30 @@ export const modelCases = [
       { type: 'RESET' },
       { type: 'EDIT', key: 'unknown', value: 30 },
       { type: 'EDIT', key: 'lensDegrees', value: NaN },
+      { type: 'PALETTE', enabled: true },
+      { type: 'PALETTE', enabled: false },
+      ...(['roomHue', 'shadowCoverage'] as const).flatMap((key) =>
+        [-1, 50, 361].map((value) => ({ type: 'EDIT' as const, key, value })),
+      ),
       ...(['lensDegrees', 'fisheyePercent'] as const).flatMap((key) =>
         [-200, 40, 200].map((value) => ({ type: 'EDIT' as const, key, value })),
       ),
     ],
     invariant: (state, before, event) => {
       if (!before || event?.type === 'RESET') assert.deepEqual(state.context.saved, DEFAULT_VIEW);
+      else if (event?.type === 'PALETTE' && before.matches('tuned'))
+        assert.deepEqual(state.context.saved, {
+          ...before.context.saved,
+          paletteEnabled: event.enabled,
+        });
       else if (
         event?.type === 'EDIT' &&
         before.matches('tuned') &&
         Number.isFinite(event.value) &&
-        (event.key === 'lensDegrees' || event.key === 'fisheyePercent')
+        (event.key === 'lensDegrees' ||
+          event.key === 'fisheyePercent' ||
+          event.key === 'roomHue' ||
+          event.key === 'shadowCoverage')
       ) {
         const [min, max] = VIEW_RANGES[event.key];
         assert.deepEqual(state.context.saved, {

@@ -1,5 +1,95 @@
 # Verification — The Hollow Crown
 
+## Story 15.2 — Three-value rooms (implementation evidence)
+
+Implemented as an opt-in practice treatment on `epic-15-visual-experiments` (base `6c10c78`).
+Both entry points start in Original; the ordinary dungeon has no panel. The existing visual
+trial statechart owns the recipe. On trial-capable scenes only, tagged architecture gets a
+shader branch using scene-local swatches and cutoffs. A prototype that replaced materials on
+toggle produced blank architecture and incomplete Original frames during shader compilation;
+the final branch keeps the Original materials and draw path in place across toggles. No
+geometry or shader is rebuilt on edits. No 15.1 artifacts were replaced and no timing was run.
+
+- **Red:** `node --test tests/roomPalette.test.ts tests/visualTrial.test.ts` failed for the missing
+  palette policy and missing default. The headed `--panel` run failed on the missing room
+  control. With settings implemented but before rendering, `palette-run-lqMk0w` rejected all
+  seven pairs as having no substantive treatment.
+- **Green:** the focused Node tests passed (7/7), and `npm run test:models` passed (26/26;
+  visual trial 2/2 states, 8/8 branches). `npm run check:full` completed on rerun after the
+  first invocation hit the tool timeout (591/591 tests, typecheck, lint and format check).
+  `npm test` (571/571) and `npm run build` also passed.
+- **Live controls:** `DEMO_URL=http://localhost:5182 VISUAL_TRIAL_OUTPUT=test-results/visual-trial/15.2
+  node tests/visual-trial-browser.ts --panel` passed. It exercised pointer and keyboard edits,
+  exact numeric entry, copy fallback and re-entry, scene/camera/intent isolation, and practice
+  reset. The 844×390 native scroll case reached the controls and selected the fallback JSON.
+  Evidence: `test-results/visual-trial/15.2/panel-run-xH0396/evidence/`.
+- **Matched WebGL:** `DEMO_URL=http://localhost:5182 node tests/visual-trial-palette.ts` passed.
+  Evidence: `test-results/visual-trial/15.2/palette-run-N2Md5x/manifest.json` and adjacent PNGs.
+  Headed Chromium 159.0.8154.6, WebGL2/ANGLE on RTX 2070, High, nominal 1280×720/DPR 1
+  (1279×719 framebuffer). Lens 0.65 rad, Fisheye 0%, hue 275°, coverage 50% unless noted.
+  Same tick, scene, camera target, angles, radius and framebuffer per trio. All seven Tuned
+  frames differed substantively; restored Original met the 15.1 decoded-pixel tolerance in
+  all seven. Dojo used reset + single-foe at tick 344; the stair used the fresh `MOURNING-731`
+  route at tick 430. Lava/bridge and altar were fixed supplemental targets in that same scene,
+  **not** achieved route outcomes.
+
+In the near Dojo crop (295×150, radius 18), horizontal blue-channel jumps of at least eight
+levels fell from 4,655 in Original to zero in Tuned. At radius 36, the fixed Dojo crop counted
+29,786 / 58,111 / 71,377 dark purple pixels at 0 / 50 / 100% coverage; the lit floor sample
+stayed RGB (159,117,191). The void was (10,7,23), with shaded masonry (39,22,54) and lit
+masonry (158,117,190). The captured stair was blue with amber flames nearby; the violet
+Dojo had continuous safe floor and visible cast shadows; the green altar retained its
+violet rune focus. The lava was readable as broad orange pools, with a cross of safe floor.
+
+The implementer indicated the following points on the unlabelled Tuned frames before
+querying the matching geometry. Coordinates are scene pixels and tile `(x, z; support h)`.
+
+| Frame | Indicated position | Matched world feature |
+| --- | --- | --- |
+| Dojo | (615, 560) | Safe stone (3, −5; 0) |
+| Landing | (700, 351), (796, 298) | Passage-13 stair (−1, 16; −1.6), Bakery landing (−1, 21; −2.4). The stair ray picked the cosmetic tread geometry (hidden by the shader) above the actual support tile. |
+| Lava/bridge | (642, 468), (639, 398) | Lava (−24, 26; −0.28), bridge (−26, 28; 0) |
+| Altar | (621, 141) | Floating altar ember above the altar tile (20, 6; 0) |
+
+**Limits:** The three matched stair turn samples show that the steps stay visible, but
+fine shadow stipple changes with the angle near the treads; stills do not establish that
+the effect is shimmer-free in motion. The bridge was located by the safe cross between the
+pools, not by a separate surface color. The evidence is from one seed and one browser/GPU;
+water was not a pinned visual sample. The point-to-world check is implementer evidence, not
+an independent readability review or approval. No roadmap or delivery status changed.
+
+### Stair landing follow-up
+
+**Historical blind result: fail.** The reviewer saw the stairs but did not distinguish the
+flat arrival from the chamber floor in the original Tuned capture. The implementer's pick
+above established where the floor was, not whether the landing read as a separate shape.
+The earlier capture and results are retained.
+
+The Tuned palette now colors a continuous, passage-width patch on existing flat stone at
+both ends of ramped passages. It stops at the first incomplete coplanar row and changes only
+top-face shading. No tiles, meshes, collision, or support heights were added or moved.
+
+- **Red:** The new mask unit tests initially failed for the missing policy. On the unchanged
+  renderer, the new browser probe hit the expected flat floor in all five samples but failed
+  the contrast check (`palette-run-Zug5Ww/manifest.json`, under `test-results/visual-trial/15.2/`).
+- **Green:** `node --test tests/stairLandings.test.ts tests/roomPalette.test.ts tests/visualTrial.test.ts`
+  (9/9), `npm test` (573/573), `npm run check:full` (593/593, typecheck, lint and format),
+  and `npm run build` passed.
+- **Headed Chromium:** `node tests/visual-trial-palette.ts` and
+  `node tests/visual-trial-browser.ts --panel` passed against this worktree's dev server at
+  `http://localhost:5182`. The pinned fresh `MOURNING-731` replay reused tick 430, the same orbit
+  and radius 36, and the same High recipe and 1279×719 framebuffer. All four landing samples
+  separated from nearby coplanar floor, with no chroma jump across the sampled internal seam.
+  Before/after Original stair captures matched exactly in decoded RGB. Evidence is in
+  `test-results/visual-trial/15.2/palette-run-PgvNsr/` and
+  `test-results/visual-trial/15.2/panel-run-VMdhev/evidence/`.
+
+**Independent review verdict: APPROVE 15.2.** On the fresh, unannotated `landing-tuned.png`
+in `palette-run-PgvNsr/`, the reviewer picked pixel `(780, 291)` before consulting the geometry.
+The pick matched the flat Bakery landing at tile `(−1, 21)`, support height `−2.4`.
+The full suite passed 593/593 checks. This approval applies to the follow-up capture;
+the historical blind failure above still stands.
+
 ## Story 15.1 — Pinned visual comparisons
 
 Worktree `the-hollow-crown-epic-15`, branch `epic-15-visual-experiments`, Node 26.0.0.
