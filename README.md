@@ -34,8 +34,14 @@ npm run dev
 Open **http://localhost:5173**. The development server prints its address if that port is occupied.
 
 Open **[the local practice room](http://localhost:5173/?room=practice)** to try the same hero and
-controls on a small floor with a pillar and an unlocked door, without enemies or objectives.
-Refresh keeps you in practice; the bare URL starts the normal dungeon. Edit the authored layout in
+controls on a small floor with a pillar and an unlocked door. You start alone, with no objectives.
+Choose **Start single-foe practice** to begin a fresh round with one skeleton; click it to pursue
+and attack. For another fight, reset before starting a new round.
+
+Choose **Reset practice** (click it, or focus it and press Space or Enter) or press **T** during
+play. This returns you to the empty room at full health, closes the door, and clears movement
+and combat without reloading the page. **Q / R** still rotate the camera. Refresh opens the empty
+room again; the bare URL starts the normal dungeon. Edit the layout in
 [`src/practiceRoom.ts`](src/practiceRoom.ts).
 
 ```sh
@@ -57,6 +63,7 @@ npm run preview:pages
 Open **http://localhost:4173/the-hollow-crown/**. These scripts pass Vite's `--base` option;
 ordinary `dev`, `build` and `preview` retain their root-path defaults. Each build replaces `dist/`,
 so rebuild for the intended target before previewing. No GitHub hostname is embedded in runtime code.
+For the Pages preview of practice, open **http://localhost:4173/the-hollow-crown/?room=practice**.
 
 For bounded Chromium production checks (install its binary with `npx playwright install chromium`):
 
@@ -69,7 +76,7 @@ DEMO_URL=http://localhost:4187/the-hollow-crown/ npm run test:production
 `test:production` defaults to `http://localhost:4173/`. For localhost it starts or reuses a
 strict-port preview with the URL's path as its base, and cleans up only its owned processes.
 Remote `DEMO_URL` sites must already be deployed. The check exercises seed links, menu seed entry,
-random regeneration, quality, movement/map input and held F; records asset URLs and defense
+random regeneration, quality, movement/map input, held F and practice round controls; records asset URLs and defense
 captures; and rejects escaped-base/external requests, browser errors and development hooks.
 Reports/captures use `test-results/production-{root,the-hollow-crown}*` for these two paths.
 

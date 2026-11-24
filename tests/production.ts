@@ -62,6 +62,9 @@ await withViteServer(base.href, 'preview', async () => {
     const capture = (name: string) =>
       page.screenshot({ path: `test-results/production-${label}-${name}.png` });
     const practice = new URL('?room=practice', base);
+    const resetPractice = page.getByRole('button', { name: 'Reset practice', exact: true });
+    const startFoe = page.getByRole('button', { name: 'Start single-foe practice' });
+    const roundStatus = page.locator('#practice-round');
     const checkPractice = async () => {
       await page.waitForSelector('#loading.done', { state: 'attached', timeout: 45000 });
       await expect(page.locator('#room-name')).toHaveText('Practice Room');
@@ -77,6 +80,37 @@ await withViteServer(base.href, 'preview', async () => {
     await page.goto(practice.href);
     await checkPractice();
     await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
+    await expect(resetPractice).toBeVisible({ timeout: 4500 });
+    const documentSentinel = 'production-practice-rounds';
+    await page.evaluate((sentinel) => {
+      document.documentElement.dataset.practiceProbe = sentinel;
+    }, documentSentinel);
+    const checkRound = async (status: string) => {
+      await expect(roundStatus).toHaveText(status);
+      await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
+      await checkPractice();
+      assert.equal(page.url(), practice.href);
+      assert.equal(
+        await page.evaluate(() => document.documentElement.dataset.practiceProbe),
+        documentSentinel,
+      );
+    };
+    await startFoe.click();
+    await checkRound('Single-foe round');
+    await expect(startFoe).toBeDisabled();
+    await resetPractice.click();
+    await checkRound('Empty room');
+    await startFoe.click();
+    await checkRound('Single-foe round');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(resetPractice).toBeFocused();
+    await capture('practice-keyboard-focus');
+    await page.keyboard.press('Space');
+    await checkRound('Empty room');
+    await expect(page.locator('#health-text')).toHaveText('100 / 100');
+    await expect(startFoe).toBeEnabled();
+    checks.push('practice opt-in and click/keyboard reset preserve document, URL and playable HUD');
     await capture('practice');
     practice.searchParams.set('seed', 'MOURNING-731');
     await page.goto(practice.href);
@@ -87,6 +121,8 @@ await withViteServer(base.href, 'preview', async () => {
     await page.locator('#leave-practice').click();
     await ready();
     await expect(page.locator('.quest-panel')).toBeVisible();
+    await expect(resetPractice).toBeHidden();
+    await expect(startFoe).toBeHidden();
     await expect(page.locator('#room-name')).not.toHaveText('Practice Room');
     checkLocation(null);
     assert.equal(new URL(page.url()).searchParams.has('room'), false);
@@ -102,6 +138,8 @@ await withViteServer(base.href, 'preview', async () => {
     // at a project mount, even if a permissive preview happens to serve its /assets requests.
     checkAssets();
     await ready();
+    await expect(resetPractice).toBeHidden();
+    await expect(startFoe).toBeHidden();
     await expect(page.locator('#retry-generation')).toBeHidden();
     await expect(page.locator('#seed-label')).toHaveText('MOURNING-731');
     checkLocation('MOURNING-731');

@@ -4,6 +4,54 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Story 13.2 — Reset and try again
+
+Implemented the [story plan](docs/plan/epic-13/story-2.md) in the `main` working tree on Node
+26.0.0. **Reset practice** and **T** select a fresh empty authored round; **Start single-foe
+practice** selects one ordinary skeleton and stays disabled until reset, including after a kill.
+The request table reuses the existing session loading/ready boundary. Dungeon generation and
+dungeon combat rules are unchanged; practice defeat uses the existing checkpoint respawn until
+the player resets the round.
+
+- **Red first:** the focused tests failed on the missing round policy and roster setup. A local
+  Chromium movement run and a root production smoke against a pre-change Vite bundle both failed
+  because the named Reset practice button was absent.
+- **Fresh layout:** door and tile independence already passed on the original builder. Separate
+  temporary in-memory mutants shared only the door, or shared only tile values in fresh maps;
+  each failed its own identity test and left the other case green. The sources were not mutated.
+- **Green static and model gates:** `node --test tests/practiceRoom.test.ts` (7), `npm test` (519),
+  `npm run check:full` (539), plus standalone `npm run typecheck`, `npm run lint` and
+  `npm run format:check` passed.
+- **Local Chromium:** `DEMO_URL=http://127.0.0.1:5193 npm run test:movement` passed. Real mouse
+  and keyboard input opened and reopened the door, reset during click travel and while holding
+  steering, and selected and pursued the skeleton before an in-reach hero hit. Resets after a
+  hit, during pursuit, after the kill, and after the skeleton defeated the idle hero restored
+  the same quiet state. The document, engine and URL survived; old scenes were disposed, with
+  one live scene and the original quiet-round resource counts after each reset. On the same
+  dev server `npm run test:combat` and `npm run test:resources` passed, including the dungeon
+  regeneration and three-reset resource probes.
+- **Production Chromium:** `npm run build && npm run test:production` and `npm run build:pages`
+  followed by `DEMO_URL=http://localhost:4173/the-hollow-crown/ npm run test:production` passed.
+  Both isolated practice controls from the bare and seeded dungeon, verified mouse and keyboard
+  reset in the original document, and found no escaped-base or external assets, browser errors,
+  or development API. Inspected the local single-foe capture and both production keyboard-focus
+  captures: the controls and focus outline are legible, and the hero, foe and nearby floor sit
+  clear of the controls. No hosted deployment was made.
+- **Review follow-up:** the injected vertex-buffer failure first reproduced an unreachable Retry.
+  Practice now disposes a partial scene and retries the requested roster under the same engine.
+  The movement suite also holds readiness to check that a real second shortcut is ignored and
+  verifies that live hit particles are present before reset and absent afterward. The narrow
+  layout separates the controls, target caption and toast. Firefox passed the first full movement
+  run and the added lifecycle assertions; the first fault-injection run failed its final console
+  audit because Firefox rendered the expected injected error as just `Error`. The fixture now
+  filters only its own injected error at the source, and the full Firefox movement rerun passed.
+  Combat, resources, and both production bases passed again after the scene-recovery change. A
+  separate 1120px Firefox probe confirmed the stacked controls clear the toast (button right edge
+  236px, toast left edge 310px).
+- **Independent review (Astra 6.2): APPROVE, no remaining findings.** The closure review inspected
+  the revised diff and verified the completed browser and static evidence after the recovery,
+  loading, effects, and HUD findings were addressed.
+
 ### Story 13.1 — Practice Room
 
 Implemented the [approved story](docs/plan/epic-13/story-1.md) on `main` (2026-11-24).

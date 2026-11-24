@@ -1,4 +1,6 @@
 import { key } from './worldSpatial.ts';
+import { createActor } from './actors.ts';
+import type { ECS } from './ecs.ts';
 import type {
   Axis,
   DoorEntity,
@@ -17,6 +19,7 @@ const layout = {
   partition: { thickness: 0.55, height: 3.3 },
   pillar: { x: -3, z: -4, w: 1.45, d: 1.45, height: 3.2 },
   spawn: { x: 0, z: -4, h: 0 },
+  foe: { x: 5, z: -2, h: 0 },
 };
 
 export const PRACTICE_NAME = 'Practice Room';
@@ -32,17 +35,44 @@ export const practiceDestinations = {
   landing: doorwayOffset(3),
 };
 
+export type PracticeRound = 'quiet' | 'singleFoe';
+export type PracticeCommand = 'reset' | 'startSingleFoe';
+type PracticeContext = PracticeRound | 'loading' | 'dungeon';
+type PracticeDecision =
+  | { kind: 'rebuild'; round: PracticeRound }
+  | { kind: 'unavailable' | 'alreadySelected' };
+
+// A round stays selected even after its opponent dies. Readiness belongs to the session.
+export function decidePracticeRound(
+  context: PracticeContext,
+  command: PracticeCommand,
+): PracticeDecision {
+  if (context === 'loading' || context === 'dungeon') return { kind: 'unavailable' };
+  if (command === 'reset') return { kind: 'rebuild', round: 'quiet' };
+  return context === 'quiet'
+    ? { kind: 'rebuild', round: 'singleFoe' }
+    : { kind: 'alreadySelected' };
+}
+
 export function selectContent<D, P>(
   room: string | null,
   seed: string | null,
-  providers: { dungeon(seed: string | null): D; practice(): P },
+  providers: { dungeon(seed: string | null): D; practice(round: PracticeRound): P },
+  round: PracticeRound = 'quiet',
 ): { kind: 'dungeon'; world: D } | { kind: 'practice'; world: P } {
   return room === 'practice'
-    ? { kind: 'practice', world: providers.practice() }
+    ? { kind: 'practice', world: providers.practice(round) }
     : { kind: 'dungeon', world: providers.dungeon(seed) };
 }
 
-export function buildPracticeRoom(): PracticeLayout {
+export function createPracticeFoes(ecs: ECS, world: PracticeLayout, round: PracticeRound) {
+  if (round === 'quiet') return [];
+  const foe = createActor(ecs, world, 'skeleton:practice:0', 'skeleton', layout.foe);
+  foe.enableAI();
+  return [foe];
+}
+
+export function buildPracticeRoom(round: PracticeRound = 'quiet'): PracticeLayout {
   const bounds = {
     minX: floor.minX - 0.5,
     maxX: floor.maxX + 0.5,
@@ -53,7 +83,10 @@ export function buildPracticeRoom(): PracticeLayout {
     id: 'entrance',
     name: PRACTICE_NAME,
     kicker: 'TRAINING GROUND',
-    description: 'A quiet place to try movement and door interaction.',
+    description:
+      round === 'quiet'
+        ? 'A quiet place to try movement and door interaction.'
+        : 'Click the skeleton to practise pursuit and melee attacks.',
     x: (bounds.minX + bounds.maxX) / 2,
     z: (bounds.minZ + bounds.maxZ) / 2,
     h: 0,

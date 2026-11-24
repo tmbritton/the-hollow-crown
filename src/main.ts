@@ -17,7 +17,13 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Layers/effectLayerSceneComponent';
 import { CustomMaterial } from '@babylonjs/materials/custom/customMaterial';
 import { generateDungeonWithReport, validateDungeon } from './world.ts';
-import { buildPracticeRoom, selectContent } from './practiceRoom.ts';
+import {
+  buildPracticeRoom,
+  createPracticeFoes,
+  decidePracticeRound,
+  selectContent,
+} from './practiceRoom.ts';
+import type { PracticeCommand, PracticeRound } from './practiceRoom.ts';
 import { tileAt, heightAt } from './worldSpatial.ts';
 import { createGenerationReport } from './generation/report.ts';
 import type { GenerationReport } from './generation/report.ts';
@@ -98,7 +104,7 @@ const generationDiagnostics =
     ? (await import('./generation/localDiagnostics.ts')).createLocalGenerationDiagnostics()
     : undefined;
 let failNextGeneration = import.meta.env.DEV && debug && entry.get('generationFailure') === '1';
-type GenerationRequest = { seed: string | null; pinSeed: boolean };
+type GenerationRequest = { seed: string | null; pinSeed: boolean; practiceRound: PracticeRound };
 let currentRequest: GenerationRequest | null = null;
 let retryRequest: GenerationRequest | null = null;
 const activeGame = () => required(game, 'No active dungeon');
@@ -269,16 +275,20 @@ function retireGame(): void {
   if (old) {
     old.scenario?.run.get('objectiveWork')?.retire();
     old.inspection.dispose();
-    const shaderNames = old.scene.materials
-      .filter((m): m is CustomMaterial => m instanceof CustomMaterial)
-      .map((m) => m._createdShaderName)
-      .filter(Boolean);
-    old.scene.dispose();
-    engine.releaseEffects();
-    for (const name of shaderNames) {
-      delete Effect.ShadersStore[`${name}VertexShader`];
-      delete Effect.ShadersStore[`${name}PixelShader`];
-    }
+    disposeScene(old.scene);
+  }
+}
+
+function disposeScene(scene: Scene): void {
+  const shaderNames = scene.materials
+    .filter((m): m is CustomMaterial => m instanceof CustomMaterial)
+    .map((m) => m._createdShaderName)
+    .filter(Boolean);
+  scene.dispose();
+  engine.releaseEffects();
+  for (const name of shaderNames) {
+    delete Effect.ShadersStore[`${name}VertexShader`];
+    delete Effect.ShadersStore[`${name}PixelShader`];
   }
 }
 
@@ -289,6 +299,8 @@ function showFailure(message: string, retry: GenerationRequest | null = null): v
   loading.classList.remove('done');
   loadingCaption.textContent = message;
   retryButton.hidden = !retry;
+  retryButton.textContent =
+    requestedRoom === 'practice' ? 'Retry practice round' : 'Retry this seed';
   if (retry) retryButton.focus();
 }
 
@@ -333,9 +345,25 @@ function installDungeonScenario(
   };
 }
 
-function start(seed: string | null, { pinSeed = false }: { pinSeed?: boolean } = {}): void {
+function requestPractice(command: PracticeCommand): boolean {
+  const context =
+    requestedRoom !== 'practice'
+      ? 'dungeon'
+      : !game || !currentRequest || paused() || game.inspection.active
+        ? 'loading'
+        : currentRequest.practiceRound;
+  const decision = decidePracticeRound(context, command);
+  if (decision.kind !== 'rebuild') return false;
+  start(null, { practiceRound: decision.round });
+  return true;
+}
+
+function start(
+  seed: string | null,
+  { pinSeed = false, practiceRound = 'quiet' }: Partial<Omit<GenerationRequest, 'seed'>> = {},
+): void {
   if (!engine) return;
-  const request = { seed, pinSeed };
+  const request = { seed, pinSeed, practiceRound };
   currentRequest = request;
   retryRequest = null;
   retryButton.hidden = true;
@@ -352,22 +380,27 @@ function start(seed: string | null, { pinSeed = false }: { pinSeed?: boolean } =
   let content: PlayableContent;
   let debugReport: GenerationReport | null = null;
   try {
-    content = selectContent(requestedRoom, seed, {
-      practice: buildPracticeRoom,
-      dungeon(requestedSeed) {
-        const actualSeed = requestedSeed ?? freshSeed();
-        request.seed = actualSeed;
-        const maxAttempts = import.meta.env.DEV && failNextGeneration ? 1 : undefined;
-        if (import.meta.env.DEV) failNextGeneration = false;
-        const generated = generateDungeonWithReport(actualSeed, {
-          maxAttempts,
-          diagnostics: generationDiagnostics?.port,
-        });
-        if (import.meta.env.DEV && debug)
-          debugReport = createGenerationReport(generated.world, generated.report);
-        return generated.world;
+    content = selectContent(
+      requestedRoom,
+      seed,
+      {
+        practice: buildPracticeRoom,
+        dungeon(requestedSeed) {
+          const actualSeed = requestedSeed ?? freshSeed();
+          request.seed = actualSeed;
+          const maxAttempts = import.meta.env.DEV && failNextGeneration ? 1 : undefined;
+          if (import.meta.env.DEV) failNextGeneration = false;
+          const generated = generateDungeonWithReport(actualSeed, {
+            maxAttempts,
+            diagnostics: generationDiagnostics?.port,
+          });
+          if (import.meta.env.DEV && debug)
+            debugReport = createGenerationReport(generated.world, generated.report);
+          return generated.world;
+        },
       },
-    });
+      practiceRound,
+    );
   } catch (error) {
     if (error instanceof GenerationError) {
       const reason = error.report.attempts.at(-1)?.reasons[0];
@@ -377,13 +410,34 @@ function start(seed: string | null, { pinSeed = false }: { pinSeed?: boolean } =
         requestedRoom === 'practice'
           ? 'Could not open the practice room.'
           : `Unexpected dungeon generation error for seed ${request.seed}.`,
+        requestedRoom === 'practice' ? request : null,
       );
       console.error(error);
     }
     return;
   }
+  let scene: Scene | undefined;
+  try {
+    scene = new Scene(engine);
+    assembleScene(scene, content, request, debugReport);
+  } catch (error) {
+    if (content.kind === 'dungeon') throw error;
+    ui.unload();
+    if (game) retireGame();
+    else if (scene) disposeScene(scene);
+    showFailure('Could not open the practice room.', request);
+    console.error(error);
+  }
+}
+
+function assembleScene(
+  scene: Scene,
+  content: PlayableContent,
+  request: GenerationRequest,
+  debugReport: GenerationReport | null,
+): void {
   const { world } = content;
-  const scene = new Scene(engine);
+  const { pinSeed, practiceRound } = request;
   scene.clearColor = new Color4(0.044, 0.065, 0.075, 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
   scene.fogDensity = 0.015;
@@ -442,15 +496,13 @@ function start(seed: string | null, { pinSeed = false }: { pinSeed?: boolean } =
   registerWorld(ecs, world);
   registerDungeonRendering(ecs, dungeon);
   const player = createPlayer(scene, materials, shadow, world, ecs);
-  const combat = new CombatSystem(
-    ecs,
-    world,
+  const enemies =
     content.kind === 'dungeon'
-      ? [player.actor, ...seedEnemies(ecs, content.world)]
-      : [player.actor],
-    world.seed,
-    { onDeath: observeDeath },
-  );
+      ? seedEnemies(ecs, content.world)
+      : createPracticeFoes(ecs, content.world, practiceRound);
+  const combat = new CombatSystem(ecs, world, [player.actor, ...enemies], world.seed, {
+    onDeath: observeDeath,
+  });
   const routeBudget = new RouteBudget();
   for (const actor of combat.actors)
     actor.navigator.scheduleWith(routeBudget, () =>
@@ -600,12 +652,13 @@ function start(seed: string | null, { pinSeed = false }: { pinSeed?: boolean } =
     )
       return;
     ui.transition({ type: 'READY' });
+    if (content.kind === 'practice') ui.showPracticeRound(practiceRound);
     loading.classList.add('done');
     loading.inert = true;
     ui.room(required(world.roomById.entrance, 'Missing entrance'), game.playTime);
     canvas.focus();
     ui.toast(
-      scenario
+      scenario || practiceRound === 'singleFoe'
         ? 'Click an enemy to pursue and attack. Hold F to defend. Space jumps. X cancels commands.'
         : 'Click or hold the floor to move. Click the door or press E nearby to open it.',
       6500,
@@ -1049,9 +1102,17 @@ window.addEventListener('keydown', (event) => {
   }
   if (paused() || editingText(event.target) || event.metaKey || event.ctrlKey || event.altKey)
     return;
+  if (event.code === 'KeyT') {
+    if (!event.repeat && !event.shiftKey && requestPractice('reset')) event.preventDefault();
+    return;
+  }
+  // Space on a focused native button activates that button, not the hero's jump.
+  if (event.code === 'Space' && event.target instanceof HTMLButtonElement) return;
   // Cancel native text/press-and-hold actions on every event, including repeats.
   // Keep editable fields and browser shortcuts outside gameplay input handling.
   if (gameKeys.has(event.code)) event.preventDefault();
+  // A held key cleared at a scene boundary cannot send new intent until pressed again.
+  if (event.repeat) return;
   if (MOVEMENT_KEYS.has(event.code)) {
     if (game) cancelWork(game.player.actor);
     pointer.send({ type: 'CANCEL' });
@@ -1072,7 +1133,7 @@ window.addEventListener('keydown', (event) => {
     return;
   }
   keys.add(event.code);
-  if (event.repeat || !game) return;
+  if (!game) return;
   if (event.code === 'Space') requestJump(game.player.actor);
   if (event.code === 'KeyE') interact();
   if (event.code === 'KeyQ') game.desiredAlpha -= Math.PI / 2;
@@ -1144,6 +1205,8 @@ window.addEventListener('pointercancel', (event) => {
 });
 window.addEventListener('resize', () => engine?.resize());
 html('menu-button').onclick = toggleMenu;
+html('reset-practice').onclick = () => requestPractice('reset');
+html('start-practice-foe').onclick = () => requestPractice('startSingleFoe');
 html('inspection-close').onclick = () => game?.inspection.close();
 ui.inspection.addEventListener('cancel', (event) => {
   event.preventDefault();

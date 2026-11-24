@@ -4,8 +4,16 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { DebugWindow, TestReport } from './browserTypes.ts';
 import type { Point } from '../src/worldTypes.ts';
+import { MELEE_RANGE } from '../src/combat.ts';
 
-declare const window: DebugWindow & { movementTestLoops?: readonly (() => void)[] };
+declare const window: DebugWindow & {
+  movementTestLoops?: readonly (() => void)[];
+  practiceWitness?: {
+    engine: DebugWindow['__dungeon']['engine'];
+    scene: DebugWindow['__dungeon']['game']['scene'];
+  };
+  finishPracticeLoading?: () => void;
+};
 const browserName = process.env.BROWSER || 'chromium';
 const browser = await (browserName === 'firefox' ? firefox : chromium).launch({
   headless: true,
@@ -19,6 +27,7 @@ const page = await browser.newPage({
 });
 const errors: string[] = [],
   report: TestReport = { checks: [] };
+const assemblyFault = 'Injected practice assembly failure';
 page.on('pageerror', (error) => errors.push(error.message));
 page.on('console', (message) => {
   if (message.type() === 'error') errors.push(message.text());
@@ -150,7 +159,7 @@ async function holdSettled(target: Point) {
 const base = process.env.DEMO_URL || 'http://localhost:5173';
 
 async function openPractice() {
-  await page.goto(new URL('?room=practice&debug', base).href);
+  await page.goto(new URL('?room=practice&debug&seed=MOURNING-731', base).href);
   await page.waitForFunction(() => window.__dungeon?.ready, {}, { timeout: 90000 });
   await expect(page.locator('#room-name')).toHaveText('Practice Room');
 }
@@ -362,7 +371,253 @@ async function practiceDoor() {
   );
 }
 
+async function practiceRounds() {
+  await openPractice();
+  await pauseClock();
+  await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
+  const resetButton = page.getByRole('button', { name: 'Reset practice', exact: true });
+  const startFoe = page.getByRole('button', { name: 'Start single-foe practice' });
+  await expect(resetButton).toBeVisible({ timeout: 4500 });
+  const url = page.url();
+  const sample = () =>
+    page.evaluate(() => {
+      const d = window.__dungeon,
+        g = d.game,
+        hero = g.player.actor;
+      const [foe] = g.combat.enemies;
+      const door = g.world.entities[0];
+      if (door?.type !== 'door') throw Error('No practice door');
+      return {
+        hero: { ...hero.position },
+        hp: hero.health.current,
+        protectedFor: hero.health.invulnerable,
+        target: hero.attack.target,
+        interaction: hero.attack.interaction,
+        swing: hero.attack.swing?.kind,
+        pending: hero.navigator.pending,
+        destination: hero.navigator.destination,
+        door: {
+          x: door.x,
+          z: door.z,
+          open: door.open,
+          locked: door.locked,
+          collides: door.collider?.checkCollisions,
+        },
+        corpses: g.ecs.query('corpse').length,
+        particles: g.ecs.query('particle').length,
+        projectiles: g.ecs.query('projectile').length,
+        foe: foe && { position: { ...foe.position }, hp: foe.health.current, id: foe.id },
+        gap: foe && Math.hypot(hero.position.x - foe.position.x, hero.position.z - foe.position.z),
+        size: d.animation.resources(),
+      };
+    });
+  const pristine = await sample();
+  const remember = () =>
+    page.evaluate(() => {
+      const d = window.__dungeon;
+      window.practiceWitness = { engine: d.engine, scene: d.game.scene };
+    });
+  const replacement = async (act: () => Promise<void>) => {
+    await remember();
+    await act();
+    await page.waitForFunction(
+      () => window.__dungeon.ready && window.__dungeon.game.scene !== window.practiceWitness?.scene,
+    );
+    await pauseClock();
+    await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
+    assert.equal(page.url(), url);
+    assert.equal(
+      await page.evaluate(() => {
+        const d = window.__dungeon;
+        return (
+          window.practiceWitness?.engine === d.engine &&
+          window.practiceWitness.scene.isDisposed &&
+          d.engine.scenes.length === 1
+        );
+      }),
+      true,
+    );
+  };
+  const quietReset = async (act: () => Promise<void>) => {
+    await replacement(act);
+    await expect(startFoe).toBeEnabled();
+    await quietRoom();
+    await tickInput(30);
+    assert.deepEqual(await sample(), pristine);
+    assert.equal((await state()).phase, 'idle');
+  };
+  const reopen = async () => {
+    await pointerAt(pristine.door, 1.35);
+    await page.mouse.down();
+    await page.mouse.up();
+    await tickInput(100);
+    assert.deepEqual((await sample()).door, { ...pristine.door, open: true, collides: false });
+  };
+  await reopen();
+  const beforeTravel = await sample();
+  await click({ x: 6, z: 0 });
+  await tickInput(16);
+  const traveling = await sample();
+  assert.ok(traveling.destination && traveling.hero.x > beforeTravel.hero.x + 0.4);
+  await quietReset(() => resetButton.click());
+  await reopen();
+
+  await pointerAt({ x: 5, z: -4 });
+  await page.mouse.down();
+  await tickInput(12);
+  assert.ok((await sample()).destination);
+  await quietReset(() => page.keyboard.press('KeyT'));
+  await pointerAt({ x: 3, z: -3 });
+  await tickInput(20);
+  await page.mouse.up();
+  assert.deepEqual(await sample(), pristine);
+
+  await page.keyboard.down('KeyD');
+  await tickInput(16);
+  assert.notDeepEqual((await sample()).hero, pristine.hero);
+  await quietReset(() => page.keyboard.down('KeyT'));
+  await remember();
+  await page.keyboard.down('KeyT'); // Real repeats of both held keys must not start a new round or move.
+  await page.keyboard.down('KeyD');
+  await tickInput(30);
+  assert.deepEqual(await sample(), pristine);
+  assert.equal(
+    await page.evaluate(() => window.practiceWitness?.scene === window.__dungeon.game.scene),
+    true,
+  );
+  await page.keyboard.up('KeyT');
+  await page.keyboard.up('KeyD');
+  await page.keyboard.down('KeyD');
+  await tickInput(16);
+  await page.keyboard.up('KeyD');
+  assert.notDeepEqual((await sample()).hero, pristine.hero);
+  pass(
+    'Practice reset reuses page/engine, replaces scene, closes the door, clears travel and held inputs, and allows new commands',
+  );
+
+  async function pursueFoe(capture = false) {
+    await replacement(() => startFoe.click());
+    await expect(startFoe).toBeDisabled();
+    const before = await sample();
+    assert.equal(before.size.actors, 2);
+    assert.ok(before.foe && before.gap! > MELEE_RANGE);
+    if (capture)
+      await page.screenshot({ path: `test-results/${browserName}-practice-single-foe.png` });
+    await pointerAt(before.foe.position, 1.35);
+    await page.mouse.down();
+    await page.mouse.up();
+    assert.equal((await sample()).target, before.foe.id);
+    await tickInput(12);
+    const pursuit = await sample();
+    assert.ok(pursuit.gap! < before.gap! && pursuit.gap! > MELEE_RANGE);
+    assert.ok(Math.hypot(pursuit.hero.x - before.hero.x, pursuit.hero.z - before.hero.z) > 0.3);
+    assert.equal(pursuit.foe?.hp, before.foe.hp);
+    return before.foe.hp;
+  }
+
+  const foeHP = await pursueFoe(true);
+  let hit = await sample();
+  for (let i = 0; i < 120 && hit.foe?.hp === foeHP; i++) {
+    await tickInput(1);
+    hit = await sample();
+  }
+  assert.ok(hit.foe && hit.foe.hp < foeHP && hit.gap! <= MELEE_RANGE);
+  assert.equal(hit.swing, 'MELEE');
+  assert.ok(hit.particles > 0);
+  let hurt = hit;
+  for (let i = 0; i < 20 && hurt.hp === pristine.hp; i++) {
+    await tickInput(6);
+    hurt = await sample();
+  }
+  assert.ok(hurt.hp < pristine.hp && hurt.hp > 0 && hurt.particles > 0);
+  await quietReset(() => resetButton.click());
+  await pursueFoe();
+  await quietReset(() => page.keyboard.press('KeyT'));
+  await pursueFoe();
+  await tickInput(120);
+  await tickInput(120);
+  assert.equal((await sample()).corpses, 1);
+  await expect(startFoe).toBeDisabled();
+  assert.equal((await sample()).size.actors, 2);
+  await quietReset(() => resetButton.click());
+
+  await replacement(() => startFoe.click());
+  for (let i = 0; i < 20 && !(await sample()).protectedFor; i++) await tickInput(120);
+  assert.ok((await sample()).protectedFor > 0, 'ordinary skeleton attacks defeat the idle hero');
+  await expect(page.locator('#toast')).toContainText('You fall');
+  await quietReset(() => resetButton.click());
+  pass(
+    'Practice opt-in supports real enemy picking, pursuit, melee hits, damage, kill and defeat; reset clears combat and does not accumulate resources',
+  );
+}
+
+async function practiceRetry() {
+  await openPractice();
+  const retry = page.getByRole('button', { name: 'Retry practice round' });
+  await page.evaluate((message) => {
+    const { engine, game } = window.__dungeon;
+    window.practiceWitness = { engine, scene: game.scene };
+    const log = console.error;
+    console.error = (...args: unknown[]) => {
+      if (args[0] instanceof Error && args[0].message === message) console.error = log;
+      else log(...args);
+    };
+    const create = engine.createVertexBuffer;
+    engine.createVertexBuffer = () => {
+      engine.createVertexBuffer = create;
+      throw new Error(message);
+    };
+  }, assemblyFault);
+  await page.getByRole('button', { name: 'Start single-foe practice' }).click();
+  await expect(retry).toBeFocused({ timeout: 5000 });
+  assert.equal(await page.evaluate(() => window.practiceWitness?.engine.scenes.length), 0);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#practice-round')).toHaveText('Single-foe round');
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const { engine, game } = window.__dungeon;
+      return [
+        engine === window.practiceWitness?.engine,
+        engine.scenes.length,
+        game.combat.enemies.length,
+      ];
+    }),
+    [true, 1, 1],
+  );
+  pass('Practice assembly failure disposes its partial scene and retries the same roster');
+}
+
+async function practiceLoading() {
+  await openPractice();
+  const startFoe = page.getByRole('button', { name: 'Start single-foe practice' });
+  await page.evaluate(() => {
+    const { scene } = window.__dungeon.game;
+    const prototype: Pick<typeof scene, 'executeWhenReady'> = Object.getPrototypeOf(scene);
+    const original = prototype.executeWhenReady;
+    prototype.executeWhenReady = function (callback, checkRenderTargets) {
+      prototype.executeWhenReady = original;
+      window.finishPracticeLoading = () => original.call(this, callback, checkRenderTargets);
+    };
+  });
+  await startFoe.click();
+  await page.waitForFunction(() => !!window.finishPracticeLoading);
+  const sceneId = () => page.evaluate(() => window.__dungeon.engine.scenes[0]?.uid);
+  const loadingScene = await sceneId();
+  assert.ok(loadingScene);
+  await expect(startFoe).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Reset practice', exact: true })).toBeHidden();
+  await page.keyboard.press('KeyT');
+  assert.equal(await sceneId(), loadingScene);
+  await page.evaluate(() => window.finishPracticeLoading?.());
+  await expect(page.locator('#practice-round')).toHaveText('Single-foe round');
+  assert.equal(await sceneId(), loadingScene);
+  pass('An opt-in still loading does not accept a second round request from the real shortcut');
+}
+
 try {
+  await practiceRetry();
+  await practiceLoading();
+  await practiceRounds();
   await practiceControls();
   await practiceDoor();
   await page.goto(`${base}/?debug&seed=MOURNING-731`);

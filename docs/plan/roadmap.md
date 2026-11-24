@@ -12,8 +12,8 @@ The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted
 
 ## Progress
 
-- Epics: 1/14 complete
-- Stories: 6/46 complete
+- Epics: 2/14 complete
+- Stories: 7/46 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -69,7 +69,7 @@ CPU7 documented missed desktop budgets, not a matched speedup or a cause for thi
 
 ### Epic 13 — Greybox controls room
 
-- [ ] **Epic 13 complete**
+- [x] **Epic 13 complete**
 
 Give the user a direct way to play the actual hero without starting a dungeon run. The deliverable is the room itself; the user can try it at their own pace and choose any follow-up.
 
@@ -81,7 +81,7 @@ Give the user a direct way to play the actual hero without starting a dungeon ru
 - [x] **Story 13.1 — Enter and move around** — Provide a direct entry alongside normal dungeon play. Use the dungeon hero, overhead camera and existing input, navigation and collision rather than a second controller. **Depends on**: 1.3 (original scheduling dependency; Epic 13 was explicitly started independently).
   - Click the floor beyond a pillar to route around it, hold the mouse to steer, or take over with camera-relative WASD/arrows. Try Shift to run, Space to jump, held F to raise the shield and X to cancel travel.
   - Click the closed, unlocked door to approach and open it, or press E within reach; walk through the doorway.
-- [ ] **Story 13.2 — Reset and try again** — Restore the hero and room to the same quiet start with one action, without reloading the page or generating a dungeon. **Depends on**: 13.1.
+- [x] **Story 13.2 — Reset and try again** — Restore the hero and room to the same quiet start with one action, without reloading the page or generating a dungeon. **Depends on**: 13.1.
   - Reset after opening the door or starting a move: the door is closed, the hero is back at the start with starting health, and no travel or attack command carries over.
   - If the user wants to try attack targeting, allow one opt-in existing foe: click it to pursue and attack in reach. Reset removes it; no fight is required.
 

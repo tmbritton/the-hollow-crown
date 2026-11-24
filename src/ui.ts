@@ -11,6 +11,7 @@ import { feedbackMachine } from './machines/ui/feedback.ts';
 import { inhabitantDiscovery, landmarkDiscovery } from './discoveries.ts';
 import type { DiscoveryRecord } from './discoveries.ts';
 import type { AgendaClock } from './lastEmber.ts';
+import type { PracticeRound } from './practiceRoom.ts';
 
 export class UI {
   readonly map: HTMLCanvasElement;
@@ -81,11 +82,18 @@ export class UI {
 
   unload(): void {
     this.transition({ type: 'LOAD' });
+    $('practice-controls').hidden = true;
     this.currentWorld = null;
     this.currentRecord = null;
     this.roomId = null;
     this.agenda([]);
     this.combatTarget(null);
+  }
+  showPracticeRound(round: PracticeRound): void {
+    const singleFoe = round === 'singleFoe';
+    $('practice-round').textContent = singleFoe ? 'Single-foe round' : 'Empty room';
+    element('start-practice-foe', HTMLButtonElement).disabled = singleFoe;
+    $('practice-controls').hidden = false;
   }
   reset(content: PlayableContent, record: DiscoveryRecord): void {
     const { world } = content;
