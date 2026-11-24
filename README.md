@@ -44,6 +44,47 @@ and combat without reloading the page. **Q / R** still rotate the camera. Refres
 room again; the bare URL starts the normal dungeon. Edit the layout in
 [`src/practiceRoom.ts`](src/practiceRoom.ts).
 
+### Practice visual trial
+
+Open **Visual trial** in The Dojo. **Original** is the default. Switch to **Tuned** to drag
+the Lens (25–60° vertical FOV) or Fisheye (0–100%) slider, use its arrow keys, or enter an exact
+value in the adjacent field. Lens changes perspective without changing gameplay zoom; Fisheye
+bends the scene, not the HUD. Switching modes keeps your orbit, zoom and saved Tuned values.
+**Reset settings** restores the original camera values without restarting the round.
+**Copy settings** copies JSON (degrees and percent); if clipboard access fails, select the
+displayed text. On a short window, scroll inside the open panel to reach the lower controls;
+the wheel won't zoom the camera there. To reproduce a view, enter those values in Tuned and use
+the same orbit and zoom.
+The preset survives practice resets in the same page, not a reload. Normal dungeon play has
+no trial panel.
+
+For the pinned comparisons, start the dev server, then run this on a graphical
+desktop with Playwright Chromium, `ffmpeg` and `ffprobe` installed:
+
+```sh
+node tests/visual-trial-browser.ts           # live controls, picks, paired stills and clips
+```
+
+`--panel` runs just the live practice checks. `DEMO_URL` overrides the dev URL. Full replay
+reads the untouched controls from `test-results/visual-trial/15.1/` (or `VISUAL_TRIAL_OUTPUT`).
+It compares decoded stills and all clip frames, not encoded bytes. Each invocation publishes
+its own `paired-run-*/evidence/` (or `panel-run-*/evidence/`) only after all its checks pass.
+The printed path contains its manifests and captures; no existing captures are replaced.
+
+`--baseline` is only for capturing the untreated build served with the same route fixture. It
+requires a nonexistent `VISUAL_TRIAL_OUTPUT` path and publishes the controls under its
+`evidence/` subdirectory. Point later comparisons at that subdirectory. Do not regenerate
+the pinned controls on the trial build.
+
+The bounded hardware experiment is closed; keep its reports. `--measure` makes no captures and
+rejects either historical timing filename or an existing `timing-run/` before opening Chromium.
+Any future authorized trial needs a separate control directory with the two untouched
+`before-*.json` manifests and no timing reports; it would publish both reports under
+`timing-run/evidence/`. See [verification](VERIFICATION.md#story-151--pinned-visual-comparisons)
+for the decoded-media thresholds and historical timing verdict.
+
+### Production preview
+
 ```sh
 npm run build
 npm run preview

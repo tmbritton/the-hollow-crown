@@ -1,5 +1,144 @@
 # Verification — The Hollow Crown
 
+## Story 15.1 — Pinned visual comparisons
+
+Worktree `the-hollow-crown-epic-15`, branch `epic-15-visual-experiments`, Node 26.0.0.
+The inherited untreated controls identify `c00a905c19d7caafde309c99f828ee8191bfd5dc`.
+The resumed run preserved `before-*` and added a guard that rejects existing control
+directories **before** launching the browser. Paired manifests fingerprint the working
+source, record browser/renderer/framebuffer and link back to the control build.
+
+| Route | Inputs (60 Hz simulation ticks) | Checkpoints and captures |
+| --- | --- | --- |
+| The Dojo, empty reset then single foe | `0`: floor `(-6,-4)` past pillar; `120`: `practice-door`; `300`: `skeleton:practice:0` | Floor at tick 100, door closed at 0 and open at 220, skeleton swing at 344; clip starts at 64. |
+| `MOURNING-731`, fresh explicit debug navigation | `0`: floor `(-8,-4)` beside `portrait-15`; `180`: floor `(-1,24)` over passage-13 stairs; `590`: `goblin:bakery:0` | Portrait proximity at 180, intermediate stair height at 430, Bakery `(-1,24,-2.4)` at 580, goblin swing at 680; clip starts at 408. |
+
+Both routes match the untreated control and each other in Original/Tuned at every recorded
+simulation tick (365 practice, 709 dungeon). Moving the first input one tick is rejected.
+The capture inventory contains 16 paired stills (four quarter turns × two logical radii per
+route) and one Original/Tuned motion pair per route. The four paired MP4s decode at 1280×720,
+75 frames at 15 fps (5 s); scene stills are 1279×719 from Chromium's nominal DPR-1, 1280×720
+viewport on this desktop. In the historical successful run, Original stills and clips compared
+byte-for-byte with the untreated controls. Tuned uses 60° / 100%, with the same camera angles,
+logical radii and High quality.
+
+`DEMO_URL=http://localhost:5181 node tests/visual-trial-browser.ts` exercises the real controls
+and picks in headed Chromium 159.0.8154.6 / WebGL2. It checks drag/release, keyboard edits,
+no gameplay intent, same scene, mode/reset, clipboard denial and exact numeric re-entry.
+With Fisheye off, stationary, depth-tested hero silhouette heights are 107/53px (Original at
+18/36), 107/52px (25°) and 108/53px (60°); worst deviation 1.89%. At each Lens/Fisheye
+corner, the same treatment and zoom are held across a quarter turn: foreground walls lower,
+the hero is visible, and all 12 real clicks in the outer 20% reach their intended tile,
+skeleton or door. The test also checks Fisheye does not change FOV or logical zoom.
+
+Artifacts are local and ignored under `test-results/visual-trial/15.1/`: `before-*.json`,
+`paired-*.json`, the stills/clips, `limits.json`, and the panel, rotation and click captures.
+Inspection of all still angles and sampled decoded frames from both clips per route showed the
+practice pillar/door/skeleton and the dungeon descent/Bakery encounter. Strong warping visibly
+bows straight scene edges and can blank out corners; the DOM HUD stays rectangular. At some
+angles the open door and nearby actors overlap; these are matched frames, not a readability
+verdict. The 13 local reference JPEGs are in the primary checkout's `ref/images/`; this story
+did not use or copy them. Palette, ink, and wear are later stories.
+
+**Bounded hardware trial:** `DEMO_URL=http://localhost:5181 node tests/visual-trial-browser.ts
+--measure` exited 0. Headed Chromium 159.0.8154.6, NVIDIA RTX 2070 (ANGLE/WebGL2), driver
+615.78.08, 59.91 Hz display, `balanced-bazzite`. No capture overhead. Three matched pairs per
+route, near then far, with alternating mode order, one untimed full replay per mode and 24
+untimed renders on each measured scene before stepping. The timing metric is Babylon render-loop
+callback interval, not direct scanout, GPU time, or a latency claim. The shared desktop had
+other activity; the observed spread is part of the result, not a reason to retest a budget miss.
+Budgets were fixed at **+2 ms p95** and **+1 draw/frame** for pooled near/far samples per route.
+
+| Route | Paired p95 deltas, ms | Paired mean-draw deltas | Median and min–max | Verdict |
+| --- | --- | --- | --- | --- |
+| Practice | +0.1, 0.0, 0.0 | +0.827, +0.884, +0.840 | 0.0 ms [0.0, +0.1]; +0.840 draws [+0.827, +0.884] | Within both budgets |
+| Dungeon | −10.8, +8.3, +7.3 | +73.251, +73.230, +73.270 | +7.3 ms [−10.8, +8.3]; +73.251 draws [+73.230, +73.270] | Over draw budget in all three pairs; mixed frame interval |
+
+`timing-practice.json` and `timing-dungeon.json` retain per-run absolute near/far and pooled
+values. The initial setup aborted before collecting a pair because Chromium reported nominal
+DPR 1 as `0.9999999812`; the corrected guard preserves the viewport and rejects hidden pages.
+The bounded trial used no replacement pairs and stopped without tuning. It does not support
+promoting the recipe in the dungeon; Original remains the default.
+
+**Historical gates and review:** `node --test tests/visualTrial.test.ts` passed (3/3). `npm run check:full`
+passed (554 tests, typecheck, lint, format). An intermediate capture retry was killed by host OOM
+while exercising the deliberate mismatch; route rejection now reports the first divergent tick
+without formatting a full trace diff. The final headed replay and post-fix typecheck, lint,
+format check, `npm test` (534 tests), and `npm run build` passed. The independent read-only
+Astra follow-up approved that earlier snapshot as an opt-in tool, not promotion of the Tuned
+recipe; see `test-results/visual-trial-final-review.log` and
+`test-results/visual-trial-bounded-browser.log`. That approval is historical, not a current
+delivery verdict: later review found short-viewport clipping, growing camera pass slots, and
+unprotected timing reports. Those fixes were pending independent re-review at that point.
+
+**Follow-up verification:** Regressions went red before the fixes: the 844×390 pointer wheel
+could not reach Fisheye, 12 cycles grew the camera chain from 1 to 13 slots, and either
+occupied timing filename fell through to the browser launch step. The headed Chromium
+`--panel` suite now passes, including real pointer scrolling, Fisheye/reset/copy with a
+selected clipboard fallback, unchanged gameplay zoom, and a stable chain with other passes
+preserved. The short-window capture was inspected (`test-results/visual-trial-fix/practice-panel-short.png`).
+Both timing preflight tests pass with Chromium unavailable by design. `npm run check:full`
+passed (556 tests, typecheck, lint, format), as did `npm test` (536 tests) and `npm run build`.
+An additional non-timed capture replay did not complete: it rejected the practice Original
+`radius-36-turn-3.png` on a byte comparison (five rendered pixels differ from the untouched
+control). The historical comparison evidence above was not replaced. No hardware timing
+was rerun; both historical timing reports are byte-for-byte unchanged.
+
+**Round 2 — Decoded comparisons and publication.** Compare aligned decoded RGB8 pixels. A
+pixel's error is its largest absolute channel difference, in 0–255 steps. Every Original
+frame must have mean error ≤0.5 and at most 0.5% of pixels with error ≥8 against the untreated
+control. This permits isolated raster and encoder noise but not broad drift. To count as
+treated, a Tuned frame must have mean error ≥2 and at least 2% of pixels with error ≥12 against
+current Original. Require this on every paired still and at least 68 of 75 clip frames, so a
+re-encode or isolated clip change cannot stand in for the pinned 60° / 100% recipe. These are
+guards for this strong treatment on these pinned routes, not a general visual-quality metric.
+The replay checks dimensions, frame count and the 15 Hz clip timestamps (to ffprobe's 1 μs
+reporting precision); it compares every frame in order without scaling or resampling. Simulation
+trace matching remains exact, including rejection of a one-tick offset. At each still and raw
+clip frame, the runner reads back the active camera's orbit, logical zoom, compensated radius,
+FOV and distortion state. Tuned must also reproduce the just-captured Original target exactly.
+These checks are separate from the pixel tolerances: a different quarter turn could otherwise
+look sufficiently different without any treatment. The historical control has no per-frame
+camera telemetry; its pinned view manifest, framebuffer and decoded media are still checked.
+
+All writers use one exclusively reserved run directory. Route manifests, stills, raw frames,
+encodes, panel/limit captures and timing reports are written only inside that run's staging
+directory. Rename to `evidence/` only after all requested checks and browser cleanup succeed;
+ordinary failure removes the staging run. Existing flat-layout artifacts remain read-only to
+paired/panel runs. Baseline requires a new root, and timing refuses either historical report
+or a reserved `timing-run/` before browser launch.
+
+The untimed headed replay (`DEMO_URL=http://127.0.0.1:5187 node tests/visual-trial-browser.ts`)
+published `test-results/visual-trial/15.1/paired-run-QEVvw1/evidence/`. The routes matched all
+365/709 simulation ticks respectively. All 16 Tuned stills and all 75 frames of each Tuned
+clip met the treatment threshold. The practice `radius-36-turn-3.png` rejected by the old byte
+check passed with mean decoded error 0.00000544 and no pixels at or above 8 steps. The live
+panel, edge picks, pass lifecycle, and short-window controls passed; sampled panel and Bakery
+stills were inspected. Negative tests cover re-encoded no-op PNG/MP4, sparse one-step noise,
+substantive Original drift, invalid clip cadence/count, wrong capture camera, and a rejected
+rerun after staging output. All 540 historical artifact hashes matched, including both timing
+reports. No hardware timing was rerun.
+
+`npm run check:full` passed (565 tests, typecheck, lint, format); `npm test` passed (545 tests);
+`npm run build` passed with Vite's large-chunk warning. The independent Astra follow-up found
+no remaining blocker for the round-2 findings and independently reran the camera regression
+(`test-results/visual-trial-round2-camera-independent.log`). This does not change the historical
+hardware verdict or promote the Tuned recipe.
+
+**Follow-up 1 — Concurrent rollback.** Before the fix, five output regressions failed:
+baseline rollback deleted three published peer runs, an active panel stage, and an existing
+entry that blocked rename. After the fix, the four focused visual-trial files passed (36 tests),
+including all 16 ordered writer pairs, and `npm test` passed (567 tests). `npm run check:full`
+passed (587 tests, typecheck, lint, format), and `npm run build` passed with Vite's large-chunk
+warning. No browser capture or hardware timing trial was rerun; the historical trial directory
+was not used.
+
+**Final independent review: APPROVE** for the full Story 15.1 and the concurrent rollback
+follow-up. The final verification totals were 36/36 focused tests and 587/587 full tests.
+The approval covers the opt-in comparison tool, not the Tuned recipe's performance. The
+bounded timing trial remains closed: practice met both budgets, and the dungeon exceeded
+the draw-call budget in all three pairs. Original remains the default.
+
 ## Story 14.1 — Edge steering
 
 On `main` (baseline `d7f6562`), floor input now projects a missed downward ray onto the

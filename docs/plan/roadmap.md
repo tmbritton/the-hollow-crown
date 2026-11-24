@@ -14,7 +14,7 @@ Epic 15 is a separate opt-in visual study, not a prerequisite for the delivery q
 ## Progress
 
 - Epics: 2/16 complete
-- Stories: 9/59 complete
+- Stories: 10/59 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -350,7 +350,7 @@ Test whether a room composed of a few large color shapes makes the route and the
 
 #### Stories
 
-- [ ] **Story 15.1 — Pin two playable comparisons** — Keep the current renderer as the control and make each trial opt-in. Capture a reset practice round and the same route in `MOURNING-731` before changing the look.
+- [x] **Story 15.1 — Pin two playable comparisons** — Keep the current renderer as the control and make each trial opt-in. Capture a reset practice round and the same route in `MOURNING-731` before changing the look.
   - Add a small, collapsible practice-room panel. Introduce bounded sliders with their treatments: room hue and shadow coverage (15.2), ink width (15.3) and corner wear (15.4). Show each name and numeric value; dragging or using arrow keys updates the same scene immediately without sending pointer or keyboard commands to the game.
   - Add a live **Lens** slider from wide to long showing vertical FOV in degrees (baseline: 0.65 rad, about 37°, in `src/main.ts`). Adjust orbit distance to keep the hero the same on-screen size: Lens changes perspective, not zoom. At both extremes, rotate past a wall and verify cutaways reveal the hero and clicks still pick the visible floor, door and foe.
   - Add a live **Fisheye** strength slider independent of Lens and zoom: 0% is off; 100% gives strong barrel distortion. Distort only the scene, not the HUD or panel. At both extremes, check that clicks near screen edges pick the visible floor, door or foe under the pointer.

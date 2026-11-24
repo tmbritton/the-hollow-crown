@@ -29,6 +29,8 @@ import { objectiveMachine } from '../../src/machines/world/objective.ts';
 import { workModel } from './work.ts';
 import { focusMachine } from '../../src/machines/world/focus.ts';
 import { cargoMachine } from '../../src/machines/world/cargo.ts';
+import { visualTrialMachine } from '../../src/machines/ui/visualTrial.ts';
+import { DEFAULT_VIEW, VIEW_RANGES } from '../../src/visualTrial.ts';
 
 const facts = (changes: Partial<MonsterPerception> = {}): MonsterPerception => ({
   type: 'THINK',
@@ -96,6 +98,37 @@ const swing = {
 const squadTargets = [new Entity('threat-a'), new Entity('threat-b')];
 
 export const modelCases = [
+  modelCase(visualTrialMachine, {
+    inputs: [undefined],
+    abstractContext: ({ context }) => context.saved,
+    events: (): EventFromLogic<typeof visualTrialMachine>[] => [
+      { type: 'SELECT', mode: 'original' },
+      { type: 'SELECT', mode: 'tuned' },
+      { type: 'COPY' },
+      { type: 'RESET' },
+      { type: 'EDIT', key: 'unknown', value: 30 },
+      { type: 'EDIT', key: 'lensDegrees', value: NaN },
+      ...(['lensDegrees', 'fisheyePercent'] as const).flatMap((key) =>
+        [-200, 40, 200].map((value) => ({ type: 'EDIT' as const, key, value })),
+      ),
+    ],
+    invariant: (state, before, event) => {
+      if (!before || event?.type === 'RESET') assert.deepEqual(state.context.saved, DEFAULT_VIEW);
+      else if (
+        event?.type === 'EDIT' &&
+        before.matches('tuned') &&
+        Number.isFinite(event.value) &&
+        (event.key === 'lensDegrees' || event.key === 'fisheyePercent')
+      ) {
+        const [min, max] = VIEW_RANGES[event.key];
+        assert.deepEqual(state.context.saved, {
+          ...before.context.saved,
+          [event.key]: Math.max(min, Math.min(max, event.value)),
+        });
+      } else assert.deepEqual(state.context.saved, before.context.saved);
+      if (event?.type === 'SELECT') assert.ok(state.matches(event.mode));
+    },
+  }),
   modelCase(koboldSquadMachine, {
     inputs: [undefined],
     // Memory, formation timeout, opening/advance/recovery boundaries, action identity and

@@ -28,6 +28,24 @@
         <button id="start-practice-foe" type="button">Start single-foe practice</button>
       </div>
       <p id="practice-shortcut"><kbd>T</kbd> Reset shortcut</p>
+      <details id="visual-trial">
+        <summary>Visual trial</summary>
+        <fieldset>
+          <legend>Camera treatment</legend>
+          <button id="view-original" type="button" aria-pressed="true">Original</button>
+          <button id="view-tuned" type="button" aria-pressed="false">Tuned</button>
+          <label for="view-lens">Lens (° vertical FOV)</label>
+          <input id="view-lens" type="range" step="any" disabled>
+          <input id="view-lens-value" type="number" step="any" aria-label="Exact lens in degrees" disabled>
+          <label for="view-fisheye">Fisheye (%)</label>
+          <input id="view-fisheye" type="range" step="any" disabled>
+          <input id="view-fisheye-value" type="number" step="any" aria-label="Exact fisheye percentage" disabled>
+          <button id="view-reset" type="button">Reset settings</button>
+          <button id="view-copy" type="button">Copy settings</button>
+          <p id="view-copy-status" role="status"></p>
+          <textarea id="view-copy-text" aria-label="Settings to copy" readonly hidden></textarea>
+        </fieldset>
+      </details>
     </section>
     <aside id="quest-panel" class="quest-panel">
       <div class="eyebrow"><span class="tiny-diamond"></span> YOUR PILGRIMAGE</div>
