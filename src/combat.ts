@@ -175,6 +175,13 @@ export function seedEnemies(ecs: ECS, world: World): Actor[] {
 
 /** Systems consume component data. The player and AI use identical attacks and damage rules. */
 export class CombatSystem {
+  /** Assigned only by the opt-in DEV encounter observer. */
+  declare encounterAttack?: (event: import('./encounterRecipe.ts').AttackWitness) => void;
+  declare encounterSquad?: (
+    id: string,
+    squad: KoboldSquad,
+    event: 'alerted' | 'ranked' | 'open',
+  ) => void;
   readonly ecs: ECS;
   readonly world: NavigationWorld;
   readonly player: Actor;
@@ -887,7 +894,11 @@ export class CombatSystem {
                     a.id.localeCompare(b.id),
                 )[0]
             : undefined;
-      if (seen) squad.alert(seen.entity);
+      const initialAlert = import.meta.env?.DEV && this.encounterSquad && !squad.active;
+      if (seen) {
+        squad.alert(seen.entity);
+        if (initialAlert) this.encounterSquad?.(entity.id, squad, 'alerted');
+      }
       const before = squad.state;
       const spear = squad.spear,
         target = squad.target ? new Actor(squad.target) : undefined;
@@ -916,6 +927,11 @@ export class CombatSystem {
       });
       this.syncSquad(squad);
       if (before !== squad.state) {
+        if (import.meta.env?.DEV && this.encounterSquad) {
+          if (before === 'assembling' && squad.state === 'engaging')
+            this.encounterSquad(entity.id, squad, 'ranked');
+          if (squad.state === 'opening') this.encounterSquad(entity.id, squad, 'open');
+        }
         if (squad.state === 'retreating') squad.beginRetreat();
         if (squad.state === 'attacking' && spear && target && squad.chart.snapshot.context.attack)
           this.startAttack(spear, target, squad.chart.snapshot.context.attack);
@@ -978,14 +994,18 @@ export class CombatSystem {
     }
   }
 
-  private launch(actor: Actor, target: Actor, kind: 'CROSSBOW' | 'THROW_JAVELIN'): void {
+  private launch(
+    actor: Actor,
+    target: Actor,
+    kind: 'CROSSBOW' | 'THROW_JAVELIN',
+  ): string | undefined {
     if (this.ecs.query('projectile').length >= 32) return;
     const origin = kind === 'THROW_JAVELIN' ? this.weaponOrigin(actor) : actor.position;
     const dx = target.position.x - origin.x,
       dz = target.position.z - origin.z;
     const dy = target.elevation - actor.elevation,
       length = Math.max(0.1, Math.hypot(dx, dy, dz));
-    this.ecs
+    return this.ecs
       .create()
       .add('transform', { ...origin, heading: actor.position.heading, h: actor.elevation + 0.85 })
       .add('projectile', {
@@ -996,7 +1016,7 @@ export class CombatSystem {
         vz: (dz / length) * 10,
         life: 1.6,
         damage: ATTACKS[kind].damage,
-      });
+      }).id;
   }
 
   update(dt: number): void {
@@ -1053,10 +1073,13 @@ export class CombatSystem {
       const swing = actor.attack.advance(dt);
       if (!swing) continue;
       const target = this.actor(swing.target);
-      if (target?.alive) {
-        if (swing.kind === 'CROSSBOW' || swing.kind === 'THROW_JAVELIN') {
-          if (this.canAttack(actor, target, swing.kind)) this.launch(actor, target, swing.kind);
-        } else if (this.canAttack(actor, target, swing.kind))
+      const kind = swing.kind;
+      const projectile = kind === 'CROSSBOW' || kind === 'THROW_JAVELIN';
+      const reach = !!target?.alive && this.canAttack(actor, target, swing.kind);
+      let launched: string | undefined;
+      if (reach && target) {
+        if (projectile) launched = this.launch(actor, target, kind);
+        else
           this.damage(
             target,
             actor.kind === 'player'
@@ -1074,6 +1097,14 @@ export class CombatSystem {
             },
           );
       }
+      if (import.meta.env?.DEV && this.encounterAttack)
+        this.encounterAttack({
+          actor: actor.id,
+          target: swing.target,
+          kind: swing.kind,
+          outcome: projectile ? (launched ? 'release' : 'no-release') : reach ? 'contact' : 'miss',
+          projectile: launched,
+        });
     }
     this.updateProjectiles(dt);
     for (const entity of this.ecs.query('particle', 'transform')) {

@@ -12,8 +12,8 @@ The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted
 
 ## Progress
 
-- Epics: 2/14 complete
-- Stories: 7/46 complete
+- Epics: 3/14 complete
+- Stories: 10/46 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -48,7 +48,7 @@ Use Effect to compose required generation stages and explain why a candidate fai
 
 ### Epic 1 — Capture the encounter hitch
 
-- [ ] **Epic 1 complete**
+- [x] **Epic 1 complete** — [Hardware baseline](../encounter-baseline.md), [hotspot decision](../encounter-hotspot-decision.md), and [targeted shader adoption](../targeted-shader-efficacy.md).
 
 CPU7 documented missed desktop budgets, not a matched speedup or a cause for this hitch. Its phalanx fixture starts near rank, forces alert, disables other enemies and does not render; the doorway fixture is also unrendered, and native `live-*` starts at the stable.
 
@@ -57,14 +57,14 @@ CPU7 documented missed desktop budgets, not a matched speedup or a cause for thi
 
 #### Stories
 
-- [ ] **Story 1.1 — Record approach and controls** — Start a fresh seeded full world with all 24 enemies, rigs, objectives and AI active. Drive ordinary player movement under rendered hardware native RAF from before sighting the unaware pack through its first resolved attack. **Depends on**: none.
+- [x] **Story 1.1 — Record approach and controls** — Start a fresh seeded full world with all 24 enemies, rigs, objectives and AI active. Drive ordinary player movement under rendered hardware native RAF from before sighting the unaware pack through its first resolved attack. **Depends on**: none.
   - Witness approach, alert, slot travel, formed rank, opening and impact/release by tick and callback; flag early alerts, stalls or missing phases rather than trimming them out.
   - Replay a comparable door opening/crossing with verified **no alert**, and full versus reduced living population with the same target pack, path, camera and quality. Record who is alive, visible, active or settled; keep deaths and settling outside the comparison window.
-- [ ] **Story 1.2 — Publish the baseline and comparison gate** — Freeze inputs, revision, warmed actor/door state, hardware, viewport and quality. Run at least three fresh repeats per case at Low and High; alternate before/after order in later comparisons. **Depends on**: 1.1.
+- [x] **Story 1.2 — Publish the baseline and comparison gate** — Freeze inputs, revision, warmed actor/door state, hardware, viewport and quality. Run at least three fresh repeats per case at Low and High; alternate before/after order in later comparisons. **Depends on**: 1.1.
   - Use `off` (outer timing only) for FPS, interval and callback p95/p99/max and share over 16.7 ms. Tag each worst interval with phase, preceding callback work and following catch-up tick count; record the 0–5 tick histogram, separating startup from between-callback intervals.
   - Use separate development-only coarse/detailed runs for tick, squad/route requests and work credits, occupancy/door probes, rig solve and render submission. Do not add nested timers or call submission wall time GPU time. If attribution remains ambiguous, request a matched GPU/compositor trace, not a quality cut.
   - For **each subsequent encounter story that changes runtime behavior**, compare to its parent and the frozen baseline: report repeat spread, phase durations and worst frames for encounter and controls. Reject unmatched starts or missing evidence for speedup claims; report intended behavior changes separately. Investigate reproducible tail regressions before proceeding.
-- [ ] **Story 1.3 — Decide whether to fix a measured hotspot** — Select one contributor only if the baseline distinguishes it from doorway and population effects. Otherwise record the unresolved question and the next discriminating measurement. **Depends on**: 1.2.
+- [x] **Story 1.3 — Decide whether to fix a measured hotspot** — Select one contributor only if the baseline distinguishes it from doorway and population effects. Otherwise record the unresolved question and the next discriminating measurement. **Depends on**: 1.2.
   - Retain a bounded change only with a repeatable improvement beyond spread in the affected phase, intact gameplay and no displaced hitch in controls. A negative finding closes the investigation, not the performance target.
 
 ### Epic 13 — Greybox controls room

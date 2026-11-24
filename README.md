@@ -357,6 +357,12 @@ page. Unexpected defects are reported separately and do not offer a generation r
 
 ## Implementation
 
+Startup and regeneration prepare a small set of first-movement shader variants before enabling
+input: camera variants at both qualities and one directional-shadow variant on High. A quality
+change during loading restarts the readiness check for the new setting. This trades
+some load time for a shorter first-movement hitch; it is not a steady-FPS optimization. See the
+[measured tradeoff and adoption decision](docs/targeted-shader-efficacy.md).
+
 | File | Responsibility |
 | --- | --- |
 | `src/worldTypes.ts` | Rooms, tiles, connections, props, and discriminated entity types |
@@ -379,6 +385,7 @@ page. Unexpected defects are reported separately and do not offer a generation r
 | `src/enemyRendering.ts` | Procedural enemy rigs, selection, health bars and pooled effect rendering |
 | `src/geometry.ts` | Exposed-face box batching, mesh parts, thin instances |
 | `src/buildDungeon.ts` / `src/renderTypes.ts` | Procedural architecture/props, collision proxies, typed lights and animations |
+| `src/targetedShader*.ts` / `src/rigLifecycle.ts` | Exact-key WebGL2 shader preparation before input, scene-owned effect cleanup, and retirement of the input reset target before disposal |
 | `src/themedProps.ts` | Workshop furnishings, ovens, stable fixtures, and animated lizard steeds |
 | `src/royalty.ts` / `src/portraits.ts` | Seeded royal identities, pixel-art shader, and wall-mounted frames |
 | `src/inspection.ts` | Typed inspection targets, camera transitions, framing, lifecycle, and camera restoration |

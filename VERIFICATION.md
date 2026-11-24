@@ -4,6 +4,39 @@
 
 The playable exploration/combat demo uses a **typed ECS, XState 5.33.4, and strict TypeScript**, verified in Chromium and Firefox. Application code, all test scripts, and Vite configuration pass type checking. The production build also passes a separate smoke test. The state-machine/social update adds independent species charts, generated model-based coverage, and visible card games, hacky sack, and smoke breaks.
 
+### Epic 1 — pre-commit Git index isolation
+
+- Before the fix, the encounter reconstruction test exited `0` but replaced the disposable
+  sentinel tree `24fba262d11c27c1d4873ba892a0bbad4e8f603b` with HEAD's tree
+  `2a541ddbf835d5358da914d0112932379faa62f5`. `e5ca186` and its parent share that HEAD tree.
+  The CPU7 checkout test also demonstrated that an inherited `GIT_DIR` overrode Git discovery.
+- After the fix, the installed pre-commit hook passed on the disposable index: 580 tests
+  passed, one opt-in browser test skipped, and lint and formatting passed. `npm run check:full`
+  in the same setup passed 600 tests with one skip, plus typecheck, lint and format. Both runs
+  preserved the sentinel tree and index bytes; the real index SHA-256 was unchanged.
+  `npm run build` passed with the existing large-chunk warning.
+- Independent read-only review (OpenCode / GPT-6.2 Sol) found no blockers. The CPU7 regression
+  covers rejection before Vite starts, not a successful checkout; shader arm reconstruction
+  uses the same isolation helper but was reviewed by inspection rather than run.
+
+### Epic 1 integration on `a79111e`
+
+- `npm run typecheck`, `npm run check:full` (599 passed, one opt-in browser test skipped),
+  and `npm run build` passed. Lint and formatting were clean; Vite retained its large-chunk warning.
+- `npm run test:cpu:production` passed across 82 JS chunks. Root `npm run test:production`
+  passed in isolation, including practice entry, single-foe opt-in, mouse/keyboard resets,
+  return to the dungeon, and regeneration. The first attempt, run alongside the full gate,
+  hit the smoke script's browser deadline.
+- `npm run test:generation`, `npm run test:resources`, and `node tests/rig-lifecycle-browser.ts`
+  passed: same-seed failure/retry and stale-scene retirement, three regeneration resource
+  plateaus, unload, and simulated persisted resume. A focused browser probe injected a context-loss
+  notification before practice preparation completed: it retired the pending scene and retried
+  the same single-foe round without dungeon generation.
+- `node tests/targeted-shader-browser.ts` passed all four first-motion visits (8, 9, 10, and 11
+  targeted keys, all ready at input release). These are correctness checks, not new hardware timings.
+- `npm run test:movement` passed all six practice checks and the next three dungeon checks;
+  its browser closed during a later screenshot, so the full movement run did not finish.
+
 ### Story 13.2 — Reset and try again
 
 Implemented the [story plan](docs/plan/epic-13/story-2.md) in the `main` working tree on Node
@@ -265,6 +298,129 @@ kits. Seven focused tests, `npm test` (472), `npm run test:full` (492), strict t
 format and build passed. The 16 separately reserved quiet windows were not available, so collection
 did not start. No new generation ceilings or independent timing clearance. The later user decision
 above supersedes the historical EF1 implementation block, not the original margins.
+
+### Epic 1 — adoption review repairs
+
+- `node --test tests/rig-lifecycle.test.ts tests/targeted-shader.test.ts tests/targeted-shader-rendering.test.ts tests/encounter-report.test.ts`: 27 passed. Both new regressions failed before the repair. The Low→High case uses the distinct shipping stone signatures and withholds the High sibling until High readiness; it requires compilation of that exact High variant before READY. The empty-work case rejects a superseded scene callback and releases only on the current one.
+- `node tests/targeted-shader-browser.ts`: all four headless Chromium visits matched their exact first-motion identities (795 Low door: 8, 795 High reduced: 9, MOURNING-731 Low/High real W: 10/11). Every selected draw key was ready at release; one unregistered miss per visit, no recorded preparation violations or surviving handles. An in-memory negative probe dropping only `stone` failed the first visit even though seven targets remained and none were missing at READY. The High reduced visit hit its wall deadline after first motion; the audit does not re-establish its combat terminal.
+- `npm test`: 517 passed, one opt-in browser test skipped. `npm run check:full`: 535 passed, one skipped; typecheck, lint, and format passed. `npm run build`, `npm run test:cpu:production` (82 chunks), and `npm run test:production` passed; the existing large-chunk warning remains.
+- `npm run test:movement`: all 18 Chromium checks passed against an owned strict-port dev server. `RIG_PORT=5492 RIG_OUTPUT=test-results/rig-lifecycle-adoption-review-retry.json node tests/rig-lifecycle-browser.ts` passed navigation, close, teardown replay, and simulated persisted resume (no first-frame catch-up or page errors). An earlier combined browser invocation hit its outer timeout during the rig suite.
+- Independent read-only follow-up (OpenCode / GPT-6.2 Astra): **PASS** for the review repairs, with an independent 6/6 shipping-adapter test run. No performance rerun or deployment.
+
+### Epic 1 — targeted shader preparation adopted
+
+The [separate 32-pair efficacy study](docs/targeted-shader-efficacy.md) found a 35.0 ms
+median paired first-displacement benefit in the primary reduced Low comparison (8/8),
+at a +127.2 ms ordinary startup penalty across the 28 parent pairs. The load tradeoff
+was explicitly accepted for adoption. No steady-FPS improvement is claimed. The previous
+capped run rejected on +113.1 ms regeneration and the broad trial remains unretained.
+
+- `node --test tests/rig-lifecycle.test.ts tests/targeted-shader.test.ts tests/targeted-shader-rendering.test.ts tests/encounter-report.test.ts`: 25 passed. Shipping adapter tests cover quality supersession, timeout, compiler/cache failure, context loss, disposal and late callbacks. Before wiring adoption the real shipping draw audit found nine targeted-scale misses and no warmup compiles on its first Low visit; the adapter cache-lookup regression also reproduced an uncaught exception before the fix.
+- `node tests/targeted-shader-browser.ts`: passed the four headless Chromium draw audits on the current code without an archived arm or recipe rewrite. All 8/9/10/11 selected first-motion signatures were ready, one unregistered miss per visit, no sampled render-state mutation or surviving warmup effect handles. Low door completed; the High reduced workload hit the wall deadline after first motion, so this run did not re-establish the combat terminal. Ordinary Low and High real W worked after regeneration.
+- `RIG_OUTPUT=test-results/rig-lifecycle-adoption.json node tests/rig-lifecycle-browser.ts`: passed trusted navigation teardown and persisted-event replay on current code. Persisted replay is not a native BFCache hit.
+- `npm run test:movement` passed all 18 Chromium checks against an owned strict-port dev server, including focus loss and regeneration. Two earlier invocations exceeded their outer tool deadlines; the completed run wrote `test-results/chromium-movement-report.json`.
+- `npm run check:full`: 533 passed, one opt-in browser test skipped; typecheck, lint and format passed. `npm run build` and `npm run test:cpu:production` passed (82 JS chunks; existing large-chunk warning). Local root `npm run test:production` passed startup, live keyboard movement, quality selection and regeneration with no debug/Inspector/network leakage.
+- No performance rerun, independent review or deployment was performed for adoption.
+
+### Epic 1 — historical rig reset verification and initially locked shader trial
+
+The no-warmup parent reproduced the disposed-rig exception on replay on both ordinary and R6
+pages. The lifecycle-only regression, focused tests, full check, movement suite, build, and
+production smoke passed. The isolated shader candidate has headless draw-key evidence only;
+hardware audit and paired timing had not yet run. See the [historical results and source
+seals](docs/targeted-shader-trial-result.md).
+
+Review follow-up: the first resumed render after persisted `pageshow` ran zero catch-up ticks
+(five before the fix). Reentrant termination from stop now retires ownership immediately and
+releases once after stop. Headless Chromium required trusted terminal hide → engine disposal →
+trusted hidden on both outgoing pages. The timing runner's shared teardown path rejected both
+durably journaled unloading errors and missing journals on ordinary and R6 pages of all three
+resealed arms. `npm run check:full` passed (528 passed, one skip); movement, production build
+and production smoke passed. Revised registration `targeted-shader-review-v2` passed offline
+preflight; the desktop remained locked, so no hardware run was launched. No independent
+follow-up review was available.
+
+### Epic 1 — unlocked approach traces stopped at parity
+
+The offline verifier reproduced the original and v3 failed verdicts from the sealed
+`trace-r6-c7b03a12` and `trace-r6-v3-29d7711b` archives. Each contains two resolved reduced
+visits, both rejected; neither reached a door visit. The locked setup archive still verifies.
+See [protocol, numbers and next gate](docs/encounter-trace-v3.md).
+
+Independent read-only review reran both archive verifications, checked the bounded stop and
+confirmed the qualified CPU observations. It found that a trailing sparse array slot escaped
+comparison and that source-change wording needed narrowing. The sparse-array regression failed
+before the fix and passed after; wording now distinguishes runtime source from test tooling.
+Final `npm run check:full` passed all 514 tests, type checking, lint and format; `npm run build`
+passed with the existing large-chunk warning. Both archives still verify after the comparator
+fix. No further browser collection was started.
+
+### Epic 1 — v4 persisted witness, live/browser checks and hardware lock
+
+`npm run check:full` passed (518 passed, one opt-in browser test skipped; typecheck, lint,
+and format passed). `npm run build` passed with the large-chunk warning;
+`npm run test:cpu:production` passed across 82 chunks. The opt-in
+`ENCOUNTER_LIVE_WIRE=1 node --test --test-name-pattern='Playwright native' tests/encounter-trace.test.ts`
+passed separately on both fresh software contexts. All four rejected predecessor visits
+cleared counterfactual wire parity; offline verification reproduced their original verdicts.
+The locked setup run `native-r6-v4-77d1e7dd` verified offline; no new hardware trace was created.
+
+Independent read-only review (GPT-6.2 Astra Fast) reproduced the non-owner array coercion and
+flagged the live replay assertion, standalone gate verification and frame-control reporting.
+Follow-up review found no remaining blockers on those four findings and passed five focused
+probes. It did not run the browser or hardware. See [v4 protocol and results](docs/encounter-trace-v4.md).
+
+### Epic 1 — approach-trace review repairs
+
+The runner now requires explicit desktop unlock and CDP start acknowledgment before the final
+30 native warmup ticks. It validates and archives each attempt before proceeding, allows one
+documented same-slot replacement for a recoverable failure, and stops on a second failure or
+unconfirmed cleanup. Both selected callbacks require frame-linked cross-process evidence. The
+offline verifier independently checks preflight, checksums, source stability, chronological
+order, admission and the report. Partial trace bytes are retained; the historic setup archive was
+left unchanged and reverified, and the frozen R6 reference revalidated 54/54 visits.
+
+The five focused encounter test files passed 34 tests. `npm run test:full` passed 509 tests;
+`npm run lint`, `npm run format:check`, `npm run typecheck`, and `npm run build` passed, with the
+existing large-chunk warning. A read-only independent review (GPT-6.2 Astra) flagged cleanup,
+chronology and preflight verification gaps. Follow-up review confirmed those repairs and the
+late-CDP-session cleanup fix; the reviewer did not run a browser. The final Wayland lock check
+returned `true`. No browser was launched and the six visits remain unrun. No hotspot or
+performance result was established.
+
+### Epic 1 — approach-trace follow-up (hardware capture blocked)
+
+The new trace tests went red before implementation and all eight passed afterward. `npm test`
+passed 482 tests; lint, format, typecheck, build, `test:cpu:production` (82 chunks) and
+`test:production` passed. Build emitted the large-chunk warning. The frozen archive revalidated
+54/54 visits with unchanged manifest, index, report and preflight hashes. A separate headless CDP
+protocol probe exercised stream EOF, sample decoding and frame-ID joins; it was not a hardware
+encounter measurement. The actual R6 trace command stopped on a locked Wayland session before
+starting a visit. See the [decision record](docs/encounter-hotspot-decision.md#trace-follow-up--hardware-run-blocked-before-visit-1)
+for the setup artifact, historical callback numbers and replay. Independent review was not run.
+
+### Epic 1 — encounter capture tooling and post-reboot R6 witnesses
+
+Reporter follow-up: the three new regressions failed before the fix (rank-position drift, coarse
+attribution relabeled detailed, and post-terminal end ticks) and passed afterward. The focused
+clock/recipe/report/source suite passed 17 tests. `npm run check:full` passed all 492 tests plus
+typecheck, lint and format. `npm run build` passed with a large-chunk warning, and
+`npm run test:cpu:production` passed (82 JS chunks). An independent read-only review found no
+blockers, reran the 10 reporter tests, and confirmed 54/54 frozen visits and 36/36 cross-mode matches.
+The current reporter also accepted all three corrected terminal witnesses without any exception.
+No encounter was recaptured and no archive bytes or timing results changed.
+
+Earlier capture verification (not rerun for this reporter-only change): `npm run test:production`,
+targeted `test:movement` and `test:phalanx` on the worktree's owned development server, and
+`test:cpu:regressions` passed. Early combat attempts timed out or stopped at readiness; the final
+isolated `test:combat` passed all 15 checks.
+
+The [encounter report](docs/encounter-baseline.md) distinguishes the old failed launches and
+untimed scouting from three eligible post-reboot Low/off hardware witnesses and the frozen
+54/54 hardware baseline. Earlier independent reviews are in
+`test-results/encounter/review-independent*.log`. The archived trailing-snapshot limitation is
+disclosed and the corrected harness was previously re-witnessed on hardware. No hotspot or speedup
+was established.
 
 ### CPU7 — approved investigation, not performance acceptance
 

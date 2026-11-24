@@ -46,7 +46,7 @@ export function createCpuProfile(
       m.end();
     }
   };
-  const state = () => {
+  const state = (includeAuthority = false) => {
     const g = current();
     const authority = {
       seed: g.world.seed,
@@ -132,9 +132,20 @@ export function createCpuProfile(
       population: population(g),
       resources: resources(g),
       actors: authority.actors,
+      detail: includeAuthority ? { authority, poses } : undefined,
     });
   };
   return {
+    nativeCallback(run: () => void) {
+      const m = session?.metrics;
+      if (!m) throw new Error('CPU session retired');
+      m.begin(current().steps);
+      try {
+        run();
+      } finally {
+        m.end();
+      }
+    },
     start(mode: CpuMode, captureRequest?: number) {
       if (session || cancelLive) throw new Error('CPU session already active or restoring');
       if (!['off', 'coarse', 'detailed'].includes(mode)) throw new Error('Invalid CPU mode');

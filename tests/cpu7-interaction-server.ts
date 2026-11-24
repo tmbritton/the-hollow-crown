@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { revisions } from './cpu7-study.ts';
+import { isolatedGitEnv } from './git-env.ts';
 
 /** Never probe/reuse a listener or fall back to the study cwd in CPU7 mode. */
 export async function withCpu7InteractionServer(
@@ -24,9 +25,11 @@ export async function withCpu7InteractionServer(
   let root: string;
   try {
     root = await realpath(checkout);
+    const env = isolatedGitEnv();
     const git = (...args: string[]) =>
       execFileSync('git', args, {
         cwd: root,
+        env,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
       }).trim();

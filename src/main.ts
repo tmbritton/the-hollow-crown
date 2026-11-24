@@ -35,6 +35,7 @@ import { pickGround } from './navigation.ts';
 import { MOVEMENT_KEYS } from './locomotion.ts';
 import { ECS } from './ecs.ts';
 import { CombatSystem, clearSight, seedEnemies } from './combat.ts';
+import { createFixedClock } from './fixedClock.ts';
 import { cancelAttack, cancelWork, requestDefense, requestJump } from './actors.ts';
 import type { Actor } from './actors.ts';
 import { DiscoveryRecord } from './discoveries.ts';
@@ -46,6 +47,7 @@ import { createTributeRendering } from './tributeRendering.ts';
 import type { ObservedEvent } from './discoveries.ts';
 import { GenerationError, generationIdentity } from './generation/identity.ts';
 import { acceptsGenerationReady } from './machines/ui/session.ts';
+import { createRigLifecycle } from './rigLifecycle.ts';
 import { CameraObservation, updateInstanceMatrices } from './observation.ts';
 import { animateActors, ACTOR_OBSERVATION_RADIUS } from './actorRendering.ts';
 import { cpuTiming } from './cpuMetrics.ts';
@@ -65,6 +67,8 @@ import { element, html } from './dom.ts';
 import type { ShowInspector } from '@babylonjs/inspector';
 import type { Entity, PlayableContent, World } from './worldTypes.ts';
 import type { DungeonScenario, Game } from './gameTypes.ts';
+import { prepareScalePrograms } from './targetedShaderRendering.ts';
+import { signatures } from './targetedShaderSignatures.ts';
 
 const canvas = element('game', HTMLCanvasElement);
 const loading = html('loading');
@@ -111,24 +115,24 @@ const activeGame = () => required(game, 'No active dungeon');
 const currentGame = () => game;
 let animationReview: import('./animationReview.ts').AnimationReview | undefined;
 let initialGenerationReport: GenerationReport | null = null;
-let last = performance.now(),
-  accumulator = 0,
-  uiClock = 0;
+const fixedClock = createFixedClock(performance.now());
+let uiClock = 0;
 let quality: 'high' | 'low' = 'high';
+let encounter: import('./encounterCapture.ts').EncounterCapture | undefined;
 let inspectorToken: ReturnType<typeof ShowInspector> | null = null;
 const pointer = new Statechart(pointerMachine);
 const inspector = new Statechart(inspectorMachine);
 let lastPointerRoute = 0;
 
-function resetMovement(): void {
+const rigLifetime = createRigLifecycle(() => {
   keys.clear();
   pointer.send({ type: 'CANCEL' });
-  if (game) {
-    stopPlayer(game.player);
-    game.enemyRendering.update();
-    ui.combatTarget(null);
-  }
-}
+});
+let sceneGeneration = 0;
+let replacePreparation: (() => void) | undefined;
+const resetMovement = () => {
+  rigLifetime.reset();
+};
 
 function navigatePointer(clientX: number, clientY: number, initialPress = false): void {
   if (!game || !ui.ready || paused() || game.inspection.active) return;
@@ -265,9 +269,10 @@ function observeDeath(victim: Actor, source?: Actor): void {
   );
 }
 
-function retireGame(): void {
+function releaseGame(): void {
   const old = game;
   game = null;
+  replacePreparation = undefined;
   initialGenerationReport = null;
   inspectorToken?.dispose();
   inspectorToken = null;
@@ -276,6 +281,15 @@ function retireGame(): void {
     old.scenario?.run.get('objectiveWork')?.retire();
     old.inspection.dispose();
     disposeScene(old.scene);
+  }
+}
+
+function retireGame(): void {
+  const generation = rigLifetime.generation;
+  if (generation !== undefined) rigLifetime.replace(generation, releaseGame);
+  else if (!rigLifetime.terminal) {
+    resetMovement();
+    releaseGame();
   }
 }
 
@@ -362,7 +376,7 @@ function start(
   seed: string | null,
   { pinSeed = false, practiceRound = 'quiet' }: Partial<Omit<GenerationRequest, 'seed'>> = {},
 ): void {
-  if (!engine) return;
+  if (!engine || rigLifetime.terminal) return;
   const request = { seed, pinSeed, practiceRound };
   currentRequest = request;
   retryRequest = null;
@@ -373,10 +387,11 @@ function start(
   loading.classList.remove('done');
   if (import.meta.env.DEV) animationReview?.reset();
   ui.unload();
-  resetMovement();
   retireGame();
-  accumulator = 0;
-  last = performance.now();
+  if (rigLifetime.terminal) return;
+  fixedClock.reset(performance.now());
+  uiClock = 0;
+  lastPointerRoute = 0;
   let content: PlayableContent;
   let debugReport: GenerationReport | null = null;
   try {
@@ -421,10 +436,10 @@ function start(
     scene = new Scene(engine);
     assembleScene(scene, content, request, debugReport);
   } catch (error) {
-    if (content.kind === 'dungeon') throw error;
     ui.unload();
     if (game) retireGame();
-    else if (scene) disposeScene(scene);
+    else if (scene && !scene.isDisposed) disposeScene(scene);
+    if (content.kind === 'dungeon') throw error;
     showFailure('Could not open the practice room.', request);
     console.error(error);
   }
@@ -562,7 +577,7 @@ function assembleScene(
     onOpen: (target) => {
       if (game?.scene !== scene) return;
       resetMovement();
-      accumulator = 0;
+      fixedClock.remainder = 0;
       playerVisibility = { root: player.root.isEnabled(), marker: player.marker.isEnabled() };
       player.root.setEnabled(false);
       player.marker.setEnabled(false);
@@ -573,7 +588,7 @@ function assembleScene(
     onClose: () => {
       if (game?.scene !== scene) return;
       keys.clear();
-      accumulator = 0;
+      fixedClock.remainder = 0;
       player.root.setEnabled(playerVisibility.root);
       player.marker.setEnabled(playerVisibility.marker);
       game.desiredAlpha = camera.alpha;
@@ -582,7 +597,7 @@ function assembleScene(
       canvas.focus();
     },
   });
-  game = {
+  const installed: Game = {
     routeBudget,
     scene,
     world,
@@ -631,6 +646,19 @@ function assembleScene(
     steps: 0,
     nearLights: [],
   };
+  const generation = ++sceneGeneration;
+  if (
+    !rigLifetime.bind({
+      generation,
+      stop() {
+        stopPlayer(player);
+        enemyRendering.update();
+        ui.combatTarget(null);
+      },
+    })
+  )
+    return;
+  game = installed;
   initialGenerationReport = debugReport;
   ui.reset(content, discoveries);
   applyQuality();
@@ -641,29 +669,38 @@ function assembleScene(
     else url.searchParams.delete('seed');
     history.replaceState(null, '', url);
   }
-  scene.executeWhenReady(() => {
-    if (
-      scene !== game?.scene ||
-      !acceptsGenerationReady(
-        ui.flow.snapshot.matches({ mode: 'loading' }),
-        currentRequest,
-        request,
-      )
-    )
-      return;
-    ui.transition({ type: 'READY' });
-    if (content.kind === 'practice') ui.showPracticeRound(practiceRound);
-    loading.classList.add('done');
-    loading.inert = true;
-    ui.room(required(world.roomById.entrance, 'Missing entrance'), game.playTime);
-    canvas.focus();
-    ui.toast(
-      scenario || practiceRound === 'singleFoe'
-        ? 'Click an enemy to pursue and attack. Hold F to defend. Space jumps. X cancels commands.'
-        : 'Click or hold the floor to move. Click the door or press E nearby to open it.',
-      6500,
-    );
-  });
+  const isCurrentLoad = () =>
+    rigLifetime.generation === generation &&
+    game === installed &&
+    acceptsGenerationReady(ui.flow.snapshot.matches({ mode: 'loading' }), currentRequest, request);
+  replacePreparation = prepareScalePrograms(
+    scene,
+    signatures,
+    () => quality,
+    () => {
+      if (!isCurrentLoad()) return;
+      fixedClock.reset(performance.now());
+      ui.transition({ type: 'READY' });
+      if (content.kind === 'practice') ui.showPracticeRound(practiceRound);
+      loading.classList.add('done');
+      loading.inert = true;
+      ui.room(required(world.roomById.entrance, 'Missing entrance'), installed.playTime);
+      canvas.focus();
+      ui.toast(
+        scenario || practiceRound === 'singleFoe'
+          ? 'Click an enemy to pursue and attack. Hold F to defend. Space jumps. X cancels commands.'
+          : 'Click or hold the floor to move. Click the door or press E nearby to open it.',
+        6500,
+      );
+    },
+    (reason) => {
+      if (!isCurrentLoad()) return;
+      ui.unload();
+      retireGame();
+      if (!rigLifetime.terminal) showFailure(reason, content.kind === 'practice' ? request : null);
+    },
+    () => performance.now(),
+  );
 }
 
 function lineOfSight(entity: Entity): boolean {
@@ -1034,7 +1071,7 @@ function renderUpdate(dt: number): void {
 }
 
 function toggleMenu() {
-  if (!game || !ui.ready) return;
+  if (rigLifetime.terminal || !game || !ui.ready) return;
   resetMovement();
   if (ui.victory.open) return;
   game?.inspection.close({ immediate: true });
@@ -1043,6 +1080,7 @@ function toggleMenu() {
   if (!ui.menu.open) canvas.focus();
 }
 window.addEventListener('keydown', (event) => {
+  if (rigLifetime.terminal) return;
   if (import.meta.env.DEV && event.code === 'F2') {
     event.preventDefault();
     if (!game || !ui.ready || event.repeat) return;
@@ -1142,35 +1180,40 @@ window.addEventListener('keydown', (event) => {
 });
 window.addEventListener('keyup', (event) => {
   keys.delete(event.code);
-  if (event.code === 'KeyF') game?.player.actor.entity.get('defense')?.release();
+  if (event.code === 'KeyF' && rigLifetime.generation !== undefined)
+    game?.player.actor.entity.get('defense')?.release();
 });
 window.addEventListener('blur', resetMovement);
 window.addEventListener('pagehide', (event) => {
-  resetMovement();
   // Release GPU resources promptly on a real reload/navigation. A page retained
   // by the back/forward cache keeps its engine so it can resume normally.
-  if (!event.persisted) {
-    currentRequest = null;
-    if (import.meta.env.DEV) {
-      animationReview?.reset();
-      generationDiagnostics?.dispose();
-    }
-    ui.unload();
-    retireGame();
-    engine?.dispose();
-  }
+  if (event.persisted) resetMovement();
+  else
+    rigLifetime.terminate(() => {
+      currentRequest = retryRequest = null;
+      if (import.meta.env.DEV) {
+        animationReview?.reset();
+        generationDiagnostics?.dispose();
+      }
+      ui.unload();
+      releaseGame();
+      engine?.dispose();
+    });
+});
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted && !rigLifetime.terminal) fixedClock.reset(performance.now());
 });
 document.addEventListener('visibilitychange', () => {
   resetMovement();
+  if (rigLifetime.terminal) return;
   ui.transition({ type: document.hidden ? 'HIDE' : 'SHOW' });
-  last = performance.now();
-  accumulator = 0;
+  fixedClock.reset(performance.now());
 });
 canvas.addEventListener(
   'wheel',
   (event) => {
     event.preventDefault();
-    if (game && !paused() && !game.inspection.active)
+    if (rigLifetime.generation !== undefined && game && !paused() && !game.inspection.active)
       game.desiredRadius = Math.max(
         18,
         Math.min(36, game.desiredRadius + Math.sign(event.deltaY) * 1.5),
@@ -1203,7 +1246,9 @@ window.addEventListener('pointerup', (event) => {
 window.addEventListener('pointercancel', (event) => {
   if (pointer.snapshot.context.pointer?.id === event.pointerId) resetMovement();
 });
-window.addEventListener('resize', () => engine?.resize());
+window.addEventListener('resize', () => {
+  if (!rigLifetime.terminal) engine?.resize();
+});
 html('menu-button').onclick = toggleMenu;
 html('reset-practice').onclick = () => requestPractice('reset');
 html('start-practice-foe').onclick = () => requestPractice('startSingleFoe');
@@ -1228,9 +1273,11 @@ html('rebuild').onclick = () => {
 html('regenerate').onclick = () => start(freshSeed());
 const qualitySelect = element('quality', HTMLSelectElement);
 qualitySelect.onchange = () => {
+  if (rigLifetime.terminal || !engine) return;
   if (qualitySelect.value === 'high' || qualitySelect.value === 'low') {
     quality = qualitySelect.value;
     applyQuality();
+    replacePreparation?.();
   }
 };
 html('continue').onclick = () => {
@@ -1259,14 +1306,12 @@ try {
   const reloading =
     navigation instanceof PerformanceNavigationTiming && navigation.type === 'reload';
   const requestedSeed = reloading ? null : entry.get('seed')?.trim().slice(0, 40);
-  engine.runRenderLoop(() => {
+  const renderFrame = (now = performance.now()) => {
     engine._drawCalls.fetchNewFrame();
-    const now = performance.now(),
-      dt = Math.min(0.08, (now - last) / 1000);
-    last = now;
+    const dt = fixedClock.elapsed(now);
     if (!game) return;
     if (ui.ready && !paused()) {
-      if (game.inspection.active) accumulator = 0;
+      if (game.inspection.active) fixedClock.remainder = 0;
       else {
         const heldPointer = pointer.snapshot.context.pointer;
         if (
@@ -1276,16 +1321,19 @@ try {
           document.elementFromPoint(heldPointer.x, heldPointer.y) === canvas
         )
           navigatePointer(heldPointer.x, heldPointer.y);
-        accumulator += dt * (import.meta.env.DEV ? (animationReview?.speed ?? 1) : 1);
-        while (accumulator >= 1 / 60) {
+        fixedClock.remainder += dt * (import.meta.env.DEV ? (animationReview?.speed ?? 1) : 1);
+        while (!(import.meta.env.DEV && encounter?.holdWarmup()) && fixedClock.take()) {
+          if (import.meta.env.DEV) encounter?.beforeTick();
           tick(1 / 60);
-          accumulator -= 1 / 60;
+          if (import.meta.env.DEV) encounter?.afterTick();
         }
       }
       renderUpdate(dt * (import.meta.env.DEV ? (animationReview?.speed ?? 1) : 1));
-    } else accumulator = 0;
+    } else fixedClock.remainder = 0;
     if (import.meta.env.DEV) animationReview?.prepare();
+    if (import.meta.env.DEV) encounter?.mark('submit');
     game.scene.render();
+    if (import.meta.env.DEV) encounter?.mark('submitted');
     if (import.meta.env.DEV) animationReview?.draw();
     ui.updateFeedback(now);
     uiClock += dt;
@@ -1293,6 +1341,11 @@ try {
       ui.update(game.player, engine.getFps());
       uiClock = 0;
     }
+  };
+  engine.runRenderLoop(() => {
+    if (rigLifetime.generation === undefined) return;
+    if (import.meta.env.DEV && encounter) encounter.frame(renderFrame);
+    else renderFrame();
   });
   start(requestedSeed || null, { pinSeed: !!requestedSeed });
 } catch (error) {
@@ -1304,6 +1357,7 @@ try {
 if (import.meta.env.DEV && debug && engine!) {
   const { createAnimationReview } = await import('./animationReview.ts');
   const { createCpuProfile } = await import('./cpuProfile.ts');
+  const { createEncounterCapture } = await import('./encounterCapture.ts');
   animationReview = createAnimationReview(
     activeGame,
     () => {
@@ -1311,28 +1365,40 @@ if (import.meta.env.DEV && debug && engine!) {
       renderUpdate(1 / 60);
     },
     () => {
-      accumulator = 0;
+      fixedClock.remainder = 0;
     },
   );
-  window.__dungeon = {
-    cpu: createCpuProfile(
-      engine,
-      activeGame,
-      (codes) => {
+  const cpu = createCpuProfile(
+    engine,
+    activeGame,
+    (codes) => {
+      keys.clear();
+      for (const code of codes) keys.add(code);
+      try {
+        tick(1 / 60);
+      } finally {
         keys.clear();
-        for (const code of codes) keys.add(code);
-        try {
-          tick(1 / 60);
-        } finally {
-          keys.clear();
-        }
-      },
-      renderUpdate,
-      () => {
-        last = performance.now();
-        accumulator = 0;
-      },
-    ),
+      }
+    },
+    renderUpdate,
+    () => fixedClock.reset(performance.now()),
+  );
+  encounter = createEncounterCapture({
+    current: activeGame,
+    fresh: (seed) => start(seed, { pinSeed: true }),
+    input(codes) {
+      keys.clear();
+      for (const code of codes) keys.add(code);
+    },
+    interact,
+    ready: () => !!game && ui.ready && !paused() && !game.inspection.active,
+    clock: () => performance.now(),
+    resetClock: (now) => fixedClock.reset(now),
+    cpu,
+  });
+  window.__dungeon = {
+    cpu,
+    encounter,
     animation: animationReview,
     get game() {
       return activeGame();

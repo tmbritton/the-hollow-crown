@@ -89,6 +89,7 @@ export interface Snapshot {
 }
 export interface DungeonDebug {
   readonly cpu: CpuProfile;
+  readonly encounter: import('./encounterCapture.ts').EncounterCapture;
   readonly animation: AnimationReview;
   readonly game: Game;
   readonly ready: boolean;

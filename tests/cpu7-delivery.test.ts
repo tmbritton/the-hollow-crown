@@ -86,6 +86,7 @@ test('CPU7 interaction CLI refuses an unverified checkout before probing or star
       timeout: 5000,
       env: {
         ...process.env,
+        GIT_DIR: join(dir, 'inherited-hook-git-dir'),
         DEMO_URL: `http://127.0.0.1:${address.port}`,
         CPU7_INTERACTION_LABEL: 'regression',
         CPU7_SIDE: 'a',
@@ -93,6 +94,10 @@ test('CPU7 interaction CLI refuses an unverified checkout before probing or star
       },
     });
   await assert.rejects(invoke(''), /Supply CPU7_CHECKOUT/);
-  await assert.rejects(invoke(dir), /CPU7 checkout verification failed/);
+  await assert.rejects(invoke(dir), (error: Error & { stderr: string }) => {
+    assert.match(error.stderr, /CPU7 checkout verification failed/);
+    assert.doesNotMatch(error.stderr, /inherited-hook-git-dir/);
+    return true;
+  });
   assert.equal(requests, 0);
 });

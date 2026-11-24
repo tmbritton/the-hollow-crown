@@ -8,6 +8,9 @@ interface ServerOptions {
   command: string;
   args: string[];
   startupTimeoutMs?: number;
+  requireOwned?: boolean;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
 }
 
 async function reachable(url: string): Promise<boolean> {
@@ -25,9 +28,17 @@ export async function withTestServer<T>(
   options: ServerOptions,
   run: (child?: ChildProcess) => Promise<T>,
 ): Promise<T> {
-  if (await reachable(options.url)) return run();
+  if (await reachable(options.url)) {
+    if (options.requireOwned) throw new Error(`Refusing to reuse server at ${options.url}`);
+    return run();
+  }
   const grouped = process.platform !== 'win32';
-  const child = spawn(options.command, options.args, { stdio: 'ignore', detached: grouped });
+  const child = spawn(options.command, options.args, {
+    stdio: 'ignore',
+    detached: grouped,
+    cwd: options.cwd,
+    env: options.env,
+  });
   let spawnError: Error | undefined;
   child.once('error', (error) => {
     spawnError = error;
@@ -62,19 +73,30 @@ export async function withTestServer<T>(
   }
 }
 
-export function withViteServer<T>(base: string, mode: 'dev' | 'preview', run: () => Promise<T>) {
+export function withViteServer<T>(
+  base: string,
+  mode: 'dev' | 'preview',
+  run: () => Promise<T>,
+  requireOwned = false,
+  binding?: { root: string; nonce: string },
+) {
   const url = new URL(base);
   if (!['localhost', '127.0.0.1'].includes(url.hostname)) {
+    if (requireOwned) throw new Error('Owned Vite server requires localhost');
     // Custom remote URLs must already be running; never start or stop a local process for them.
     return run();
   }
   return withTestServer(
     {
       url: base,
+      requireOwned,
+      cwd: binding?.root,
+      env: binding ? { ...process.env, ENCOUNTER_VITE_NONCE: binding.nonce } : undefined,
       command: process.execPath,
       args: [
         fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)),
         ...(mode === 'preview' ? ['preview'] : []),
+        ...(binding ? [binding.root] : []),
         '--host',
         url.hostname,
         '--port',
