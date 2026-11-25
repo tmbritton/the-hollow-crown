@@ -2,19 +2,19 @@
 
 - **Source**: [Implementation path](../implementation-path.md), [Effect refactor plan](../effect-refactor-plan.md); `/var/home/tom/Documents/Tom's Vault/Notes/Game Demo Notes.md` (original nine encounter notes; twelve Practice Room Notes, lines 13–25); player observations; [README](../../README.md), [docs index](../README.md), [AGENTS](../../AGENTS.md), [CPU7 results](../cpu7-integrated-results.md), [CPU workloads](../../tests/cpu-workloads.ts).
 - **Expansion sources**: [4e incorporation plan](../4e-incorporation-plan.md) (item numbers and milestones A–D); [monster roster plan](../monster-roster-plan.md) (waves A–C).
-- **Updated**: 2026-11-24
+- **Updated**: 2026-11-25
 - **Status**: active
 
 ## Overview
 
-The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted synchronous Effect [generation](../generation-authoring.md), while movement and combat run in the fixed-step ECS. **Next: Epic 14**, using Epic 13's completed practice room to make mouse travel dependable before retiring keyboard navigation. Epic 1's rendered dungeon hitch investigation remains independent and open; neither it nor Epic 14 waits for the other. After both, deliver Epics 2–5, then 7–12; Epic 6 remains optional. Numbers are stable IDs, not priorities; story plans belong later at `docs/plan/epic-N/story-M.md`.
+The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted synchronous Effect [generation](../generation-authoring.md), while movement and combat run in the fixed-step ECS. **Next: Epic 16** tests whether an in-memory tile index can make hover cheaper without changing Epic 14's delivered mouse controls. Epic 1's rendered encounter hitch investigation remains open and independent. After the hover decision and Epic 1, deliver the squad work in Epics 2–5, then 7–12; Epic 6 remains optional. Numbers are stable IDs, not priorities; story plans belong later at `docs/plan/epic-N/story-M.md`.
 
 Epic 15 is a separate opt-in visual study, not a prerequisite for the delivery queue.
 
 ## Progress
 
-- Epics: 3/16 complete
-- Stories: 19/59 complete
+- Epics: 3/17 complete
+- Stories: 19/63 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -124,13 +124,33 @@ Use the same hero and inputs in practice and the dungeon. First make travel reli
   - At gameplay zoom compare the hero swinging, taking an unblocked skeleton hit, and blocking it frontally in practice. Only damage received produces the hurt pose; a block keeps its shield recoil and no HP loss.
   - Repeat during a dungeon exchange. The pose must not determine damage, interrupt eligibility, delay defense or change attack clocks; death/respawn and reset leave no lingering flinch.
 
+### Epic 16 — Limit hover picking to tiles along the pointer ray
+
+- [ ] **Epic 16 complete**
+
+The [startup FPS report](../epic14-startup-fps.md) isolated a shrine hover cost, but the [previous cursor-query trial](cursor-query.md) was not retained: inclusive shrine pick time rose from 5.69 to 11.60 ms/frame, and a GPU failure left clean cadence inconclusive. Test whether skipping distant geometry pays for maintaining the index; fewer candidates alone are not a win.
+
+- **Depends on**: Epic 14 (complete); independent of Epic 1.
+- **Scope**: Run-local, in-memory tile queries for pointer input only.
+
+#### Stories
+
+- [ ] **Story 16.1 — Identify removable work and pin a scaling reference** — Profile current main on working matched hardware before retrying. Separate scene enumeration and transform sync from exact mesh/instance intersections, eligibility, rig ticks and render submission; identify which cost a tile query could actually remove. If no material saving is plausible after upkeep, record why and stop.
+  - Freeze a test-only exhaustive picker and a local ray fixture with and without ten additional populated rooms far from the ray. Record hit, work counts and timings with the local scene and change workload held fixed; set comparison limits before building the index.
+- [ ] **Story 16.2 — Index targets and cover at their writers** — Register static targets and occluders in every tile their bounds overlap. Have dynamic writers update membership when actors, attachments, doors, props or thin instances move, change owner, appear or retire; discard the index on run replacement. **Depends on**: positive evidence in 16.1.
+  - Query only crossed tiles and exact-test their candidates, including individual instances. No recurring scene scan for validation, transform sync or fallback. Repeat the ten-room fixture: require unchanged local hits and bounded candidate and exact work; charge writer updates and maintenance outside the query, and report initial build cost separately.
+- [ ] **Story 16.3 — Keep hover and press on the live surface** — Compare stationary hover, synchronous press and held steering against the exhaustive reference for the same displayed ray. Match floor/enemy/object, owner and operation, nearest surface, instance, distance and tie order; tile bounds are not hits. **Depends on**: 16.2.
+  - In practice and dungeon test holes, overlapping targets, cutaways, swinging doors, moving instances and camera changes. Put a different valid owner under the pointer between preview and press without rendering: press must use the new hit. Verify outline, hand/sword and ring, no command from hover, and no stale cue after death or reset.
+- [ ] **Story 16.4 — Decide whether the index earns its upkeep** — Compare baseline and candidate at the out-of-reach entrance shrine in `MOURNING-731` with all 24 enemies alive. Verify the same restore target, camera, preset, viewport and hardware; alternate three fresh paired production visits each for stationary shrine, clear floor and no-pointer idle. **Depends on**: 16.3.
+  - Use separate diagnostic runs for inclusive pick time plus all index upkeep, and uninstrumented native RAF for FPS and interval tails. Apply the linked trial's retention thresholds: at least halve shrine pick cost, improve clean shrine cadence beyond repeat spread and avoid displaced floor/idle regressions. Keep only with parity and scaling intact; reject a miss and report incomplete or unmatched evidence as inconclusive, not a speedup.
+
 ### Epic 2 — Assemble and reform on real terrain
 
 - [ ] **Epic 2 complete**
 
 An alerted pack should break from its activity immediately and run to reachable slots. Change travel to the rank, not the original membership or the rules for fighting from it.
 
-- **Depends on**: Epic 1 encounter investigation and Epic 14 controls closeout.
+- **Depends on**: Epic 1 encounter investigation and Epic 14 controls closeout. Schedule after Epic 16's decision; retaining the index is not required.
 - **Scope**: Slot assignment, scoped occupancy, obstacle recovery and narrow pursuit.
 
 #### Stories
@@ -345,7 +365,7 @@ Make discovery and room state matter without a required skill roll. Schedule thi
 
 Test whether a room composed of a few large color shapes makes the route and the fight easier to read. Use the 13 local studies in `ref/images/` (ignored) for room palettes, and [Hellboy Web of Wyrd](https://store.steampowered.com/app/2160480/Hellboy_Web_of_Wyrd/) for broad graphic shadows and characters that stay distinct in motion.
 
-- **Depends on**: Epic 13's completed practice room. Schedule separately; keep Epic 14 next and Epic 1's baseline unchanged.
+- **Depends on**: Epic 13's completed practice room. Schedule separately from Epic 16; keep Epic 1's baseline unchanged.
 - **Scope**: Compare palette, outlines and silhouettes separately, then together in the practice room and a pinned dungeon. End with an adoption decision, not a default art change.
 
 #### Stories
@@ -370,6 +390,8 @@ Test whether a room composed of a few large color shapes makes the route and the
   - Repeat matched Low/High runs on the same hardware; compare frame-interval p95/p99, repeat spread, draw calls and resource counts after reset/regeneration. Record adopt, revise or reject per treatment against the agreed limits and readability results. Unmatched runs are inconclusive; leave defaults alone pending approval.
 
 ## Out of scope
+
+- Reserve IndexedDB for future saves, not live spatial queries. Extend the index to other consumers only if their own measurements demonstrate a benefit.
 
 - Epic 15 does not import reference art, remodel the keep, change simulation or roll out a new default style. The lighting trials are not hitch fixes or substitutes for Epic 1's measurements.
 
