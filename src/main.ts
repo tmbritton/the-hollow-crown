@@ -54,13 +54,15 @@ import { GenerationError, generationIdentity } from './generation/identity.ts';
 import { acceptsGenerationReady } from './machines/ui/session.ts';
 import { CameraObservation, updateInstanceMatrices } from './observation.ts';
 import { animateActors, ACTOR_OBSERVATION_RADIUS } from './actorRendering.ts';
+import { launchProfile, ProfileWork, transitionProfile } from './enemyFreezeProfile.ts';
+import type { EnemyProfileMode, ProfileState } from './enemyFreezeProfile.ts';
 import { cpuTiming } from './cpuMetrics.ts';
 import { createEnemyRendering } from './enemyRendering.ts';
 import { registerWorld, registerDungeonRendering, updateDoors } from './worldEntities.ts';
 import { ActorGeometry } from './actorGeometry.ts';
 import { SupportTiles } from './supportTiles.ts';
 import { TerrainCandidates } from './terrainCandidates.ts';
-import { UI, bindVisualTrialPanel, fromVisualTrial } from './ui.ts';
+import { UI, bindEnemyProfile, bindVisualTrialPanel, fromVisualTrial } from './ui.ts';
 import { createVisualTrial } from './machines/ui/visualTrial.ts';
 import { BASE_FOV } from './visualTrial.ts';
 import { createPaletteRenderer, createVisualTrialRenderer } from './visualTrialRendering.ts';
@@ -100,7 +102,21 @@ const generationDiagnostics =
     ? (await import('./generation/localDiagnostics.ts')).createLocalGenerationDiagnostics()
     : undefined;
 let failNextGeneration = import.meta.env.DEV && debug && entry.get('generationFailure') === '1';
-type GenerationRequest = { seed: string | null; pinSeed: boolean; practiceRound: PracticeRound };
+type GenerationRequest = {
+  seed: string | null;
+  pinSeed: boolean;
+  practiceRound: PracticeRound;
+  mode?: EnemyProfileMode;
+};
+let enemyProfile:
+  | {
+      scene: Scene;
+      mode: EnemyProfileMode;
+      state: ProfileState;
+      work: ProfileWork;
+      display: ReturnType<typeof bindEnemyProfile>;
+    }
+  | undefined;
 let currentRequest: GenerationRequest | null = null;
 let retryRequest: GenerationRequest | null = null;
 const activeGame = () => required(game, 'No active dungeon');
@@ -398,6 +414,11 @@ function freshSeed() {
 function paused() {
   return ui.paused;
 }
+function pauseEnemyProfile(): void {
+  if (!enemyProfile) return;
+  enemyProfile.state = transitionProfile(enemyProfile.state, { type: 'pause' });
+  enemyProfile.work.stop();
+}
 function applyQuality() {
   engine.setHardwareScalingLevel(
     quality === 'low' ? 1.5 : 1 / Math.min(window.devicePixelRatio || 1, 1.5),
@@ -484,6 +505,12 @@ function observeDeath(victim: Actor, source?: Actor): void {
 function retireGame(): void {
   const old = game;
   game = null;
+  if (enemyProfile) {
+    enemyProfile.state = transitionProfile(enemyProfile.state, { type: 'dispose' });
+    enemyProfile.work.stop();
+    enemyProfile.display.remove();
+    enemyProfile = undefined;
+  }
   initialGenerationReport = null;
   inspectorToken?.dispose();
   inspectorToken = null;
@@ -576,10 +603,16 @@ function requestPractice(command: PracticeCommand): boolean {
 
 function start(
   seed: string | null,
-  { pinSeed = false, practiceRound = 'quiet' }: Partial<Omit<GenerationRequest, 'seed'>> = {},
+  { pinSeed = false, practiceRound = 'quiet', mode }: Partial<Omit<GenerationRequest, 'seed'>> = {},
 ): void {
   if (!engine) return;
-  const request = { seed, pinSeed, practiceRound };
+  const wasProfiling = !!currentRequest?.mode;
+  const request = { seed, pinSeed, practiceRound, mode };
+  if (wasProfiling && !mode) {
+    const url = new URL(location.href);
+    url.searchParams.delete('enemyProfile');
+    history.replaceState(null, '', url);
+  }
   currentRequest = request;
   retryRequest = null;
   retryButton.hidden = true;
@@ -653,7 +686,7 @@ function assembleScene(
   debugReport: GenerationReport | null,
 ): void {
   const { world } = content;
-  const { pinSeed, practiceRound } = request;
+  const { pinSeed, practiceRound, mode } = request;
   scene.clearColor = new Color4(0.044, 0.065, 0.075, 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
   scene.fogDensity = 0.015;
@@ -719,8 +752,11 @@ function assembleScene(
     content.kind === 'dungeon'
       ? seedEnemies(ecs, content.world)
       : createPracticeFoes(ecs, content.world, practiceRound);
+  const profileWork = mode ? new ProfileWork(() => performance.now()) : undefined;
   const combat = new CombatSystem(ecs, world, [player.actor, ...enemies], world.seed, {
     onDeath: observeDeath,
+    mode,
+    work: profileWork,
   });
   const routeBudget = new RouteBudget();
   for (const actor of combat.actors)
@@ -807,6 +843,7 @@ function assembleScene(
     }),
     onOpen: (target) => {
       if (game?.scene !== scene) return;
+      pauseEnemyProfile();
       trialRenderer.apply(visualTrial.settings, game.logicalRadius, true);
       resetMovement();
       accumulator = 0;
@@ -885,6 +922,17 @@ function assembleScene(
   initialGenerationReport = debugReport;
   ui.reset(content, discoveries);
   applyQuality();
+  if (mode && profileWork) {
+    // The same unsampled starting pose in every comparison, before the first fixed tick.
+    animateActors(ecs, 0, 0, world);
+    enemyProfile = {
+      scene,
+      mode,
+      work: profileWork,
+      state: { phase: 'waiting' },
+      display: bindEnemyProfile(mode, world.seed),
+    };
+  }
   // Random runs must not write a seed back into the URL and pin future loads.
   if (content.kind === 'dungeon') {
     const url = new URL(location.href);
@@ -1205,6 +1253,7 @@ function executeUse(game: Game, id: string) {
 
 function tick(dt: number): void {
   if (!game || !ui.ready || paused() || game.inspection.active) return;
+  enemyProfile?.work.tick();
   const cpu = import.meta.env.DEV ? cpuTiming : null;
   const cpuStart = cpu?.clock() ?? 0;
   game.time += dt;
@@ -1235,7 +1284,7 @@ function tick(dt: number): void {
         .join(' '),
       10000,
     );
-  tribute?.update();
+  tribute?.update(enemyProfile?.mode !== 'decisions', enemyProfile?.work);
   const work = scenario?.run.get('objectiveWork');
   work?.advance(game.steps, dt);
   const locked = game.combat.pursue(game.player.actor, dt);
@@ -1276,7 +1325,7 @@ function tick(dt: number): void {
     game.damageCooldown = 1;
     ui.toast('You fall. The last safe flame calls you back.', 4500);
   }
-  animateActors(game.ecs, dt, game.time, game.world);
+  animateActors(game.ecs, dt, game.time, game.world, enemyProfile?.mode, enemyProfile?.work);
   game.enemyRendering.update();
   for (const entity of game.ecs.query('interaction')) {
     const e = entity.require('interaction');
@@ -1414,6 +1463,7 @@ function toggleMenu() {
   game?.inspection.close({ immediate: true });
   if (game) ui.refreshRecord();
   ui.transition({ type: 'TOGGLE_MENU' });
+  if (ui.menu.open) pauseEnemyProfile();
   if (!ui.menu.open) canvas.focus();
 }
 window.addEventListener('keydown', (event) => {
@@ -1502,8 +1552,12 @@ window.addEventListener('keyup', (event) => {
   if (event.code === 'KeyF' && (held || !fromVisualTrial(event.target)))
     game?.player.actor.entity.get('defense')?.release();
 });
-window.addEventListener('blur', () => resetMovement('input-lost'));
+window.addEventListener('blur', () => {
+  pauseEnemyProfile();
+  resetMovement('input-lost');
+});
 window.addEventListener('pagehide', (event) => {
+  pauseEnemyProfile();
   resetMovement('input-lost');
   // Release GPU resources promptly on a real reload/navigation. A page retained
   // by the back/forward cache keeps its engine so it can resume normally.
@@ -1519,6 +1573,7 @@ window.addEventListener('pagehide', (event) => {
   }
 });
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pauseEnemyProfile();
   resetMovement(document.hidden ? 'input-lost' : 'cancel');
   ui.transition({ type: document.hidden ? 'HIDE' : 'SHOW' });
   last = performance.now();
@@ -1619,18 +1674,41 @@ try {
     throw new Error(
       'This dungeon requires WebGL2. Please use a current desktop Chrome or Firefox.',
     );
-  // Opening a seed link is reproducible; Refresh always begins a fresh descent,
-  // including URLs containing seeds automatically written by older versions.
+  // An ordinary seed link reproduces a world only on navigation. The opt-in
+  // comparison pins its entrance on both navigation and refresh.
   const navigation = performance.getEntriesByType('navigation')[0];
   const reloading =
     navigation instanceof PerformanceNavigationTiming && navigation.type === 'reload';
-  const requestedSeed = reloading ? null : entry.get('seed')?.trim().slice(0, 40);
+  const launch = launchProfile({
+    variants: entry.getAll('enemyProfile'),
+    practice: requestedRoom === 'practice',
+    seed: entry.get('seed'),
+    reloading,
+  });
   engine.runRenderLoop(() => {
     engine._drawCalls.fetchNewFrame();
     const now = performance.now(),
       dt = Math.min(0.08, (now - last) / 1000);
     last = now;
     if (!game) return;
+    const profile = enemyProfile;
+    if (profile?.scene === game.scene && profile.state.phase !== 'complete') {
+      if (
+        ui.ready &&
+        !paused() &&
+        !game.inspection.active &&
+        !document.hidden &&
+        document.hasFocus()
+      ) {
+        profile.state = transitionProfile(profile.state, {
+          type: 'frame',
+          now,
+          work: profile.work.begin(),
+          fps: engine.getFps(),
+        });
+        if (profile.state.phase !== 'sampling') profile.work.stop();
+      } else pauseEnemyProfile();
+    }
     if (ui.ready && !paused()) {
       if (game.inspection.active) accumulator = 0;
       else {
@@ -1657,10 +1735,12 @@ try {
     uiClock += dt;
     if (uiClock > 0.12) {
       ui.update(game.player, engine.getFps());
+      if (profile?.scene === game.scene && profile === enemyProfile)
+        profile.display.update(profile.state, now);
       uiClock = 0;
     }
   });
-  start(requestedSeed || null, { pinSeed: !!requestedSeed });
+  start(launch.seed, { pinSeed: !!launch.seed, mode: launch.mode });
 } catch (error) {
   showFailure(error instanceof Error ? error.message : String(error));
   console.error(error);

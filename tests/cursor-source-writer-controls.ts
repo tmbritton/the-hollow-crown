@@ -36,7 +36,7 @@ export function sourceWriterControls(sources: Record<string, string>) {
         '    },\n  };',
       ),
     ),
-    ['balls', 'combat', 'hackySackPass', 'worldPoint', 'sampleCurve', 'volumeScale', 'epWrite'],
+    ['balls', 'combat', 'hackySackPass', 'sampleCurve', 'volumeScale', 'epWrite'],
   );
   const presentation = compileFunction(
     body(
@@ -95,7 +95,10 @@ export function sourceWriterControls(sources: Record<string, string>) {
         time: 1,
         actor: (id: string) => ({
           entity: {
-            require: () => ({ pose: { id, definition: { profile: { soleForward: 0 } } } }),
+            require: () => ({
+              pose: { definition: { profile: { soleForward: 0 } } },
+              jointPoint: () => (id === 'a' ? [0, 1, 0] : [8, 2, 3]),
+            }),
           },
         }),
       };
@@ -128,7 +131,6 @@ export function sourceWriterControls(sources: Record<string, string>) {
         combat,
         (group: { flight?: boolean }) =>
           group.flight ? { from: 'a', to: 'b', progress: 0.08 } : null,
-        (p: { id: string }) => (p.id === 'a' ? [0, 1, 0] : [8, 2, 3]),
         sampleCurve,
         volumeScale,
         epWrite,

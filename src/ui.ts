@@ -15,6 +15,8 @@ import type { PracticeRound } from './practiceRoom.ts';
 import { VIEW_RANGES } from './visualTrial.ts';
 import type { ViewSettings } from './visualTrial.ts';
 import type { ViewMode, VisualTrialEvent } from './machines/ui/visualTrial.ts';
+import { SAMPLE_MS, WARMUP_MS } from './enemyFreezeProfile.ts';
+import type { EnemyProfileMode, ProfileState } from './enemyFreezeProfile.ts';
 
 export function bindVisualTrialPanel(send: (event: VisualTrialEvent) => boolean) {
   const original = element('view-original', HTMLButtonElement);
@@ -435,4 +437,52 @@ export class UI {
     ctx.textAlign = 'right';
     ctx.fillText('N ↑', 232, 12);
   }
+}
+export function bindEnemyProfile(mode: EnemyProfileMode, seed: string) {
+  const panel = document.createElement('aside');
+  const heading = document.createElement('h2');
+  const progress = document.createElement('p');
+  const report = document.createElement('p');
+  panel.id = 'enemy-profile';
+  heading.id = 'enemy-profile-heading';
+  heading.textContent = `Enemy profile: ${mode} · ${seed}`;
+  panel.setAttribute('aria-labelledby', heading.id);
+  progress.textContent = 'Waiting for foreground play.';
+  report.setAttribute('role', 'status');
+  panel.append(heading, progress, report);
+  document.body.append(panel);
+  return {
+    remove: () => panel.remove(),
+    update(state: ProfileState, now: number) {
+      switch (state.phase) {
+        case 'waiting':
+          progress.textContent = state.reason ?? 'Waiting for foreground play.';
+          break;
+        case 'warmup':
+        case 'sampling': {
+          const warm = state.phase === 'warmup';
+          const duration = warm ? WARMUP_MS : SAMPLE_MS;
+          const retry = warm && state.reason ? `${state.reason} ` : '';
+          progress.textContent = `${retry}${warm ? 'Warmup' : 'Sampling'}: ${Math.min(duration, now - state.anchor).toFixed(0)} / ${duration} ms`;
+          break;
+        }
+        case 'complete': {
+          if (report.dataset.phase === 'complete') break;
+          const { duration, frames, fps, median, p95, mean } = state.result;
+          const f = (value: number) => value.toFixed(3);
+          progress.hidden = true;
+          report.textContent = [
+            `Window: ${f(duration / 1000)} s · ${frames} frames · HUD FPS: ${f(fps)}`,
+            `Frame interval: median ${f(median)} ms · p95 ${f(p95)} ms`,
+            `Per frame: ${f(mean.ticks)} ticks · ${f(mean.squad)} squad · ${f(mean.individual)} individual · ${f(mean.poses)} poses`,
+            `CPU per frame: decisions ${f(mean.decisionsMs)} ms · rig ${f(mean.rigMs)} ms`,
+          ].join('\n');
+          report.dataset.phase = 'complete';
+          break;
+        }
+        case 'disposed':
+          break;
+      }
+    },
+  };
 }

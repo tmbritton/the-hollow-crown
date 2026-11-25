@@ -44,6 +44,51 @@ and combat without reloading the page. **[ / ]** rotate the camera. Refresh open
 room again; the bare URL starts the normal dungeon. Edit the layout in
 [`src/practiceRoom.ts`](src/practiceRoom.ts).
 
+### Enemy freeze comparison
+
+Open one of these links in a fresh foreground tab. The Pages links require this experiment branch
+to be deployed; the local links work with this branch's dev server or a production preview.
+
+| Variant | Local dev (`npm run dev`) | Pages (deployment URL) |
+| --- | --- | --- |
+| Control: ordinary AI and animation | [Control](http://localhost:5173/?enemyProfile=control&seed=MOURNING-731) | [Control](https://tmbritton.github.io/the-hollow-crown/?enemyProfile=control&seed=MOURNING-731) |
+| Decisions off: enemies remain animated, blocking and targetable but make no new decisions | [Decisions off](http://localhost:5173/?enemyProfile=decisions&seed=MOURNING-731) | [Decisions off](https://tmbritton.github.io/the-hollow-crown/?enemyProfile=decisions&seed=MOURNING-731) |
+| Poses off: living enemy joints hold still; enemies still move, fight and affect objectives | [Poses off](http://localhost:5173/?enemyProfile=poses&seed=MOURNING-731) | [Poses off](https://tmbritton.github.io/the-hollow-crown/?enemyProfile=poses&seed=MOURNING-731) |
+
+Use the same browser, viewport and default camera/High quality in all three visits. Leave the pointer
+outside the canvas and stay at the entrance until the readout finishes: **3 seconds of warmup plus
+10 seconds of sampling** after the scene is ready, rounded up to the next rendered frame. Switching
+away, opening the menu or inspecting an object before completion restarts the window. The text
+result stays on screen and is announced to assistive technology. Refresh repeats the pinned seed
+only for these links; rebuilding or generating another dungeon from the menu exits the comparison.
+
+Decisions off leaves the normal motor running: enemies can coast to a stop, finish an accepted
+route or swing, and update their support and collision proxies. They don't select new targets,
+attacks or routes. Poses off holds enemy joint locals, not the root: social foot effects and
+carried crates follow the root, and lethal handoff inherits translation and yaw without adding
+limb motion.
+
+The result shows the actual seed, window length, frame count, the game's HUD FPS, and the median
+and p95 of **unclamped** frame intervals. Work counts and measured main-thread decision/rig CPU
+time are means per rendered frame, including frames with zero simulation ticks. Squad and
+individual counts are decision evaluations; poses count living enemies updated once per tick,
+with pose preparation, local posing/writes, history publication and tail work included in rig time.
+The slices exclude movement resolution, retained root and visibility writes, hero/death animation,
+and rendering. These are diagnostic readings, not GPU timings or a pass/fail speed test. Use a
+separate visit to play. See [verification](VERIFICATION.md#enemy-freeze-profile-experiment) for the
+local production run.
+
+To test the production Pages mount locally without deploying:
+
+```sh
+npm run build:pages -- --outDir dist/pages
+npm run preview:pages -- --outDir dist/pages --port 4287 --strictPort
+```
+
+Open [control](http://localhost:4287/the-hollow-crown/?enemyProfile=control&seed=MOURNING-731),
+[decisions off](http://localhost:4287/the-hollow-crown/?enemyProfile=decisions&seed=MOURNING-731), or
+[poses off](http://localhost:4287/the-hollow-crown/?enemyProfile=poses&seed=MOURNING-731).
+
 ### Practice visual trial
 
 The dungeon and The Dojo start in **Tuned**: 60° Lens, 35% Fisheye, 4 px Ink width and 40% Corner wear.

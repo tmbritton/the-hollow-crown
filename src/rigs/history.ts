@@ -25,6 +25,8 @@ export interface PoseRebase {
   readonly heading: number;
   /** Replaces sampled root translation, never adds it a second time. */
   readonly velocity: XYZ;
+  /** Held locals have no relative velocity; inherit only rigid root motion. */
+  readonly rigidYawRate?: number;
 }
 const freeze3 = (v: number[]): XYZ => Object.freeze([v[0], v[1], v[2]] as const);
 
@@ -81,10 +83,19 @@ export class PoseHistory {
       Array.from(previous.slice(12, 15)),
     );
     const inherited = rebase?.velocity ?? rootVelocity;
-    const velocity = (a: readonly number[], b: readonly number[]): XYZ =>
-      freeze3(
+    const velocity = (a: readonly number[], b: readonly number[]): XYZ => {
+      if (rebase?.rigidYawRate !== undefined) {
+        const at = point(a);
+        return freeze3([
+          inherited[0] + rebase.rigidYawRate * (at[2] - origin[2]),
+          inherited[1],
+          inherited[2] - rebase.rigidYawRate * (at[0] - origin[0]),
+        ]);
+      }
+      return freeze3(
         rotate(delta(a, b).map((v, i) => v - rootVelocity[i])).map((v, i) => v + inherited[i]),
       );
+    };
     const point = (p: readonly number[]): XYZ =>
       freeze3(rotate(p.map((v, i) => v - source[12 + i])).map((v, i) => v + origin[i]));
     const rotation = (m: Float64Array, o: number) => {
@@ -108,6 +119,10 @@ export class PoseHistory {
           Array.from(previous.slice(o + 12, o + 15)),
         ),
       );
+      if (rebase?.rigidYawRate !== undefined) {
+        angular.push(0, rebase.rigidYawRate, 0);
+        continue;
+      }
       if (!duration) {
         angular.push(0, 0, 0);
         continue;

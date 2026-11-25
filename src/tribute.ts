@@ -9,6 +9,8 @@ import type { ObjectiveWorkBinding } from './objectiveWork.ts';
 import type { AgendaClock } from './lastEmber.ts';
 export { TRIBUTE, tributeBlueprint } from './generation/tribute.ts';
 
+import type { WorkRecorder } from './enemyFreezeProfile.ts';
+
 export class Tribute {
   readonly sites: ReturnType<typeof tributeBlueprint>;
   readonly cargo: Entity[];
@@ -70,7 +72,7 @@ export class Tribute {
   }
   /** One porter at a time. Surviving declared pack members take over loose cargo by
    * travelling to it; no replacement spawn or instantaneous transfer on worker death. */
-  update(): void {
+  update(choosePorter = true, work?: WorkRecorder): void {
     if (
       this.run.get('tribute') !== this ||
       !this.run.has('objectiveWork') ||
@@ -90,13 +92,19 @@ export class Tribute {
       if (this.ecs.get(owner.id) === owner) this.work.assign(new Actor(owner), TRIBUTE.objective);
       return;
     }
+    if (!choosePorter) return;
+    const started = work?.clock();
     const item = this.cargo.find((e) => e.require('cargo').state === 'loose');
-    if (!item) return;
+    if (!item) {
+      work?.finish('individual', started);
+      return;
+    }
     const actor = this.roster.find(
       (e) => this.ecs.get(e.id) === e && new Actor(e).alive && !e.has('work'),
     );
     if (actor && item.require('cargo').claim(actor))
       this.work.assign(new Actor(actor), TRIBUTE.objective);
+    work?.finish('individual', started);
   }
   nearby(id?: string, p: Spawn = this.player.position): Entity | undefined {
     if (

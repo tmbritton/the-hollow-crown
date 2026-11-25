@@ -58,8 +58,8 @@ export async function buildDiagnostic(outDir: string) {
               ],
               ['    engine._drawCalls.fetchNewFrame();', '    engine._drawCalls.fetchNewFrame();'],
               [
-                '    if (!game) return;\n    if (ui.ready && !paused()) {',
-                '    if (!game) return;\n    if (ui.ready) ep.begin(game);\n    if (ui.ready && !paused()) {',
+                '    if (!game) return;\n    const profile = enemyProfile;',
+                '    if (!game) return;\n    if (ui.ready) ep.begin(game);\n    const profile = enemyProfile;',
               ],
               [
                 '        while (accumulator >= 1 / 60) {',
@@ -75,8 +75,8 @@ export async function buildDiagnostic(outDir: string) {
                 '      ep.presentation(game, () => renderUpdate(dt * (import.meta.env.DEV ? (animationReview?.speed ?? 1) : 1)));',
               ],
               [
-                '  animateActors(game.ecs, dt, game.time, game.world);',
-                '  ep.rig(() => animateActors(game.ecs, dt, game.time, game.world));',
+                '  animateActors(game.ecs, dt, game.time, game.world, enemyProfile?.mode, enemyProfile?.work);',
+                '  ep.rig(() => animateActors(game.ecs, dt, game.time, game.world, enemyProfile?.mode, enemyProfile?.work));',
               ],
               ['\n    game.scene.render();', '\n    ep.render(game, engine);'],
               [
@@ -193,8 +193,8 @@ export async function buildDiagnostic(outDir: string) {
           if (id.endsWith('/src/rigs/bindings.ts')) {
             const code = patch(source, [
               [
-                '    writeDraw(deferTail);',
-                "    epPose('pose', rig.root, () => writeDraw(deferTail));",
+                "    applyEntry(rootEntry, true);\n    const localsStart = work?.clock();\n    writeLocals(deferTail);\n    if (!deferTail) finishHistory();\n    work?.finish('poses', localsStart);\n    writeVisibility();",
+                "    epPose('pose', rig.root, () => {\n    applyEntry(rootEntry, true);\n    const localsStart = work?.clock();\n    writeLocals(deferTail);\n    if (!deferTail) finishHistory();\n    work?.finish('poses', localsStart);\n    writeVisibility();\n    });",
               ],
               [
                 '      for (const entry of tailEntries) applyEntry(entry);\n      finishHistory();',

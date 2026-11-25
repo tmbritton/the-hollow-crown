@@ -24,6 +24,7 @@ import type { KoboldSquad } from './koboldSquads.ts';
 import { ATTACKS } from './attackKinds.ts';
 import type { AttackKind } from './attackKinds.ts';
 import { captureDeath } from './deathHandoff.ts';
+import type { EnemyProfileMode, WorkRecorder } from './enemyFreezeProfile.ts';
 
 /** Attack geometry is independent of source identity (a bolt's owner may have moved or died). */
 export interface DamageImpact {
@@ -180,6 +181,8 @@ export class CombatSystem {
   readonly player: Actor;
   private readonly random: Random;
   private readonly onDeath: (victim: Actor, source?: Actor) => void;
+  private readonly mode?: EnemyProfileMode;
+  private readonly work?: WorkRecorder;
   time = 0;
   private squadElapsed = 0.15;
 
@@ -188,7 +191,15 @@ export class CombatSystem {
     world: NavigationWorld,
     actors: Actor[],
     seed = 'combat',
-    { onDeath = () => {} }: { onDeath?: (victim: Actor, source?: Actor) => void } = {},
+    {
+      onDeath = () => {},
+      mode,
+      work,
+    }: {
+      onDeath?: (victim: Actor, source?: Actor) => void;
+      mode?: EnemyProfileMode;
+      work?: WorkRecorder;
+    } = {},
   ) {
     this.ecs = ecs;
     this.world = world;
@@ -197,6 +208,8 @@ export class CombatSystem {
     this.player = player;
     this.random = randomFrom(seed);
     this.onDeath = onDeath;
+    this.mode = mode;
+    this.work = work;
   }
   get actors(): Actor[] {
     return this.ecs
@@ -211,11 +224,14 @@ export class CombatSystem {
   }
 
   target(actor: Actor, target: Actor): boolean {
+    if (!this.canDecide(actor)) return false;
     if (!actor.alive || !hostile(actor, target)) return false;
     const squad = actor.entity.get('squadMember')?.group.get('koboldSquad');
     if (squad) {
+      const started = this.work?.clock();
       squad.alert(target.entity);
       this.syncSquad(squad);
+      this.work?.finish('squad', started);
       return true;
     }
     cancelAttack(actor);
@@ -225,12 +241,14 @@ export class CombatSystem {
   }
 
   route(actor: Actor, goal: Point): boolean {
+    if (!this.canDecide(actor)) return false;
     return actor.navigator.intent(actor.position, goal, {
       openDoors: true,
     });
   }
 
   requestDoor(actor: Actor, id: string): boolean {
+    if (!this.canDecide(actor)) return false;
     const door = this.ecs.get(id)?.get('door');
     if (!door || door.locked || !actor.entity.require('actor').opensDoors) return false;
     stopActor(actor);
@@ -253,7 +271,12 @@ export class CombatSystem {
       actor.navigator.cancel();
       return;
     }
-    if (!actor.navigator.active && !actor.navigator.pending && !this.route(actor, door))
+    if (
+      this.canDecide(actor) &&
+      !actor.navigator.active &&
+      !actor.navigator.pending &&
+      !this.route(actor, door)
+    )
       actor.attack.releaseInteraction();
   }
 
@@ -323,6 +346,7 @@ export class CombatSystem {
   }
 
   startAttack(actor: Actor, target: Actor, action: AttackKind | boolean = 'MELEE'): boolean {
+    if (!this.canDecide(actor)) return false;
     const kind = typeof action === 'boolean' ? (action ? 'CROSSBOW' : 'MELEE') : action;
     const spec = ATTACKS[kind];
     if (
@@ -362,6 +386,7 @@ export class CombatSystem {
 
   /** Called before the movement system, including for player pursuit. */
   pursue(actor: Actor, dt: number): boolean {
+    if (!this.canDecide(actor)) return false;
     this.updateInteraction(actor);
     const target = this.actor(actor.attack.target);
     if (!target?.alive) {
@@ -819,7 +844,8 @@ export class CombatSystem {
           other.attack.target = null;
           other.navigator.cancel();
         }
-    } else if (target.brain && source) {
+    } else if (target.brain && source && this.canDecide(target)) {
+      const started = this.work?.clock();
       const squad = target.entity.get('squadMember')?.group.get('koboldSquad');
       if (squad && source.alive && this.ecs.get(source.id) === source.entity) {
         squad.alert(source.entity);
@@ -828,6 +854,7 @@ export class CombatSystem {
       target.attack.target = squad ? (squad.target?.id ?? null) : source.id;
       target.brain.memory = squad ? 0 : 5;
       target.brain.think = 0;
+      this.work?.finish(squad ? 'squad' : 'individual', started);
     }
     return true;
   }
@@ -853,11 +880,14 @@ export class CombatSystem {
   }
 
   private updateSquads(dt: number): void {
+    if (this.mode === 'decisions') return;
+    const started = this.work?.clock();
     this.squadElapsed += dt;
     const perceive = this.squadElapsed >= 0.15 || dt === 0;
     if (perceive) this.squadElapsed = 0;
     const actors = this.actors;
-    for (const entity of this.ecs.query('koboldSquad')) {
+    const squads = this.ecs.query('koboldSquad');
+    for (const entity of squads) {
       const squad = entity.require('koboldSquad');
       const members = squad.living.map((m) => new Actor(m.entity));
       const current = squad.target;
@@ -926,6 +956,7 @@ export class CombatSystem {
       if (before !== squad.state)
         for (const actor of members) if (actor.brain) actor.brain.think = 0;
     }
+    this.work?.finish('squad', started, squads.length);
   }
 
   private blockParticles(target: Actor): void {
@@ -1001,14 +1032,23 @@ export class CombatSystem {
       });
   }
 
+  private canDecide(actor: Actor): boolean {
+    return this.mode !== 'decisions' || actor.kind === 'player';
+  }
+
   update(dt: number): void {
     this.time += dt;
     this.updateSquads(dt);
-    const formation = new Map(
-      this.ecs
-        .query('koboldSquad')
-        .flatMap((e) => [...e.require('koboldSquad').movement(dt, this.world)]),
-    );
+    const formationStart = this.mode !== 'decisions' ? this.work?.clock() : undefined;
+    const formation =
+      this.mode === 'decisions'
+        ? undefined
+        : new Map(
+            this.ecs
+              .query('koboldSquad')
+              .flatMap((e) => [...e.require('koboldSquad').movement(dt, this.world)]),
+          );
+    this.work?.finish('squad', formationStart, 0);
     for (const actor of this.actors) {
       const defense = actor.entity.get('defense');
       if (defense?.raised && !actor.defending) defense.cancel();
@@ -1025,7 +1065,8 @@ export class CombatSystem {
         continue;
       }
       const brain = actor.brain;
-      if (brain) {
+      if (brain && this.canDecide(actor)) {
+        const started = this.work?.clock();
         brain.think -= dt;
         brain.memory -= dt;
         if (brain.think <= 0) {
@@ -1042,13 +1083,28 @@ export class CombatSystem {
             swinging: !!actor.attack.swing,
           }),
         );
+        this.work?.finish('individual', started);
         moveActor(
           actor,
           this.world,
-          formation.get(actor.entity) ?? {
+          formation?.get(actor.entity) ?? {
             locked: !!actor.attack.swing,
             speed:
               actor.kind === 'goblin' && brain.state === 'flee' ? GOBLIN_FLEE_SPEED : undefined,
+          },
+          dt,
+        );
+      } else if (this.mode === 'decisions' && actor.kind !== 'player') {
+        // Resolve committed work, without pursuing a target or choosing a new route.
+        this.updateInteraction(actor);
+        moveActor(
+          actor,
+          this.world,
+          {
+            locked: !!actor.attack.swing,
+            replan: false,
+            speed:
+              actor.kind === 'goblin' && brain?.state === 'flee' ? GOBLIN_FLEE_SPEED : undefined,
           },
           dt,
         );

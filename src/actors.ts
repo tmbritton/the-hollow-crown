@@ -201,6 +201,8 @@ export interface MoveIntent {
   direction?: Point;
   speed?: number;
   locked?: boolean;
+  /** Continue an accepted route without issuing a fresh search when its next leg is blocked. */
+  replan?: boolean;
   /** Explicit combat facing is independent of travel (e.g. a shielded backstep). */
   facing?: number;
 }
@@ -232,7 +234,7 @@ export function moveActor(
     return;
   }
   const navigating = actor.navigator.active || actor.navigator.pending;
-  const steering = actor.navigator.steer(p);
+  const steering = actor.navigator.steer(p, intent.replan);
   const direction =
     intent.direction ??
     (steering ? { x: steering.point.x - p.x, z: steering.point.z - p.z } : { x: 0, z: 0 });

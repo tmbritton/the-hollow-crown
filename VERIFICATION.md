@@ -1,5 +1,70 @@
 # Verification — The Hollow Crown
 
+## Enemy freeze profile experiment
+
+Branch `experiment/enemy-freeze-profile`, based on `main` at `0b4b9e1`. The picker and pointer
+path are unchanged. No deployment or hardware benchmark was performed.
+
+### Review follow-up
+
+The focused TDD run reproduced all three findings: idle support height stayed stale in decisions
+mode, the held pose had no root-aware social-foot query, and a fake clock at the real rig adapter
+measured 32 units instead of 10 (prep omitted, retained root and visibility charged). The suite
+now passes 10/10, covering support/proxy publication, deceleration, accepted route and swing
+completion, held foot rebasing, rigid body launch velocities and exact profiler boundaries. The
+cursor diagnostic's source hooks and social-writer fixture were updated for the changed adapters.
+
+Astra's independent review reproduced a stale spin on the next tick when death preceded pose
+sync. A regression failed before the fix and now checks same-tick, next-tick pre-sync, and
+next-tick post-sync capture. Astra approved the follow-up after independently rerunning the
+10 focused tests; that review did not rerun the browser suites.
+
+`npm test`: 857 passed, 1 skipped, 0 failed. `npm run check:full`: 877 passed, 2 skipped,
+0 failed; typecheck, lint and format passed. Root and Pages builds passed;
+`npm run test:cpu:production` confirmed isolation across 86 JS chunks. The Chromium combat
+suite passed all 15 checks, the rig handoff suite passed all 84 catalog entries, and the social
+and tribute browser suites passed. `npm run test:production` passed. The freeze browser script
+passed three variant and five non-opt-in visits on each production mount (root and Pages); the
+HUD reported exactly zero decision CPU in decisions-off and zero rig CPU in poses-off. The
+software-rendered results are functional evidence, not performance comparisons.
+The development rerun also passed all three drawn variants and five non-opt-in visits after
+isolating each launch in its own page and waiting for the dev debug hook before asserting it.
+Inspected the held living and settled-death captures.
+
+### Initial experiment baseline (before the review follow-up)
+
+Initial TDD run failed on the missing launch/collector module, the ungated squad target, and
+the missing profile HUD. The focused Node tests subsequently passed 6/6. `npm test`:
+853 passed, 1 skipped, 0 failed. `npm run check:full`: 873 passed, 2 skipped, 0 failed;
+lint and format passed. Both root and Pages-mount builds succeeded. `npm run test:production`
+passed its seven root browser checks; `npm run test:cpu:production` passed (86 JS chunks);
+`npm run test:rig:handoff` passed (84 catalog entries). The `npm run test:combat` rerun passed
+15 checks after the development server was stable.
+
+`DEMO_URL=http://localhost:4287/the-hollow-crown/ node tests/enemy-freeze-browser.ts --production`
+passed all three profile visits and five non-opt-in visits. It exercised a real floor click in
+each treatment, pinned reload, menu exit, practice exclusion and absence of the debug global.
+The Chromium dev fixture at `http://localhost:5287/` passed the three drawn variant and five
+non-opt-in assertions, including the frozen target's drawn-mesh pick, crate rotation/translation,
+root tracking, and settled death. Inspected the Pages HUD and dev living/settled captures.
+
+Historical HUD rows (old rig numerator) from the local Pages build at `http://localhost:4287/the-hollow-crown/`
+(Chromium, SwiftShader, 960×640, High, default camera, seed `MOURNING-731`):
+
+| Variant | Window (s) | Frames | HUD FPS | Interval median / p95 (ms) | Ticks / frame | Squad / individual / pose counts per frame | Decision / rig CPU ms per frame |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Control | 10.353 | 20 | 2.019 | 402.300 / 1068.100 | 4.800 | 14.400 / 115.200 / 115.200 | 12.090 / 43.625 |
+| Decisions off | 10.434 | 28 | 2.479 | 331.900 / 896.700 | 4.786 | 0 / 0 / 114.857 | 0 / 34.293 |
+| Poses off | 10.354 | 28 | 2.127 | 315.250 / 982.200 | 4.821 | 14.464 / 115.714 / 0 | 10.889 / 0 |
+
+These observations establish that the HUD reports the work categories and suppressed work is
+zero. They do not establish a speedup or attribute cadence to the GPU. Local captures are under
+`test-results/enemy-profile-*.png`.
+
+Independent source review by Astra found missing stationary motor/proxy publication and missing
+carried-crate attachment in the freeze branches. Both were corrected. The read-only follow-up
+confirmed both fixes and reran the six focused Node tests successfully; it did not run a browser.
+
 ## Story 16.1 — approved hardware replacement stopped at preflight
 
 On 2026-11-25, after Astra approved the exact working tree against `f03f30d`, ran

@@ -85,11 +85,12 @@ export function createTributeRendering(
         p = entity.require('transform');
       const owner = cargo.owner;
       const binding = owner && ecs.get(owner.id) === owner ? owner.get('rigPose') : undefined;
+      const frame = cargo.state === 'carried' ? binding?.cargoFrame() : undefined;
       root.setEnabled(
         current && !root.isDisposed() && cargo.state !== 'delivered' && cargo.state !== 'recovered',
       );
-      if (cargo.state === 'carried' && binding?.actions.carrying && owner && root.isEnabled()) {
-        let changed = attachment.apply(binding.actions.frames.cargo);
+      if (frame && owner && root.isEnabled()) {
+        let changed = attachment.apply(frame);
         for (const [i, mesh] of geometry.meshes.entries()) {
           const visible =
             !mesh.isDisposed() && mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0;

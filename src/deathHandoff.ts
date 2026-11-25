@@ -26,7 +26,7 @@ export function captureDeath(
   source?: Actor,
   impact?: DamageImpact,
 ): DeathHandoff {
-  const history = target.entity.get('rigPose')?.history;
+  const binding = target.entity.get('rigPose');
   const position: XYZ = Object.freeze([target.position.x, target.elevation, target.position.z]);
   const velocity: XYZ = Object.freeze([
     target.motion.velocity.x,
@@ -53,6 +53,7 @@ export function captureDeath(
     position,
     heading: target.position.heading,
     velocity,
-    pose: history?.snapshot({ position, heading: target.position.heading, velocity }) ?? null,
+    pose:
+      binding?.deathPose({ position, heading: target.position.heading, velocity }, time) ?? null,
   });
 }

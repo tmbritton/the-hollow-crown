@@ -19,6 +19,7 @@ import { advanceDeathPhysics } from './deathPhysics.ts';
 import { cpuTiming, cpuTrace } from './cpuMetrics.ts';
 import { collisionTerrain } from './terrainCandidates.ts';
 import { updateCarriedTribute } from './tributeRendering.ts';
+import type { EnemyProfileMode, WorkRecorder } from './enemyFreezeProfile.ts';
 
 /** All character collision components use the same Babylon ellipsoid adapter. */
 export function bindActorCollision(actor: Actor, scene: Scene, world: NavigationWorld) {
@@ -83,7 +84,14 @@ export function resetActorRig(
 export const ACTOR_OBSERVATION_RADIUS = 4.8;
 
 /** Render-only deformation: the motor, collision ellipsoid and attack clock stay authoritative. */
-export function animateActors(ecs: ECS, dt: number, time = 0, world?: NavigationWorld): void {
+export function animateActors(
+  ecs: ECS,
+  dt: number,
+  time = 0,
+  world?: NavigationWorld,
+  mode?: EnemyProfileMode,
+  work?: WorkRecorder,
+): void {
   const cpu = import.meta.env?.DEV ? cpuTiming : null;
   const started = cpu?.clock() ?? 0;
   if (world) advanceDeathPhysics(ecs, world, dt);
@@ -101,6 +109,9 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     const actor = new Actor(entity),
       binding = entity.require('rigPose'),
       p = actor.position;
+    if (mode === 'poses' && actor.kind !== 'player' && actor.alive) continue;
+    const prep = actor.kind !== 'player' && actor.alive ? work : undefined;
+    const prepStart = prep?.clock();
     binding.begin(dt);
     const turn = Math.atan2(
       Math.sin(p.heading - binding.heading),
@@ -110,6 +121,7 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     if (actor.defending || entity.get('squadMember')?.group.get('koboldSquad')?.active)
       binding.heading = p.heading;
     else binding.heading += turn * (1 - Math.exp(-18 * dt));
+    prep?.finish('poses', prepStart, 0);
     const corpse = entity.get('corpse');
     if (corpse) {
       binding.grounding.reset();
@@ -138,6 +150,12 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
     if (entity.has('corpse')) continue;
     const actor = new Actor(entity),
       binding = entity.require('rigPose');
+    if (mode === 'poses' && actor.kind !== 'player' && actor.alive) {
+      binding.syncHeld(actor, carrying.has(entity), dt, time);
+      continue;
+    }
+    const rigWork = actor.kind !== 'player' && actor.alive ? work : undefined;
+    const rigStart = rigWork?.clock();
     const actions = binding.actions;
     const pose = animateLocomotion(
       actor.motion.animation,
@@ -209,9 +227,15 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       grounding.head.set(lurch.headPitch * weight, 0, lurch.headRoll * weight);
     }
     binding.cape = pose.cape;
-    binding.applyGrounded(actor, pose, world, corpses);
+    binding.applyGrounded(actor, pose, world, corpses, rigWork, rigStart);
   }
   const cargo = updateCarriedTribute(ecs);
+  // The hero has no tail; the demand/neighbor pass exists solely for living enemy tails.
+  if (mode === 'poses') {
+    cpu?.finish('animation', started);
+    return;
+  }
+  const tailStart = work?.clock();
   const neighborCandidates: Entity[] = [],
     tailed: Entity[] = [];
   for (const e of entities) {
@@ -296,5 +320,6 @@ export function animateActors(ecs: ECS, dt: number, time = 0, world?: Navigation
       )
         a.tail!.blocked = b.tail!.blocked = true;
     }
+  work?.finish('poses', tailStart, 0);
   cpu?.finish('animation', started);
 }

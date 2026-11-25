@@ -9,7 +9,6 @@ import { part } from './geometry.ts';
 import { hackySackPass, isSocializing } from './social.ts';
 import { sampleCurve, volumeScale } from './animationCurves.ts';
 import { updateInstanceMatrices } from './observation.ts';
-import { worldPoint } from './rigs/pose.ts';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 /** Shared props remain after an interrupted game; hand props and smoke follow activity. */
@@ -146,8 +145,12 @@ export function createSocialRendering(
           continue;
         }
         const foot = (id: string) => {
-          const pose = combat.actor(id)!.entity.require('rigPose').pose;
-          const p = worldPoint(pose, 'rightFoot', [0, 0.07, pose.definition.profile.soleForward]);
+          const binding = combat.actor(id)!.entity.require('rigPose');
+          const p = binding.jointPoint('rightFoot', [
+            0,
+            0.07,
+            binding.pose.definition.profile.soleForward,
+          ]);
           return { x: p[0], h: p[1], z: p[2] };
         };
         const from = foot(pass.from);

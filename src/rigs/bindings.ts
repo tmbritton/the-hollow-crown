@@ -15,11 +15,14 @@ import {
   resetLocal,
   setEuler,
   transformPoint,
+  worldPoint,
 } from './pose.ts';
 import { copyLocal, matrixRotation, orthonormalize } from './ikMath.ts';
 import { bodyOwner } from '../ragdoll.ts';
 import type { Ragdoll, RagdollShape } from '../ragdoll.ts';
 import { PoseHistory } from './history.ts';
+import type { PoseRebase, PoseSnapshot } from './history.ts';
+import type { WorkRecorder } from '../enemyFreezeProfile.ts';
 import type { Spawn } from '../worldTypes.ts';
 import type { Actor } from '../actors.ts';
 import type { LocomotionPose } from '../locomotion.ts';
@@ -39,6 +42,7 @@ import {
 import type { RigSurface } from './tailClearance.ts';
 import { cpuTiming, cpuTrace } from '../cpuMetrics.ts';
 import { actorGeometry } from '../actorGeometry.ts';
+import { isSocializing } from '../social.ts';
 
 export interface RigBinding {
   readonly pose: PoseBuffer;
@@ -76,9 +80,15 @@ export interface RigBinding {
     motion: LocomotionPose,
     world?: NavigationWorld,
     corpses?: CorpseContactQuery,
+    work?: WorkRecorder,
+    started?: number,
   ): void;
   apply(deferTail?: boolean): void;
   applyTail(): void;
+  syncHeld(actor: Actor, carrying: boolean, dt: number, time: number): void;
+  jointPoint(joint: JointName, offset: XYZ): XYZ;
+  deathPose(rebase: PoseRebase, time: number): PoseSnapshot;
+  cargoFrame(): Float64Array | undefined;
   applyPhysics(ragdoll: Ragdoll): void;
   physicsShapes(): RagdollShape[];
   /** One actual anatomical surface per physical chunk, populated at handoff. */
@@ -223,6 +233,13 @@ export function bindHumanoid(
     return changed;
   };
   let stepDuration = 0;
+  let heldCargoFrame: Float64Array | undefined;
+  let held = false,
+    heldDt = 0,
+    heldTime = 0,
+    heldYawRate = 0,
+    holdingCargo = false;
+  const yawDelta = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
   const attached: { binding: FrameAttachment; frame: ActionFrame; visible?: () => boolean }[] = [];
   let physicsAttachments:
     | { joint: number; offset: Float64Array; frame: Float64Array; matrix: Matrix }[]
@@ -470,7 +487,10 @@ export function bindHumanoid(
   let sampledEnabled = false;
   let sampledCargo: readonly AbstractMesh[] | undefined;
   let sampledCargoRevision: number | undefined;
-  const bodyEntries = entries.filter((entry) => !tailEntries.includes(entry));
+  const rootEntry = entries[0];
+  const bodyEntries = entries.filter(
+    (entry) => entry !== rootEntry && !tailEntries.includes(entry),
+  );
   const bodyWorld = new Float64Array(16);
   const different = (a: Float64Array, b: Float64Array) => a.some((value, i) => value !== b[i]);
   // Edited-layout publications read actual node transforms, not the authored frames.
@@ -492,25 +512,29 @@ export function bindHumanoid(
     else local.set(entry.world);
     if (writeMatrix(entry, body && sampledDraw())) bodyRevision++;
   };
-  const writeDraw = (deferTail: boolean) => {
+  const equipmentVisibility = (stowed: boolean, throwing: boolean, released: boolean) => {
+    for (const mesh of rig.equipment ?? []) enablePart(mesh, !stowed);
+    for (const mesh of rig.stowedEquipment ?? []) enablePart(mesh, stowed);
+    if (rig.spear) enablePart(rig.spear, !stowed && !throwing);
+    if (rig.javelin) enablePart(rig.javelin, !stowed && throwing && !released);
+  };
+  const writeLocals = (deferTail: boolean) => {
     for (const entry of bodyEntries) applyEntry(entry, true);
     if (!deferTail) for (const entry of tailEntries) applyEntry(entry);
     if (rig.cape) {
       if (rig.cape.rotation.x !== binding.cape) bodyRevision++;
       rig.cape.rotation.x = binding.cape;
     }
-    for (const mesh of rig.equipment ?? []) enablePart(mesh, !actions.stowed);
-    for (const mesh of rig.stowedEquipment ?? []) enablePart(mesh, actions.stowed);
-    if (rig.spear) enablePart(rig.spear, !actions.stowed && actions.mode !== 'throw');
-    if (rig.javelin)
-      enablePart(rig.javelin, !actions.stowed && actions.mode === 'throw' && !actions.released);
     for (const a of attached) {
-      if (a.visible) enablePart(a.binding.node, a.visible());
       const frames = sampledFrames();
       if (frames) bodyWorld.set(a.binding.world);
       const changed = a.binding.apply(actions.frames[a.frame], entries[0].inverse, sampledDraw());
       if (changed || (frames && different(a.binding.world, bodyWorld))) bodyRevision++;
     }
+  };
+  const writeVisibility = () => {
+    equipmentVisibility(actions.stowed, actions.mode === 'throw', actions.released);
+    for (const a of attached) if (a.visible) enablePart(a.binding.node, a.visible());
   };
   const completeBody = (solved?: PoseBuffer) => {
     if (solved) {
@@ -529,17 +553,27 @@ export function bindHumanoid(
     actions.finish(pose);
     if (import.meta.env?.DEV && solved) cpuTiming?.finish('binding.completion', started);
   };
-  const publishBody = (deferTail: boolean, solved?: PoseBuffer) => {
+  const publishBody = (
+    deferTail: boolean,
+    solved?: PoseBuffer,
+    work?: WorkRecorder,
+    start?: number,
+  ) => {
     if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
     if (entity.has('ragdoll')) {
       binding.applyPhysics(entity.require('ragdoll'));
       return;
     }
     completeBody(solved);
+    work?.finish('poses', start, 0);
     const started = import.meta.env?.DEV && solved && cpuTiming ? cpuTiming.clock() : 0;
-    writeDraw(deferTail);
-    if (import.meta.env?.DEV && solved) cpuTiming?.finish('binding.draw', started);
+    applyEntry(rootEntry, true);
+    const localsStart = work?.clock();
+    writeLocals(deferTail);
     if (!deferTail) finishHistory();
+    work?.finish('poses', localsStart);
+    writeVisibility();
+    if (import.meta.env?.DEV && solved) cpuTiming?.finish('binding.draw', started);
   };
   const binding: RigBinding = {
     pose,
@@ -719,6 +753,9 @@ export function bindHumanoid(
       stepDuration = dt;
     },
     invalidateHistory() {
+      held = false;
+      heldDt = heldYawRate = 0;
+      holdingCargo = false;
       finalOwner = undefined;
       bodyRevision++;
       restDuration = 0;
@@ -752,11 +789,11 @@ export function bindHumanoid(
       tail?.apply(pose);
       binding.apply();
     },
-    applyGrounded(actor, motion, world, corpses) {
+    applyGrounded(actor, motion, world, corpses, work, workStart) {
       const started = import.meta.env?.DEV && cpuTiming ? cpuTiming.clock() : 0;
       const solved = grounding.sample(actor, motion, binding.heading, world, corpses, actions);
       if (import.meta.env?.DEV) cpuTiming?.finish('grounding', started);
-      publishBody(!!tail, solved.pose);
+      publishBody(!!tail, solved.pose, work, workStart);
     },
     apply(deferTail = false) {
       publishBody(deferTail);
@@ -765,6 +802,77 @@ export function bindHumanoid(
       if (entity.has('ragdoll')) return;
       for (const entry of tailEntries) applyEntry(entry);
       finishHistory();
+    },
+    syncHeld(actor, carrying, dt, time) {
+      const p = actor.position;
+      if (dt > 0 || !held || p.heading !== binding.heading) {
+        heldYawRate = dt > 0 ? yawDelta(p.heading - binding.heading) / dt : 0;
+        heldDt = dt;
+      }
+      heldTime = time;
+      held = true;
+      binding.heading = p.heading;
+      rig.root.position.set(p.x, actor.elevation, p.z);
+      rig.root.rotation.y = p.heading;
+      holdingCargo = carrying;
+      if (carrying) {
+        // Without a two-handed pose the crate rides on the back, in a rigid
+        // root-relative socket. No joint writes or grip solve are needed.
+        heldCargoFrame ??= new Float64Array(16);
+        scratch.position.set(
+          p.x - Math.sin(p.heading) * 0.42,
+          actor.elevation + 0.55,
+          p.z - Math.cos(p.heading) * 0.42,
+        );
+        scratch.scale.setAll(1);
+        setEuler(scratch, 0, p.heading, 0);
+        compose(scratch, heldCargoFrame);
+      }
+      const swing = actor.attack.swing;
+      const work = entity.get('work')?.snapshot();
+      const stowed =
+        isSocializing(actor) ||
+        work?.status === 'working' ||
+        work?.status === 'ready' ||
+        (carrying && !actor.attack.target && !swing && !actor.defending);
+      const throwing = swing?.kind === 'THROW_JAVELIN' && !actor.defending;
+      equipmentVisibility(stowed, throwing, throwing && swing.resolved);
+      for (const a of attached) if (a.visible) enablePart(a.binding.node, a.visible());
+    },
+    jointPoint(joint, offset) {
+      const point = worldPoint(pose, joint, offset);
+      if (!held) return point;
+      // The solved buffer stays in its original frame. Rebase only the requested
+      // point, just as the scene graph moves held meshes with their root.
+      const frame = pose.world;
+      const angle = binding.heading - Math.atan2(frame[8], frame[10]);
+      const sin = Math.sin(angle),
+        cos = Math.cos(angle);
+      const x = point[0] - frame[12],
+        z = point[2] - frame[14];
+      const root = rig.root.position;
+      return [
+        root.x + cos * x + sin * z,
+        root.y + point[1] - frame[13],
+        root.z - sin * x + cos * z,
+      ];
+    },
+    deathPose(rebase, time) {
+      if (!held) return history.snapshot(rebase);
+      // Combat can reach lethality after authoritative movement but before draw sync.
+      const turn = yawDelta(rebase.heading - binding.heading);
+      const rigidYawRate =
+        time > heldTime || Math.abs(turn) > 1e-8 ? (heldDt > 0 ? turn / heldDt : 0) : heldYawRate;
+      return history.snapshot({ ...rebase, rigidYawRate });
+    },
+    cargoFrame() {
+      return held
+        ? holdingCargo
+          ? heldCargoFrame
+          : undefined
+        : actions.carrying
+          ? actions.frames.cargo
+          : undefined;
     },
     applyPhysics(ragdoll) {
       if (rig.root.isDisposed()) throw new Error('Cannot apply a retired rig');
