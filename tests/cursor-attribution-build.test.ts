@@ -30,7 +30,7 @@ test('diagnostic build emits CSS without loading an external PostCSS config', as
       [
         '--input-type=module',
         '-e',
-        `import { buildDiagnostic } from './tests/cursor-attribution-build.ts'; await buildDiagnostic('bundle');`,
+        `import assert from 'node:assert/strict'; import { buildDiagnostic } from './tests/cursor-attribution-build.ts'; const sources = await buildDiagnostic('bundle'); assert.ok(sources['interactions.ts']?.includes("epWrite('door'")); assert.ok(sources['main.ts'].includes('ep.fixed(')); assert.ok(sources['observation.ts']?.includes('epThin(mesh, active,')); assert.ok(sources['bindings.ts']?.includes("epPose('pose'"));`,
       ],
       { cwd: root, env: { ...process.env, NODE_ENV: 'production' }, timeout: 60_000 },
     );

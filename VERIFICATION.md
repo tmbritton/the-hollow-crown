@@ -1,6 +1,108 @@
 # Verification — The Hollow Crown
 
+## Story 16.1 — writer publications and populated traversal
+
+**Correctness tooling only. Hardware evidence remains pending (host Xid79).** No Chromium,
+GPU workloads, device queries, resets, recovery, or graphical session changes were run for this
+follow-up. No feasibility verdict or change to 16.2. The prior review history is preserved below.
+
+`node tests/cursor-attribution.ts --smoke` now runs a **Babylon NullEngine fixture**, not the
+previous SwiftShader browser smoke. It uses the same writer adapter, replay kernel, populated
+index and ledger assembly as the diagnostic. Its three cases assert known shrine/floor triangle
+hits against exhaustive and local picking, and idle publications with no ray. The idle frame
+includes two fixed ticks: a parent moves the door across an intermediate tile and back. The fixture
+also exercises a posed/reparented child, a thin slot edit and batch replacement, and spawn/disposal.
+There are no elapsed-time assertions or admitted timing values in the smoke artifacts.
+
+The pinned scratch build wires explicit door/chest, rig draw/frozen physics, and thin-upload
+publication sites; per-scene Babylon adapters observe mesh world/check, effective enable,
+thin-buffer and lifecycle operations. The effective-enable observer catches inherited changes
+through `TransformNode` parents, including toggles undone between checkpoints. Events retain
+visit-local mesh identity (including Babylon ID/name), frame,
+tick, phase, before/after local bounds, world transform, parent IDs, eligibility and thin operands.
+Seed and tick/pick/render checkpoints are reconciliation inputs, not a source of inferred writes.
+Replay refreshes world and applicable instance boxes with Babylon's box transform kernel, updates
+membership and buckets, and reconciles the ordered candidates with the independent offline scan
+and exhaustive/local hit checks. Unknown/oversized and thin batches stay in fallback. Tile reads
+consume actual entries and record empty/occupied probes and duplicates; idle has no query demand.
+
+The scratch ledger uses two **non-overlapping** units: one publication (including any dirty check,
+refresh and membership/invalidation work) and one query (walk, bucket reads, deduplication and scene
+order). The raw replay retains the inner operations, but does not charge them again. Each case is
+partitioned into consecutive blocks of at most 240 native frames. Its three work/control batches
+per block repeat the same complete ordered mix, padding unused slots with no work. For each
+demanded group, the maximum full active batch time is divided by the number of complete repeats;
+these charges are summed and divided by the native frame count. No timings are pooled across
+cases or used to price a different work mix. Admission checks the ordered publication records,
+populated query records, per-kind counts, native frame demand and the batch units and charges.
+Registration reports `serializedBucketBytes` separately; `runtimeMemory` is `unmeasured`, not a
+heap or RSS estimate.
+
+**Before deciding whether to spend a matched RTX visit:** review the hook inventory and raw
+records, especially lazy transforms/eligibility or ownership changes outside the named writers,
+forced readback perturbation, and capture volume. A world-bounds operand is a resolved world
+matrix; this is not timing the upstream rig solve or proving coverage of arbitrary Babylon
+mutators. The scratch charges cover the observed replay mix, not a bound on unseen mixes. Full-window
+capture, count/time matching, and live coverage have not been verified on this host. A future
+authorized run needs independently healthy matched hardware, a new run directory and the frozen
+preflight, visit cap, per-visit calibration and stop rules in [Story 16.1](docs/plan/epic-16/story-1.md).
+Do not reuse smoke or archived batches. Unreconciled checkpoints, exceeded trace budget, missing
+rates and count/time mismatches stop collection rather than authorizing either verdict.
+
+**Software evidence:** `test-results/epic16/smoke-tI7jOC/` contains `provenance.json`, raw
+`*-writers.json.gz`, reconciled `*-writer-replay.json.gz`, `fixture-hits.json`,
+`writer-ledger.json` and `readout.json`. The readout records a passed fixture, zero browser/native
+visits, and `stopped` for feasibility. Each case had 16 observed publications; shrine and floor
+each read one occupied cell and two entries including fallback. Idle issued no query. Focused TDD
+reproduced the missing populated walk, writer
+trace/replay, missing hook sites, the old coverage-tag-only admission and the missing checkpoint
+guard before passing the corresponding regressions.
+
+Checks passed: focused writer/model/build/decision tests (198), `npm test` (816),
+`npm run check:full` (836), standalone typecheck/lint/format, and `npm run build`. Browser checks
+and the hardware entry point were not run under the Xid79 constraint. Independent review is
+outstanding.
+
+**Four-finding review follow-up (software only):** The new regression tests failed before the
+fixes for inherited enable toggles, case timing, missing/malformed records and registration labels.
+Focused cursor tests passed (209), `npm test` passed (821), `npm run check:full` passed (841 plus
+typecheck, lint and format), and `npm run build` passed with Vite's chunk-size warning. A fresh
+NullEngine smoke (`test-results/epic16/smoke-mVGxpw/`) retained 66 serialized bucket bytes per
+fixture case, `runtimeMemory: unmeasured`, no timing charge, and a stopped feasibility decision.
+The expanded scratch report retains more per-frame records, and separate timed blocks can cost
+more to replay. Neither full-window artifact volume nor matched-hardware timing was tested. No
+browser or GPU work was run; independent re-review was not available in this session.
+
+**Remaining follow-up 2 blocker — exact query snapshot order:** The regression first failed
+because an occupant-order rebuild changed the raw entries from `[4, 3, 1, 0, 2, 0]` to
+`[3, 4, 0, 1, 0, 2]` after removal and reinsertion, even though the sorted candidate IDs
+matched. The copy now clones the current buckets and fallback in their existing iteration
+order, preserves the envelope (including vacated cells), and is unaffected by later source
+publications. The test passes on the full walk: ordered entries, tiles, candidates and read
+counts. Snapshot setup stays outside query timing; full-window memory remains unmeasured.
+
+The focused writer/model/build/evidence tests passed (204), `npm test` and `npm run check:full` passed
+(full suite, typecheck, lint and format), and `npm run build` passed with the Vite chunk-size
+warning. The NullEngine smoke in `test-results/epic16/smoke-WZ0dsC/` passed with zero native
+or count visits and a `stopped` feasibility decision. No browser, hardware or graphical session
+work was run; this is not independent re-review or a feasibility finding.
+
+**Follow-up 3 — oversized sweeps:** The new regressions first reproduced a numeric diff and
+empty crossed list for the `0:0` → `65:0` move, a gap-free idle replay, and a synthetic positive
+decision. Both model paths now report the sweep as unresolved while updating endpoint occupancy.
+Reconciled writes retain the reason, writer ID and frame; the runner archives them before stopping,
+and batch replay leaves the affected case unpriced. JSON round-trip tests block either verdict
+for every case. The tests also cover the 64/65-cell boundary, reverse movement, unsafe coordinates,
+and a pick following a jump large enough to exceed the scratch walk limit.
+
+Focused cursor tests passed (209), `npm run check:full` passed (847 plus typecheck, lint and format),
+and `npm run build` passed with Vite's chunk-size warning. The NullEngine smoke at
+`test-results/epic16/smoke-Oev7kE/` passed with zero native or count visits and no feasibility
+verdict. No browser or GPU checks were run; independent re-review was not available.
+
 ## Story 16.1 — review follow-up: measurement tooling only
+
+Historical record; the smoke command now takes the NullEngine path described above.
 
 **Hardware evidence is pending.** The runner cannot issue either feasibility verdict with the
 current writer measurements. This does not open 16.2 or establish a speedup.

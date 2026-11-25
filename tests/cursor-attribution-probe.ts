@@ -8,7 +8,10 @@ import type { Game } from '../src/gameTypes.ts';
 import type { ViewSettings } from '../src/visualTrial.ts';
 import type { Hit } from './cursor-evidence.ts';
 import type { Bounds, GroundRay } from './cursor-attribution-model.ts';
-import { createReplay, measureScratch } from './cursor-attribution-replay.ts';
+import { createReplay } from './cursor-attribution-replay.ts';
+import { captureWriters } from './cursor-attribution-writers.ts';
+import { measurePublications } from './cursor-publication-replay.ts';
+import type { WriterTrace } from './cursor-attribution-writers.ts';
 
 export const shrine = 'prop:shrine-entrance-0';
 type Point = [number, number];
@@ -19,6 +22,7 @@ export type CaptureConfig = {
   window: [number, number];
   smoke: boolean;
   expectedReady?: string;
+  runId?: string;
 };
 type Pick =
   | { kind: 'floor' }
@@ -75,7 +79,6 @@ export type NativeRow = {
   cue: number | null;
   renderCpu: number | null;
   gpu: number | null;
-  writerPhases: Pose[][];
   sample: PublicSample;
 };
 type ActivePass = {
@@ -101,6 +104,7 @@ export function pickDiagnostic(
   ray: Ray,
   mode: 'time' | 'count' | 'parity',
   local: AbstractMesh[] | null = null,
+  beforeFirstPass?: () => void,
 ) {
   const { scene } = game;
   const full = scene.meshes;
@@ -116,6 +120,7 @@ export function pickDiagnostic(
   const native = scene.pickWithRay;
   const stages: Parameters<Scene['pickWithRay']>[] = [];
   scene.pickWithRay = function (...args) {
+    if (!result.pass.length) beforeFirstPass?.();
     if (mode === 'parity') stages.push(args);
     const work = mode === 'count' ? emptyCounts() : null;
     result.work = work;
@@ -272,7 +277,8 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
     rig = 0,
     cue = 0,
     outlined = 0;
-  let phases: Pose[][] = [];
+  let writers: ReturnType<typeof captureWriters> | undefined;
+  let nativeFrame = 0;
   let atPick: Sample | null = null;
   let picked: ReturnType<typeof pickDiagnostic> | null = null;
   let input = 0,
@@ -423,8 +429,19 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
           clock,
         );
       },
-      scratch(demands: Parameters<typeof measureScratch>[0]) {
-        return measureScratch(demands, !!config?.smoke, clock);
+      writerTrace(start = 0, end = 0) {
+        if (!writers || !done) throw new Error('writer count visit unavailable');
+        const { frames, ...header } = writers.trace;
+        return {
+          header: start === 0 && end === 0 ? header : null,
+          length: frames.length,
+          frames: frames.slice(start, end),
+        };
+      },
+      scratch(traces: WriterTrace[]) {
+        if (!done || fail || config?.mode !== 'count')
+          throw new Error('scratch requires a completed count visit');
+        return measurePublications(traces, config.smoke ? null : clock);
       },
     };
   }
@@ -455,6 +472,18 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
         return;
       }
       if (config.mode === 'count') undoCount = countScope(meshes);
+      if (config.mode === 'count' && config.kind !== 'preflight') {
+        if (!config.runId) throw new Error('writer capture requires a run ID');
+        writers = captureWriters(
+          g.scene,
+          {
+            runId: config.runId,
+            kind: config.kind,
+            provenance: config.smoke ? 'software' : 'matched',
+          },
+          500_000,
+        );
+      }
       for (const geometry of g.scene.getGeometries()) {
         const previous = geometry.onGeometryUpdated;
         geometry.onGeometryUpdated = (changed, kind) => {
@@ -480,21 +509,26 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
       rig = 0;
       cue = 0;
       outlined = 0;
-      phases = [];
+      nativeFrame++;
+      if (g.steps >= config.window[0] - 5) writers?.begin(nativeFrame, from);
       picked = null;
       atPick = null;
     },
     none() {
       picked = null;
     },
-    tick(g: Game) {
-      if (
-        !done &&
-        config.kind !== 'preflight' &&
-        g.steps >= config.window[0] - 5 &&
-        g.steps <= config.window[1] + 5
-      )
-        phases.push(meshes.map(pose));
+    fixed(g: Game, run: () => void) {
+      const step = g.steps;
+      writers?.phase('fixed', g.steps);
+      run();
+      if (g.steps !== step) writers?.checkpoint();
+    },
+    fixedStep(step: number) {
+      writers?.phase('fixed', step);
+    },
+    presentation(g: Game | null, run: () => void) {
+      if (g) writers?.phase('presentation', g.steps);
+      run();
     },
     rig(run: () => void) {
       const start = measuring ? clock() : 0;
@@ -502,13 +536,21 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
       if (measuring) rig += clock() - start;
     },
     hover(g: Game, ray: Ray) {
+      writers?.phase('pick', g.steps);
+      const witness = writers && !done && g.steps >= config.window[0] ? writers : undefined;
       picked = pickDiagnostic(
         ports,
         g,
         ray,
         measuring ? 'time' : config.mode === 'count' ? 'count' : 'parity',
+        null,
+        witness && (() => witness.checkpoint(groundRay(ray))),
       );
-      if (!done && g.steps >= config.window[0]) atPick = snapshot(ray, picked.hit);
+      if (!done && g.steps >= config.window[0]) {
+        atPick = writers
+          ? writers.quiet(() => snapshot(ray, picked!.hit))
+          : snapshot(ray, picked.hit);
+      }
       return picked.picked;
     },
     cue(start: number, n: number) {
@@ -532,10 +574,21 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
       }
       const query = capturing && measuring && ext && !pendingQuery ? gl?.createQuery() : null;
       if (gl && ext && query) gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
-      const beforeRender = capturing ? (atPick ?? snapshot(null, null)) : null;
+      if (capturing && !atPick) {
+        writers?.phase('presentation', g.steps);
+        writers?.checkpoint();
+      }
+      const beforeRender = capturing
+        ? (atPick ?? (writers ? writers.quiet(() => snapshot(null, null)) : snapshot(null, null)))
+        : null;
+      writers?.phase('render', g.steps);
       const start = measuring ? clock() : 0;
       g.scene.render();
       const renderCpu = measuring ? clock() - start : null;
+      if (capturing) writers?.checkpoint();
+      writers?.end(g.steps, !!capturing);
+      if (writers?.trace.gaps.some((gap) => gap.includes('overflow')))
+        fail ??= 'writer trace overflow';
       if (gl && ext && query) {
         gl.endQuery(ext.TIME_ELAPSED_EXT);
         pendingQuery = { query, row: rows.length };
@@ -581,7 +634,6 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
           cue: measuring ? cue : null,
           renderCpu,
           gpu: null,
-          writerPhases: [...phases, beforeRender.poses, meshes.map(pose)],
           sample: {
             ...rest,
             ray: ray && {
@@ -594,6 +646,7 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
       }
       if (g.steps >= config.window[1] || fail) {
         done = true;
+        writers?.close();
         e.stopRenderLoop();
       }
     },

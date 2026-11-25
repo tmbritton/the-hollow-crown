@@ -9,12 +9,20 @@ import { gzipSync } from 'node:zlib';
 import { chromium } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { buildDiagnostic } from './cursor-attribution-build.ts';
-import { offRayCredit, publishDemand, validateWindow } from './cursor-attribution-model.ts';
-import { transition, workKinds } from './cursor-evidence.ts';
-import type { RunState, Visit, WorkRates } from './cursor-evidence.ts';
+import { offRayCredit, validateWindow } from './cursor-attribution-model.ts';
+import { transition } from './cursor-evidence.ts';
+import type { RunState, Visit } from './cursor-evidence.ts';
 import type { CaptureConfig, NativeRow, cursorDiagnostic } from './cursor-attribution-probe.ts';
-import type { ScratchFrame } from './cursor-attribution-replay.ts';
-import { scratchCoverage } from './cursor-attribution-replay.ts';
+import {
+  measurePublications,
+  reconcileWriters,
+  windowGap,
+  writerFrameEvidence,
+} from './cursor-publication-replay.ts';
+import { writerFixture } from './cursor-attribution-fixture.ts';
+import type { WriterTrace } from './cursor-attribution-writers.ts';
+import type { WriterCase, WriterReport } from './cursor-writer-evidence.ts';
+import { validateWriterReport } from './cursor-writer-evidence.ts';
 import { pinProductionInputs } from './cursor-production-inputs.ts';
 import { measureScaling } from './cursor-reference.ts';
 import { validateScaling } from './cursor-scaling-policy.ts';
@@ -30,6 +38,7 @@ const smoke = arg === '--smoke';
 const root = 'test-results/epic16';
 await mkdir(root, { recursive: true });
 const out = await mkdtemp(`${root}/${arg?.slice(2) ?? 'hardware'}-`);
+const runId = out;
 console.log(out);
 const save = (name: string, data: unknown) =>
   writeFile(`${out}/${name}.json`, JSON.stringify(data, null, 2) + '\n', { flag: 'wx' });
@@ -39,7 +48,7 @@ let run: RunState = { kind: 'planned' };
 let stage = 'host';
 let nativeVisits = 0;
 let countVisits = 0;
-const windowTicks: [number, number] = smoke ? [5, 10] : [180, 480];
+const windowTicks: [number, number] = [180, 480];
 const hash = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
 const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 const smi = () => {
@@ -120,7 +129,7 @@ function handshake(meta: Ready, reference: Ready | null) {
   assert.equal(meta.visible, true);
   assert.equal(meta.focused, true);
   assert.ok(meta.renderer);
-  if (!smoke) assert.match(meta.renderer, /GeForce RTX 2070(?:\/|,|\))/);
+  assert.match(meta.renderer, /GeForce RTX 2070(?:\/|,|\))/);
   assert.deepEqual(meta.css, [0, 0, 1920, 1080]);
   assert.ok(meta.backing.every((n, i) => Math.abs(n - meta.css[i + 2] * meta.dpr) <= 1));
   const { lensDegrees, fisheyePercent, paletteEnabled, inkWidth, cornerWear } = meta.settings;
@@ -145,11 +154,9 @@ async function withVisit<T>(
   work: (page: Page) => Promise<T>,
 ) {
   stage = label;
-  if (!smoke) {
-    const gpu = smi();
-    await save(`${label}-gpu-before`, gpu);
-    if (!gpu.ok) throw new Error('matched GPU unavailable before visit');
-  }
+  const before = smi();
+  await save(`${label}-gpu-before`, before);
+  if (!before.ok) throw new Error('matched GPU unavailable before visit');
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 1,
@@ -170,16 +177,14 @@ async function withVisit<T>(
         return b?.status().done || b?.status().fail || !!document.querySelector('#loading.failed');
       },
       getBridge,
-      { timeout: smoke ? 60000 : 90000, polling: 250 },
+      { timeout: 90000, polling: 250 },
     );
     assert.deepEqual(errors, []);
     const result = await work(page);
     assert.deepEqual(errors, []);
-    if (!smoke) {
-      const gpu = smi();
-      await save(`${label}-gpu-after`, gpu);
-      if (!gpu.ok) throw new Error('matched device lost after visit');
-    }
+    const after = smi();
+    await save(`${label}-gpu-after`, after);
+    if (!after.ok) throw new Error('matched device lost after visit');
     return result;
   } finally {
     await context.close();
@@ -195,89 +200,13 @@ const mean = (n: number[]) => {
   if (!n.length) throw new Error('empty measurement');
   return n.reduce((a, b) => a + b, 0) / n.length;
 };
-const occupants = (poses: NativeRow['sample']['poses']) =>
-  poses.map((p, id) => ({ id, bounds: p.bounds }));
-function scratchFrames(
-  rows: NativeRow[],
-  replay: ReturnType<Bridge['replay']>,
-  previous?: NativeRow['sample']['poses'],
-): ScratchFrame[] {
-  return rows.map((row, i) => {
-    const list = replay.lists.find((v) => v.i === i);
-    const rates: Record<string, number> = {
-      traverse: list?.traversal ?? 0,
-      assemble: list?.entries.length ?? 0,
-      order: list?.entries.length ?? 0,
-    };
-    for (const phase of row.writerPhases) {
-      const a = previous ?? phase;
-      const { rates: d } = publishDemand(occupants(a), occupants(phase));
-      for (const [key, n] of Object.entries(d)) rates[key] = (rates[key] ?? 0) + n;
-      for (const [id, p] of phase.entries()) {
-        const old = a[id];
-        const n = Math.max(p.thinCount, old.thinCount);
-        rates.bounds += n;
-        rates.diff += p.thinCount + old.thinCount;
-        if (
-          p.parent !== old.parent ||
-          p.enabled !== old.enabled ||
-          p.visible !== old.visible ||
-          p.visibility !== old.visibility ||
-          p.alpha !== old.alpha ||
-          p.thinPick !== old.thinPick ||
-          p.world.some((x, j) => x !== old.world[j]) ||
-          p.thin?.some((x, j) => x !== old.thin?.[j])
-        )
-          rates.invalidate += 1 + n;
-        rates.remove += Math.max(0, old.thinCount - p.thinCount);
-        rates.insert += Math.max(0, p.thinCount - old.thinCount);
-      }
-      previous = phase;
-    }
-    if (row.writerPhases.length < row.ticks + 2)
-      throw new Error('missing fixed tick or presentation writer phase');
-    return { rates, entries: list?.entries ?? [], bounds: row.sample.poses.map((p) => p.bounds) };
-  });
-}
-
 function visitFrom(
   kind: Visit['kind'],
   rows: NativeRow[],
   replay: ReturnType<Bridge['replay']>,
-  charges: ScratchFrame[],
-  countRows: NativeRow[],
+  witness: WriterCase,
 ): Visit {
-  if (!countRows.length || !charges.length || !replay.parity)
-    throw new Error('missing count or replay evidence');
-  if (
-    kind !== 'idle' &&
-    !countRows.every(
-      (row) =>
-        row.passes.length > 0 && row.passes.every((pass) => pass.work && pass.work.visits > 0),
-    )
-  ) {
-    throw new Error('missing native count-mode pass boundaries');
-  }
-  const localCharges = scratchFrames(rows, replay);
-  const demand: WorkRates = {};
-  for (const op of workKinds)
-    demand[op] = Math.max(...charges.map((r) => finite(r.rates[op] ?? null)));
-  // Bound timed writer demand using the more expensive count visit, scaled conservatively
-  // by actual tick density. Query demand also includes the actual timed frame list.
-  const normalized = Math.max(1, ...countRows.map((r) => r.ticks + 2));
-  const frameDemand = (row: NativeRow, i: number) => {
-    const adjusted = { ...demand };
-    const list = replay.lists.find((v) => v.i === i);
-    adjusted.traverse = Math.max(adjusted.traverse!, list?.traversal ?? 0);
-    adjusted.assemble = Math.max(adjusted.assemble!, list?.entries.length ?? 0);
-    adjusted.order = Math.max(adjusted.order!, list?.entries.length ?? 0);
-    for (const op of ['bounds', 'diff', 'remove', 'insert', 'invalidate'] as const)
-      adjusted[op] = Math.max(
-        finite(localCharges[i].rates[op]),
-        Math.ceil(adjusted[op]! * Math.max(1, (row.ticks + 2) / normalized)),
-      );
-    return adjusted;
-  };
+  if (!witness.frames.length || !replay.parity) throw new Error('missing count or replay evidence');
   let isolated = 0;
   if (kind !== 'idle') {
     if (replay.timed.length !== rows.length) throw new Error('missing timed replay frames');
@@ -296,7 +225,7 @@ function visitFrom(
   return {
     kind,
     exclusiveReplayMean: isolated,
-    registration: { ms: finite(replay.registration.ms), bytes: replay.registration.bytes },
+    registration: { ...replay.registration, ms: finite(replay.registration.ms) },
     replay:
       kind === 'idle'
         ? null
@@ -305,21 +234,27 @@ function visitFrom(
             local: finite(replay.local),
             parity: replay.parity,
           },
-    frames: rows.map((r, i) => ({
-      pick: finite(r.pick),
-      pickScopes: [],
-      ticks: r.ticks,
-      rig: finite(r.rig),
-      eligibilityOutline: finite(r.cue),
-      renderCpu: finite(r.renderCpu),
-      gpu: r.gpu,
-      demand: frameDemand(r, i),
-    })),
+    frames: rows.map((r, i) => {
+      const demand = witness.frames[i]?.demand;
+      if (!demand || demand.publish === null) throw new Error('unresolved publication demand');
+      return {
+        pick: finite(r.pick),
+        pickScopes: [],
+        ticks: r.ticks,
+        from: r.from,
+        to: r.to,
+        rig: finite(r.rig),
+        eligibilityOutline: finite(r.cue),
+        renderCpu: finite(r.renderCpu),
+        gpu: r.gpu,
+        demand: { publish: demand.publish, query: demand.query },
+      };
+    }),
   };
 }
 
 async function collect() {
-  const gpu = smoke ? null : smi();
+  const gpu = smi();
   stage = 'production input pin';
   const production = await pinProductionInputs();
   await save('provenance', {
@@ -327,7 +262,8 @@ async function collect() {
     toolHead: git('rev-parse', 'HEAD'),
     toolBranch: git('branch', '--show-current'),
     time: new Date().toISOString(),
-    smoke,
+    runId,
+    smoke: false,
     command: process.argv,
     kernel: release(),
     cpu: cpus()[0]?.model,
@@ -341,18 +277,15 @@ async function collect() {
     windowTicks,
     toolHashes: await manifest((await files('tests')).filter((p) => p.startsWith('tests/cursor-'))),
   });
-  await save('writer-coverage', scratchCoverage);
   stage = 'host';
-  if (!smoke && !gpu?.ok) {
+  if (!gpu.ok) {
     run = transition(run, {
       type: 'unavailable',
       reason: 'No working matched RTX 2070 before browser launch',
     }).state;
     return;
   }
-  if (!smoke) {
-    assert.match(cpus()[0]?.model ?? '', /Ryzen 5 2600X/);
-  }
+  assert.match(cpus()[0]?.model ?? '', /Ryzen 5 2600X/);
   stage = 'scaling';
   const scaling = await captureScaling();
   stage = 'build';
@@ -370,18 +303,16 @@ async function collect() {
     stage = 'launch';
     browser = await chromium.launch({
       channel: 'chromium',
-      headless: smoke,
+      headless: false,
       timeout: 15000,
-      args: smoke
-        ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-        : ['--ignore-gpu-blocklist', '--window-position=32,32', '--window-size=1980,1210'],
+      args: ['--ignore-gpu-blocklist', '--window-position=32,32', '--window-size=1980,1210'],
     });
     await save('browser', { version: browser.version(), url });
     const preflight = await withVisit(
       browser,
       url,
       'preflight',
-      { kind: 'preflight', mode: 'time', smoke, window: windowTicks },
+      { kind: 'preflight', mode: 'time', smoke: false, window: windowTicks },
       async (page) => {
         const meta = await page.evaluate(
           (key) => (window as unknown as Record<string, Bridge>)[key].take().ready,
@@ -394,24 +325,18 @@ async function collect() {
           (key) => (window as unknown as Record<string, Bridge>)[key].resolve(),
           getBridge,
         );
-        const refreshHz = smoke
-          ? null
-          : await page.evaluate(async () => {
-              const times: number[] = [];
-              for (let i = 0; i < 20; i++)
-                times.push(await new Promise<number>((done) => requestAnimationFrame(done)));
-              const gaps = times
-                .slice(1)
-                .map((t, i) => t - times[i])
-                .sort((a, b) => a - b);
-              return 1000 / gaps[9];
-            });
+        const refreshHz = await page.evaluate(async () => {
+          const times: number[] = [];
+          for (let i = 0; i < 20; i++)
+            times.push(await new Promise<number>((done) => requestAnimationFrame(done)));
+          const gaps = times
+            .slice(1)
+            .map((t, i) => t - times[i])
+            .sort((a, b) => a - b);
+          return 1000 / gaps[9];
+        });
         await save('handshake', { meta, target, refreshHz });
-        if (!smoke)
-          assert.ok(
-            refreshHz !== null && Math.abs(refreshHz - 59.95) <= 1,
-            'unmatched foreground RAF refresh',
-          );
+        assert.ok(Math.abs(refreshHz - 59.95) <= 1, 'unmatched foreground RAF refresh');
         assert.ok(
           target.shrine && target.floor?.kind === 'floor',
           'failed to resolve shrine and clear floor',
@@ -454,9 +379,11 @@ async function collect() {
         assert.ok(replay.lists.some((r) => r.ids.length < meta.ready!.meshNames.length));
       return { rows, replay };
     };
-    const counts = new Map<Kind, { rows: NativeRow[]; scratch: ScratchFrame[] }>();
+    const traces: WriterTrace[] = [];
+    const countEvidence = new Map<Visit['kind'], string>();
+    const countRows = new Map<Kind, NativeRow[]>();
     const visits: Visit[] = [];
-    let unitBatches: WorkRates[] = [];
+    let writerReport: WriterReport | undefined;
     for (const kind of kinds) {
       const point = kind === 'idle' ? undefined : preflight[kind];
       await withVisit(
@@ -467,37 +394,82 @@ async function collect() {
           kind,
           point,
           mode: 'count',
-          smoke,
+          smoke: false,
           window: windowTicks,
           expectedReady: JSON.stringify(preflight.meta),
+          runId,
         },
         async (page) => {
+          const meta = await page.evaluate(
+            (key) => (window as unknown as Record<string, Bridge>)[key].writerTrace(),
+            getBridge,
+          );
+          assert.ok(meta.header);
+          await archive(`${stage}-writer-header`, meta.header);
+          const trace = { ...meta.header, frames: [] } satisfies WriterTrace;
+          const frames: WriterTrace['frames'] = trace.frames;
+          for (let i = 0; i < meta.length; i += 2) {
+            const chunk = await page.evaluate(
+              ([key, start]) =>
+                (window as unknown as Record<string, Bridge>)[key].writerTrace(start, start + 2)
+                  .frames,
+              [getBridge, i] as const,
+            );
+            await archive(`${stage}-writers-${i}`, chunk);
+            frames.push(...chunk);
+          }
+          const gap = windowGap(trace, windowTicks);
+          if (gap) trace.gaps.push(gap);
+          const { frames: reconciled, gaps } = reconcileWriters(trace);
+          trace.gaps.push(...gaps.filter((reason) => !trace.gaps.includes(reason)));
+          if (trace.gaps.length) {
+            await archive(`${stage}-writer-replay`, { frames: reconciled, gaps: trace.gaps });
+            throw new Error(trace.gaps.join('; '));
+          }
           const { rows, replay } = await read(page, kind, false);
-          counts.set(kind, { rows, scratch: scratchFrames(rows, replay) });
+          if (
+            rows.length !== reconciled.length ||
+            rows.some((row, i) => row.from !== reconciled[i].from || row.to !== reconciled[i].to)
+          )
+            trace.gaps.push('native/count writer frames disagree');
+          if (
+            kind !== 'idle' &&
+            (replay.lists.length !== reconciled.length ||
+              !rows.every(
+                (r) => r.passes.length && r.passes.every((p) => p.work && p.work.visits > 0),
+              ) ||
+              replay.lists.some(
+                ({ i, ids }, frame) =>
+                  i !== frame ||
+                  JSON.stringify(ids) !== JSON.stringify(reconciled[frame]?.query?.ids),
+              ))
+          )
+            trace.gaps.push(
+              'native passes or offline candidates disagree with synchronized traversal',
+            );
+          await archive(`${stage}-writer-replay`, { frames: reconciled, gaps: trace.gaps });
+          if (trace.gaps.length) throw new Error(trace.gaps.join('; '));
+          countEvidence.set(kind, JSON.stringify(writerFrameEvidence(reconciled)));
+          traces.push(trace);
+          countRows.set(kind, rows);
           countVisits++;
           if (kind === 'idle') {
-            const inputs = [...counts.values()].flatMap((c) => c.scratch);
-            const scratch = await page.evaluate(
-              ([key, frames]) => (window as unknown as Record<string, Bridge>)[key].scratch(frames),
-              [getBridge, inputs] as const,
+            writerReport = await page.evaluate(
+              ([key, traces]) => (window as unknown as Record<string, Bridge>)[key].scratch(traces),
+              [getBridge, traces] as const,
             );
-            await save('scratch', scratch);
-            assert.deepEqual(scratch.coverage, scratchCoverage);
-            if (smoke) assert.equal(scratch.coverage.kind, 'unmeasured');
-            unitBatches = scratch.batches.map((batch) =>
-              Object.fromEntries(
-                workKinds.flatMap((key) => {
-                  const record = batch[key];
-                  return record?.rate != null ? [[key, record.rate]] : [];
-                }),
-              ),
-            );
+            await save('writer-ledger', writerReport);
           }
         },
       );
     }
+    const writerError = validateWriterReport(runId, writerReport);
+    if (writerError) throw new Error(writerError);
+    for (const witness of writerReport!.cases)
+      if (JSON.stringify(witness.frames) !== countEvidence.get(witness.kind))
+        throw new Error(`${witness.kind} scratch records disagree with ordered count replay`);
     for (const kind of kinds)
-      for (let i = 0; i < (kind === 'shrine' && !smoke ? 3 : 1); i++) {
+      for (let i = 0; i < (kind === 'shrine' ? 3 : 1); i++) {
         const point = kind === 'idle' ? undefined : preflight[kind];
         await withVisit(
           browser,
@@ -507,40 +479,38 @@ async function collect() {
             kind,
             point,
             mode: 'time',
-            smoke,
+            smoke: false,
             window: windowTicks,
             expectedReady: JSON.stringify(preflight.meta),
           },
           async (page) => {
             const { rows, replay } = await read(page, kind, i % 2 === 1);
             nativeVisits++;
-            const counted = counts.get(kind)!;
-            if (smoke) {
-              assert.ok(rows.every((r) => r.pick === null && r.renderCpu === null));
-              assert.equal(replay.exhaustive, null);
-              assert.throws(
-                () => visitFrom(kind, rows, replay, counted.scratch, counted.rows),
-                /missing/,
-              );
-            } else visits.push(visitFrom(kind, rows, replay, counted.scratch, counted.rows));
+            const counted = countRows.get(kind)!;
+            const witness = writerReport!.cases.find((c) => c.kind === kind)!;
+            if (
+              rows.length !== counted.length ||
+              rows.some(
+                (row, i) =>
+                  row.from !== counted[i].from ||
+                  row.to !== counted[i].to ||
+                  JSON.stringify(row.sample) !== JSON.stringify(counted[i].sample),
+              )
+            ) {
+              const gap = `count/time frame geometry or ray mismatch for ${kind}`;
+              await save(`${stage}-writer-gap`, { runId, gap });
+              throw new Error(gap);
+            }
+            visits.push(visitFrom(kind, rows, replay, witness));
           },
         );
       }
-    if (smoke) {
-      stage = 'smoke complete';
-      assert.equal(nativeVisits, 3);
-      assert.equal(countVisits, 3);
-      run = transition(run, {
-        type: 'invalid',
-        reason:
-          'Correctness-only smoke passed; software and absent timing inputs cannot authorize feasibility',
-      }).state;
-    } else {
+    {
       stage = 'decision';
       const gpu = smi();
       await save('gpu-after', gpu);
       if (!gpu.ok) throw new Error('matched device lost');
-      await save('ledger-input', { visits, unitBatches, writerCoverage: scratchCoverage });
+      await save('ledger-input', { runId, visits, writerReport });
       run = transition(run, {
         type: 'complete',
         evidence: {
@@ -548,11 +518,11 @@ async function collect() {
           scaling,
           matched: true,
           completeWindows: true,
-          writerCoverage: scratchCoverage,
+          runId,
+          writerReport,
           shrine: visits.filter((v) => v.kind === 'shrine'),
           floor: visits.find((v) => v.kind === 'floor')!,
           idle: visits.find((v) => v.kind === 'idle')!,
-          unitBatches,
         },
       }).state;
     }
@@ -570,10 +540,48 @@ async function captureScaling() {
   return report;
 }
 
+async function softwareSmoke() {
+  stage = 'software fixture';
+  run = transition(run, { type: 'preflightOK' }).state;
+  const { traces, hits } = writerFixture(runId);
+  await save('provenance', {
+    runId,
+    hardware: 'software',
+    engine: 'Babylon NullEngine',
+    timings: 'none',
+    toolHead: git('rev-parse', 'HEAD'),
+    toolHashes: await manifest((await files('tests')).filter((p) => p.startsWith('tests/cursor-'))),
+  });
+  for (const trace of traces) {
+    await archive(`${trace.kind}-writers`, trace);
+    const { gaps, frames } = reconcileWriters(trace);
+    await archive(`${trace.kind}-writer-replay`, { gaps, frames });
+    assert.deepEqual(gaps, []);
+    if (trace.kind === 'idle')
+      assert.ok(
+        frames.every(
+          (f) => f.demand.publish !== null && f.demand.publish > 0 && f.demand.query === 0,
+        ),
+      );
+    else assert.ok(frames.every((f) => f.query && f.query.reads.occupied > 0));
+  }
+  const writerReport = measurePublications(traces, null);
+  await save('writer-ledger', writerReport);
+  await save('fixture-hits', hits);
+  assert.ok(writerReport.cases.every((c) => c.msPerFrame === null));
+  stage = 'smoke complete';
+  run = transition(run, {
+    type: 'invalid',
+    reason:
+      'NullEngine fixture passed; software and absent timing inputs cannot authorize feasibility',
+  }).state;
+}
+
 if (arg === '--scaling') await captureScaling();
 else {
   try {
-    await collect();
+    if (smoke) await softwareSmoke();
+    else await collect();
   } catch (error) {
     run = transition(run, {
       type: /context lost|device lost/i.test(String(error)) ? 'fault' : 'invalid',

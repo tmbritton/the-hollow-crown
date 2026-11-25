@@ -1,4 +1,8 @@
 import { validateScaling } from './cursor-scaling-policy.ts';
+import { count, record, validateWriterReport, workKinds } from './cursor-writer-evidence.ts';
+import type { WorkRates, WriterReport } from './cursor-writer-evidence.ts';
+export { workKinds } from './cursor-writer-evidence.ts';
+export type { WorkKind, WorkRates } from './cursor-writer-evidence.ts';
 
 export type HitSurface = { mesh: string; instance: number; distance: number };
 export type Hit =
@@ -8,24 +12,6 @@ export type Hit =
 export type HitSampler = () => { hit: Hit };
 export type BatchClock = () => number;
 export type EvidenceSink = (artifact: string, data: unknown) => Promise<void>;
-
-// Demand units: visited tiles, list entries, dedup/order entries, bounds checks,
-// compared memberships, removed memberships, inserted memberships, invalidations.
-export const workKinds = [
-  'traverse',
-  'assemble',
-  'order',
-  'bounds',
-  'diff',
-  'remove',
-  'insert',
-  'invalidate',
-] as const;
-export type WorkKind = (typeof workKinds)[number];
-export type WorkRates = Partial<Record<WorkKind, number>>;
-export type WriterCoverage =
-  | { kind: 'upper-bounded' }
-  | { kind: 'unmeasured'; gaps: readonly string[] };
 
 export type Frame = {
   pick: number;
@@ -37,11 +23,13 @@ export type Frame = {
   renderCpu: number;
   gpu: number | null;
   demand: WorkRates;
+  from: number;
+  to: number;
 };
 export type Visit = {
   kind: 'shrine' | 'floor' | 'idle';
   frames: Frame[];
-  registration: { ms: number; bytes: number };
+  registration: { ms: number; serializedBucketBytes: number; runtimeMemory: 'unmeasured' };
   replay: { exhaustive: number; local: number; parity: boolean } | null;
   // Independent coarse, matched replay of disjoint removed pass stages.
   exclusiveReplayMean?: number;
@@ -51,12 +39,11 @@ export type Evidence = {
   scaling: unknown;
   matched: boolean;
   completeWindows: boolean;
-  writerCoverage: WriterCoverage;
+  runId: string;
+  writerReport?: WriterReport;
   shrine: Visit[];
   floor: Visit;
   idle: Visit;
-  // Upper-bound inputs in ms/operation, normalized from the three matched batches.
-  unitBatches: WorkRates[];
 };
 
 const total = (values: number[]) => values.reduce((a, b) => a + b, 0);
@@ -69,21 +56,16 @@ const nonnegative = (n: unknown): n is number =>
 
 class InvalidEvidence extends Error {}
 
-function requiredRate(rates: WorkRates, kind: WorkKind, integer = false) {
-  const n = rates[kind];
-  if (!nonnegative(n) || (integer && !Number.isInteger(n))) {
-    throw new InvalidEvidence(`missing or invalid ${kind} ${integer ? 'demand' : 'unit cost'}`);
-  }
-  return n;
-}
-
 function exclusiveOffRay(frame: Frame) {
   let end = 0;
   let offRay = 0;
-  for (const scope of [...frame.pickScopes].sort((a, b) => a.start - b.start)) {
+  if (!Array.isArray(frame.pickScopes)) throw new InvalidEvidence('missing native pick scopes');
+  for (const scope of frame.pickScopes) {
     if (
+      !record(scope) ||
       !nonnegative(scope.start) ||
       !nonnegative(scope.end) ||
+      (scope.work !== 'off-ray' && scope.work !== 'retained') ||
       scope.start < end ||
       scope.end <= scope.start ||
       scope.end > frame.pick
@@ -96,30 +78,24 @@ function exclusiveOffRay(frame: Frame) {
   return offRay;
 }
 
-export function ledger(visit: Visit, unitBatches: WorkRates[]) {
+export function ledger(visit: Visit, U: number | null) {
   const { frames, registration, replay } = visit;
   if (
-    unitBatches.length !== 3 ||
+    !nonnegative(U) ||
+    !Array.isArray(frames) ||
     !frames.length ||
+    !record(registration) ||
     !nonnegative(registration.ms) ||
-    !nonnegative(registration.bytes)
+    !count(registration.serializedBucketBytes) ||
+    registration.runtimeMemory !== 'unmeasured'
   ) {
     throw new InvalidEvidence('missing frame, scratch batch or registration evidence');
   }
-  const rates = workKinds.map((kind) => {
-    const measured = unitBatches.map((batch) => requiredRate(batch, kind));
-    if (
-      measured.some((rate) => rate === 0) &&
-      frames.some((frame) => requiredRate(frame.demand, kind, true) > 0)
-    )
-      throw new InvalidEvidence(`missing positive scratch measurement for observed ${kind} demand`);
-    return Math.max(...measured);
-  });
   for (const frame of frames) {
     if (
+      !record(frame) ||
       ![frame.pick, frame.rig, frame.eligibilityOutline, frame.renderCpu].every(nonnegative) ||
-      !nonnegative(frame.ticks) ||
-      !Number.isInteger(frame.ticks) ||
+      !count(frame.ticks) ||
       (!frame.ticks && frame.rig !== 0) ||
       (frame.gpu !== null && !nonnegative(frame.gpu)) ||
       (visit.kind === 'idle' && frame.pick !== 0)
@@ -139,15 +115,15 @@ export function ledger(visit: Visit, unitBatches: WorkRates[]) {
     throw new InvalidEvidence('invalid or double-counted exclusive replay budget');
   }
   const attributable = visit.exclusiveReplayMean ?? nativeScopeTime;
-  const U = mean(
-    frames.map((f) =>
-      total(workKinds.map((kind, i) => rates[i] * requiredRate(f.demand, kind, true))),
-    ),
-  );
   let R = 0;
   let calibration = 0;
-  if (visit.kind !== 'idle' || replay) {
-    if (!replay?.parity || !nonnegative(replay.exhaustive) || !nonnegative(replay.local)) {
+  if (visit.kind !== 'idle' || replay !== null) {
+    if (
+      !record(replay) ||
+      replay.parity !== true ||
+      !nonnegative(replay.exhaustive) ||
+      !nonnegative(replay.local)
+    ) {
       throw new InvalidEvidence('missing matched replay or broken hit parity');
     }
     calibration = Math.abs(replay.exhaustive - P);
@@ -194,12 +170,16 @@ type Measured = {
 
 export function decide(data: Evidence): Measured | Stopped {
   if (
+    !record(data) ||
     data.hardware !== 'matched' ||
-    !data.matched ||
-    !data.completeWindows ||
+    data.matched !== true ||
+    data.completeWindows !== true ||
+    !Array.isArray(data.shrine) ||
     data.shrine.length !== 3 ||
-    data.shrine.some((v) => v.kind !== 'shrine') ||
+    [...data.shrine].some((v) => !record(v) || v.kind !== 'shrine') ||
+    !record(data.floor) ||
     data.floor.kind !== 'floor' ||
+    !record(data.idle) ||
     data.idle.kind !== 'idle'
   ) {
     return {
@@ -209,15 +189,36 @@ export function decide(data: Evidence): Measured | Stopped {
   }
   const scalingError = validateScaling(data.scaling);
   if (scalingError) return { kind: 'stopped', reason: scalingError };
-  if (data.writerCoverage?.kind !== 'upper-bounded')
-    return {
-      kind: 'stopped',
-      reason: `writer costs not upper-bounded: ${data.writerCoverage?.gaps.join('; ') || 'missing coverage'}`,
-    };
+  const writerError = validateWriterReport(data.runId, data.writerReport);
+  if (writerError)
+    return { kind: 'stopped', reason: `writer costs not upper-bounded: ${writerError}` };
+  const report = data.writerReport!;
+  const visits = [...data.shrine, data.floor, data.idle];
+  for (const visit of visits) {
+    const measured = report.cases.find((c) => c.kind === visit.kind)!;
+    if (
+      !Array.isArray(visit.frames) ||
+      measured.frames.length !== visit.frames.length ||
+      [...visit.frames].some((frame, i) => {
+        const witness = measured.frames[i];
+        return (
+          !record(frame) ||
+          !record(frame.demand) ||
+          frame.from !== witness.from ||
+          frame.to !== witness.to ||
+          frame.ticks !== frame.to - frame.from ||
+          workKinds.some((k) => frame.demand[k] !== witness.demand[k])
+        );
+      })
+    )
+      return { kind: 'stopped', reason: `unmatched ${visit.kind} native/writer demand` };
+  }
   try {
-    const shrine = data.shrine.map((visit) => ledger(visit, data.unitBatches));
-    const floor = ledger(data.floor, data.unitBatches);
-    const idle = ledger(data.idle, data.unitBatches);
+    const charge = (visit: Visit) =>
+      ledger(visit, report.cases.find((c) => c.kind === visit.kind)!.msPerFrame);
+    const shrine = data.shrine.map(charge);
+    const floor = charge(data.floor);
+    const idle = charge(data.idle);
     const stats = (fn: (values: number[]) => number) => ({
       P: fn(shrine.map((r) => r.P)),
       R: fn(shrine.map((r) => r.R)),

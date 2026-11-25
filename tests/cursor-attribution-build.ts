@@ -46,7 +46,12 @@ export async function buildDiagnostic(outDir: string) {
               ],
               [
                 '\n          tick(1 / 60);\n          accumulator',
-                '\n          tick(1 / 60); ep.tick(game);\n          accumulator',
+                '\n          ep.fixed(game, () => tick(1 / 60));\n          accumulator',
+              ],
+              ['  game.steps++;', '  game.steps++; ep.fixedStep(game.steps);'],
+              [
+                '      renderUpdate(dt * (import.meta.env.DEV ? (animationReview?.speed ?? 1) : 1));',
+                '      ep.presentation(game, () => renderUpdate(dt * (import.meta.env.DEV ? (animationReview?.speed ?? 1) : 1)));',
               ],
               [
                 '  animateActors(game.ecs, dt, game.time, game.world);',
@@ -80,10 +85,59 @@ export async function buildDiagnostic(outDir: string) {
             probes.set('enemyRendering.ts', wired);
             return wired;
           }
+          if (id.endsWith('/src/machines/world/interactions.ts')) {
+            const code = patch(source, [
+              [
+                '  if (door.pivot) door.pivot.rotation.y = chart.snapshot.context.angle;',
+                "  const pivot = door.pivot;\n  if (pivot) epWrite('door', pivot, () => { pivot.rotation.y = chart.snapshot.context.angle; });",
+              ],
+              [
+                '  if (chest.lid) chest.lid.rotation.x = chart.snapshot.context.angle;',
+                "  const lid = chest.lid;\n  if (lid) epWrite('chest', lid, () => { lid.rotation.x = chart.snapshot.context.angle; });",
+              ],
+            ]);
+            const wired = `import { writerDiagnostic as epWrite } from '../../../tests/cursor-attribution-writers.ts';\n${code}`;
+            probes.set('interactions.ts', wired);
+            return wired;
+          }
+          if (id.endsWith('/src/observation.ts')) {
+            const code = patch(source, [
+              [
+                "  mesh.thinInstanceBufferUpdated('matrix');\n  // Empty pools contain only zero-scale instances; their previous bound remains conservative.\n  if (active) mesh.thinInstanceRefreshBoundingInfo();",
+                "  epThin(mesh, active, () => {\n    mesh.thinInstanceBufferUpdated('matrix');\n    if (active) mesh.thinInstanceRefreshBoundingInfo();\n  });",
+              ],
+            ]);
+            const wired = `import { thinDiagnostic as epThin } from '../tests/cursor-attribution-writers.ts';\n${code}`;
+            probes.set('observation.ts', wired);
+            return wired;
+          }
+          if (id.endsWith('/src/rigs/bindings.ts')) {
+            const code = patch(source, [
+              [
+                '    writeDraw(deferTail);',
+                "    epPose('pose', rig.root, () => writeDraw(deferTail));",
+              ],
+              [
+                '      for (const entry of tailEntries) applyEntry(entry);\n      finishHistory();',
+                "      epPose('pose', rig.root, () => { for (const entry of tailEntries) applyEntry(entry); });\n      finishHistory();",
+              ],
+              [
+                '      pose.world.set(world);\n      for (const entry of entries) {',
+                "      epPose('physics', rig.root, () => {\n      pose.world.set(world);\n      for (const entry of entries) {",
+              ],
+              [
+                '        attached[i].binding.node.freezeWorldMatrix(a.matrix);\n      }',
+                '        attached[i].binding.node.freezeWorldMatrix(a.matrix);\n      }\n      });',
+              ],
+            ]);
+            const wired = `import { writerDiagnostic as epPose } from '../../tests/cursor-attribution-writers.ts';\n${code}`;
+            probes.set('bindings.ts', wired);
+            return wired;
+          }
         },
       },
     ],
   });
-  if (probes.size !== 2) throw new Error('diagnostic build omitted required probes');
+  if (probes.size !== 5) throw new Error('diagnostic build omitted required probes');
   return Object.fromEntries(probes);
 }
