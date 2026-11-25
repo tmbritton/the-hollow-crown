@@ -1,6 +1,11 @@
 import { validateScaling } from './cursor-scaling-policy.ts';
 import { count, record, validateWriterReport, workKinds } from './cursor-writer-evidence.ts';
-import type { WorkRates, WriterReport } from './cursor-writer-evidence.ts';
+import type {
+  WorkRates,
+  WriterDemand,
+  WriterFrameEvidence,
+  WriterReport,
+} from './cursor-writer-evidence.ts';
 export { workKinds } from './cursor-writer-evidence.ts';
 export type { WorkKind, WorkRates } from './cursor-writer-evidence.ts';
 
@@ -34,13 +39,13 @@ export type Visit = {
   // Independent coarse, matched replay of disjoint removed pass stages.
   exclusiveReplayMean?: number;
 };
-export type Evidence = {
+export type Evidence<F extends WriterDemand = WriterFrameEvidence> = {
   hardware: 'matched' | 'software' | 'other';
   scaling: unknown;
   matched: boolean;
   completeWindows: boolean;
   runId: string;
-  writerReport?: WriterReport;
+  writerReport?: WriterReport<F>;
   shrine: Visit[];
   floor: Visit;
   idle: Visit;
@@ -168,7 +173,7 @@ type Measured = {
   noise: number;
 };
 
-export function decide(data: Evidence): Measured | Stopped {
+export function decide(data: Evidence<WriterDemand>): Measured | Stopped {
   if (
     !record(data) ||
     data.hardware !== 'matched' ||
@@ -255,7 +260,7 @@ export type RunState =
 export type RunEvent =
   | { type: 'unavailable' | 'invalid' | 'fault'; reason: string }
   | { type: 'preflightOK' }
-  | { type: 'complete'; evidence: Evidence };
+  | { type: 'complete'; evidence: Evidence<WriterDemand> };
 
 export function transition(
   state: RunState,

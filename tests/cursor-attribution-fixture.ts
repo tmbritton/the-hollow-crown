@@ -10,6 +10,12 @@ import { captureWriters, writerDiagnostic } from './cursor-attribution-writers.t
 import type { WriterTrace } from './cursor-attribution-writers.ts';
 import { reconcileWriters } from './cursor-publication-replay.ts';
 
+// Model a native publication at the authored site in fixtures that need fresh bounds.
+function publish(mesh: ReturnType<typeof CreateBox>) {
+  mesh.computeWorldMatrix(true);
+  mesh.getBoundingInfo();
+}
+
 export function oversizedWriterTrace(
   runId = 'oversized-writer',
   kind: WriterTrace['kind'] = 'idle',
@@ -20,16 +26,21 @@ export function oversizedWriterTrace(
     const scene = new Scene(engine);
     const mesh = CreateBox('long move', { size: 2 }, scene);
     mesh.position.set(2, 0, 2);
+    publish(mesh);
     const capture = captureWriters(scene, { runId, provenance: 'software', kind });
     capture.begin(7, 0);
     capture.phase('fixed', 1);
     writerDiagnostic('door', mesh, () => {
       mesh.position.x = destination;
+      publish(mesh);
     });
     capture.checkpoint();
     if (kind !== 'idle') {
       capture.phase('pick', 1);
       capture.checkpoint({ x: 2, z: 2, dx: 1, dz: 0, length: destination - 2 });
+    } else {
+      capture.phase('presentation', 1);
+      capture.checkpoint();
     }
     capture.phase('render', 1);
     mesh.computeWorldMatrix();
@@ -70,22 +81,27 @@ export function writerFixture(runId = 'writer-fixture') {
       batch.thinInstanceEnablePicking = true;
       const fixtureFloor = CreateBox('floor', { width: 3, height: 1, depth: 3 }, scene);
       fixtureFloor.position.set(6, -3, 6);
+      [door, child, batch, fixtureFloor].forEach(publish);
       const capture = captureWriters(scene, { runId, provenance: 'software', kind });
       capture.begin(0, 0);
       capture.phase('fixed', 1);
       writerDiagnostic('door', parent, () => {
         parent.position.x += 8;
+        [door, child].forEach(publish);
       });
       capture.checkpoint();
       capture.phase('fixed', 2);
       writerDiagnostic('door', parent, () => {
         parent.position.x -= 8;
+        [door, child].forEach(publish);
       });
       child.parent = null;
-      child.position.set(7, 0, 2);
-      child.computeWorldMatrix(true);
-      child.rotation.y = Math.PI / 4;
-      child.computeWorldMatrix(true);
+      publish(child);
+      writerDiagnostic('pose', child, () => {
+        child.position.set(7, 0, 2);
+        child.rotation.y = Math.PI / 4;
+        publish(child);
+      });
       door.computeWorldMatrix();
       batch.thinInstanceSetMatrixAt(1, Matrix.Translation(9, 1, 8));
       batch.thinInstanceSetBuffer(
@@ -97,7 +113,6 @@ export function writerFixture(runId = 'writer-fixture') {
       fixtureFloor.setEnabled(false);
       fixtureFloor.setEnabled(true);
       const spawn = CreateBox('spawn', { size: 2 }, scene);
-      spawn.position.set(1, 5, 7);
       spawn.computeWorldMatrix(true);
       spawn.dispose();
       capture.checkpoint();
@@ -106,13 +121,15 @@ export function writerFixture(runId = 'writer-fixture') {
         const [x, z] = kind === 'shrine' ? [2, 2] : [6, 6];
         capture.checkpoint({ x, z, dx: 0, dz: 0, length: 20 });
         const ray = new Ray(new Vector3(x, 10, z), new Vector3(0, -1, 0), 20);
-        const exhaustive = capture.quiet(() => scene.pickWithRay(ray));
+        const exhaustive = scene.pickWithRay(ray);
         const meshList = [...scene.meshes];
         // Finish the trace before replaying the candidate list through the real kernel.
         capture.phase('render', 2);
         capture.checkpoint();
         capture.end(2);
-        const query = reconcileWriters(capture.trace).frames[0].query!;
+        const replay = reconcileWriters(capture.trace);
+        assert.deepEqual(replay.gaps, []);
+        const query = replay.frames[0].query!;
         const candidates = new Set(query.ids.map((id) => capture.trace.identities[id].mesh));
         scene.meshes = meshList.filter((mesh) => candidates.has(mesh.uniqueId));
         try {
@@ -125,6 +142,8 @@ export function writerFixture(runId = 'writer-fixture') {
           scene.meshes = meshList;
         }
       } else {
+        capture.phase('presentation', 2);
+        capture.checkpoint();
         capture.phase('render', 2);
         capture.checkpoint();
         capture.end(2);

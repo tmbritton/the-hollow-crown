@@ -4,7 +4,7 @@
 - **Status:** historical operator addendum for `main` at `30b02dd`, not a runbook or authorization to rerun.
 - **Original goal:** obtain one auditable disposition under [Story 1’s frozen workload, visit cap, ledger and decision rule](story-1.md#design). The [scaling validator](story-1-follow-up-1.md), [writer and traversal accounting](story-1-follow-up-2.md) and [unresolved sweep rule](story-1-follow-up-3.md) still apply unchanged.
 
-## Recorded outcome and current hold
+## Recorded outcome and historical hold
 
 The [hardware resume report](../../epic14-startup-fps.md#story-161-hardware-resume-on-30b02dd-2026-11-25)
 records a successful matched, headed RTX 2070/WebGL2 preflight, followed by a `shrine-count`
@@ -12,9 +12,10 @@ stop due to writer trace overflow and checkpoint mismatches. With 0/3 complete c
 and 0/5 native timing visits, the run remains **stopped/inconclusive**, not a negative
 feasibility verdict. Story 16.2 remains blocked.
 
-Independent approval of the offline follow-up did not clear a live capture. The unflagged
-collector remains held before GPU probing, browser launch, or preflight. Do not attempt a
-replacement visit with it. The [offline verification report](../../../VERIFICATION.md#story-161--offline-review-of-hardware-40phah)
+Independent approval of the offline follow-up did not clear a live capture. That collector
+was held before GPU probing, browser launch, or preflight. For the replacement entry and
+clearance status, see the [recorder repair plan](story-1-recorder-repair.md). The
+[offline verification report](../../../VERIFICATION.md#story-161--offline-review-of-hardware-40phah)
 explains the required redesign: non-mutating writer capture, independent checkpoints with
 hooked/unhooked parity, and bounded live handoff and scratch replay that preserve native
 scheduling and the frozen batch mix. Bounded offline transport alone does not meet that bar.

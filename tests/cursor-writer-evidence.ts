@@ -42,23 +42,97 @@ export type WriterFrameEvidence = {
   query: Query | null;
   demand: Demand;
 };
-export type WriterCase = {
+export type WriterDemand = Pick<WriterFrameEvidence, 'frame' | 'from' | 'to' | 'demand'>;
+export type WriterCase<F extends WriterDemand = WriterFrameEvidence> = {
   runId: string;
   kind: 'shrine' | 'floor' | 'idle';
   gaps: string[];
   writers: Partial<Record<WriterKind, number>>;
-  frames: WriterFrameEvidence[];
+  frames: F[];
   batches: Batch[][];
   registration: { ms: number | null; serializedBucketBytes: number; runtimeMemory: 'unmeasured' };
   msPerFrame: number | null;
 };
-export type WriterReport = {
+export type WriterReport<F extends WriterDemand = WriterFrameEvidence> = {
   runId: string;
   provenance: 'matched' | 'software';
   framesPerBatch: number;
   consumed: number;
-  cases: WriterCase[];
+  cases: WriterCase<F>[];
 };
+
+// A demand summary is not by itself admission evidence. Only an in-process case
+// verified from ordered raw records can supply compact inputs to the ledger.
+const streamedCases = new WeakSet<WriterCase<WriterDemand>>();
+
+export function writerCaseValidator(runId: string, kind: WriterCase['kind']) {
+  let seq = 0;
+  const frames: WriterDemand[] = [];
+  const writers = Object.fromEntries(writerKinds.map((k) => [k, 0])) as Record<WriterKind, number>;
+  function frame(row: unknown) {
+    const previous = frames.at(-1);
+    if (
+      !record(row) ||
+      !count(row.frame) ||
+      !count(row.from) ||
+      !count(row.to) ||
+      row.from > row.to ||
+      (previous && (row.frame !== previous.frame + 1 || row.from !== previous.to)) ||
+      !record(row.demand) ||
+      !Array.isArray(row.writes) ||
+      (kind === 'idle' ? row.query !== null : !validQuery(row.query)) ||
+      row.demand.query !== Number(row.query !== null)
+    )
+      throw new Error(`invalid ${kind} frame demand or query/write records`);
+    let tick = row.from;
+    let phase = 0;
+    for (const w of row.writes as unknown[]) {
+      if (
+        !validSite(w) ||
+        w.seq !== seq++ ||
+        w.frame !== row.frame ||
+        w.tick < tick ||
+        w.tick > row.to ||
+        phases.indexOf(w.phase) < phase
+      )
+        throw new Error(`invalid or out-of-order ${kind} write record`);
+      if (!('sweepGap' in w)) throw new Error(`missing ${kind} write sweep evidence`);
+      if (w.sweepGap !== null)
+        throw new Error(
+          typeof w.sweepGap === 'string' && w.sweepGap
+            ? sweepGapMessage(w, w.sweepGap)
+            : `missing or invalid ${kind} write sweep evidence`,
+        );
+      tick = w.tick;
+      phase = phases.indexOf(w.phase);
+      writers[w.kind]++;
+    }
+    if (row.demand.publish !== row.writes.length)
+      throw new Error(`invalid ${kind} publication demand`);
+    const demand = { publish: row.writes.length, query: Number(row.query !== null) };
+    Object.freeze(demand);
+    frames.push(Object.freeze({ frame: row.frame, from: row.from, to: row.to, demand }));
+  }
+  return {
+    frame,
+    finish(batches: Batch[][], registration: WriterCase['registration'], size: number) {
+      const msPerFrame = publicationCost(
+        frames.map((f) => f.demand),
+        batches,
+        size,
+      );
+      const result = { runId, kind, gaps: [], writers, frames, batches, registration, msPerFrame };
+      Object.freeze(frames);
+      Object.freeze(writers);
+      Object.freeze(result.gaps);
+      Object.freeze(result);
+      streamedCases.add(result);
+      return result satisfies WriterCase<WriterDemand>;
+    },
+    summary: () => frames.map((f) => f.demand),
+    writers: () => ({ ...writers }),
+  };
+}
 
 export const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -186,57 +260,26 @@ export function validateWriterReport(runId: string | undefined, report: unknown)
       c.registration.runtimeMemory !== 'unmeasured'
     )
       return `incomplete ${c.kind} writer case`;
-    const frames: Demand[] = [];
-    const counts = new Map<WriterKind, number>();
-    let seq = 0;
-    let previous: { frame: number; to: number } | undefined;
-    for (const row of c.frames as unknown[]) {
-      if (
-        !record(row) ||
-        !count(row.frame) ||
-        !count(row.from) ||
-        !count(row.to) ||
-        row.from > row.to ||
-        (previous && (row.frame !== previous.frame + 1 || row.from !== previous.to)) ||
-        !record(row.demand) ||
-        !Array.isArray(row.writes) ||
-        (kind === 'idle' ? row.query !== null : !validQuery(row.query)) ||
-        row.demand.query !== Number(row.query !== null)
-      )
-        return `invalid ${kind} frame demand or query/write records`;
-      let tick = row.from;
-      let phase = 0;
-      for (const w of row.writes as unknown[]) {
-        if (
-          !validSite(w) ||
-          w.seq !== seq++ ||
-          w.frame !== row.frame ||
-          w.tick < tick ||
-          w.tick > row.to ||
-          phases.indexOf(w.phase) < phase
-        )
-          return `invalid or out-of-order ${kind} write record`;
-        if (!('sweepGap' in w)) return `missing ${kind} write sweep evidence`;
-        if (w.sweepGap !== null)
-          return typeof w.sweepGap === 'string' && w.sweepGap
-            ? sweepGapMessage(w, w.sweepGap)
-            : `missing or invalid ${kind} write sweep evidence`;
-        tick = w.tick;
-        phase = phases.indexOf(w.phase);
-        counts.set(w.kind, (counts.get(w.kind) ?? 0) + 1);
+    const streamed = streamedCases.has(c as WriterCase<WriterDemand>);
+    const validator = writerCaseValidator(runId, kind);
+    if (!streamed)
+      try {
+        for (const row of c.frames as unknown[]) validator.frame(row);
+      } catch (error) {
+        return (error as Error).message;
       }
-      if (row.demand.publish !== row.writes.length) return `invalid ${kind} publication demand`;
-      frames.push({ publish: row.writes.length, query: Number(row.query !== null) });
-      previous = { frame: row.frame, to: row.to };
-    }
     const declared = c.writers;
     if (
       !record(declared) ||
       Object.keys(declared).length !== writerKinds.length ||
-      !writerKinds.every((k) => declared[k] === (counts.get(k) ?? 0))
+      (!streamed && !writerKinds.every((k) => declared[k] === validator.writers()[k]))
     )
       return `missing or inconsistent ${kind} writer-kind counts`;
-    const cost = publicationCost(frames, c.batches, report.framesPerBatch);
+    const cost = publicationCost(
+      streamed ? (c.frames as WriterDemand[]).map((f) => f.demand) : validator.summary(),
+      c.batches,
+      report.framesPerBatch,
+    );
     if (cost === null || cost !== c.msPerFrame)
       return `missing or inconsistent ${kind} publish/query batch cost`;
   }

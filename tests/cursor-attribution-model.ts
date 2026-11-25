@@ -10,6 +10,7 @@ const maxCells = 64;
 const key = ([x, z]: Tile) => `${x}:${z}`;
 
 export type SweepGap =
+  | 'unresolved authored sweep (cached transform)'
   | 'invalid sweep bounds'
   | 'unsafe sweep tile coordinates'
   | 'sweep exceeds 64-cell limit';

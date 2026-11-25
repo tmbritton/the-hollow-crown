@@ -7,10 +7,16 @@ import { sameHit } from './cursor-reference.ts';
 import { createOccupancy, offlineList } from './cursor-attribution-model.ts';
 import type { GroundRay } from './cursor-attribution-model.ts';
 import { countScope, pickDiagnostic } from './cursor-attribution-probe.ts';
-import type { NativeRow, ReplayPorts, ReplaySample } from './cursor-attribution-probe.ts';
+import type { NativeRow, Pass, ReplayPorts, ReplaySample } from './cursor-attribution-probe.ts';
 import type { BatchClock } from './cursor-evidence.ts';
 
 const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+export type ReplayWork = {
+  i: number;
+  exhaustive: Pass[];
+  local: Pass[];
+  forcedProxy: (number | null)[];
+};
 
 export function createReplay(
   ports: ReplayPorts,
@@ -103,7 +109,11 @@ export function createReplay(
     };
   };
   const cold = registration();
-  const counts: unknown[] = [];
+  const counts: (ReplayWork & {
+    nativeHit: ReplaySample['hit'];
+    exhaustiveHit: ReplaySample['hit'];
+    localHit: ReplaySample['hit'];
+  })[] = [];
   const timed: {
     i: number;
     exhaustive: number | null;

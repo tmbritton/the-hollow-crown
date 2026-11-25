@@ -1,8 +1,149 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { promisify } from 'node:util';
 import { join } from 'node:path';
-import { gzipSync, gunzipSync } from 'node:zlib';
+import { gzip, gzipSync, gunzip, gunzipSync } from 'node:zlib';
+import { liveReceiver, pageBytes } from './cursor-capture-stream.ts';
+import { writerDecoder } from './cursor-writer-stream.ts';
 import type { WriterFrame } from './cursor-attribution-writers.ts';
 import type { NativeRow, Pass } from './cursor-attribution-probe.ts';
+import type { ReplayWork } from './cursor-attribution-replay.ts';
+
+const compress = promisify(gzip);
+const decompress = promisify(gunzip);
+const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+// Gzip framing/deflate block overhead even for an incompressible page.
+const compressedPageLimit = pageBytes + 64 * 1024;
+
+async function readBounded(path: string, limit: number) {
+  const file = await open(path, 'r');
+  try {
+    const size = (await file.stat()).size;
+    if (size > limit) throw new Error('writer archive file exceeds byte budget');
+    const data = Buffer.allocUnsafe(size + 1);
+    let at = 0;
+    while (at <= size) {
+      const { bytesRead } = await file.read(data, at, data.length - at, at);
+      if (!bytesRead) break;
+      at += bytesRead;
+    }
+    if (at !== size) throw new Error('writer archive file changed while reading');
+    return data.subarray(0, size);
+  } finally {
+    await file.close();
+  }
+}
+
+export async function openWriterArchive(
+  dir: string,
+  visit: string,
+  window: readonly [number, number],
+) {
+  await mkdir(dir);
+  let first = true,
+    end = 0,
+    compressedBytes = 0,
+    peakCompressedBytes = 0,
+    diskPages = 0;
+  const decoder = writerDecoder();
+  const path = (seq: number) => join(dir, `page-${seq}.gz`);
+  const index = (seq: number) => join(dir, `page-${seq}.json`);
+  const receipt = (seq: number) =>
+    readBounded(index(seq), 4096).then(
+      (value) =>
+        JSON.parse(value.toString('utf8')) as {
+          visit: string;
+          seq: number;
+          bytes: number;
+          digest: string;
+          final: boolean;
+        },
+    );
+  const receiver = liveReceiver(visit, async ({ seq, bytes, final }, data) => {
+    // Publish each page (and its own index entry) before returning credit. Even a
+    // parser failure must preserve the offending page, without certifying it.
+    await persistPage(seq, bytes, final, data);
+    // Non-final credit certifies the persisted bytes, not semantic validity.
+    // Scan the archive once, one page/frame at a time, before the final ACK.
+    // Do not make live frame production compete with logical record expansion.
+    if (final) {
+      for (let i = 0; i <= seq; i++) {
+        const { data } = await storedPage(i, seq);
+        for (const frame of decoder.consume(data)) {
+          if (end >= window[1] || (first && !(frame.from < window[0] && frame.to >= window[0])))
+            throw new Error('invalid writer boundary span');
+          first = false;
+          end = frame.to;
+        }
+        if (decoder.status().ended !== (i === seq)) throw new Error('invalid writer trailer');
+      }
+      if (end < window[1]) throw new Error('incomplete writer window');
+    }
+  });
+  async function persistPage(seq: number, bytes: number, final: boolean, data: Uint8Array) {
+    const zipped = await compress(data, { level: 1 });
+    if (zipped.length > compressedPageLimit)
+      throw new Error('compressed writer page exceeds bound');
+    peakCompressedBytes = Math.max(peakCompressedBytes, zipped.length);
+    await writeFile(`${path(seq)}.tmp`, zipped, { flag: 'wx' });
+    await rename(`${path(seq)}.tmp`, path(seq));
+    await writeFile(
+      `${index(seq)}.tmp`,
+      JSON.stringify({ visit, seq, bytes, digest: sha(data), final }),
+      {
+        flag: 'wx',
+      },
+    );
+    await rename(`${index(seq)}.tmp`, index(seq));
+    compressedBytes += zipped.length;
+    diskPages++;
+  }
+  async function storedPage(i: number, last: number) {
+    const row = await receipt(i);
+    if (
+      row.visit !== visit ||
+      row.seq !== i ||
+      !Number.isSafeInteger(row.bytes) ||
+      row.bytes < 0 ||
+      row.bytes > pageBytes ||
+      row.final !== (i === last)
+    )
+      throw new Error('writer archive index mismatch');
+    const zipped = await readBounded(path(i), compressedPageLimit);
+    peakCompressedBytes = Math.max(peakCompressedBytes, zipped.length);
+    const data = await decompress(zipped, { maxOutputLength: pageBytes });
+    if (data.length !== row.bytes || sha(data) !== row.digest)
+      throw new Error('writer archive page integrity mismatch');
+    return { data, row };
+  }
+  async function* pages() {
+    const { committed, sealed } = receiver.status();
+    if (!sealed) throw new Error('writer archive not sealed');
+    for (let i = 0; i < committed; i++) yield await storedPage(i, committed - 1);
+  }
+  return {
+    ...receiver,
+    status: () => ({
+      ...receiver.status(),
+      ...decoder.status(),
+      compressedBytes,
+      peakCompressedBytes,
+      diskPages,
+    }),
+    pages,
+    async *frames() {
+      const reader = writerDecoder();
+      for await (const { data } of pages())
+        for (const frame of reader.consume(data)) yield { frame, header: reader.header()! };
+      if (!reader.status().ended || reader.status().frames !== decoder.status().frames)
+        throw new Error('writer archive trailer mismatch');
+    },
+    header() {
+      if (!receiver.status().sealed) throw new Error('writer archive not sealed');
+      return decoder.header()!;
+    },
+  };
+}
 
 const framePath = (dir: string, frame: number) => {
   if (!Number.isSafeInteger(frame) || frame < 0) throw new Error('invalid writer frame number');
@@ -81,3 +222,66 @@ export async function archiveNativeRows<Header extends { length: number; rows: u
 // The hardware runner must not start a replacement using the demonstrated-invalid adapter.
 export const captureBoundary =
   'Offline hold: live writer readback changes same-tick Babylon state, and retained visit-wide writer/scratch arrays exceed the observed-volume storage boundary';
+export async function runVisitBoundary<C, T>(ports: {
+  wait(): Promise<void>;
+  archive(): Promise<C>;
+  healthy(): Promise<void>;
+  validate(captured: C): Promise<T>;
+  after(): Promise<void>;
+  progress(stage: 'capture ended' | 'native archived' | 'visit validated' | 'admitted'): void;
+  archiveFailed?(waitFailure: unknown, archiveFailure: unknown): Promise<void>;
+}) {
+  let waitFailure: unknown;
+  let waitFailed = false;
+  try {
+    await ports.wait();
+    ports.progress('capture ended');
+  } catch (error) {
+    waitFailed = true;
+    waitFailure = error;
+  }
+  let captured: C;
+  try {
+    captured = await ports.archive();
+    if (captured) ports.progress('native archived');
+  } catch (error) {
+    await ports.archiveFailed?.(waitFailure, error);
+    throw waitFailed ? waitFailure : error;
+  }
+  if (waitFailed) throw waitFailure;
+  await ports.healthy();
+  const validated = await ports.validate(captured);
+  await ports.healthy();
+  ports.progress('visit validated');
+  await ports.after();
+  await ports.healthy();
+  ports.progress('admitted');
+  return validated;
+}
+
+export function assertReplayWork(
+  i: number,
+  passes: number,
+  count: ReplayWork | undefined,
+  time: ReplayWork | undefined,
+) {
+  function work(row: ReplayWork | undefined) {
+    if (
+      !row ||
+      row.i !== i ||
+      row.forcedProxy.length !== 2 ||
+      row.forcedProxy.some((n) => n === null || !Number.isSafeInteger(n) || n < 0)
+    )
+      throw new Error(`missing replay work at frame ${i}`);
+    return [
+      row.forcedProxy,
+      ...[row.exhaustive, row.local].map((arm) => {
+        if (arm.length !== passes || arm.some(({ work, ms }) => ms !== null || work === null))
+          throw new Error(`missing replay work at frame ${i}`);
+        return arm.map((pass) => pass.work);
+      }),
+    ];
+  }
+  assert.deepEqual(work(time), work(count), `count/time replay work mismatch at frame ${i}`);
+}
+import assert from 'node:assert/strict';

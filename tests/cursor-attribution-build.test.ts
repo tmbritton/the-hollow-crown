@@ -30,13 +30,15 @@ test('diagnostic build emits CSS without loading an external PostCSS config', as
       [
         '--input-type=module',
         '-e',
-        String.raw`import assert from 'node:assert/strict'; import { buildDiagnostic } from './tests/cursor-attribution-build.ts'; const sources = await buildDiagnostic('bundle'); assert.ok(sources['interactions.ts']?.includes("epWrite('door'")); assert.ok(sources['main.ts'].includes('ep.fixed(')); assert.ok(sources['observation.ts']?.includes('epThin(mesh, active,')); assert.ok(sources['bindings.ts']?.includes("epPose('pose'"));
-        const enemies = sources['enemyRendering.ts'];
-        const write = enemies.match(/epWrite\('pose', bar\.root, \(\) => \{([\s\S]*?)\}\);/);
-        assert.ok(write, 'health-bar transform has no writer publication');
-        assert.match(write[1], /bar\.root\.position\.set/);
-        assert.match(write[1], /bar\.root\.billboardMode =/);
-        assert.match(write[1], /bar\.fill\.scaling\.x =/);`,
+        `import assert from 'node:assert/strict';
+         import { buildDiagnostic } from './tests/cursor-attribution-build.ts';
+         import { sourceWriterControls } from './tests/cursor-source-writer-controls.ts';
+         const sources = await buildDiagnostic('bundle');
+         assert.ok(sources['interactions.ts']?.includes("epWrite('door'"));
+         assert.ok(sources['main.ts'].includes('ep.fixed('));
+         assert.ok(sources['observation.ts']?.includes('epThin(mesh, active,'));
+         assert.ok(sources['bindings.ts']?.includes("epPose('pose'"));
+         sourceWriterControls(sources);`,
       ],
       { cwd: root, env: { ...process.env, NODE_ENV: 'production' }, timeout: 60_000 },
     );

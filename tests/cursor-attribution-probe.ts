@@ -9,9 +9,14 @@ import type { ViewSettings } from '../src/visualTrial.ts';
 import type { Hit } from './cursor-evidence.ts';
 import type { Bounds, GroundRay } from './cursor-attribution-model.ts';
 import { createReplay } from './cursor-attribution-replay.ts';
-import { captureWriters } from './cursor-attribution-writers.ts';
-import { measurePublications } from './cursor-publication-replay.ts';
-import type { WriterTrace } from './cursor-attribution-writers.ts';
+import { BoundingBox } from '@babylonjs/core/Culling/boundingBox.js';
+import { billboardLineage, cachedBounds, captureWriters } from './cursor-attribution-writers.ts';
+import { scratchPass, scratchRegistration } from './cursor-publication-replay.ts';
+import type { ScratchArm } from './cursor-publication-replay.ts';
+import { compactWriterRecords, writerDecoder } from './cursor-writer-stream.ts';
+import { browserVolume } from './cursor-capture-volume.ts';
+import { decodePageBase64, liveProducer, pageBytes } from './cursor-capture-stream.ts';
+import type { Packet } from './cursor-capture-stream.ts';
 
 export const shrine = 'prop:shrine-entrance-0';
 type Point = [number, number];
@@ -23,6 +28,7 @@ export type CaptureConfig = {
   smoke: boolean;
   expectedReady?: string;
   runId?: string;
+  writerVisit?: string;
 };
 type Pick =
   | { kind: 'floor' }
@@ -37,6 +43,7 @@ type Ports = {
   ground(g: Game, ray: Ray): unknown;
 };
 type WebGLTimer = { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number };
+type SendPage = (packet: Packet) => Promise<{ visit: string; seq: number; digest: string }>;
 export const emptyCounts = () => ({
   visits: 0,
   admitted: 0,
@@ -224,23 +231,31 @@ function groundRay(ray: Ray): GroundRay {
 }
 
 export function pose(mesh: AbstractMesh): Pose {
-  const world = mesh.computeWorldMatrix();
-  const box = mesh.getBoundingInfo().boundingBox;
-  const { minimumWorld: a, maximumWorld: b } = box;
+  const world = mesh.worldMatrixFromCache;
+  const { info, dirty } = cachedBounds(mesh);
   const thin = mesh instanceof Mesh ? mesh._thinInstanceDataStorage.matrixData : null;
   const thinCount = mesh instanceof Mesh ? mesh.thinInstanceCount : 0;
   // Never eliminate a thin batch (even with a known aggregate), unusual shader geometry,
   // or uncertain bounds. Every admitted thin instance is tested by the same Babylon kernel.
-  const bounds: Bounds | null =
+  const spatial =
     mesh.getClassName() === 'Mesh' &&
     mesh.getTotalVertices() > 0 &&
     !thin &&
     !mesh.skeleton &&
     !mesh.morphTargetManager &&
-    !mesh.billboardMode &&
-    Number.isFinite(a.x + a.z + b.x + b.z)
-      ? [a.x, a.z, b.x, b.z]
+    !billboardLineage(mesh);
+  // Mirror Babylon's lazy bounds publication on a detached box, using only the
+  // already-published matrix. Its result can differ from the raw cached extrema.
+  const box =
+    spatial && info
+      ? dirty && !info.isLocked
+        ? new BoundingBox(info.minimum, info.maximum, world)
+        : info.boundingBox
       : null;
+  const a = box?.minimumWorld,
+    b = box?.maximumWorld;
+  const bounds: Bounds | null =
+    a && b && Number.isFinite(a.x + a.z + b.x + b.z) ? [a.x, a.z, b.x, b.z] : null;
   return {
     world: Array.from(world.asArray()),
     enabled: mesh.isEnabled(),
@@ -259,6 +274,8 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
   const bridge = window as unknown as {
     __cursorCaptureConfig?: CaptureConfig;
     __cursorCapture?: ReturnType<typeof api>;
+    __cursorWriterPage?: SendPage;
+    __cursorVolumePage?: SendPage;
   };
   const config = bridge.__cursorCaptureConfig;
   if (!config) throw new Error('diagnostic bundle needs a capture configuration');
@@ -278,12 +295,15 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
     cue = 0,
     outlined = 0;
   let writers: ReturnType<typeof captureWriters> | undefined;
+  let stream: ReturnType<typeof liveProducer> | undefined;
+  let scratch: ReturnType<typeof makeScratch> | undefined;
+  let foregroundWatchdog: number | undefined;
   let nativeFrame = 0;
   let atPick: Sample | null = null;
   let picked: ReturnType<typeof pickDiagnostic> | null = null;
   let input = 0,
     lost = false,
-    invalidInput = false;
+    plannedInput: Event | null = null;
   let pendingQuery: { query: WebGLQuery; row: number } | null = null;
   let gl: WebGL2RenderingContext | null = null;
   let ext: WebGLTimer | null = null;
@@ -295,15 +315,28 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
     hit,
   });
 
+  function contaminate(reason: string) {
+    fail ??= reason;
+    stream?.fail(fail);
+    stopForegroundWatchdog();
+  }
+  function stopForegroundWatchdog() {
+    if (foregroundWatchdog === undefined) return;
+    window.clearInterval(foregroundWatchdog);
+    foregroundWatchdog = undefined;
+  }
+  function sampleForeground() {
+    if (document.hidden || !document.hasFocus()) contaminate('foreground lost');
+  }
   canvas.addEventListener('webglcontextlost', () => {
     lost = true;
-    fail = 'WebGL context lost';
+    contaminate('WebGL context lost');
   });
   window.addEventListener('blur', () => {
-    if (ready && !done) fail = 'foreground lost';
+    if (ready) contaminate('foreground lost');
   });
   document.addEventListener('visibilitychange', () => {
-    if (ready && !done && document.hidden) fail = 'foreground lost';
+    if (ready && document.hidden) contaminate('foreground lost');
   });
   for (const type of [
     'pointermove',
@@ -312,14 +345,16 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
     'pointerup',
     'click',
     'keydown',
+    'keyup',
     'wheel',
+    'contextmenu',
   ]) {
     window.addEventListener(
       type,
       (event) => {
-        if (!ready || done) return;
-        if (event.isTrusted || event.target !== canvas || type !== 'pointermove')
-          invalidInput = true;
+        if (!ready) return;
+        if (event !== plannedInput || event.target !== canvas || input !== 0)
+          contaminate('input contamination');
         else input++;
       },
       { capture: true },
@@ -373,12 +408,21 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
 
   function api() {
     return {
-      status: () => ({ done, fail, lost }),
+      status: () => {
+        const failure = statusFailure();
+        const writer = stream?.status();
+        return {
+          done: !failure && done && (!writer || writer.kind === 'sealed'),
+          fail: failure,
+          lost,
+          writer,
+        };
+      },
       take: (start = 0, end = rows.length) => ({
         ready,
         rows: rows.slice(start, end),
         length: rows.length,
-        fail,
+        fail: statusFailure(),
         input,
         registrationMs,
       }),
@@ -414,7 +458,7 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
         };
       },
       replay(reverse: boolean) {
-        if (!done || fail) throw new Error('capture not valid for replay');
+        if (!done || statusFailure()) throw new Error('capture not valid for replay');
         undoCount?.();
         undoCount = undefined;
         return createReplay(
@@ -429,19 +473,28 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
           clock,
         );
       },
-      writerTrace(start = 0, end = 0) {
-        if (!writers || !done) throw new Error('writer count visit unavailable');
-        const { frames, ...header } = writers.trace;
-        return {
-          header: start === 0 && end === 0 ? header : null,
-          length: frames.length,
-          frames: frames.slice(start, end),
-        };
+      scratchBegin(arm: ScratchArm | null, pad = 0) {
+        if (
+          !done ||
+          statusFailure() ||
+          lost ||
+          config?.mode !== 'count' ||
+          stream?.status().kind !== 'sealed' ||
+          scratch
+        )
+          throw new Error('scratch requires a sealed count visit and no open session');
+        scratch = makeScratch(arm, pad);
       },
-      scratch(traces: WriterTrace[]) {
-        if (!done || fail || config?.mode !== 'count')
-          throw new Error('scratch requires a completed count visit');
-        return measurePublications(traces, config.smoke ? null : clock);
+      scratchPage(encoded: string) {
+        if (!scratch || statusFailure() || lost) throw new Error('scratch unavailable');
+        const result = scratch(encoded);
+        if (result) scratch = undefined;
+        return result;
+      },
+      volume(visit: string, frames: number) {
+        if (!config?.smoke || !config.runId || !done || !bridge.__cursorVolumePage)
+          throw new Error('synthetic transport requires a software fixture');
+        return browserVolume(config.runId, visit, frames, bridge.__cursorVolumePage);
       },
     };
   }
@@ -471,9 +524,11 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
         e.stopRenderLoop();
         return;
       }
-      if (config.mode === 'count') undoCount = countScope(meshes);
       if (config.mode === 'count' && config.kind !== 'preflight') {
-        if (!config.runId) throw new Error('writer capture requires a run ID');
+        if (!config.runId || !config.writerVisit || !bridge.__cursorWriterPage)
+          throw new Error('count visit requires the live writer binding and archive identity');
+        undoCount = countScope(meshes);
+        stream = liveProducer(config.writerVisit, bridge.__cursorWriterPage);
         writers = captureWriters(
           g.scene,
           {
@@ -482,6 +537,7 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
             provenance: config.smoke ? 'software' : 'matched',
           },
           500_000,
+          { ...compactWriterRecords(stream.append), fail: stream.fail },
         );
       }
       for (const geometry of g.scene.getGeometries()) {
@@ -492,17 +548,28 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
             fail = 'CPU pick geometry changed without replayable vertex history';
         };
       }
-      if (config.point)
-        canvas.dispatchEvent(
-          new PointerEvent('pointermove', {
-            bubbles: true,
-            clientX: config.point[0],
-            clientY: config.point[1],
-            pointerType: 'mouse',
-            pointerId: 1,
-            isPrimary: true,
-          }),
-        );
+      if (config.kind !== 'preflight' && !fail) {
+        // The visit owns this page through admission. Do not stop with rendering,
+        // the final ACK, or any scratch arm: gaps between those calls are guarded too.
+        foregroundWatchdog = window.setInterval(sampleForeground, 50);
+        window.addEventListener('pagehide', stopForegroundWatchdog, { once: true });
+        sampleForeground();
+      }
+      if (config.point) {
+        plannedInput = new PointerEvent('pointermove', {
+          bubbles: true,
+          clientX: config.point[0],
+          clientY: config.point[1],
+          pointerType: 'mouse',
+          pointerId: 1,
+          isPrimary: true,
+        });
+        try {
+          canvas.dispatchEvent(plannedInput);
+        } finally {
+          plannedInput = null;
+        }
+      }
     },
     begin(g: Game) {
       from = g.steps;
@@ -510,10 +577,11 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
       cue = 0;
       outlined = 0;
       nativeFrame++;
-      if (g.steps >= config.window[0] - 5) writers?.begin(nativeFrame, from);
+      if (g.steps >= config.window[0]) retain(g, 0);
       picked = null;
       atPick = null;
     },
+    retain,
     none() {
       picked = null;
     },
@@ -537,20 +605,17 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
     },
     hover(g: Game, ray: Ray) {
       writers?.phase('pick', g.steps);
-      const witness = writers && !done && g.steps >= config.window[0] ? writers : undefined;
+      const retained = !done && g.steps >= config.window[0];
       picked = pickDiagnostic(
         ports,
         g,
         ray,
         measuring ? 'time' : config.mode === 'count' ? 'count' : 'parity',
         null,
-        witness && (() => witness.checkpoint(groundRay(ray))),
+        retained && writers ? () => writers?.checkpoint(groundRay(ray)) : undefined,
       );
-      if (!done && g.steps >= config.window[0]) {
-        atPick = writers
-          ? writers.quiet(() => snapshot(ray, picked!.hit))
-          : snapshot(ray, picked.hit);
-      }
+      // Keep scene sampling outside both the native pick timer and individual pass timers.
+      if (retained) atPick = snapshot(ray, picked.hit);
       return picked.picked;
     },
     cue(start: number, n: number) {
@@ -578,17 +643,13 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
         writers?.phase('presentation', g.steps);
         writers?.checkpoint();
       }
-      const beforeRender = capturing
-        ? (atPick ?? (writers ? writers.quiet(() => snapshot(null, null)) : snapshot(null, null)))
-        : null;
+      const beforeRender = capturing ? (atPick ?? snapshot(null, null)) : null;
       writers?.phase('render', g.steps);
       const start = measuring ? clock() : 0;
       g.scene.render();
       const renderCpu = measuring ? clock() - start : null;
       if (capturing) writers?.checkpoint();
       writers?.end(g.steps, !!capturing);
-      if (writers?.trace.gaps.some((gap) => gap.includes('overflow')))
-        fail ??= 'writer trace overflow';
       if (gl && ext && query) {
         gl.endQuery(ext.TIME_ELAPSED_EXT);
         pendingQuery = { query, row: rows.length };
@@ -599,8 +660,7 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
         e.stopRenderLoop();
         return;
       }
-      if (lost || gl?.isContextLost() || document.hidden || !document.hasFocus() || invalidInput)
-        fail ??= 'context, foreground or input contamination';
+      fail ??= statusFailure();
       if (meshes.length !== g.scene.meshes.length || g.scene.meshes.some((m, i) => m !== meshes[i]))
         fail ??= 'unreplayed mesh lifecycle change';
       if (capturing && beforeRender) {
@@ -646,11 +706,59 @@ export function cursorDiagnostic(ports: Ports, clock = () => performance.now()) 
       }
       if (g.steps >= config.window[1] || fail) {
         done = true;
+        if (fail) contaminate(fail);
+        else if (stream) {
+          writers?.trailer();
+          stream.finish();
+        }
         writers?.close();
         e.stopRenderLoop();
-      }
+      } else if (capturing && rows.length === 1) stream?.flush();
     },
   };
+
+  function statusFailure() {
+    if (ready) {
+      if (lost || gl?.isContextLost()) contaminate('WebGL context lost');
+      else sampleForeground();
+    }
+    const writer = stream?.status();
+    return fail ?? (writer?.kind === 'failed' ? writer.reason : null);
+  }
+  function retain(g: Game, available: number) {
+    if (!stream || !writers || done) return;
+    let to = g.steps;
+    for (let left = available; left >= 1 / 60; left -= 1 / 60) to++;
+    if (to < config!.window[0] || writers.recording()) return;
+    if (stream.status().kind === 'armed') stream.begin();
+    writers.begin(nativeFrame, from);
+  }
+
+  function makeScratch(arm: ScratchArm | null, pad: number) {
+    const decoder = writerDecoder();
+    const timer = config!.smoke ? null : clock;
+    let pass: ReturnType<typeof scratchPass> | undefined;
+    return (encoded: string) => {
+      if (encoded.length > Math.ceil(pageBytes / 3) * 4)
+        throw new Error('scratch page exceeds bound');
+      const data = decodePageBase64(encoded);
+      if (data.length > pageBytes) throw new Error('scratch page exceeds bound');
+      for (const frame of decoder.consume(data)) {
+        const header = decoder.header()!;
+        if (
+          header.runId !== config!.runId ||
+          header.kind !== config!.kind ||
+          header.provenance !== (config!.smoke ? 'software' : 'matched')
+        )
+          throw new Error('scratch archive identity mismatch');
+        if (!arm) return { registration: scratchRegistration(header, timer) };
+        pass ??= scratchPass(header, arm, timer, pad);
+        pass.frame(frame);
+        if (pass.done()) return { result: pass.result() };
+      }
+      return null;
+    };
+  }
 }
 
 export type ReplayPorts = Ports;

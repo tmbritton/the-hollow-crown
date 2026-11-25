@@ -1,18 +1,253 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { gunzipSync } from 'node:zlib';
+import { fileURLToPath } from 'node:url';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine.js';
 import { Scene } from '@babylonjs/core/scene.js';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder.js';
+import type { Page } from 'playwright';
 import { captureWriters, writerDiagnostic } from './cursor-attribution-writers.ts';
 import type { WriterTrace, WriterFrame } from './cursor-attribution-writers.ts';
 import { reconcileWriters, streamWriterReplay } from './cursor-publication-replay.ts';
 import * as runner from './cursor-capture-archive.ts';
 import { emptyCounts } from './cursor-attribution-probe.ts';
+import { liveProducer, liveReceiver, pageBytes } from './cursor-capture-stream.ts';
+import { disableVisitFocusEmulation } from './cursor-visit-page.ts';
+
+test('headed visit focus setup rejects a missing session or rejected override', async () => {
+  await assert.rejects(disableVisitFocusEmulation({} as Page), /cannot disable.*focus emulation/);
+  const unavailable = {
+    _connection: {
+      toImpl: () => ({
+        delegate: {
+          _mainFrameSession: {
+            _client: {
+              send(method: string, params: unknown) {
+                assert.equal(method, 'Emulation.setFocusEmulationEnabled');
+                assert.deepEqual(params, { enabled: false });
+                throw new Error('unsupported focus override');
+              },
+            },
+          },
+        },
+      }),
+    },
+  };
+  await assert.rejects(
+    disableVisitFocusEmulation(unavailable as unknown as Page),
+    /unsupported focus override/,
+  );
+});
+
+test('the unflagged collector stops before scaling or launch when production inputs cannot be pinned', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'cursor-preflight-'));
+  try {
+    const cli = fileURLToPath(new URL('./cursor-attribution.ts', import.meta.url));
+    // Empty cwd and a PATH containing only that empty directory: no host GPU utility or git.
+    const result = spawnSync(process.execPath, [cli], {
+      cwd: dir,
+      env: { ...process.env, PATH: dir },
+      encoding: 'utf8',
+      timeout: 15_000,
+    });
+    assert.equal(result.status, 2);
+    const root = join(dir, 'test-results', 'epic16');
+    const runs = await readdir(root);
+    assert.equal(runs.length, 1);
+    assert.match(runs[0], /^hardware-/);
+    const run = join(root, runs[0]);
+    assert.deepEqual(await readdir(run), ['readout.json']);
+    const readout = JSON.parse(await readFile(join(run, 'readout.json'), 'utf8'));
+    assert.equal(readout.stage, 'production input pin');
+    assert.equal(readout.decision.kind, 'stopped');
+    assert.match(readout.decision.reason, /spawnSync git ENOENT/);
+    assert.equal(readout.nativeVisits, 0);
+    assert.equal(readout.countVisits, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('visit runner archives before rejecting wait failure and rejects after scratch before admission', async () => {
+  for (const failAt of ['wait', 'drain', 'scratch', 'gpu', null]) {
+    const order: string[] = [];
+    let contaminated = false;
+    const result = runner.runVisitBoundary({
+      wait: async () => {
+        order.push('wait');
+        if (failAt === 'wait') throw new Error('wait');
+        contaminated = failAt === 'drain';
+      },
+      archive: async () => {
+        order.push('archive');
+        return 'raw';
+      },
+      healthy: async () => {
+        if (contaminated) throw new Error(String(failAt));
+      },
+      validate: async (raw) => {
+        assert.equal(raw, 'raw');
+        order.push('scratch');
+        contaminated = failAt === 'scratch';
+        return 'validated';
+      },
+      after: async () => {
+        order.push('gpu');
+        contaminated = failAt === 'gpu';
+      },
+      progress: (stage) => {
+        if (stage === 'admitted') order.push(stage);
+      },
+    });
+    if (failAt) await assert.rejects(result, new RegExp(failAt));
+    else assert.equal(await result, 'validated');
+    assert.deepEqual(order, [
+      'wait',
+      'archive',
+      ...(['wait', 'drain'].includes(failAt ?? '') ? [] : ['scratch']),
+      ...(['wait', 'drain', 'scratch'].includes(failAt ?? '') ? [] : ['gpu']),
+      ...(failAt === null ? ['admitted'] : []),
+    ]);
+  }
+});
+
+test('count/time admission requires the same ordered exhaustive and local work in every pass', () => {
+  const pass = (visits: number, instance = 0) => ({
+    ms: null,
+    work: { ...emptyCounts(), visits, instance },
+  });
+  const baseline = {
+    i: 4,
+    exhaustive: [pass(2395), pass(2395, 2)],
+    local: [pass(4), pass(4, 2)],
+    forcedProxy: [24, 24],
+  };
+  assert.doesNotThrow(() => runner.assertReplayWork(4, 2, baseline, structuredClone(baseline)));
+  for (const change of [
+    { i: 5 },
+    { exhaustive: [pass(2395, 2), pass(2395)] },
+    { local: [pass(4), pass(4, 1)] },
+    { local: [pass(4), { ms: null, work: null }] },
+    { forcedProxy: [24, 23] },
+  ])
+    assert.throws(
+      () => runner.assertReplayWork(4, 2, baseline, { ...baseline, ...change }),
+      /replay work/,
+    );
+  assert.throws(
+    () => runner.assertReplayWork(4, 2, baseline, { ...baseline, local: [pass(4)] }),
+    /replay work/,
+  );
+});
+
+test('live handoff commits before completion and a failed visit retains only its ordered prefix', async () => {
+  const persisted: number[] = [];
+  let release: () => void = () => {};
+  let entered: () => void = () => {};
+  const finalEntered = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const sink = liveReceiver('test', async (page) => {
+    if (page.seq === 1)
+      await new Promise<void>((resolve) => {
+        release = resolve;
+        entered();
+      });
+    persisted.push(page.seq);
+  });
+  const producer = liveProducer('test', sink.receive);
+  producer.begin();
+  producer.append(['record', 1]);
+  producer.flush();
+  await producer.settled();
+  assert.deepEqual(persisted, [0]);
+  assert.equal(producer.status().kind, 'producing');
+  producer.append(['record', 2]);
+  producer.finish();
+  assert.equal(producer.status().kind, 'draining');
+  await finalEntered;
+  release();
+  await producer.settled();
+  assert.equal(producer.status().kind, 'sealed');
+  assert.deepEqual(persisted, [0, 1]);
+  assert.throws(() => producer.begin(), /invalid/);
+
+  const writes: number[] = [];
+  const failing = liveReceiver('test', async (page) => {
+    if (page.seq === 1) throw new Error('disk write rejected');
+    writes.push(page.seq);
+  });
+  const broken = liveProducer('test', failing.receive);
+  broken.begin();
+  broken.append([1]);
+  broken.flush();
+  await broken.settled();
+  broken.append([2]);
+  broken.finish();
+  await broken.settled();
+  assert.equal(broken.status().kind, 'failed');
+  assert.deepEqual(writes, [0]);
+});
+
+test('a blocked sink cannot make the page producer retain more buffers or rearm', async () => {
+  let release: () => void = () => {};
+  let entered: () => void = () => {};
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const sink = liveReceiver(
+    'slow',
+    async () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+        entered();
+      }),
+  );
+  const producer = liveProducer('slow', sink.receive);
+  producer.begin();
+  producer.append([0]);
+  producer.flush();
+  await ready;
+  producer.append([1]);
+  producer.flush();
+  producer.append([2]);
+  producer.flush();
+  assert.equal(producer.status().kind, 'failed');
+  assert.equal(producer.status().peakPending, 2);
+  assert.ok(producer.status().peakPageBytes <= 3 * pageBytes);
+  release();
+  await producer.settled();
+  assert.equal(sink.status().committed, 1);
+  assert.equal(sink.status().sealed, false);
+  assert.throws(() => producer.begin(), /invalid/);
+});
+
+test('the receiver fails closed on duplicate, reordered, and omitted packets', async () => {
+  for (const wrong of [0, 2, 3]) {
+    const persisted: number[] = [];
+    const receiver = liveReceiver('order', async (p) => {
+      persisted.push(p.seq);
+    });
+    const producer = liveProducer('order', (p) =>
+      receiver.receive(p.seq === 1 ? { ...p, seq: wrong } : p),
+    );
+    producer.begin();
+    producer.append([0]);
+    producer.flush();
+    await producer.settled();
+    producer.append([1]);
+    producer.finish();
+    await producer.settled();
+    assert.deepEqual(persisted, [0]);
+    assert.equal(receiver.status().sealed, false);
+    assert.equal(producer.status().kind, 'failed');
+  }
+});
 
 test('descriptive pass breakdown distinguishes unmeasured work from conditional absence', () => {
   const count = { ...emptyCounts(), visits: 2395, instance: 3 };
@@ -187,7 +422,7 @@ test(
   },
 );
 
-test('stop control: writer readback demonstrably changes a same-render-ID native result', () => {
+test('writer readback preserves a same-render-ID native result', () => {
   const engine = new NullEngine();
   try {
     const scene = new Scene(engine);
@@ -214,7 +449,7 @@ test('stop control: writer readback demonstrably changes a same-render-ID native
     });
     assert.equal(scene.getRenderId(), renderId);
     assert.equal(control.mesh.computeWorldMatrix().m[12], 0);
-    assert.equal(hooked.mesh.computeWorldMatrix().m[12], 9);
+    assert.equal(hooked.mesh.computeWorldMatrix().m[12], 0);
     assert.match(runner.captureBoundary, /same-tick Babylon state/);
     capture.close();
   } finally {

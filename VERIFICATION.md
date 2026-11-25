@@ -1,11 +1,266 @@
 # Verification — The Hollow Crown
 
+## Story 16.1 — approved hardware replacement stopped at preflight
+
+On 2026-11-25, after Astra approved the exact working tree against `f03f30d`, ran
+`node tests/cursor-attribution.ts` once, without flags, sequentially in headed Chromium
+under a temporary `systemd-inhibit --what=idle --mode=block` lock. The console recorded
+15:26:32–15:26:40 CST (8 s at log resolution), exit **2**. The lock was scoped to the
+command. This consumed the single authorized replacement attempt. No retry, bypass, reset,
+or other benchmark was run, and `hardware-40phAH` was left untouched.
+
+**Actual preflight evidence, not admission.** The Ryzen 5 2600X and RTX 2070 matched;
+the preflight GPU query succeeded (driver `615.78.08`, PCI `09:00.0`, P8, display enabled).
+Chromium `159.0.8154.6` reported ANGLE on the RTX 2070, WebGL 2 and GPU timer support.
+At ready the page was visible and focused: `MOURNING-731`, tick 0, high quality, 24/24
+living enemies, 2,395 meshes, hero at the entrance origin, camera yaw −π/4 and pitch
+0.64, lens 60° and fisheye 35%. The CSS viewport was 1920×1080, backing 1919×1079,
+DPR ≈1 and measured RAF refresh 59.88 Hz. The shrine resolved at (1490, 740) to
+`prop:shrine-entrance-0` (`restore`, out of reach); (920, 580) resolved to floor.
+The handshake and screenshot were saved. The fresh NullEngine scaling reference also
+finished (three 0/10-room pairs, 240 queries per arm); it is not native timing evidence.
+
+**Stop:** the post-validation health check rejected preflight with `Error: input contamination`
+before admission or the post-visit GPU query. The stage receipt says `capture ended` with no
+recorded page/request errors. The guard stores the reason, not the triggering event, so the
+event type and source are unknown; the evidence does not establish physical input or a GPU fault.
+
+| Case | Complete count visits | Complete native timing visits | Native window |
+| --- | ---: | ---: | --- |
+| Shrine | 0/1 | 0/3 | Not started |
+| Floor | 0/1 | 0/1 | Not started |
+| Idle | 0/1 | 0/1 | Not started |
+
+No tick 180–480 native rows or replay/publication ledger were collected. This is
+**incomplete**, not positive or negative attribution evidence.
+
+The [verified archive](test-results/epic16/hardware-nr6QUv.tar.gz) contains the entire
+fresh `hardware-nr6QUv/` directory (including the bundle, hashes, scaling, preflight
+and stopped readout) and unfiltered `replacement-console-jehDwE.log`. SHA-256:
+`809a949225d11b7010a4b4e796d2c71b92d258a8b5ec418f473d5c7758ed52e9`.
+
+**Next discriminating action (not run):** in a separate non-benchmark headed browser
+qualification, keep the guard unchanged and record the first rejected event's type,
+trust, target, pointer type if present, and timestamp relative to ready, target resolution,
+RAF sampling and screenshot. With physical devices untouched, compare the timestamp with
+desktop input events and the browser command trace to distinguish desktop input from a
+browser/automation lifecycle event. No further hardware collection is authorized here.
+
+## Story 16.1 — integrated recorder qualification (software only)
+
+**Historical software qualification, before independent clearance.** The matched entry point is
+`node tests/cursor-attribution.ts` (no flags). The temporary unconditional stop is gone; this
+command enters the real preflight, not a review mode. **Do not invoke it before independent
+clearance of this exact working tree and the frozen contract.** The production input pins,
+matched host/browser and scene checks, target and refresh checks, and per-visit validation
+still fail closed. A negative CLI regression with an empty tool path exits 2 at input pinning,
+before scaling or browser launch, with zero admitted visits. No matched host utility, scaling
+run or hardware visit was run for this integration. `hardware-40phAH`, production sources and
+the frozen workloads and numerical gates are unchanged.
+
+The launcher no longer suppresses input through CDP. The probe accepts exactly its own
+one-shot synthetic setup movement for shrine/floor (none for idle/preflight); an unexpected
+event of a monitored type invalidates the visit from `ready` through admission. The software browser
+suite exercises the shared launcher setup, including a trusted pointer move at the same
+coordinates as the synthetic event, plus trusted key input, blur and visibility, separately
+during final ACK drain and between scratch pages. These are browser-generated trusted inputs,
+not physical device tests. That foreground fixture bypassed Playwright's default focus
+emulation and did not qualify the headed collector. The independent source review flagged
+that gap, addressed separately below. The input guard still covers an explicit event list,
+not every production handler (for example `pointercancel`). Neither fixture establishes
+physical-input isolation.
+
+Behavioral writer controls execute the transformed health, sack, steed, floating prop and
+collision-proxy operations and reject missing source hooks. Moving-camera and stale-cache
+controls check that observation leaves native caches and hits alone. Detached replay resolves
+supported authored out-and-back writes from their own endpoints; unsupported sweeps still
+withhold timing credit. Retained-volume qualification validates live handoff and bounded untimed
+scratch against archived operands, not matched-scene throughput, timing or feasibility.
+
+Final software receipts (rendering suites run sequentially; logs in
+`test-results/epic16/integration-E15KTc/`):
+
+| Command | Result |
+| --- | --- |
+| `npm run check:full` | **868/868** passed, plus typecheck, lint and format (`check-full-final.log`). The initial run found the obsolete sentinel regression, which was replaced by the fail-closed pinning regression. |
+| `npm test` | **847/847** everyday tests passed, plus typecheck. |
+| `node --test tests/cursor-transport-qualification-browser.ts` | **10/10** passed, no skips. `transport-qualification-A1u0dO` sealed 30/58 pages for 60/120 retained-operand frames; both peaked at 30,414 decoded frame records and 491,262 frame scalars. All eight contamination cases rejected admission and preserved the native rows and writer pages. |
+| `node tests/cursor-attribution.ts --smoke` | Passed (`smoke-Bu0Xor`). NullEngine and SwiftShader; mixed-volume transport, short idle/shrine/floor live captures and untimed scratch passed. The readout records `smokePassed: true`, zero native/count visits and no feasibility decision. |
+| `npm run build && npm run test:production` | Passed in isolation against the local production preview using SwiftShader. |
+
+The independent source review is in `independent-review.log`. The local handoff manifest
+`working-tree.sha256` includes tracked and untracked source and contract files; `HEAD` alone
+does not identify this uncommitted integration. The broader development-browser and Epic 14
+suites below were not rerun for this final integration.
+
+### Headed foreground watchdog qualification (fixture only)
+
+The foreground guard now samples `document.hasFocus()` and visibility independently of
+render, event delivery, and probe calls (50 ms requested browser interval). The watchdog
+starts at measurement readiness, stays armed through final ACK and all scratch pages and
+arms, and stops on a latched probe failure or visit-page teardown. Preflight does not start
+it. This is sampling, not a guarantee against loss entirely between samples or while the
+renderer cannot run tasks; the foreground event listeners remain in place.
+
+The headed NullEngine fixture holds the final ACK or pauses between two scratch pages. An
+owned popup takes focus in a separate window. The test blocks both foreground events from
+reaching the probe and independently verifies the popup is focused and the measured page is
+visible but unfocused before and after a 350 ms dwell. It makes no probe call during the
+loss. Only after restoring and confirming foreground does it release the ACK or deliver
+the next scratch page. Without the watchdog the ACK sealed and the next scratch page was
+accepted; with it, both gaps latched `foreground lost` and rejected admission, retaining
+both native rows and persisted pages. A tab-hide case and a same-dwell, in-focus admission
+control also passed in each phase. The window-loss check does not require a blur event.
+
+Five consecutive final headed runs passed **7/7** each (including the parent), no skips.
+See `test-results/epic16/watchdog-headed-final.log` for run directories and receipts. All
+eight headless contamination cases passed with the retained-volume subtest filtered out.
+`npm run check:full` passed **869/869**, typecheck, lint and format; `npm run build` and
+`git diff --check` passed. Calibration and admission gates were untouched. A separate
+read-only Astra review marked this blocker **PASS** (`watchdog-independent-review.log`);
+that review was scoped to foreground qualification, not campaign clearance. No matched
+preflight or measurement campaign was run.
+
+### Earlier headed foreground-loss qualification (fixture only)
+
+`node tests/cursor-transport-qualification-browser.ts --headed-foreground` passed **all four
+cases** (5/5 including the parent, no skips, about 4 s). Chromium `159.0.8154.6`, Playwright
+`1.65.1`, KDE Wayland session. The test shared the collector's headed launcher and fresh
+1920×1080/DPR 1 context factory. Each case used a two-frame NullEngine fixture and at most two
+owned pages: a popup in a distinct browser window for deactivation, or another tab in the same
+window for hiding. The test verified the context/window IDs and that the competing page was
+visible and focused. It used no system setting, global focus override, or external window.
+
+**Reproduction and fix.** The same headed cases failed to confirm loss with Playwright's
+default emulation (`transport-qualification-XWGGOf`). Sending `enabled: false` on a second
+CDP session did not clear it (`transport-qualification-Aw1W2M`). Before navigation, the shared
+headed page setup now sends and awaits the override on Playwright's own main-frame session.
+Missing session or failed command aborts setup; a focused unit regression covers both. This
+uses private internals of the pinned Playwright version. Requalify on a Playwright/Chromium or
+desktop change; inability to confirm the real foreground transition is a failure, not a skip.
+Earlier Wayland activation attempts did not reliably establish both window transitions; the
+successful receipt below is for the owned-popup test, with no compositor settings changed.
+
+| Observed loss (browser-trusted) | While final ACK was held | Between scratch pages |
+| --- | --- | --- |
+| Window deactivation: `blur`, visible and unfocused | Latched `foreground lost`; releasing the ACK after focus returned did not seal the producer | Latched `foreground lost`; the next page rejected with `scratch unavailable` |
+| Tab switch: `visibilitychange`, hidden and unfocused | Same rejection after focus returned and the final ACK reached the page | Same rejection after focus returned |
+
+The fixture isolated the two listeners and suppressed incidental pointer movement from the
+window switch in the headed cases only. No probe health read occurred during the loss; the
+latch survived focus regain. All four preserved both native fixture rows and two persisted
+writer pages; none reached admission. Local receipts, console log, and exact working-tree
+manifest: `test-results/epic16/transport-qualification-DtQY2T/`.
+
+Fresh checks: `npm run check:full` **869/869** including typecheck, lint, and formatting;
+`npm run build` passed with the existing chunk-size warning; `git diff --check` passed. All
+eight headless contamination subcases also passed with the retained-volume subtest excluded
+by name. A broader browser-fixture attempt hit the tool timeout; the earlier retained-volume
+receipt above is historical. No matched preflight, GPU utility, scaling, hardware visit, or
+measurement was run. **Independent clearance remains pending.**
+
+### Earlier recorder qualification snapshot against `f03f30d`
+
+At this intermediate snapshot, the unflagged collector still stopped before host probing, and
+the omissions and smoke failures below had not yet been addressed. No matched visit or scaling
+run was attempted.
+
+- Stale authored out-and-back writes now produce explicit unresolved sweeps in replay rather than
+  two priced cached no-ops. Native endpoints remain available for reconciliation. This is not a
+  detached evaluator for Babylon transforms, and it does not make the live sweep work priceable.
+- Source-authored locals have separate replay state; a natural matrix/bounds publication cannot
+  by itself account for a changed authored transform. Descendants of billboards use fallback in
+  both witnesses. A generic omission control is green; behavioral omission controls executing the
+  health, sack, steed and float routines and the moving-camera parity control remain open.
+- Replay requires the exact fixed checkpoints plus pick or idle presentation and render, and
+  verifies ordered scene identities. Negative controls include a fixed write after its checkpoint.
+- SwiftShader `test-results/epic16/smoke-FAKmMq/` transported and reread both synthetic mixed-operand
+  windows: 60/120 frames, 778,920/1,557,840 writes, 5/13 disk pages, and 3/11 ACKs before
+  producer end. Both runs peaked at 2 pending pages, 6,291,456 producer page bytes, a 388,566-byte
+  receiver page, 29,754 decoded frame events and 160,111 distinct decoded frame scalars. This
+  is a mixed synthetic load, not a lossless re-encoding of retained native operands. Full
+  incremental/eager scratch-result parity and live scratch at retained volume remain open.
+- The runner archives before checking admission and checks latched focus/context/input failure
+  again after replay/scratch and the post-visit GPU check. The runner boundary regressions use
+  injected failures; browser-driven contamination while the final ACK is held and during
+  scratch still needs direct qualification.
+- Count/time admission compares ordered per-pass exhaustive/local work and proxy-sync counts
+  from the separate untimed replay, not from any added hooks in the clean timed arms.
+
+The mixed-volume checks passed, but the software smoke **stopped** at live idle replay: the
+first gap was a missing authored collision-proxy source at fixed tick 5. The archive also shows
+unresolved cached pose sweeps. No live scratch result or visit credit was obtained from that run.
+`npm run check:full` passed 864 tests, typecheck, lint and format.
+
+### Earlier findings 4–5: retained transport and browser contamination
+
+`node --test tests/cursor-transport-qualification-browser.ts` passed all eight tests. Receipts:
+`test-results/epic16/transport-qualification-ptpbdj/`. The transport fixture tiles the three
+complete `hardware-40phAH` frames (65–67, 2,395 meshes) at their archived fixed-tick cadence,
+rebases frame/tick/sequence fields and explicitly records 660 reset writes between cycles. It
+compares every decoded operand, ray and ordered checkpoint with the retained data. The original
+incomplete frame 68 is not filled in; its missing render and the native replay gaps remain failures.
+
+| Fixture frames | Ordered writes | Logical scalars | Disk pages | ACKs before end | Gzip bytes |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 60 | 765,120 | 141,659,550 | 30 | 28 | 25,877,695 |
+| 120 | 1,530,900 | 283,389,950 | 58 | 56 | 51,709,611 |
+
+Both runs peaked at 2 pending pages, 6,291,456 producer page bytes, a 131,072-byte record
+workspace, 16,384 float dictionary entries per page, 2,796,204 bridge payload characters and a
+2,097,151-byte receiver page. Archive and browser scratch reached the same 30,414 decoded frame
+records, 491,262 distinct frame scalars and 400,500 state scalars. These are owned-buffer and
+logical record bounds, not a browser heap or RSS measurement. Untimed browser scratch matched
+the Node consumer over both archives. Small eager/stream checks independently exercise ordered
+work, pick-cursor rather than render occupancy, active/control units and consumption across
+repeats/blocks, and unresolved-sweep rejection. No invalid retained workload was priced.
+
+Non-final ACKs certify persisted bytes; a one-page-at-a-time scan certifies the trailer and window
+before the final ACK. A malformed final page is retained but never acknowledged. An overlapping
+test run exhausted credit and failed closed; the isolated runs sealed without waiting for credits
+inside fixture production. These checks do not establish throughput under arbitrary host load.
+
+Trusted tab blur, visibility change, and keyboard input each independently invalidated a visit
+while its final ACK was withheld and between scratch pages. In all six cases the two native rows
+and writer pages survived and the boundary did not admit the visit. The disposable Chromium
+context uses no Playwright focus overrides and has GPU/WebGL disabled. This directly tests the
+probe and boundary, not that snapshot's matched launcher, which still set
+`Input.setIgnoreInputEvents`.
+No matched capture, independent approval, or feasibility evidence is claimed.
+
+Focused recorder/evidence tests: 221 passed. `npm run check:full`: 866 passed on the concurrent
+worktree snapshot before the final truncated-archive regression; standalone typecheck, lint,
+format check and build also passed.
+
+## Story 16.1 — recorder repair implementation checks (software only)
+
+The replacement entry point is `node tests/cursor-attribution.ts`. Its count visits require
+the live writer binding and read scratch inputs from the disk archive; the old post-visit
+collector is not a hardware fallback. **Not independently reviewed or cleared for a matched
+run.** No hardware visit was attempted, and the historical evidence below was not changed.
+
+- The SwiftShader smoke run `test-results/epic16/smoke-rNFpyK/` sealed short idle, shrine,
+  and floor captures, reconciled checkpoints, compared the ordered pick lists, and received
+  untimed browser scratch results. It granted zero hardware visits or feasibility credit.
+- The same smoke transported and reread 60 and 120 frames of the constant-operand workload
+  (2,395 meshes and 12,982 writes per frame). The sinks committed 9 and 16 pages, respectively,
+  with ACKs before production ended. Decoded writes doubled from 778,920 to 1,557,840;
+  per-frame peak counts stayed at 29,754 records and 148,490 distinct observation scalars.
+  This exercises the live handoff at volume, not the timing or entropy of the full native study.
+- `npm run check:full`: 857 tests passed, plus typecheck, lint, and format. `npm test`: 836
+  everyday tests passed. Focused recorder tests and typecheck also passed after follow-up edits.
+  `npm run build` and `npm run test:production` passed. `npm run test:browser` stopped on
+  `MOURNING-731` traversal replan budget exhaustion. `npm run test:epic14`, with the dev
+  server running, stopped at `tests/epic14-browser.ts:216` on its position assertion.
+
 ## Story 16.1 — offline review of `hardware-40phAH`
 
-**Do not replace this visit.** Bounded disk transport and incremental offline writer
-reconciliation work at the retained event volume; a corrected live capture is not
-qualified. The unflagged collector is held before GPU probing, browser launch, or
-preflight. The archived run remains stopped/inconclusive, not a negative result.
+**Historical hold; keep this archive immutable.** In this offline review, bounded disk
+transport and incremental offline writer reconciliation worked at the retained event volume,
+but a corrected live capture was not yet qualified. At that point the unflagged collector
+was held before GPU probing, browser launch, or preflight. The archived run remains
+stopped/inconclusive, not a negative result. See the integrated status above for the
+replacement collector.
 
 - **Capacity:** The software transport fixture used the 2,395-mesh retained seed and
   the first complete frame's 12,982 writer sites, with constant operands. Across 60
@@ -34,7 +289,7 @@ preflight. The archived run remains stopped/inconclusive, not a negative result.
   it can change the native observation it is supposed to witness. The previous
   health-bar patch is still diagnostic-only and is not certified by its source test.
 
-The current collector inherently requires visit-wide retained writer arrays before
+The collector under that review inherently required visit-wide retained writer arrays before
 export, then sends all three traces to one page for scratch timing and materializes
 their replay. The software window exceeds both live guards (500,000 events and
 8,000,000 operand/checkpoint scalars) for one visit alone. Disk compression does not

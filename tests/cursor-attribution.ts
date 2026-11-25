@@ -5,15 +5,18 @@ import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { cpus, loadavg, release } from 'node:os';
 import { extname, resolve, sep } from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { gzipSync, gunzipSync } from 'node:zlib';
 import { chromium } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { buildDiagnostic } from './cursor-attribution-build.ts';
 import {
   archiveNativeRows,
-  captureBoundary,
+  assertReplayWork,
   describeNativePasses,
+  openWriterArchive,
+  runVisitBoundary,
 } from './cursor-capture-archive.ts';
+import type { ReplayWork } from './cursor-attribution-replay.ts';
 import { offRayCredit, validateWindow } from './cursor-attribution-model.ts';
 import { transition } from './cursor-evidence.ts';
 import type { RunState, Visit } from './cursor-evidence.ts';
@@ -21,16 +24,29 @@ import type { CaptureConfig, NativeRow, cursorDiagnostic } from './cursor-attrib
 import {
   measurePublications,
   reconcileWriters,
-  windowGap,
-  writerFrameEvidence,
+  scratchSchedule,
+  streamWriterReplay,
 } from './cursor-publication-replay.ts';
+import type { ScratchArm } from './cursor-publication-replay.ts';
 import { writerFixture } from './cursor-attribution-fixture.ts';
-import type { WriterTrace } from './cursor-attribution-writers.ts';
-import type { WriterCase, WriterReport } from './cursor-writer-evidence.ts';
-import { validateWriterReport } from './cursor-writer-evidence.ts';
+import type { WriterCase, WriterDemand, WriterReport } from './cursor-writer-evidence.ts';
+import { validateWriterReport, writerCaseValidator } from './cursor-writer-evidence.ts';
 import { pinProductionInputs } from './cursor-production-inputs.ts';
 import { measureScaling } from './cursor-reference.ts';
 import { validateScaling } from './cursor-scaling-policy.ts';
+import {
+  volumeChanging,
+  volumeKind,
+  volumeMeshes,
+  volumeOperand,
+  volumeWrites,
+} from './cursor-capture-volume.ts';
+import { encodePageBase64, pageBytes } from './cursor-capture-stream.ts';
+import {
+  launchHeadedCursorBrowser,
+  newCursorVisitContext,
+  prepareVisitPage,
+} from './cursor-visit-page.ts';
 
 type Bridge = NonNullable<Window & { __cursorCapture: BridgeAPI }>['__cursorCapture'];
 // The callback contract is exported by the page adapter; Playwright values are plain records.
@@ -54,9 +70,6 @@ let stage = 'host';
 let nativeVisits = 0;
 let countVisits = 0;
 const windowTicks: [number, number] = [180, 480];
-function admitHardwareCollector() {
-  throw new Error(captureBoundary);
-}
 const hash = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
 const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 const smi = () => {
@@ -173,62 +186,104 @@ async function withVisit<T>(
   url: string,
   label: string,
   config: CaptureConfig,
-  work: (page: Page, captured: Awaited<ReturnType<typeof saveNative>>) => Promise<T>,
+  work: (
+    page: Page,
+    captured: Awaited<ReturnType<typeof saveNative>>,
+    writers: Awaited<ReturnType<typeof openWriterArchive>> | null,
+  ) => Promise<T>,
 ) {
   stage = label;
-  const before = smi();
-  await save(`${label}-gpu-before`, before);
-  if (!before.ok) throw new Error('matched GPU unavailable before visit');
-  const context = await browser.newContext({
-    viewport: { width: 1920, height: 1080 },
-    deviceScaleFactor: 1,
-  });
+  if (!config.smoke) {
+    const before = smi();
+    await save(`${label}-gpu-before`, before);
+    if (!before.ok) throw new Error('matched GPU unavailable before visit');
+  }
+  const context = await newCursorVisitContext(browser);
+  let writers: Awaited<ReturnType<typeof openWriterArchive>> | null = null;
+  const errors: string[] = [];
+  let progress = 'attempted';
   try {
     const page = await context.newPage();
-    const errors: string[] = [];
-    page.on('pageerror', (e) => errors.push(e.message));
-    page.on('requestfailed', (e) => errors.push(`asset request failed: ${e.url()}`));
-    await page.addInitScript((c) => Object.assign(window, { __cursorCaptureConfig: c }), config);
-    const client = await context.newCDPSession(page);
-    await client.send('Input.setIgnoreInputEvents', { ignore: true });
-    await page.bringToFront();
-    let waitFailure: unknown;
-    try {
-      await page.goto(url, { timeout: 45000 });
-      await page.waitForFunction(
-        (key) => {
-          const b = (window as unknown as Record<string, Bridge>)[key];
-          return (
-            b?.status().done || b?.status().fail || !!document.querySelector('#loading.failed')
-          );
-        },
-        getBridge,
-        { timeout: 90000, polling: 250 },
+    let failVisit: (message: string) => void = () => {};
+    const crashed = new Promise<string>((resolve) => {
+      failVisit = resolve;
+    });
+    const error = (message: string) => {
+      if (errors.length < 16) errors.push(message.slice(0, 512));
+    };
+    page.on('pageerror', (e) => {
+      error(e.message);
+      failVisit(e.message);
+    });
+    page.on('crash', () => failVisit('page crashed'));
+    page.on('requestfailed', (e) => error(`asset request failed: ${e.url()}`));
+    if (config.mode === 'count' && config.writerVisit) {
+      writers = await openWriterArchive(
+        `${out}/${label}-writer-pages`,
+        config.writerVisit,
+        config.window,
       );
-    } catch (error) {
-      waitFailure = error;
-    }
-    // Persist what the page can still return before any admission check or replay.
-    let captured: Awaited<ReturnType<typeof saveNative>> = null;
-    try {
-      if (config.kind !== 'preflight') captured = await saveNative(page, label);
-    } catch (archiveFailure) {
-      await save(`${label}-native-export-error`, {
-        waitFailure: String(waitFailure),
-        archiveFailure: String(archiveFailure),
+      const sink = writers;
+      await page.exposeBinding('__cursorWriterPage', ({ frame }, packet) => {
+        if (frame !== page.mainFrame()) throw new Error('unexpected writer source frame');
+        return sink.receive(packet);
       });
-      throw waitFailure ?? archiveFailure;
+      page.on('close', () => sink.fail('writer page closed'));
+      page.on('crash', () => sink.fail('writer page crashed'));
     }
-    if (waitFailure) throw waitFailure;
-    assert.deepEqual(errors, []);
-    const result = await work(page, captured);
-    assert.deepEqual(errors, []);
-    const after = smi();
-    await save(`${label}-gpu-after`, after);
-    if (!after.ok) throw new Error('matched device lost after visit');
-    return result;
+    await prepareVisitPage(page, config);
+    return await runVisitBoundary({
+      wait: async () => {
+        await page.goto(url, { timeout: 45000 });
+        const wait = page.waitForFunction(
+          (key) => {
+            const b = (window as unknown as Record<string, Bridge>)[key];
+            return (
+              b?.status().done || b?.status().fail || !!document.querySelector('#loading.failed')
+            );
+          },
+          getBridge,
+          { timeout: 90000, polling: 250 },
+        );
+        await Promise.race([
+          wait,
+          crashed.then((message) => {
+            throw new Error(`page error: ${message}`);
+          }),
+        ]);
+      },
+      archive: async () => (config.kind === 'preflight' ? null : await saveNative(page, label)),
+      archiveFailed: async (waitFailure, archiveFailure) =>
+        save(`${label}-native-export-error`, {
+          waitFailure: String(waitFailure),
+          archiveFailure: String(archiveFailure),
+          errors,
+        }),
+      healthy: async () => {
+        assert.deepEqual(errors, []);
+        const status = await page.evaluate(
+          (key) => (globalThis as unknown as Record<string, Bridge | undefined>)[key]?.status(),
+          getBridge,
+        );
+        if (!status) throw new Error('capture bridge missing');
+        if (status.fail) throw new Error(status.fail);
+        assert.ok(status.done, 'capture not sealed');
+      },
+      validate: (captured) => work(page, captured, writers),
+      after: async () => {
+        if (config.smoke) return;
+        const after = smi();
+        await save(`${label}-gpu-after`, after);
+        if (!after.ok) throw new Error('matched device lost after visit');
+      },
+      progress: (next) => {
+        progress = next;
+      },
+    });
   } finally {
     await context.close();
+    if (writers) await save(`${label}-writer-receipt`, writers.status());
+    await save(`${label}-stage`, { progress, errors });
   }
 }
 
@@ -245,7 +300,7 @@ function visitFrom(
   kind: Visit['kind'],
   rows: NativeRow[],
   replay: ReturnType<Bridge['replay']>,
-  witness: WriterCase,
+  witness: WriterCase<WriterDemand>,
 ): Visit {
   if (!witness.frames.length || !replay.parity) throw new Error('missing count or replay evidence');
   let isolated = 0;
@@ -294,7 +349,24 @@ function visitFrom(
   };
 }
 
+type WriterArchive = Awaited<ReturnType<typeof openWriterArchive>>;
+async function scratchFrom(page: Page, archive: WriterArchive, arm: ScratchArm | null, pad = 0) {
+  await page.evaluate(
+    ([key, arm, pad]) => (window as unknown as Record<string, Bridge>)[key].scratchBegin(arm, pad),
+    [getBridge, arm, pad] as const,
+  );
+  for await (const { data } of archive.pages()) {
+    const reply = await page.evaluate(
+      ([key, encoded]) => (window as unknown as Record<string, Bridge>)[key].scratchPage(encoded),
+      [getBridge, encodePageBase64(data)] as const,
+    );
+    if (reply) return reply;
+  }
+  throw new Error('scratch did not acknowledge a complete block');
+}
+
 async function collect() {
+  // Run the unflagged collector only after independent clearance of this tooling.
   const gpu = smi();
   stage = 'production input pin';
   const production = await pinProductionInputs();
@@ -342,12 +414,7 @@ async function collect() {
   let browser: Browser | undefined;
   try {
     stage = 'launch';
-    browser = await chromium.launch({
-      channel: 'chromium',
-      headless: false,
-      timeout: 15000,
-      args: ['--ignore-gpu-blocklist', '--window-position=32,32', '--window-size=1980,1210'],
-    });
+    browser = await launchHeadedCursorBrowser();
     await save('browser', { version: browser.version(), url });
     const preflight = await withVisit(
       browser,
@@ -412,14 +479,17 @@ async function collect() {
         assert.ok(replay.lists.some((r) => r.ids.length < meta.ready!.meshNames.length));
       return { rows, replay };
     };
-    const traces: WriterTrace[] = [];
-    const countEvidence = new Map<Visit['kind'], string>();
-    const countRows = new Map<Kind, NativeRow[]>();
     const visits: Visit[] = [];
-    let writerReport: WriterReport | undefined;
+    const writerReport: WriterReport<WriterDemand> = {
+      runId,
+      provenance: 'matched',
+      framesPerBatch: 240,
+      cases: [],
+      consumed: 0,
+    };
     for (const kind of kinds) {
       const point = kind === 'idle' ? undefined : preflight[kind];
-      await withVisit(
+      const result = await withVisit(
         browser,
         url,
         `${kind}-count`,
@@ -431,80 +501,94 @@ async function collect() {
           window: windowTicks,
           expectedReady: JSON.stringify(preflight.meta),
           runId,
+          writerVisit: `${runId}:${kind}-count`,
         },
-        async (page, captured) => {
-          const meta = await page.evaluate(
-            (key) => (window as unknown as Record<string, Bridge>)[key].writerTrace(),
-            getBridge,
-          );
-          assert.ok(meta.header);
-          await archive(`${stage}-writer-header`, meta.header);
-          const trace = { ...meta.header, frames: [] } satisfies WriterTrace;
-          const frames: WriterTrace['frames'] = trace.frames;
-          for (let i = 0; i < meta.length; i += 2) {
-            const chunk = await page.evaluate(
-              ([key, start]) =>
-                (window as unknown as Record<string, Bridge>)[key].writerTrace(start, start + 2)
-                  .frames,
-              [getBridge, i] as const,
-            );
-            await archive(`${stage}-writers-${i}`, chunk);
-            frames.push(...chunk);
-          }
-          const gap = windowGap(trace, windowTicks);
-          if (gap) trace.gaps.push(gap);
-          const { frames: reconciled, gaps } = reconcileWriters(trace);
-          trace.gaps.push(...gaps.filter((reason) => !trace.gaps.includes(reason)));
-          if (trace.gaps.length) {
-            await archive(`${stage}-writer-replay`, { frames: reconciled, gaps: trace.gaps });
-            throw new Error(trace.gaps.join('; '));
-          }
+        async (page, captured, writers) => {
           const { rows, replay } = await read(page, captured, kind, false);
-          if (
-            rows.length !== reconciled.length ||
-            rows.some((row, i) => row.from !== reconciled[i].from || row.to !== reconciled[i].to)
-          )
-            trace.gaps.push('native/count writer frames disagree');
-          if (
-            kind !== 'idle' &&
-            (replay.lists.length !== reconciled.length ||
-              !rows.every(
-                (r) => r.passes.length && r.passes.every((p) => p.work && p.work.visits > 0),
-              ) ||
-              replay.lists.some(
-                ({ i, ids }, frame) =>
-                  i !== frame ||
-                  JSON.stringify(ids) !== JSON.stringify(reconciled[frame]?.query?.ids),
-              ))
-          )
-            trace.gaps.push(
-              'native passes or offline candidates disagree with synchronized traversal',
+          assert.ok(writers?.status().sealed, 'writer transport did not seal');
+          const header = writers.header();
+          assert.deepEqual(
+            [header.runId, header.kind, header.provenance],
+            [runId, kind, 'matched'],
+          );
+          await archive(`${kind}-count-writer-header`, header);
+          stage = `${kind}-count: validate archive`;
+          const witness = streamWriterReplay(header);
+          const validator = writerCaseValidator(runId, kind);
+          let i = 0;
+          for await (const { frame } of writers.frames()) {
+            const row: NativeRow = rows[i];
+            const evidence = witness.frame(frame);
+            await archive(`${kind}-count-writer-replay-${i}`, evidence);
+            assert.ok(row, 'unexpected extra writer frame');
+            assert.deepEqual([row.from, row.to], [frame.from, frame.to]);
+            const ray = row.sample.ray;
+            assert.deepEqual(
+              frame.checks.find((c) => c.phase === 'pick')?.ray ?? null,
+              ray && {
+                x: ray.origin[0],
+                z: ray.origin[2],
+                dx: ray.direction[0],
+                dz: ray.direction[2],
+                length: ray.length,
+              },
+              'native and writer rays disagree',
             );
-          await archive(`${stage}-writer-replay`, { frames: reconciled, gaps: trace.gaps });
-          if (trace.gaps.length) throw new Error(trace.gaps.join('; '));
-          countEvidence.set(kind, JSON.stringify(writerFrameEvidence(reconciled)));
-          traces.push(trace);
-          countRows.set(kind, rows);
-          countVisits++;
-          if (kind === 'idle') {
-            writerReport = await page.evaluate(
-              ([key, traces]) => (window as unknown as Record<string, Bridge>)[key].scratch(traces),
-              [getBridge, traces] as const,
-            );
-            await save('writer-ledger', writerReport);
+            if (kind !== 'idle') {
+              const list = replay.lists[i];
+              assert.equal(list?.i, i);
+              assert.deepEqual(evidence.query?.ids, list.ids);
+              assert.ok(row.passes.length && row.passes.every((p) => p.work && p.work.visits > 0));
+              await archive(`${kind}-count-list-${i}`, list.ids);
+              const work = replay.counts[i];
+              assertReplayWork(i, row.passes.length, work, work);
+              await archive(`${kind}-count-work-${i}`, work);
+            }
+            validator.frame(evidence);
+            i++;
           }
+          const gaps = witness.gaps();
+          await save(`${kind}-count-writer-gaps`, gaps);
+          assert.ok(!gaps.length, gaps[0]);
+          assert.equal(i, rows.length);
+          stage = `${kind}-count: scratch`;
+          const { registration } = await scratchFrom(page, writers, null);
+          assert.ok(registration);
+          const measured = await scratchSchedule(i, async (arm) => {
+            let units = 0,
+              ms = 0,
+              consumed = 0;
+            for (let j = 0; j < arm.repeats; j++) {
+              const { result } = await scratchFrom(
+                page,
+                writers,
+                arm,
+                j === arm.repeats - 1 ? arm.pad : 0,
+              );
+              assert.ok(result?.ms !== null && result);
+              units += result.units;
+              ms += result.ms;
+              consumed = (consumed + result.consumed) | 0;
+            }
+            return { units, ms, consumed };
+          });
+          await save(`${kind}-count-scratch`, { registration, ...measured });
+          const writerCase = validator.finish(measured.batches, registration, 240);
+          assert.ok(writerCase.msPerFrame !== null, 'scratch timing did not resolve demanded work');
+          return { writerCase, consumed: measured.consumed };
         },
       );
+      countVisits++;
+      writerReport.cases.push(result.writerCase);
+      writerReport.consumed = (writerReport.consumed + result.consumed) | 0;
     }
+    await save('writer-ledger', writerReport);
     const writerError = validateWriterReport(runId, writerReport);
     if (writerError) throw new Error(writerError);
-    for (const witness of writerReport!.cases)
-      if (JSON.stringify(witness.frames) !== countEvidence.get(witness.kind))
-        throw new Error(`${witness.kind} scratch records disagree with ordered count replay`);
     for (const kind of kinds)
       for (let i = 0; i < (kind === 'shrine' ? 3 : 1); i++) {
         const point = kind === 'idle' ? undefined : preflight[kind];
-        await withVisit(
+        const visit = await withVisit(
           browser,
           url,
           `${kind}-time-${i + 1}`,
@@ -518,25 +602,60 @@ async function collect() {
           },
           async (page, captured) => {
             const { rows, replay } = await read(page, captured, kind, i % 2 === 1);
-            nativeVisits++;
-            const counted = countRows.get(kind)!;
-            const witness = writerReport!.cases.find((c) => c.kind === kind)!;
-            if (
-              rows.length !== counted.length ||
-              rows.some(
-                (row, i) =>
-                  row.from !== counted[i].from ||
-                  row.to !== counted[i].to ||
-                  JSON.stringify(row.sample) !== JSON.stringify(counted[i].sample),
-              )
-            ) {
-              const gap = `count/time frame geometry or ray mismatch for ${kind}`;
-              await save(`${stage}-writer-gap`, { runId, gap });
-              throw new Error(gap);
+            const witness = writerReport.cases.find((c) => c.kind === kind)!;
+            assert.equal(rows.length, witness.frames.length);
+            for (let start = 0; start < rows.length; start += 4) {
+              const counted = JSON.parse(
+                gunzipSync(
+                  await readFile(`${out}/${kind}-count-frames-${start}.json.gz`),
+                ).toString(),
+              ) as NativeRow[];
+              assert.equal(counted.length, Math.min(4, rows.length - start));
+              for (const [offset, expected] of counted.entries()) {
+                const index = start + offset;
+                const row = rows[index];
+                assert.deepEqual(
+                  [
+                    row.from,
+                    row.to,
+                    row.ticks,
+                    row.sample,
+                    row.hit,
+                    row.outlined,
+                    row.passes.length,
+                  ],
+                  [
+                    expected.from,
+                    expected.to,
+                    expected.ticks,
+                    expected.sample,
+                    expected.hit,
+                    expected.outlined,
+                    expected.passes.length,
+                  ],
+                  `count/time geometry, ray, cue or pass mismatch for ${kind} row ${index}`,
+                );
+                if (kind !== 'idle') {
+                  const list = JSON.parse(
+                    gunzipSync(
+                      await readFile(`${out}/${kind}-count-list-${index}.json.gz`),
+                    ).toString(),
+                  );
+                  assert.deepEqual(replay.lists[index]?.ids, list);
+                  const work = JSON.parse(
+                    gunzipSync(
+                      await readFile(`${out}/${kind}-count-work-${index}.json.gz`),
+                    ).toString(),
+                  ) as ReplayWork;
+                  assertReplayWork(index, row.passes.length, work, replay.counts[index]);
+                }
+              }
             }
-            visits.push(visitFrom(kind, rows, replay, witness));
+            return visitFrom(kind, rows, replay, witness);
           },
         );
+        visits.push(visit);
+        nativeVisits++;
       }
     {
       stage = 'decision';
@@ -602,23 +721,185 @@ async function softwareSmoke() {
   await save('writer-ledger', writerReport);
   await save('fixture-hits', hits);
   assert.ok(writerReport.cases.every((c) => c.msPerFrame === null));
+  stage = 'software live capture';
+  await buildDiagnostic(resolve(out, 'bundle'));
+  const { server, url } = await serve(`${out}/bundle`);
+  let browser: Browser | undefined;
+  try {
+    browser = await chromium.launch({
+      channel: 'chromium',
+      headless: true,
+      args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+    });
+    const window: [number, number] = [8, 23];
+    const targets = await withVisit(
+      browser,
+      url,
+      'software-preflight',
+      {
+        kind: 'preflight',
+        mode: 'time',
+        smoke: true,
+        window,
+        runId,
+      },
+      async (page) => {
+        const targets = await page.evaluate(
+          (key) => (globalThis as unknown as Record<string, Bridge>)[key].resolve(),
+          getBridge,
+        );
+        await softwareVolume(page);
+        return targets;
+      },
+    );
+    assert.ok(targets.shrine && targets.floor?.kind === 'floor');
+    for (const kind of ['idle', 'shrine', 'floor'] as const) {
+      const label = `software-${kind}-count`;
+      await withVisit(
+        browser,
+        url,
+        label,
+        {
+          kind,
+          point: kind === 'idle' ? undefined : targets[kind]!.point,
+          mode: 'count',
+          smoke: true,
+          window,
+          runId,
+          writerVisit: `${runId}:${label}`,
+        },
+        async (page, captured, writers) => {
+          const status = await page.evaluate(
+            (key) => (globalThis as unknown as Record<string, Bridge>)[key].status(),
+            getBridge,
+          );
+          await save(`${label}-producer`, status);
+          assert.ifError(status.fail ? new Error(status.fail) : null);
+          assert.ok(writers?.status().sealed && captured);
+          assert.match(captured.header.ready?.renderer ?? '', /SwiftShader/i);
+          assert.equal(captured.header.input, kind === 'idle' ? 0 : 1);
+          assert.equal(validateWindow(captured.rows, window), null);
+          const writer = streamWriterReplay(writers.header());
+          const replay = await page.evaluate(
+            (key) => (globalThis as unknown as Record<string, Bridge>)[key].replay(false),
+            getBridge,
+          );
+          await archive(`${label}-native-replay`, replay);
+          assert.ok(replay.parity);
+          let frames = 0;
+          for await (const { frame } of writers.frames()) {
+            const native: NativeRow = captured.rows[frames];
+            assert.deepEqual([frame.from, frame.to], [native.from, native.to]);
+            const evidence = writer.frame(frame);
+            await archive(`${label}-writer-${frames}`, evidence);
+            if (kind !== 'idle') assert.deepEqual(evidence.query?.ids, replay.lists[frames]?.ids);
+            frames++;
+          }
+          assert.equal(frames, captured.rows.length);
+          const gaps = writer.gaps();
+          await save(`${label}-gaps`, gaps);
+          assert.ok(!gaps.length, gaps[0]);
+          const scratch = await scratchFrom(page, writers, {
+            start: 0,
+            length: frames,
+            group: 'publish',
+            active: true,
+            repeats: 1,
+            pad: 0,
+          });
+          assert.deepEqual(
+            [scratch.result?.units, scratch.result?.ms],
+            [writers.status().seq, null],
+          );
+          await save(`${label}-scratch`, scratch);
+        },
+      );
+    }
+  } finally {
+    await browser?.close();
+    server.close();
+  }
   stage = 'smoke complete';
   run = transition(run, {
     type: 'invalid',
     reason:
-      'NullEngine fixture passed; software and absent timing inputs cannot authorize feasibility',
+      'NullEngine and live SwiftShader transport passed; software cannot authorize feasibility',
   }).state;
+}
+
+async function softwareVolume(page: Page) {
+  stage = 'software transport volume';
+  let sink: WriterArchive | undefined;
+  await page.exposeBinding('__cursorVolumePage', ({ frame }, packet) => {
+    if (frame !== page.mainFrame() || !sink) throw new Error('unexpected synthetic writer source');
+    return sink.receive(packet);
+  });
+  for (const frames of [60, 120]) {
+    const visit = `${runId}:volume-${frames}`;
+    sink = await openWriterArchive(`${out}/volume-${frames}`, visit, [180, 179 + 5 * frames]);
+    try {
+      const producer = await page.evaluate(
+        ([key, visit, frames]) =>
+          (window as unknown as Record<string, Bridge>)[key].volume(visit, frames),
+        [getBridge, visit, frames] as const,
+      );
+      await save(`volume-${frames}-producer`, producer);
+      assert.equal(
+        producer.kind,
+        'sealed',
+        producer.kind === 'failed' ? producer.reason : undefined,
+      );
+      assert.ok(producer.beforeEnd > 0, 'no persisted ACK before producer ended');
+      assert.ok(producer.peakPageBytes <= 3 * pageBytes && producer.peakPending <= 2);
+      assert.equal(producer.writes, frames * volumeWrites);
+      assert.ok(producer.logicalScalars > 130_000_000);
+      let i = 0;
+      for await (const { frame, header } of sink.frames()) {
+        assert.equal(header.seed.length, volumeMeshes);
+        assert.equal(frame.writes.length, volumeWrites);
+        assert.equal(frame.checks.length, 7);
+        assert.deepEqual([frame.frame, frame.from, frame.to], [i, 179 + 5 * i, 184 + 5 * i]);
+        assert.ok(
+          frame.writes.some((w) => w.before !== w.after),
+          'volume frame contains only unchanged references',
+        );
+        const expected = Array.from({ length: volumeChanging }, (_, id) => volumeOperand(id, i));
+        for (const check of frame.checks) {
+          assert.equal(check.scene.length, volumeMeshes);
+          assert.deepEqual(check.scene.slice(0, volumeChanging), expected);
+          assert.ok(
+            check.scene
+              .slice(volumeChanging)
+              .every((o, j) => o === header.seed[j + volumeChanging]),
+          );
+        }
+        for (const [j, w] of frame.writes.entries()) {
+          assert.equal(w.seq, i * volumeWrites + j);
+          assert.equal(w.id, j % volumeMeshes);
+          if (j < volumeChanging) {
+            assert.equal(w.kind, volumeKind(j));
+            assert.deepEqual(w.before, volumeOperand(j, i - 1));
+            assert.deepEqual(w.after, expected[j]);
+          } else {
+            assert.equal(w.kind, 'check');
+            assert.equal(w.before, w.after);
+            if (w.id >= volumeChanging) assert.equal(w.after, header.seed[w.id]);
+          }
+        }
+        i++;
+      }
+      assert.equal(i, frames);
+    } finally {
+      await save(`volume-${frames}-sink`, sink.status());
+    }
+  }
 }
 
 if (arg === '--scaling') await captureScaling();
 else {
   try {
     if (smoke) await softwareSmoke();
-    else {
-      stage = 'offline collector hold';
-      admitHardwareCollector();
-      await collect();
-    }
+    else await collect();
   } catch (error) {
     run = transition(run, {
       type: /context lost|device lost/i.test(String(error)) ? 'fault' : 'invalid',

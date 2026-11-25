@@ -4,10 +4,164 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine.js';
 import { Scene } from '@babylonjs/core/scene.js';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder.js';
-import { captureWriters } from './cursor-attribution-writers.ts';
+import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera.js';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
+import { Ray } from '@babylonjs/core/Culling/ray.js';
+import { cachedBounds, captureWriters, writerDiagnostic } from './cursor-attribution-writers.ts';
+import { pose } from './cursor-attribution-probe.ts';
 import { oversizedWriterTrace, writerFixture } from './cursor-attribution-fixture.ts';
-import { reconcileWriters, measurePublications } from './cursor-publication-replay.ts';
+import {
+  reconcileWriters,
+  measurePublications,
+  scratchPass,
+  scratchSchedule,
+} from './cursor-publication-replay.ts';
 import { validateWriterReport } from './cursor-writer-evidence.ts';
+
+test('scratch restarts prefix, repeats whole blocks, and charges equal active/control demand', async () => {
+  const trace = writerFixture().traces[0];
+  const [template] = trace.frames;
+  const demand = { publish: template.writes.length, query: 1 };
+  const invocations: [number, number, string, boolean][] = [];
+  const report = await scratchSchedule(
+    7,
+    async ({ start, length, group, active, repeats, pad }) => {
+      invocations.push([start, length, group, active]);
+      return { units: demand[group] * length * repeats, ms: pad + 1, consumed: 1 };
+    },
+    5,
+  );
+  assert.equal(report.batches.length, 2);
+  assert.deepEqual(report.blocks, [
+    { start: 0, length: 5, repeats: 1, pad: 0 },
+    { start: 5, length: 2, repeats: 2, pad: 1 },
+  ]);
+  assert.deepEqual(
+    invocations.slice(0, 16).map(([, , group, active]) => [group, active]),
+    [
+      ['publish', true],
+      ['publish', false],
+      ['query', true],
+      ['query', false],
+      ['publish', true],
+      ['publish', false],
+      ['query', true],
+      ['query', false],
+      ['publish', false],
+      ['publish', true],
+      ['query', false],
+      ['query', true],
+      ['publish', true],
+      ['publish', false],
+      ['query', true],
+      ['query', false],
+    ],
+  );
+  assert.equal(report.batches[1][2].publish.active.units, demand.publish * 4);
+
+  for (const group of ['publish', 'query'] as const)
+    for (const active of [true, false]) {
+      let calls = 0;
+      const pass = scratchPass(
+        trace,
+        { start: 0, length: 1, group, active, repeats: 1, pad: 4 },
+        () => ++calls,
+      );
+      pass.frame(template);
+      assert.equal(pass.result().units, demand[group]);
+      assert.equal(calls, 2);
+    }
+});
+
+test('seed, authored write, native sample and checkpoint leave a same-render cached child unchanged', () => {
+  function run(record: boolean) {
+    const engine = new NullEngine();
+    try {
+      const scene = new Scene(engine);
+      const root = new TransformNode('moving parent', scene);
+      const branch = new TransformNode('nested parent', scene);
+      branch.parent = root;
+      const child = CreateBox('native child', {}, scene);
+      child.parent = branch;
+      child.computeWorldMatrix(true);
+      child.getBoundingInfo();
+      const recorder =
+        record &&
+        captureWriters(scene, {
+          runId: 'neutral',
+          kind: 'idle',
+          provenance: 'software',
+        });
+      if (recorder) recorder.begin(0, 0);
+      writerDiagnostic('pose', root, () => {
+        root.position.x = 9;
+      });
+      if (record) pose(child);
+      if (recorder) recorder.checkpoint();
+      const cached = child.computeWorldMatrix().m[12];
+      const dirty = child.position._isDirty;
+      scene.incrementRenderId();
+      const natural = child.computeWorldMatrix().m[12];
+      if (recorder) recorder.close();
+      return { cached, dirty, natural };
+    } finally {
+      engine.dispose();
+    }
+  }
+  const control = run(false);
+  assert.equal(control.cached, 0);
+  assert.deepEqual(run(true), control);
+});
+
+test('a dirty lazy box is indexed from its published matrix, not swept from the origin', () => {
+  const engine = new NullEngine();
+  try {
+    const scene = new Scene(engine);
+    const mesh = CreateBox('collision proxy', {}, scene);
+    mesh.isVisible = mesh.isPickable = false;
+    mesh.getBoundingInfo();
+    mesh.position.set(-50, 0, 28);
+    mesh.computeWorldMatrix(true);
+    const capture = captureWriters(scene, {
+      runId: 'dirty-box',
+      kind: 'idle',
+      provenance: 'software',
+    });
+    capture.begin(0, 0);
+    assert.deepEqual(capture.trace.seed[0].world, [-0.5, -0.5, -0.5, 0.5, 0.5, 0.5]);
+    assert.deepEqual(pose(mesh).bounds, [-50.5, 27.5, -49.5, 28.5]);
+    assert.equal(cachedBounds(mesh).dirty, true);
+    capture.phase('fixed', 1);
+    writerDiagnostic('physics', mesh, () => {
+      mesh.position.x -= 0.25;
+    });
+    // A lazy read publishes the old matrix's bounds, not the new authored pose.
+    mesh.getBoundingInfo();
+    mesh.computeWorldMatrix(true);
+    capture.checkpoint();
+    capture.phase('presentation', 1);
+    capture.checkpoint();
+    capture.phase('render', 1);
+    mesh.getBoundingInfo();
+    capture.checkpoint();
+    capture.end(1);
+    capture.close();
+    const {
+      frames: [frame],
+      gaps,
+    } = reconcileWriters(capture.trace);
+    assert.deepEqual(gaps, []);
+    const [move, lazy] = frame.writes;
+    assert.deepEqual(move.bounds, [-50.75, 27.5, -49.75, 28.5]);
+    assert.deepEqual(
+      [move.old, move.next, move.crossed],
+      [['-13:6', '-13:7'], ['-13:6', '-13:7'], []],
+    );
+    assert.deepEqual(lazy.bounds, move.bounds);
+  } finally {
+    engine.dispose();
+  }
+});
 
 test('ancestor effective-enable transitions publish even when undone before the next checkpoint', () => {
   const engine = new NullEngine();
@@ -30,6 +184,8 @@ test('ancestor effective-enable transitions publish even when undone before the 
     root.setEnabled(false);
     root.setEnabled(false);
     root.setEnabled(true);
+    capture.checkpoint();
+    capture.phase('presentation', 1);
     capture.checkpoint();
     capture.phase('render', 1);
     capture.checkpoint();
@@ -81,7 +237,7 @@ test('actual Babylon publications replay in order even when an idle frame undoes
   );
   assert.deepEqual(
     frame.writes.find((w) => w.id === ids.child && w.kind === 'reparent')?.bounds,
-    [6, 1, 8, 3],
+    [4, -1, 6, 1], // the newly published matrix, before the lazy bounds cache refresh
   );
   assert.deepEqual(
     frame.writes
@@ -218,4 +374,175 @@ test('malformed raw writer operands cannot reach scratch geometry', () => {
     corrupt(trace);
     assert.match(reconcileWriters(trace).gaps.join(), /malformed/);
   }
+});
+
+test('an authored out-and-back is priced from both detached endpoints, not cached no-ops', () => {
+  const engine = new NullEngine();
+  try {
+    const scene = new Scene(engine);
+    const parent = new TransformNode('parent', scene);
+    const child = CreateBox('child', {}, scene);
+    child.parent = parent;
+    child.computeWorldMatrix(true);
+    const capture = captureWriters(scene, {
+      runId: 'cached',
+      provenance: 'software',
+      kind: 'idle',
+    });
+    capture.begin(0, 0);
+    capture.phase('fixed', 1);
+    for (const x of [10, 0, 262, 0])
+      writerDiagnostic('door', parent, () => {
+        parent.position.x = x;
+      });
+    capture.checkpoint();
+    capture.phase('presentation', 1);
+    capture.checkpoint();
+    capture.phase('render', 1);
+    capture.checkpoint();
+    capture.end(1);
+    capture.close();
+    const {
+      frames: [frame],
+      gaps,
+    } = reconcileWriters(capture.trace);
+    assert.deepEqual(
+      frame.writes.slice(0, 2).map((w) => w.bounds),
+      [
+        [9.5, -0.5, 10.5, 0.5],
+        [-0.5, -0.5, 0.5, 0.5],
+      ],
+    );
+    assert.ok(frame.writes.slice(0, 2).every((w) => w.crossed?.length === 2));
+    assert.equal(frame.demand.publish, null);
+    assert.equal(gaps.length, 2);
+    assert.ok(
+      frame.writes
+        .slice(2)
+        .every(
+          (w) =>
+            w.sweepGap === 'sweep exceeds 64-cell limit' && w.diff === null && w.crossed === null,
+        ),
+    );
+    assert.equal(child.worldMatrixFromCache.m[12], 0);
+  } finally {
+    engine.dispose();
+  }
+});
+
+test('an ordinary natural publication cannot stand in for a missing authored site', () => {
+  const trace = oversizedWriterTrace('omitted');
+  const frame = trace.frames[0];
+  // Keep all actual native cache evidence and cursor boundaries, but remove the source provenance.
+  frame.writes[0].kind = 'world';
+  const result = reconcileWriters(trace);
+  assert.match(result.gaps.join(), /missing source.*long move.*authored/);
+});
+
+test('a valid native scene and sequence do not excuse a missing, duplicate or wrong-phase seam', () => {
+  for (const corrupt of [
+    (trace: ReturnType<typeof writerFixture>['traces'][number]) => {
+      trace.frames[0].checks.splice(-2, 1);
+    },
+    (trace: ReturnType<typeof writerFixture>['traces'][number]) => {
+      trace.frames[0].checks.push(trace.frames[0].checks.at(-1)!);
+    },
+    (trace: ReturnType<typeof writerFixture>['traces'][number]) => {
+      trace.frames[0].checks.at(-1)!.tick--;
+    },
+    (trace: ReturnType<typeof writerFixture>['traces'][number]) => {
+      const frame = trace.frames[0];
+      const late = frame.writes[frame.checks[1].at - 1];
+      assert.equal(late.phase, 'fixed');
+      assert.equal(late.kind, 'dispose');
+      // Use the scene from before the disposal so the fixed snapshot itself still matches.
+      const fixed = frame.checks[1];
+      fixed.at--;
+      fixed.scene.push(late.before!);
+    },
+  ]) {
+    const idle = writerFixture().traces[2];
+    corrupt(idle);
+    assert.match(reconcileWriters(idle).gaps.join(), /checkpoint/);
+  }
+  const [shrine] = writerFixture().traces;
+  shrine.frames[0].checks.find((c) => c.phase === 'pick')!.scene.reverse();
+  assert.match(reconcileWriters(shrine).gaps.join(), /scene order/);
+});
+
+test('moving-camera billboard lineage preserves native caches, matrix, and hit in all observation modes', () => {
+  function run(mode: 'none' | 'sample' | 'full') {
+    const engine = new NullEngine();
+    try {
+      const scene = new Scene(engine);
+      const camera = new FreeCamera('camera', new Vector3(0, 0, -12), scene);
+      camera.setTarget(Vector3.Zero());
+      scene.activeCamera = camera;
+      const parent = new TransformNode('billboard', scene);
+      parent.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+      const branch = new TransformNode('billboard branch', scene);
+      branch.parent = parent;
+      const child = CreateBox('billboard child', { width: 3, depth: 0.2 }, scene);
+      child.parent = branch;
+      const initial = Array.from(child.computeWorldMatrix(true).m);
+      child.getBoundingInfo();
+      const capture =
+        mode === 'full'
+          ? captureWriters(scene, {
+              runId: 'billboard',
+              provenance: 'software',
+              kind: 'idle',
+            })
+          : null;
+      capture?.begin(0, 0);
+      camera.position.set(10, 4, -6);
+      camera.setTarget(Vector3.Zero());
+      capture?.phase('fixed', 1);
+      writerDiagnostic('pose', parent, () => {
+        parent.position.y = 0.75;
+      });
+      const state = () => ({
+        world: Array.from(child.worldMatrixFromCache.m),
+        matrixVersion: child.worldMatrixFromCache.updateFlag,
+        renderId: child._currentRenderId,
+        childDirty: child.position._isDirty,
+        parentDirty: parent.position._isDirty,
+        boundsDirty: cachedBounds(child).dirty,
+        bounds: cachedBounds(child).info!.boundingBox.minimumWorld.asArray(),
+      });
+      const before = state();
+      if (mode !== 'none') assert.equal(pose(child).bounds, null);
+      capture?.checkpoint();
+      capture?.phase('presentation', 1);
+      capture?.checkpoint();
+      assert.deepEqual(state(), before);
+      assert.deepEqual(before.world, initial);
+      capture?.phase('render', 1);
+      scene.incrementRenderId();
+      camera.getViewMatrix();
+      const world = Array.from(child.computeWorldMatrix(true).m);
+      const ray = new Ray(
+        camera.position.clone(),
+        new Vector3(0, 0.75, 0).subtract(camera.position).normalize(),
+        30,
+      );
+      const hit = scene.pickWithRay(ray);
+      assert.ok(hit?.hit && hit.pickedMesh === child);
+      capture?.checkpoint();
+      capture?.end(1);
+      if (capture) {
+        assert.ok(capture.trace.seed[0].input.fallback);
+        assert.deepEqual(reconcileWriters(capture.trace).gaps, []);
+        capture.close();
+      }
+      assert.notDeepEqual(world.slice(0, 12), initial.slice(0, 12));
+      const { matrixVersion: _version, ...native } = state();
+      return { state: native, world, distance: hit.distance, point: hit.pickedPoint!.asArray() };
+    } finally {
+      engine.dispose();
+    }
+  }
+  const unobserved = run('none');
+  assert.deepEqual(run('sample'), unobserved);
+  assert.deepEqual(run('full'), unobserved);
 });
