@@ -1,5 +1,118 @@
 # Verification — The Hollow Crown
 
+## Story 16.1 — review follow-up: measurement tooling only
+
+**Hardware evidence is pending.** The runner cannot issue either feasibility verdict with the
+current writer measurements. This does not open 16.2 or establish a speedup.
+
+Run from the repository root with lockfile-installed dependencies, Playwright Chromium and, for
+browser capture, the Git object for baseline `3a357535b5e350c8a5ce37483b84d39d22dd9512`:
+
+```sh
+node tests/cursor-attribution.ts --smoke  # correctness only, software allowed
+node tests/cursor-attribution.ts           # diagnostic capture on a working matched desktop
+node tests/cursor-attribution.ts --scaling # reproduce and validate the timed NullEngine reference
+```
+
+Each invocation prints a new directory under `test-results/epic16/`; artifact writes are
+exclusive. No data files or coordinates need to be prepared by hand. The default command uses
+the actual minified game with a diagnostic-only Vite transform, fresh navigations at the pinned
+seed, and a verified ready-state handshake. It does not change files in `src/` or install a live
+tile query. With the device available it schedules at most three shrine, one floor, and one idle
+timing visit, plus one count visit per condition. It stops at the first invalid visit; no automatic
+replacement. Exit 2 means pending or stopped, not a negative result. Exit 0 from `--smoke` means
+only the assertions passed. The scaling reference verifies the frozen AB/BA/AB order, 240 alternating
+writes and known hits per visit, exact-entry and other work counts, and actual elapsed-time records
+(cold build, mean, p95). Both capture and standalone scaling use the same validator and monotonic
+clock. Timings are diagnostics, not CI performance thresholds or GPU measurements.
+
+The production input bytes and names are checked against baseline Git blobs before and after the
+diagnostic build, including the source tree, HTML, dependency manifests and build configs. An added
+or ignored file in those roots, drift, removal or symlink fails the pin. The pinned baseline has no
+`public/` assets; public copying, Vite config, `.env` loading and external PostCSS config discovery
+are disabled for this build. The diagnostic builder uses inline PostCSS options with no plugins. The
+tool may be at a different HEAD: `provenance.json` records the pinned commit and tree, per-input
+blob IDs and SHA-256 hashes, and separate tool HEAD and file hashes. The transformed sources and
+bundle hashes are also saved. The pin does not attest `node_modules` contents independently of the
+lockfile or isolate the build from concurrent checkout changes; install from the lockfile and don't
+edit inputs during capture.
+
+The replay takes conservative 4-unit XZ tile memberships offline, preserves scene order and
+retains all thin batches and uncertain/oversized bounds. Exhaustive and local arms call the same
+Babylon kernel after restoring the sampled world matrices and thin data. Count wrappers are removed
+before timing. Both arms retain proxy synchronization; any unverified proxy savings are not credited.
+Credit also requires separate removed-pass versus empty-pass replay and calibration within 10%; a
+calibration miss is inconclusive. The pure policy also requires calibrated hit-parity replay for
+floor and shrine, and a positive finite rate in each of three batches for every operation with
+nonzero demand, including idle upkeep. The runner does not substitute zero for missing scratch rates.
+
+**Writer limit:** fixed-tick, presentation and render snapshots support provisional demand counts,
+not proof of every writer. Scratch “bounds” tiles already-computed AABBs; “traverse” probes an empty
+map. Other scratch costs lack validation against live membership, invalidation, allocation and
+cleanup, including thin instances and lifecycle changes. `writer-coverage.json` records these
+gaps as `unmeasured`; even favorable timings and rates leave the pure policy **stopped/inconclusive**.
+Cold bytes describe serialized size, not JS heap. The short smoke does not validate long-window
+capture overhead, replay calibration, asynchronous GPU timing or coverage of all live changes.
+
+- **Correctness smoke:** `test-results/epic16/smoke-0rXOLC/` completed three count and three
+  replay-flow windows at native ticks 5–10 with SwiftShader. It resolved the out-of-reach restore
+  shrine and clear floor, validated one move per pointer visit and none for idle, and verified hit
+  parity and count reconciliation. Browser timing fields were deliberately null and could not
+  form a timed visit. The writer coverage flag stayed `unmeasured`.
+- **Scaling:** `test-results/epic16/scaling-50rKeI/scaling.json` passed the frozen validator;
+  SHA-256 `ca7fb6632fb6ba3cd965dcb0a7f077a21647216f13a2d89b1d98602d7a862578`.
+- **Hardware entry:** `test-results/epic16/hardware-b0M6mU/` verified the input pin and returned
+  **pending**, zero visits and no headed browser launch. `nvidia-smi` exited 6, reporting no devices
+  after an unknown device-handle error. No device intervention or software benchmark fallback.
+- **Legacy browser check:** the review rerun of unchanged `npm run test:epic14` on an isolated Vite
+  server timed out waiting for `#loading.done` at `tests/epic14-browser.ts:55`
+  (`test-results/epic16/review-checks.JeQ518/epic14.log`). It did not reach the earlier floor-position
+  failure at line 216, previously reproduced after two reach/door passes with
+  `[4.403273532430314,0,-4.043220904169321]` versus `abs(x - 5) < 0.08`
+  (`test-results/epic16/epic14-isolated.oKhxLP`). Neither run loaded the diagnostic bundle.
+  Causes not established; no production or legacy fixture changes.
+- **TDD:** decision regressions reproduced false positives for missing floor replay, zero rates
+  with observed demand, and unsupported writer coverage. The scaling and input-pin tests first
+  failed for missing validators. `node --test tests/cursor-*.test.ts` then passed 15/15, covering
+  matched-but-wrong hits/writes, work/order/length and invalid timing, input drift, missing/extra
+  inputs and symlinks, calibration and the decision negatives. `npm test` passed 626/626;
+  `npm run check:full` passed 646/646 plus typecheck, lint and format; `npm run build` and
+  `npm run test:production` passed. Logs: `test-results/epic16/review-checks.JeQ518/`.
+
+Exact isolated legacy command (the subprocess receives only the owned Vite URL):
+
+```sh
+env -u EPIC14_PART -u DEMO_URL node --input-type=module -e 'import {withViteServer} from "./tests/testServer.ts"; import {spawnSync} from "node:child_process"; const url="http://127.0.0.1:5192"; await withViteServer(url,"dev",()=>{const r=spawnSync("npm",["run","test:epic14"],{env:{...process.env,DEMO_URL:url},stdio:"inherit",timeout:300000}); process.exitCode=r.status??1;});'
+```
+
+**Checkpoint corrections:** The isolated diagnostic build regression first failed when Vite loaded
+a throwing `postcss.config.cjs` from the temporary project. With inline PostCSS options, the same
+build ignores the sentinel and emits CSS. A JSON report with `pairs: [null, null, null]` first threw
+in the scaling validator; it now stops with `report` and `stop` effects. The focused suite passed
+17/17, `npm test` passed 628/628, `npm run check:full` passed 648/648 plus typecheck, lint and format,
+and `npm run build` passed. The two `--smoke` reruns (`smoke-0b7WA5`, `smoke-hsI8oN`) built the
+diagnostic bundle but stopped at the 45 s preflight navigation timeout with zero visits. The retry's
+bundle was byte-identical to the earlier passing `smoke-0rXOLC` bundle (`diff -qr`). A separate
+read-only Astra 6.2 review found no blockers in the two corrections; it did not rerun checks or
+approve browser or hardware evidence.
+
+**Nested scaling validation follow-up:** The new completion regressions first reproduced both a
+`TypeError` on a null final visit/sample and a `positive` result on exposed-hit distances encoded
+as a numeric string or singleton array. The serialized reference passed before and after. The
+validator now checks the exact recipe dimensions and required fields before using them; malformed
+scaling stops with a scaling-specific reason and exactly `['report', 'stop']`. Direct checks also
+reject positive mean/p95 values that disagree with the validated samples.
+
+The cursor suite passed 198/198, `npm run check` passed 809/809, and `npm run check:full` passed
+829/829; both gates included typecheck, lint, and formatting. The production build passed with a
+Vite chunk-size warning. An independent read-only Astra 6.2 review reran the cursor suite and
+approved this follow-up after verifying the lazy fixture and summary regressions. No browser or
+hardware capture was run for this follow-up.
+
+No hardware feasibility decision is recorded. See the
+[initial stop record](docs/epic14-startup-fps.md#story-161-reference-and-hardware-stop-2026-11-25)
+for the earlier subset and host fault context.
+
 ## Cursor query trial — not retained
 
 Independent approval covers the negative trial record only. The candidate was not approved for

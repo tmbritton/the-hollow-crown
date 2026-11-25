@@ -155,3 +155,115 @@ Scratch candidate checkout: `/tmp/opencode/cursor-query.SRNpXI/B`. Raw captures:
 - `npm run typecheck`, `npm run lint`, `npm run format:check`, and `npm test` passed (**618 tests**). A combined command was cut off by a 120 s tool timeout during the extended run; `npm run check:full` finished on retry (**638 tests**, lint and format green, `check-full.log`).
 - The unmodified Epic 14 controls test failed on clean A because it clicked source pixels under the Tuned lens (`browser-clean-baseline.log`). B's browser fixture projects into displayed CSS coordinates with the existing lens mapping; the corrected controls fixture passed on A (`browser-fixture-baseline.log`). It also checks that disabling the previewed practice foe before down, with no intervening frame, prevents stale pursuit. This is a reference characterization, not a feature-specific red test.
 - Serial browser/build gates on the exact B source: `DEMO_URL=http://localhost:5181 npm run test:epic14`, `npm run build`, and `npm run test:production` all exited **0** (`gates-status.log`, `browser-retry.log`, `build.log`, `production.log`). Earlier browser attempts ended at debug-hook initialization and at the tool's 120 s deadline, respectively; the unchanged candidate completed on the final uninterrupted run. Browser fixtures exercised practice and dungeon interactions and the pose matrix; they are not exhaustive proof of every live geometry writer. If revisiting this candidate, scrutinize the thin-instance fallback, the coverage of nested/reparented and frozen transforms and owner changes, and missing dedicated browser cases for an intervening *different valid* owner before down. No independent delivery sign-off is claimed.
+
+## Story 16.1 reference and hardware stop (2026-11-25)
+
+**Disposition: pending — no working matched hardware before start.** This is a separate
+investigation under [Story 16.1](plan/epic-16/story-1.md) on `main`,
+`3a357535b5e350c8a5ce37483b84d39d22dd9512`. It neither establishes negative feasibility
+nor authorizes 16.2. No index, production probes, or gameplay changes were made.
+
+At `2026-11-25T14:12:43.229Z`, normal-user preflight on the Ryzen 5 2600X host
+(`7.2.9-ogc3.1.fc44.x86_64`) ran `nvidia-smi --query-gpu=name,pci.bus_id,driver_version --format=csv`.
+It exited **6**: `Unable to determine the device handle for GPU0: 0000:09:00.0: Unknown Error`,
+`No devices were found`. The capture script exited **2** at the host gate, before launching
+headed Chromium or building a diagnostic bundle. No reset, replacement visit, software benchmark,
+or recovery attempt. This reports the device state observed, not its cause. There are **0/5** native
+timing visits and no count visits, synchronized replay, writer rates, calibration, scratch batches,
+or `(P,R,U,S,Q)` rows. All are unmeasured, not zero. No independent hardware or delivery verdict.
+
+### Scaling reference, not a feasibility measurement
+
+Replay: [fixture and ordered construction](../tests/cursor-reference.ts),
+[known hits and exact work assertions](../tests/cursor-reference.test.ts).
+Babylon `9.37.0` NullEngine, ray `(0,1,0) + t(1,0,0)`. Every measured visit follows
+60 warm-ups with 240 samples and one door write each, alternating `z=4` (shrine batch,
+instance `1`, distance `5.5`) and `z=0` (floor, opaque door, distance `2.5`). Each remote
+room is offset by `64*i` in Z and adds four walls, one owned prop, one proxy, and an
+eight-instance batch. Full ordered write/hit/work samples for AB/BA/AB are in `scaling.json`.
+
+| Per query | A: local | B: +10 remote rooms |
+| --- | ---: | ---: |
+| Scene-mesh visits across enemy/object/cover | 18 | 228 |
+| Forced proxy matrices | 1 | 11 |
+| Admitted mesh / instance predicates | 8 / 6 | 88 / 6 |
+| Exact-entry mesh / instance calls | 6 / 2 | 76 / 2 |
+| Thin batch bounds-only calls | 2 | 12 |
+| Mesh misses (exposed / blocked) | 3 / 2 | 73 / 72 |
+
+The exact-entry counts are calls to Babylon `intersects`, including misses, not successful triangle
+hits or per-triangle work. Six instance admissions become two exact entries; zero of the two
+entries miss in this fixture. Cold owner-map build is separate. Timings below are instrumented
+Node diagnostic values (ms), not FPS or removable time.
+
+| Pair / order | A build / mean / p95 | B build / mean / p95 |
+| --- | ---: | ---: |
+| 1 / AB | 0.1395 / 0.0513 / 0.0804 | 0.0287 / 0.1038 / 0.1413 |
+| 2 / BA | 0.0090 / 0.0198 / 0.0265 | 0.0287 / 0.0783 / 0.1134 |
+| 3 / AB | 0.0104 / 0.0332 / 0.0366 | 0.0237 / 0.0580 / 0.0656 |
+
+In a separate **correctness-only** Chromium SwiftShader visit to the current dev path,
+the exhaustive oracle matched 317 lens-adjusted picks (58 object, 259 floor), including
+`prop:shrine-entrance-0` at `(1490,740)`. The dev-only Playwright response bridge calls the
+unmodified `pointerRay`/`pickPointer` and captures their winning surface, instance and distance;
+the oracle independently enumerates the scene. Enemy tie behavior is covered by the NullEngine
+fixture, not by these browser pixels. The browser pixel is not a hardware preflight result.
+
+### Reproduction and check record
+
+From the repo root, with Node `v26.0.0`, npm `11.12.1`, the pinned dependencies and Playwright
+Chromium installed. Run rendering jobs serially. Logs and raw rows are ignored under
+`test-results/epic16/`. Keep existing artifacts under a distinct name before recapturing.
+
+```sh
+mkdir -p test-results/epic16
+# The same focused command was first run with only the test files present (red.log).
+node --test tests/cursor-reference.test.ts tests/cursor-evidence.test.ts
+node tests/cursor-attribution.ts --scaling
+node tests/cursor-attribution.ts
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
+npm run check:full
+npm run build
+DEMO_URL=http://127.0.0.1:5188 npm run test:production
+node tests/cursor-reference-browser.ts
+node --input-type=module -e 'import { withViteServer } from "./tests/testServer.ts"; import { spawnSync } from "node:child_process"; const url="http://127.0.0.1:5189"; await withViteServer(url,"dev",()=>{const child=spawnSync("npm",["run","test:epic14"],{env:{...process.env,DEMO_URL:url},stdio:"inherit",timeout:300000}); process.exitCode=child.status??1;});'
+```
+
+| Check | Outcome |
+| --- | --- |
+| Focused red → green | Both test files failed to import the missing contracts; after implementation and fixture corrections, 6 passed (`red.log`, `green.log`). |
+| `npm run typecheck`, `npm run lint`, `npm run format:check` | Exit 0, including after the browser bridge import adjustment. |
+| `npm test`, `npm run check:full` | Exit 0: 617 and 637 passes, respectively; full also ran lint and format. |
+| `npm run build` | Exit 0. |
+| `npm run test:production` | First invocation interrupted during the generation-failure navigation under the combined tool deadline; uninterrupted retry on port 5188 exited 0 (`test-production-retry.log`). |
+| Browser reference parity | Initial lazy-import run triggered a dev navigation; static bridge import passed 317/317 (`browser-parity.log`). |
+| `npm run test:epic14` | **Exit 1** at `tests/epic14-browser.ts:216`, after two reach/door passes: projected floor click expected X within `0.08` of `5`, observed `[4.403283720985917,0,-4.043303520686902]`. The suite does not import the 16.1 diagnostics. Cause not established here; stopped without changing the legacy test or gameplay (`test-epic14.log`). |
+| Matched hardware | **Not run** past preflight; pending as above. |
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `package-lock.json` | `a32adb7ea1df998bb678a544d52a551ac9bbd06a7bcc6655651286c57f901b3f` |
+| `preflight.json` | `90e43fe78ffd594f1d75d30bd9f075edd4e52ddbaffefe919a0263f71f2fdec6` |
+| `scaling.json` | `8fe630bef619a54588421debe47deeb937afa7eb7cf68d809663f5795cfaf049` |
+| `browser-parity.json` | `cf2607a5a92fd69d46f44648f81d98a698500c817d85e7d56add1f0c615d0c46` |
+
+### Current restart boundary
+
+The [review follow-up](../VERIFICATION.md#story-161--review-follow-up-measurement-tooling-only)
+supersedes the initial missing-adapter stop: it adds a pinned diagnostic build, game preflight,
+count and replay capture, and a shared validator for the timed scaling reference. Software smoke
+verifies the short capture path only. The matched RTX 2070 is still unavailable; no hardware
+visit or calibration was collected.
+
+Before a feasibility verdict, establish conservative recurring costs from observable writer work
+and populated query traversal on matched hardware. The current scratch rates cover neither live
+bounds refresh nor populated traversal, and the other operation estimates are not validated against
+the live writers. The runner explicitly reports `unmeasured` writer coverage and stops even if the
+rest of a hardware capture succeeds. A hardware diagnostic rerun is not a feasibility campaign.
+Inspect the first real capture for native/replay calibration, capture overhead and writer coverage;
+independently review qualifying raw evidence before any 16.2 decision. The archived Epic 14 probe
+recipe is not compatible evidence or a reason to restore the old index. The legacy browser failure
+above is still separate and unresolved.
