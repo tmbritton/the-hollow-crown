@@ -1,5 +1,17 @@
 # Verification — The Hollow Crown
 
+## Cursor query trial — not retained
+
+Independent approval covers the negative trial record only. The candidate was not approved for
+delivery, and clean cadence remains inconclusive.
+
+On `7f389bb` plus the archived candidate, cursor parity tests passed 7/7, `npm test` passed
+618 tests, `npm run check:full` passed 638 tests plus lint/format, and `test:epic14`, the
+production build and `test:production` exited 0. The RTX campaign stopped after a driver failure;
+the completed instrumented shrine pairs missed the pick budget, and clean cadence was inconclusive.
+See [the trial report](docs/epic14-startup-fps.md#current-main-cursor-query-trial-2026-11-24)
+for the exact candidate, raw evidence and stop rule. These are candidate checks, not delivery approval.
+
 ## Epic 14.3–14.6 / 14.8 — Integrated mouse controls (working tree)
 
 Base: `f0b2595` on `main`. No staging, commit, deployment, or roadmap change.
