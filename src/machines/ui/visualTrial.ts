@@ -64,7 +64,11 @@ export const visualTrialMachine = setup({
               saved: ({ context, event }) => {
                 if (!viewKey(event.key)) return context.saved;
                 const [min, max] = VIEW_RANGES[event.key];
-                return { ...context.saved, [event.key]: Math.min(max, Math.max(min, event.value)) };
+                const value = Math.min(max, Math.max(min, event.value));
+                return {
+                  ...context.saved,
+                  [event.key]: event.key === 'inkWidth' ? Math.round(value) : value,
+                };
               },
             }),
             'apply',

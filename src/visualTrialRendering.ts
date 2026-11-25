@@ -7,6 +7,8 @@ import type { ViewSettings } from './visualTrial.ts';
 import { roomInk } from './roomPalette.ts';
 import type { Materials, createRoomBandUniforms } from './materials.ts';
 import type { Scene } from '@babylonjs/core/scene';
+import { createInkContours } from './inkContours.ts';
+import type { InkSubject } from './inkContours.ts';
 
 const shader = 'hollowCrownVisualTrial';
 
@@ -50,10 +52,21 @@ export function createPaletteRenderer(
 export function createVisualTrialRenderer(
   camera: ArcRotateCamera,
   applyPalette: (settings: ViewSettings) => void,
+  subjects: readonly InkSubject[],
 ) {
   const engine = camera.getEngine();
   let pass: PostProcess | null = null;
   let strength = 0;
+  let ink: ReturnType<typeof createInkContours> | null = null;
+  const setInk = (width: number) => {
+    if (width > 0) {
+      ink ??= createInkContours(camera, subjects, pass);
+      ink.setWidth(width);
+    } else if (ink) {
+      ink.dispose();
+      ink = null;
+    }
+  };
   const aspect = () => engine.getAspectRatio(camera, true);
   const setDistortion = (percent: number) => {
     strength = percent;
@@ -101,10 +114,14 @@ void main(void) {
       };
     }
   };
-  camera.getScene().onDisposeObservable.addOnce(() => setDistortion(0));
+  camera.getScene().onDisposeObservable.addOnce(() => {
+    setInk(0);
+    setDistortion(0);
+  });
   return {
     apply(settings: ViewSettings, logicalRadius: number, inspecting: boolean) {
       applyPalette(settings);
+      setInk(inspecting ? 0 : settings.inkWidth);
       setDistortion(inspecting ? 0 : settings.fisheyePercent);
       if (!inspecting) {
         camera.fov = lensFov(settings.lensDegrees);

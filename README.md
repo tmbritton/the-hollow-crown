@@ -56,6 +56,10 @@ without changing walkable geometry. **Room hue** (0–360°, default 275°) rota
 together. **Shadow coverage** (0–100%, default 50%) moves the cutoff for the darkest band, not a percentage of
 screen pixels. Leave the checkbox off for camera-only comparisons, or keep Lens and Fisheye at
 their defaults for a palette-only comparison.
+**Ink width** adds a dark violet contour to living figures, held gear, and framed portraits.
+Set it from **0** (off) to **4** framebuffer pixels in whole-pixel steps. It is independent of
+the palette, Lens, and Fisheye, and does not change what you can click. Visible weapons and shields
+keep a thin rim and brighter fill so a wide figure contour doesn't swallow small gear.
 **Reset settings** restores the default recipe without restarting the round.
 **Copy settings** copies the mode and saved Tuned settings as JSON; if clipboard access fails, select the
 displayed text. On a short window, scroll inside the open panel to reach the lower controls;
@@ -72,7 +76,9 @@ node tests/visual-trial-browser.ts           # live controls, picks, paired stil
 ```
 
 `--panel` runs just the live practice checks. `DEMO_URL` overrides the dev URL. For the
-three-value trial, `node tests/visual-trial-palette.ts` captures matched Dojo and seeded dungeon
+ink trial, `node tests/visual-trial-ink.ts` saves matched 0/2/4-pixel views, action and
+occlusion checkpoints, and route/pick parity to `test-results/visual-trial/15.3/ink-run-*/`.
+For the three-value trial, `node tests/visual-trial-palette.ts` captures matched Dojo and seeded dungeon
 views to a fresh `test-results/visual-trial/15.2/palette-run-*/` directory. The lava and altar
 stills use supplemental camera targets, not route progression. Full 15.1 replay
 reads the untouched controls from `test-results/visual-trial/15.1/` (or `VISUAL_TRIAL_OUTPUT`).

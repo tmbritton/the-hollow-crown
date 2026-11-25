@@ -3,6 +3,38 @@ import test from 'node:test';
 import { BASE_FOV, DEFAULT_VIEW, lensRadius, lensFov, sceneSample } from '../src/visualTrial.ts';
 import { createVisualTrial } from '../src/machines/ui/visualTrial.ts';
 
+test('ink width is an independent whole-pixel Tuned setting with saved and effective values', () => {
+  const applied: unknown[] = [];
+  const copied: string[] = [];
+  const trial = createVisualTrial({
+    applyView: (view) => applied.push(view),
+    copySettings: (text) => copied.push(text),
+  });
+  const edit = (value: number) => trial.send({ type: 'EDIT', key: 'inkWidth', value });
+  assert.equal(edit(4), false);
+  assert.deepEqual(applied, []);
+  trial.send({ type: 'SELECT', mode: 'tuned' });
+  assert.equal(edit(NaN), false);
+  assert.equal(edit(Infinity), false);
+  for (const [input, width] of [
+    [9, 4],
+    [-2, 0],
+    [2.6, 3],
+    [2, 2],
+  ]) {
+    assert.equal(edit(input), true);
+    assert.deepEqual(applied.at(-1), { ...DEFAULT_VIEW, inkWidth: width });
+  }
+  trial.send({ type: 'SELECT', mode: 'original' });
+  assert.deepEqual(applied.at(-1), { ...DEFAULT_VIEW, inkWidth: 0 });
+  trial.send({ type: 'COPY' });
+  assert.deepEqual(JSON.parse(copied[0]), { mode: 'original', ...DEFAULT_VIEW, inkWidth: 2 });
+  trial.send({ type: 'SELECT', mode: 'tuned' });
+  assert.deepEqual(applied.at(-1), { ...DEFAULT_VIEW, inkWidth: 2 });
+  trial.send({ type: 'RESET' });
+  assert.deepEqual(applied.at(-1), { ...DEFAULT_VIEW, inkWidth: 0 });
+});
+
 test('Lens preserves the target-plane scale at both zoom ends and has an exact neutral', () => {
   for (const zoom of [18, 36]) {
     assert.equal(lensFov(DEFAULT_VIEW.lensDegrees), 0.65);

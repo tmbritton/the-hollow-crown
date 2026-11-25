@@ -100,7 +100,9 @@ const squadTargets = [new Entity('threat-a'), new Entity('threat-b')];
 export const modelCases = [
   modelCase(visualTrialMachine, {
     inputs: [undefined],
-    abstractContext: ({ context }) => context.saved,
+    // Width uses the same EDIT branch and does not affect any guard. Check its
+    // values in the per-edge invariant without multiplying the preset graph.
+    abstractContext: ({ context }) => ({ ...context.saved, inkWidth: 0 }),
     events: (): EventFromLogic<typeof visualTrialMachine>[] => [
       { type: 'SELECT', mode: 'original' },
       { type: 'SELECT', mode: 'tuned' },
@@ -108,6 +110,7 @@ export const modelCases = [
       { type: 'RESET' },
       { type: 'EDIT', key: 'unknown', value: 30 },
       { type: 'EDIT', key: 'lensDegrees', value: NaN },
+      ...[-1, 2.6, 5, Infinity].map((value) => ({ type: 'EDIT' as const, key: 'inkWidth', value })),
       { type: 'PALETTE', enabled: true },
       { type: 'PALETTE', enabled: false },
       ...(['roomHue', 'shadowCoverage'] as const).flatMap((key) =>
@@ -119,6 +122,16 @@ export const modelCases = [
     ],
     invariant: (state, before, event) => {
       if (!before || event?.type === 'RESET') assert.deepEqual(state.context.saved, DEFAULT_VIEW);
+      else if (
+        event?.type === 'EDIT' &&
+        event.key === 'inkWidth' &&
+        before.matches('tuned') &&
+        Number.isFinite(event.value)
+      )
+        assert.deepEqual(state.context.saved, {
+          ...before.context.saved,
+          inkWidth: Math.round(Math.max(0, Math.min(4, event.value))),
+        });
       else if (event?.type === 'PALETTE' && before.matches('tuned'))
         assert.deepEqual(state.context.saved, {
           ...before.context.saved,

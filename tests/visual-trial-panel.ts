@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import type { DebugWindow } from './browserTypes.ts';
 import { DEFAULT_VIEW } from '../src/visualTrial.ts';
@@ -32,10 +33,14 @@ async function state(page: Page) {
 export async function checkPanel(page: Page, output: string) {
   const panel = page.locator('#visual-trial');
   const lens = page.locator('#view-lens');
+  const ink = page.getByRole('slider', { name: 'Ink width (framebuffer pixels)' });
+  const inkValue = page.locator('#view-ink-value');
   assert.equal(await panel.getAttribute('open'), null);
   assert.equal(await page.locator('#view-original').getAttribute('aria-pressed'), 'true');
   await panel.locator('summary').click();
   assert.equal(await lens.isDisabled(), true);
+  assert.equal(await ink.count(), 1, 'Ink width control absent');
+  assert.ok(await ink.isDisabled());
   assert.equal(await page.locator('#view-palette').count(), 1, 'room palette control absent');
   const palette = page.locator('#view-palette');
   const hue = page.locator('#view-hue');
@@ -106,6 +111,38 @@ export async function checkPanel(page: Page, output: string) {
   );
   await page.locator('#view-reset').click();
   assert.equal(await palette.isChecked(), false);
+  const inkBox = await ink.boundingBox();
+  assert.ok(inkBox);
+  const inkY = inkBox.y + inkBox.height / 2;
+  await page.mouse.move(inkBox.x + 8, inkY);
+  await page.mouse.down();
+  await page.mouse.move(inkBox.x + inkBox.width - 3, inkY, { steps: 4 });
+  await page.mouse.up();
+  assert.equal(await inkValue.inputValue(), '4');
+  const thick = await frame(page);
+  assert.notEqual(thick, neutral, 'drag must change the rendered frame');
+  await ink.press('ArrowLeft');
+  assert.equal(await inkValue.inputValue(), '3');
+  const medium = await frame(page);
+  assert.notEqual(medium, thick, 'arrow must change the rendered frame');
+  assert.deepEqual(await state(page), start);
+  await page.screenshot({ path: `${output}/ink-panel.png` });
+  await page.locator('#view-original').click();
+  assert.equal(await frame(page), neutral);
+  await page.locator('#view-copy').click();
+  await copied.waitFor({ state: 'visible' });
+  const inkPreset = JSON.parse(await copied.inputValue());
+  assert.deepEqual(inkPreset, { mode: 'original', ...DEFAULT_VIEW, inkWidth: 3 });
+  await page.locator('#view-tuned').click();
+  assert.ok((await frame(page)) === medium, 'switching back must reproduce the saved width');
+  await page.locator('#view-reset').click();
+  assert.equal(await inkValue.inputValue(), '0');
+  assert.equal(await frame(page), neutral);
+  await inkValue.fill(String(inkPreset.inkWidth));
+  await inkValue.press('Tab');
+  assert.ok((await frame(page)) === medium, 'numeric re-entry must reproduce the saved width');
+  await page.locator('#view-reset').click();
+  assert.deepEqual(await state(page), start);
   await palette.check();
   const treated = await frame(page);
   assert.notEqual(treated, neutral, 'palette-only selection must affect the rendered scene');
@@ -147,8 +184,32 @@ export async function checkPanel(page: Page, output: string) {
   await palette.check();
   assert.equal(await frame(page), editedPalette);
   await page.screenshot({ path: `${output}/practice-panel.png` });
+  await ink.press('ArrowRight');
+  await frame(page);
+  const old = await page.evaluateHandle(() => {
+    const { camera, scene } = window.__dungeon.game;
+    return {
+      camera,
+      scene,
+      pass: camera._postProcesses.find((p) => p?.name === 'Visual trial ink'),
+    };
+  });
   await page.locator('#reset-practice').click();
   await page.waitForFunction(() => window.__dungeon.ready);
+  assert.ok(
+    await old.evaluate(
+      ({ camera, scene, pass }) =>
+        scene.isDisposed &&
+        !!pass &&
+        !window.__dungeon.engine.postProcesses.includes(pass) &&
+        !camera.customRenderTargets.some((target) => target.name === 'Visual trial ink labels') &&
+        window.__dungeon.game.camera.customRenderTargets.some(
+          (target) => target.name === 'Visual trial ink labels',
+        ),
+    ),
+  );
+  await old.dispose();
+  assert.equal(await inkValue.inputValue(), '1');
   assert.equal(await palette.isChecked(), true);
   assert.equal(await page.locator('#view-coverage-value').inputValue(), '83.125');
   assert.equal(await page.locator('#view-tuned').getAttribute('aria-pressed'), 'true');
@@ -193,12 +254,102 @@ export async function checkPassLifecycle(page: Page) {
   );
 }
 
+export async function checkInkLifecycle(page: Page) {
+  const before = await page.evaluate(() => {
+    const {
+      game: { camera, scene },
+      engine,
+      visualTrial: { select },
+    } = window.__dungeon;
+    const chain = camera._postProcesses;
+    const targets = camera.customRenderTargets;
+    const snapshot = () => ({
+      chain: [...chain],
+      targets: [...targets],
+      textures: scene.textures.length,
+      materials: scene.materials.length,
+      passes: engine.postProcesses.length,
+    });
+    const initial = snapshot();
+    const width = (value: number) => select({ type: 'EDIT', key: 'inkWidth', value });
+    const distortion = (value: number) => select({ type: 'EDIT', key: 'fisheyePercent', value });
+    for (let i = 0; i < 8; i++) {
+      select({ type: 'SELECT', mode: 'tuned' });
+      if (i % 2) distortion(45);
+      width(2);
+      const target = targets.at(-1);
+      width(4);
+      if (target !== targets.at(-1) || targets.length !== initial.targets.length + 1)
+        throw Error('Width edit must reuse one target');
+      if (!(i % 2)) distortion(45);
+      if (
+        chain.at(-2)?.name !== 'Visual trial ink' ||
+        chain.at(-1)?.name !== 'Visual trial fisheye'
+      )
+        throw Error('The ink pass must precede fisheye in both enable orders');
+      scene.render();
+      if (i % 2) width(0);
+      else distortion(0);
+      select({ type: 'SELECT', mode: 'original' });
+      const after = snapshot();
+      if (
+        after.chain.length !== initial.chain.length ||
+        after.chain.some((p, slot) => p !== initial.chain[slot]) ||
+        after.targets.length !== initial.targets.length ||
+        after.targets.some((t, slot) => t !== initial.targets[slot]) ||
+        after.textures !== initial.textures ||
+        after.materials !== initial.materials ||
+        after.passes !== initial.passes
+      )
+        throw Error('Ink toggle left camera or scene resources behind');
+    }
+    select({ type: 'SELECT', mode: 'tuned' });
+    width(4);
+    return [engine.getRenderWidth(true), engine.getRenderHeight(true)];
+  });
+  await page.setViewportSize({ width: 1100, height: 620 });
+  await page.waitForFunction(([w, h]) => {
+    const {
+      engine,
+      game: { camera },
+    } = window.__dungeon;
+    const size = camera.customRenderTargets
+      .find((t) => t.name === 'Visual trial ink labels')
+      ?.getSize();
+    return (
+      size &&
+      size.width !== w &&
+      size.height !== h &&
+      size.width === engine.getRenderWidth(true) &&
+      size.height === engine.getRenderHeight(true)
+    );
+  }, before);
+  await frame(page);
+}
+
 export async function checkShortPanel(page: Page, output: string) {
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.evaluate(() => {
+  const copyAttempts = await page.evaluateHandle(() => {
+    const copy = document.querySelector('#view-copy')!;
+    const attempts: { events: string[]; writes: string[] } = { events: [], writes: [] };
+    for (const type of ['pointerdown', 'pointerup', 'click']) {
+      document.addEventListener(
+        type,
+        (event) => {
+          const target = event.target;
+          if (event.isTrusted && target instanceof Element)
+            attempts.events.push(`${type}:${copy.contains(target) ? copy.id : target.id}`);
+        },
+        true,
+      );
+    }
     Object.defineProperty(navigator.clipboard, 'writeText', {
-      value: () => Promise.reject(new Error('denied')),
+      value: (text: string) => {
+        attempts.writes.push(text);
+        return Promise.reject(new Error('denied'));
+      },
     });
+    return attempts;
   });
   const start = await state(page);
   async function click(id: string) {
@@ -213,42 +364,95 @@ export async function checkShortPanel(page: Page, output: string) {
   }
   await click('#visual-trial summary');
   await click('#view-tuned');
-  const summary = await page.locator('#visual-trial summary').boundingBox();
-  assert.ok(summary);
-  await page.mouse.move(summary.x + 12, summary.y + summary.height / 2);
-  await page.mouse.wheel(0, 85);
-  // Observe native scrolling, not Playwright's locator.click() auto-scroll.
+  async function reveal(id: string, scrollBy?: number) {
+    const scroller = await panelPoint(page);
+    await page.mouse.move(scroller.x, scroller.y);
+    const wheel = await page.locator(id).evaluateHandle(
+      (control, { middle, scrollBy }) => {
+        const panel = control.closest('#visual-trial')!;
+        const rect = control.getBoundingClientRect();
+        const start = panel.scrollTop;
+        const y = rect.y + rect.height / 2;
+        const alreadyReachable = control.contains(
+          document.elementFromPoint(rect.x + rect.width / 2, y),
+        );
+        const delta = Math.round(scrollBy ?? (alreadyReachable ? 0 : y - middle));
+        const cancel = new AbortController();
+        const scroll = { delta, settled: delta === 0, cancel };
+        if (delta !== 0)
+          panel.addEventListener('scrollend', () => (scroll.settled = panel.scrollTop !== start), {
+            once: true,
+            signal: cancel.signal,
+          });
+        return scroll;
+      },
+      { middle: scroller.y, scrollBy },
+    );
+    try {
+      const delta = await wheel.evaluate((scroll) => scroll.delta);
+      if (delta !== 0) await page.mouse.wheel(0, delta);
+      // An intermediate hit during compositor scrolling is not a safe click target.
+      await page.waitForFunction((scroll) => scroll.settled, wheel, { timeout: 3000 });
+    } finally {
+      await wheel.evaluate((scroll) => scroll.cancel.abort());
+      await wheel.dispose();
+    }
+  }
   const fisheye = page.locator('#view-fisheye');
-  await page.waitForFunction(
-    () => {
-      const slider = document.querySelector('#view-fisheye')!;
-      const rect = slider.getBoundingClientRect();
-      return (
-        slider.closest('#visual-trial')!.scrollTop > 0 &&
-        slider === document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
-      );
-    },
-    undefined,
-    { timeout: 3000 },
-  );
+  await reveal('#view-fisheye', 85);
+  assert.ok(await page.locator('#visual-trial').evaluate((panel) => panel.scrollTop));
   await click('#view-fisheye');
   assert.ok(Number(await fisheye.inputValue()) > 0);
+  await reveal('#view-palette');
   await click('#view-palette');
-  const scroller = await panelPoint(page);
-  await page.mouse.move(scroller.x, scroller.y);
-  await page.mouse.wheel(0, 350);
-  await page.waitForFunction(() => {
-    const control = document.querySelector('#view-coverage')!;
-    const rect = control.getBoundingClientRect();
-    return control === document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-  });
+  await reveal('#view-coverage');
   await click('#view-coverage');
+  await reveal('#view-ink');
+  const ink = page.locator('#view-ink');
+  const inkBox = await ink.boundingBox();
+  assert.ok(inkBox);
+  const inkY = inkBox.y + inkBox.height / 2;
+  await page.mouse.move(inkBox.x + inkBox.width / 2, inkY);
+  await page.mouse.down();
+  assert.equal(await ink.inputValue(), '2', 'the initial native drag press must hit the range');
+  await page.mouse.move(inkBox.x + inkBox.width * 0.94, inkY, { steps: 4 });
+  await page.mouse.up();
+  assert.equal(await ink.inputValue(), '4');
+  await ink.press('ArrowLeft');
+  assert.equal(await ink.inputValue(), '3');
+  await page.screenshot({ path: `${output}/ink-panel-short.png` });
+  const fallback = page.locator('#view-copy-text');
+  const delivery: { events: string[]; settings: unknown }[] = [];
+  async function copySettings() {
+    await copyAttempts.evaluate((attempts) => {
+      attempts.events.length = 0;
+      attempts.writes.length = 0;
+    });
+    await reveal('#view-copy');
+    await click('#view-copy');
+    const { events, writes } = await copyAttempts.jsonValue();
+    assert.deepEqual(events, ['pointerdown:view-copy', 'pointerup:view-copy', 'click:view-copy']);
+    assert.equal(writes.length, 1, 'one trusted activation must request a clipboard write');
+    await fallback.waitFor({ state: 'visible', timeout: 3000 });
+    assert.equal(await fallback.inputValue(), writes[0]);
+    const settings = JSON.parse(writes[0]);
+    delivery.push({ events, settings });
+    return settings;
+  }
+  const saved = await copySettings();
+  assert.equal(saved.inkWidth, 3);
+  await reveal('#view-original');
+  await click('#view-original');
+  await click('#view-tuned');
+  assert.equal(await ink.inputValue(), '3');
+  await reveal('#view-ink-value');
+  await page.locator('#view-ink-value').fill('2');
+  await page.locator('#view-ink-value').press('Tab');
+  assert.equal(await ink.inputValue(), '2');
+  await reveal('#view-reset');
   await click('#view-reset');
   assert.equal(await fisheye.inputValue(), '0');
-  await click('#view-copy');
-  const fallback = page.locator('#view-copy-text');
-  await fallback.waitFor({ state: 'visible' });
-  assert.deepEqual(JSON.parse(await fallback.inputValue()), {
+  assert.deepEqual(await copySettings(), {
     mode: 'tuned',
     ...DEFAULT_VIEW,
   });
@@ -266,6 +470,8 @@ export async function checkShortPanel(page: Page, output: string) {
   );
   assert.deepEqual(await state(page), start, 'panel pointer and wheel must not affect gameplay');
   await page.screenshot({ path: `${output}/practice-panel-short.png` });
+  await writeFile(`${output}/short-panel-copy.json`, JSON.stringify(delivery, null, 2));
+  await copyAttempts.dispose();
 }
 
 async function panelPoint(page: Page) {
@@ -275,9 +481,18 @@ async function panelPoint(page: Page) {
 }
 
 async function frame(page: Page) {
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
     const d = window.__dungeon;
-    d.game.scene.render();
+    const { scene, camera } = d.game;
+    scene.render();
+    const ink = camera._postProcesses.find((p) => p?.name === 'Visual trial ink');
+    if (ink) {
+      await scene.whenReadyAsync();
+      for (let i = 0; !ink.isReady() && i < 60; i++)
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      if (!ink.isReady()) throw Error('Ink shader did not become ready');
+      scene.render();
+    }
     return d.engine.getRenderingCanvas()!.toDataURL();
   });
 }

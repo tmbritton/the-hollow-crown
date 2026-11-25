@@ -7,6 +7,7 @@ export interface ViewSettings {
   readonly paletteEnabled: boolean;
   readonly roomHue: number;
   readonly shadowCoverage: number;
+  readonly inkWidth: number;
 }
 
 export const DEFAULT_VIEW: ViewSettings = Object.freeze({
@@ -15,6 +16,7 @@ export const DEFAULT_VIEW: ViewSettings = Object.freeze({
   paletteEnabled: false,
   roomHue: 275,
   shadowCoverage: 50,
+  inkWidth: 0,
 });
 
 export const VIEW_RANGES = {
@@ -22,6 +24,7 @@ export const VIEW_RANGES = {
   fisheyePercent: [0, 100],
   roomHue: [0, 360],
   shadowCoverage: [0, 100],
+  inkWidth: [0, 4],
 } as const satisfies Record<
   Exclude<keyof ViewSettings, 'paletteEnabled'>,
   readonly [number, number]

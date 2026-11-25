@@ -509,10 +509,6 @@ function assembleScene(
     content.kind === 'practice' || (import.meta.env.DEV && debug) ? createRoomBandUniforms() : null;
   const materials = createMaterials(scene, bands);
   const dungeon = buildDungeon(scene, content, materials, shadow, glow, bands !== null);
-  const trialRenderer = createVisualTrialRenderer(
-    camera,
-    createPaletteRenderer(scene, materials, bands),
-  );
   const ecs = new ECS();
   const discoveries = new DiscoveryRecord(generationIdentity(world.seed));
   ecs.create('run').add('discoveries', discoveries);
@@ -543,6 +539,34 @@ function assembleScene(
       ? installDungeonScenario(content.world, ecs, player.actor, scene, materials, shadow)
       : null;
   const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
+  const trialRenderer = createVisualTrialRenderer(
+    camera,
+    createPaletteRenderer(scene, materials, bands),
+    bands
+      ? [
+          ...combat.actors.flatMap((actor) => {
+            const rig = actor.entity.require('rig');
+            const shield = rig.shield?.getChildMeshes() ?? [];
+            const weapon = [rig.weapon, rig.spear, rig.javelin].flatMap(
+              (mount) => mount?.getChildMeshes() ?? [],
+            );
+            const gear = new Set([...shield, ...weapon]);
+            const body = actor.entity.require('render').meshes.filter((mesh) => !gear.has(mesh));
+            const visible = () => actor.alive && ecs.get(actor.id) === actor.entity;
+            return [
+              { meshes: body, visible, kind: 'silhouette' as const },
+              { meshes: weapon, visible, kind: 'gear' as const },
+              { meshes: shield, visible, kind: 'gear' as const },
+            ].filter(({ meshes }) => meshes.length > 0);
+          }),
+          ...dungeon.portraits.map(({ root }) => ({
+            meshes: root.getChildMeshes(),
+            visible: () => !root.isDisposed(),
+            kind: 'silhouette' as const,
+          })),
+        ]
+      : [],
+  );
   for (const actor of combat.actors) new ActorGeometry(actor.entity);
   // This closed bootstrap builds only authored motor colliders and permanent render meshes
   // (including the effects pools and actor proxies). Never classify later scene additions here.

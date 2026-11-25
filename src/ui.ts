@@ -28,6 +28,7 @@ export function bindVisualTrialPanel(send: (event: VisualTrialEvent) => boolean)
       ['fisheyePercent', 'view-fisheye'],
       ['roomHue', 'view-hue'],
       ['shadowCoverage', 'view-coverage'],
+      ['inkWidth', 'view-ink'],
     ] as const
   ).map(([key, id]) => {
     const range = element(id, HTMLInputElement);

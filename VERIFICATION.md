@@ -5262,3 +5262,89 @@ Exploring additional areas can compile additional material variants. Regeneratin
 - Effect simulation uses transient entities with fixed-size thin-instance render pools (192 hit particles and 32 bolts maximum). Corpses retain their rigs rather than allocating replacement meshes.
 
 Current state-machine/social reports include `test-results/machine-model-report.json`, `test-results/chromium-social-report.json`, and `test-results/firefox-social-report.json`. Full browser, targeted movement/combat/inspection, portrait, and hardware reports retain their existing filenames in `test-results/`; the table above distinguishes current runs from earlier baselines.
+## Story 15.3 — Ink contours (implementation evidence)
+
+- **Red → green:** `node --test tests/visualTrial.test.ts` rejected the new Tuned width edit;
+  `npm run test:models` found the missing value on the `SELECT tuned → EDIT inkWidth` edge.
+  The live panel check failed on the missing labeled slider and the first ink pixel check
+  measured `[0, 0]` at widths 2 and 4. The updated unit and model suites passed (visual trial
+  2/2 states and 8/8 branches). `npm run check:full` passed all 594 tests plus typecheck, lint
+  and format; `npm run build` passed with Vite's large-chunk warning.
+- **Untreated comparison:** `DEMO_URL=http://localhost:5183 node tests/visual-trial-browser.ts`
+  passed before and after implementation against the preserved 15.1 controls, including the
+  365-tick Dojo and 709-tick `MOURNING-731` replays, both zooms, four turns, and clips. Separate
+  evidence under `test-results/visual-trial/15.1/`: `paired-run-jk9tGB/evidence/` before and
+  `paired-run-2LdjJw/evidence/` after. No historical captures or tolerances changed.
+- **Live controls:** `DEMO_URL=http://localhost:5183 VISUAL_TRIAL_OUTPUT=test-results/visual-trial/15.3 node tests/visual-trial-browser.ts --panel`
+  passed. Drag, arrow keys, mode switching, copy, numeric entry and reset ran with the real panel,
+  including native scroll at 844×390. Normal-size checks compare frames and scene/input state;
+  a practice reset with ink enabled retired the old pass and target and restored the saved width
+  on the new scene. See `test-results/visual-trial/15.3/panel-run-ezm3cD/evidence/`.
+- **Matched ink only:** `DEMO_URL=http://localhost:5183 node tests/visual-trial-ink.ts`
+  passed in headed Chromium/WebGL2. See `test-results/visual-trial/15.3/ink-run-lbqT5H/manifest.json`
+  and adjacent frames. Palette off, default Lens, Fisheye zero, high quality, 1280×720 CSS viewport,
+  DPR 1; the manifest records actual framebuffer size, pose and orbit for each 0/2/4-pixel set.
+  The width-only route traces matched, as did real floor, skeleton and door clicks in the Dojo.
+  Width 2/4 changed 754/1,496 exposed pixels (RGB channel delta >8), 0/0 behind the intact wall,
+  244/407 under partial cover, and 605/981 after the real cutaway at the same simulation tick.
+  Floor and overlapping body samples stayed unchanged. The isolated `portrait-15` comparison
+  at tick 100 changed 876/1,720 pixels. The resource probe exercised both Fisheye enable orders,
+  positive-width edits, eight disable cycles, and a framebuffer resize.
+- **Visual read:** inspected the matched lit-floor and partition-shadow sequences at approach
+  tick 5, wind-up 30, resolved impact 38, and raised guard 9, plus near/far rotation samples,
+  the portrait, wall transition, and panel captures. The contour separates the actors from
+  lit flooring; the frame reads without inking adjacent masonry. The red target ring remains
+  distinct. Pointer-over was captured at the same pose as targeting; this build has no separate
+  persistent hover marker to validate. At far zoom against the shadowed partition, thin gear
+  still merges visually where hero and foe overlap: the shield raise is easier to read at near
+  zoom, and 4 px is not a recommendation for default play.
+
+The trial remains opt-in. No timing retrial or adoption decision. This initial evidence predates
+the final independent review below; the [original negative 4 px frame](test-results/visual-trial/15.3/ink-run-lbqT5H/shadow-raised-far-4.png)
+is retained.
+
+### Story 15.3 — Blocker follow-up (untimed)
+
+- **Short-panel Copy:** The two earlier full-sequence fallback timeouts remain historical misses.
+  A fresh full replay with trusted-event logging did not reproduce them on demand. The old check
+  could accept a transient DOM hit during wheel scrolling and would report a missing click and a
+  broken fallback as the same timeout. The short test now waits for native `scrollend` when a
+  scroll is needed, checks the actual click point, and requires trusted down/up/click on Copy and
+  exactly one clipboard attempt per click. The stub still denies permission; the real UI exposes
+  the attempted JSON and focuses/selects it. No production clipboard or focus code changed.
+- **Matched shield:** The new regression failed on the historical renderer: at 4 px the sampled
+  shield face fell from 42.8 to 26.9 in weighted RGB luma (0–255). The repair uses only the visible
+  gear pixels in the existing depth-tested mask: a thin inset rim and modest fill lift instead of
+  a full-width dark band. The unlabeled
+  [full-frame pair](test-results/visual-trial/15.3/ink-run-ohb1C2/shadow-raised-far-thick-comparison.png)
+  and [enlarged detail](test-results/visual-trial/15.3/ink-run-ohb1C2/shadow-raised-far-thick-detail.png)
+  show historical 4 px on the left and repaired 4 px on the right. The width-zero PNG is byte-identical
+  to the historical control. The manifests match for camera, walls, actors, drawn gear transforms,
+  tick 9, seed and framebuffer; only the scene IDs differ. The far shot keeps the raised shield
+  matrix even though release clears the guard input flag during the zero-tick orbit settle.
+  The visible shield reads as a distinct red-trimmed face instead of blending into the dark overlap;
+  the part behind the skeleton is still hidden. Face luma is 54.9 at 4 px and mean red-rim separation
+  (`R − max(G, B)`) is 57.7, versus 16.4 at historical 4 px and 58.3 at width zero. This is a pinned
+  view, not a recommendation for 4 px generally. Intact-wall frames stayed byte-identical at 0
+  and 4 px; partial cover and the real cutaway exposed progressively more ink.
+- **Browser checks:** With `DEMO_URL=http://localhost:5183`, headed Chromium passed the full
+  `node tests/visual-trial-browser.ts` sequence and `node tests/visual-trial-ink.ts`. Artifacts:
+  `test-results/visual-trial/15.1/paired-run-cA7Xk9/evidence/` (including both Copy deliveries in
+  `short-panel-copy.json`) and `test-results/visual-trial/15.3/ink-run-ohb1C2/` (including pixel
+  sample positions and results in `manifest.json`). The separate `--panel` run also passed at
+  `test-results/visual-trial/15.3/panel-run-iGj0e8/evidence/`.
+- **Full gate:** `npm run check:full` passed all 594 tests, typecheck, lint, and format.
+  `npm test` passed all 574 core tests. `npm run build` passed with the existing Vite
+  large-chunk warning.
+
+### Story 15.3 — Final independent review
+
+- **APPROVE — full Story 15.3.** The independent `npm run check:full` passed all 594 tests,
+  typecheck, lint, and format. The reviewer also passed the full headed browser sequence
+  (`test-results/visual-trial/15.1/paired-run-amLp6O/evidence/`) and the ink suite
+  (`test-results/visual-trial/15.3/ink-run-87yDky/`).
+- **Minor, nonblocking test hardening:** Use owned copies of the shield and weapon matrices in
+  the pose snapshot so Babylon's mutable matrix storage cannot mask a change between captures.
+  The separate reviewer rerun with owned pose snapshots passed
+  (`test-results/visual-trial/15.3/ink-run-w5JaGQ/manifest.json`). This remains a test-only
+  follow-up; the approval does not replace the earlier negative frame or imply default adoption.
