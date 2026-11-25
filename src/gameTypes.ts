@@ -40,6 +40,7 @@ export interface Game {
   world: PlayableLayout;
   scenario: DungeonScenario | null;
   camera: ArcRotateCamera;
+  visualTrial: ReturnType<typeof import('./visualTrialRendering.ts').createVisualTrialRenderer>;
   ambient: HemisphericLight;
   sun: DirectionalLight;
   shadow: ShadowGenerator;
@@ -60,6 +61,7 @@ export interface Game {
   playTime: number;
   desiredAlpha: number;
   desiredRadius: number;
+  logicalRadius: number;
   readonly active: boolean;
   readonly complete: boolean;
   chests: number;
@@ -93,6 +95,10 @@ export interface DungeonDebug {
   readonly game: Game;
   readonly ready: boolean;
   readonly engine: Engine;
+  readonly visualTrial: {
+    select(event: import('./machines/ui/visualTrial.ts').VisualTrialEvent): boolean;
+    orbit(alpha: number, beta: number, radius: number): void;
+  };
   teleport(x: number, z: number): void;
   interact(): void;
   pickedObjectAt(clientX: number, clientY: number): string | null;

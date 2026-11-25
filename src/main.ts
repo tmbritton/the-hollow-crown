@@ -27,7 +27,7 @@ import type { PracticeCommand, PracticeRound } from './practiceRoom.ts';
 import { tileAt, heightAt } from './worldSpatial.ts';
 import { createGenerationReport } from './generation/report.ts';
 import type { GenerationReport } from './generation/report.ts';
-import { createMaterials } from './materials.ts';
+import { createMaterials, createRoomBandUniforms } from './materials.ts';
 import { buildDungeon } from './buildDungeon.ts';
 import { createPlayer, movePlayer, stopPlayer } from './player.ts';
 import { RouteBudget } from './routeBudget.ts';
@@ -60,7 +60,11 @@ import { registerWorld, registerDungeonRendering, updateDoors } from './worldEnt
 import { ActorGeometry } from './actorGeometry.ts';
 import { SupportTiles } from './supportTiles.ts';
 import { TerrainCandidates } from './terrainCandidates.ts';
-import { UI } from './ui.ts';
+import { UI, bindVisualTrialPanel, fromVisualTrial } from './ui.ts';
+import { createVisualTrial } from './machines/ui/visualTrial.ts';
+import { BASE_FOV } from './visualTrial.ts';
+import { createPaletteRenderer, createVisualTrialRenderer } from './visualTrialRendering.ts';
+import { createCornerWearRenderer } from './cornerWearRendering.ts';
 import { InspectionController } from './inspection.ts';
 import { Statechart } from './machines/statechart.ts';
 import { animateChest, progressionMachine } from './machines/world/interactions.ts';
@@ -101,6 +105,18 @@ let currentRequest: GenerationRequest | null = null;
 let retryRequest: GenerationRequest | null = null;
 const activeGame = () => required(game, 'No active dungeon');
 const currentGame = () => game;
+const trialPanel = bindVisualTrialPanel((event) => visualTrial.send(event));
+const visualTrial = createVisualTrial(
+  {
+    applyView(settings) {
+      if (game) game.visualTrial.apply(settings, game.logicalRadius, game.inspection.active);
+      trialPanel.update(visualTrial.mode, settings);
+    },
+    copySettings: (text) => void trialPanel.copy(text),
+  },
+  entry.get('view') === 'original' ? 'original' : 'tuned',
+);
+trialPanel.update(visualTrial.mode, visualTrial.settings);
 let animationReview: import('./animationReview.ts').AnimationReview | undefined;
 let initialGenerationReport: GenerationReport | null = null;
 let last = performance.now(),
@@ -184,16 +200,12 @@ function ownersFor(current: Game) {
 }
 
 function pointerRay(current: Game, clientX: number, clientY: number) {
-  const rect = canvas.getBoundingClientRect();
-  return current.scene.createPickingRay(
-    clientX - rect.left,
-    clientY - rect.top,
-    Matrix.Identity(),
-    current.camera,
-  );
+  const point = pointerSample(current, clientX, clientY);
+  if (!point) return null;
+  return current.scene.createPickingRay(point.x, point.y, Matrix.Identity(), current.camera);
 }
 
-function pickPointer(current: Game, ray: ReturnType<typeof pointerRay>) {
+function pickPointer(current: Game, ray: NonNullable<ReturnType<typeof pointerRay>>) {
   const enemy = current.enemyRendering.pick(ray);
   const meshes = ownersFor(current);
   const eligibleSurface = (mesh: AbstractMesh) =>
@@ -243,7 +255,12 @@ function refreshPreview(current: Game) {
     return;
   }
   current.camera.getViewMatrix();
-  const pick = pickPointer(current, pointerRay(current, at.x, at.y));
+  const ray = pointerRay(current, at.x, at.y);
+  if (!ray) {
+    clearPreview();
+    return;
+  }
+  const pick = pickPointer(current, ray);
   if (pick.kind !== 'object' || pick.id !== useProbe?.id) clearUseProbe();
   const feedback = pointerFeedback(
     pick.kind === 'enemy'
@@ -339,11 +356,9 @@ function useEligibility(current: Game, id: string, preview: boolean) {
 
 function navigatePointer(clientX: number, clientY: number, initialPress = false): void {
   if (!game || !ui.ready || paused() || game.inspection.active) return;
-  const rect = canvas.getBoundingClientRect();
-  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom)
-    return;
   const actor = game.player.actor;
   const ray = pointerRay(game, clientX, clientY);
+  if (!ray) return;
   if (initialPress) {
     useState = transitionUse(useState, { type: 'cancel' }).state;
     actor.navigator.cancel();
@@ -370,6 +385,11 @@ function navigatePointer(clientX: number, clientY: number, initialPress = false)
     else game.player.navigator.followFloor(game.player.actor.position, point, performance.now());
   }
   lastPointerRoute = performance.now();
+}
+
+function pointerSample(game: Game, x: number, y: number) {
+  const rect = canvas.getBoundingClientRect();
+  return game.visualTrial.pick(x - rect.left, y - rect.top, rect.width, rect.height);
 }
 
 function freshSeed() {
@@ -649,7 +669,7 @@ function assembleScene(
     new Vector3(0, 0.8, 0),
     scene,
   );
-  camera.fov = 0.65;
+  camera.fov = BASE_FOV;
   camera.minZ = 0.1;
   camera.maxZ = 110;
   camera.inputs.clear();
@@ -683,8 +703,11 @@ function assembleScene(
   glow.intensity = 0.38;
   // Smooth shader/shadow edges as well as silhouettes; DOM text stays crisp.
   const fxaa = new FxaaPostProcess('edge antialiasing', 1, camera);
-  const materials = createMaterials(scene);
-  const dungeon = buildDungeon(scene, content, materials, shadow, glow);
+  const bands =
+    content.kind === 'practice' || (import.meta.env.DEV && debug) ? createRoomBandUniforms() : null;
+  const materials = createMaterials(scene, bands);
+  const wear = createCornerWearRenderer(scene);
+  const dungeon = buildDungeon(scene, content, materials, shadow, glow, bands !== null, wear);
   const ecs = new ECS();
   const discoveries = new DiscoveryRecord(generationIdentity(world.seed));
   ecs.create('run').add('discoveries', discoveries);
@@ -715,6 +738,33 @@ function assembleScene(
       ? installDungeonScenario(content.world, ecs, player.actor, scene, materials, shadow)
       : null;
   const enemyRendering = createEnemyRendering(scene, combat, materials, shadow);
+  const trialRenderer = createVisualTrialRenderer(
+    camera,
+    createPaletteRenderer(scene, materials, bands),
+    [
+      ...combat.actors.flatMap((actor) => {
+        const rig = actor.entity.require('rig');
+        const shield = rig.shield?.getChildMeshes() ?? [];
+        const weapon = [rig.weapon, rig.spear, rig.javelin].flatMap(
+          (mount) => mount?.getChildMeshes() ?? [],
+        );
+        const gear = new Set([...shield, ...weapon]);
+        const body = actor.entity.require('render').meshes.filter((mesh) => !gear.has(mesh));
+        const visible = () => actor.alive && ecs.get(actor.id) === actor.entity;
+        return [
+          { meshes: body, visible, kind: 'silhouette' as const },
+          { meshes: weapon, visible, kind: 'gear' as const },
+          { meshes: shield, visible, kind: 'gear' as const },
+        ].filter(({ meshes }) => meshes.length > 0);
+      }),
+      ...dungeon.portraits.map(({ root }) => ({
+        meshes: root.getChildMeshes(),
+        visible: () => !root.isDisposed(),
+        kind: 'silhouette' as const,
+      })),
+    ],
+    wear.apply,
+  );
   for (const actor of combat.actors) new ActorGeometry(actor.entity);
   // This closed bootstrap builds only authored motor colliders and permanent render meshes
   // (including the effects pools and actor proxies). Never classify later scene additions here.
@@ -757,6 +807,7 @@ function assembleScene(
     }),
     onOpen: (target) => {
       if (game?.scene !== scene) return;
+      trialRenderer.apply(visualTrial.settings, game.logicalRadius, true);
       resetMovement();
       accumulator = 0;
       playerVisibility = { root: player.root.isEnabled(), marker: player.marker.isEnabled() };
@@ -773,7 +824,8 @@ function assembleScene(
       player.root.setEnabled(playerVisibility.root);
       player.marker.setEnabled(playerVisibility.marker);
       game.desiredAlpha = camera.alpha;
-      game.desiredRadius = camera.radius;
+      game.desiredRadius = game.logicalRadius;
+      trialRenderer.apply(visualTrial.settings, game.logicalRadius, false);
       ui.closeInspection();
       canvas.focus();
     },
@@ -784,6 +836,7 @@ function assembleScene(
     world,
     scenario,
     camera,
+    visualTrial: trialRenderer,
     ambient,
     sun,
     shadow,
@@ -814,6 +867,7 @@ function assembleScene(
     playTime: 0,
     desiredAlpha: camera.alpha,
     desiredRadius: 27,
+    logicalRadius: 27,
     get active() {
       return !!scenario && !scenario.progression.snapshot.matches('seekingAltar');
     },
@@ -827,6 +881,7 @@ function assembleScene(
     steps: 0,
     nearLights: [],
   };
+  trialRenderer.apply(visualTrial.settings, game.logicalRadius, false);
   initialGenerationReport = debugReport;
   ui.reset(content, discoveries);
   applyQuality();
@@ -1240,7 +1295,8 @@ function renderUpdate(dt: number): void {
   if (game.inspection.active) game.inspection.update(dt);
   else {
     camera.alpha += (game.desiredAlpha - camera.alpha) * (1 - Math.exp(-7 * dt));
-    camera.radius += (game.desiredRadius - camera.radius) * (1 - Math.exp(-8 * dt));
+    game.logicalRadius += (game.desiredRadius - game.logicalRadius) * (1 - Math.exp(-8 * dt));
+    game.visualTrial.apply(visualTrial.settings, game.logicalRadius, false);
     const p = player.actor.position;
     const target = new Vector3(p.x, p.h + 0.75, p.z);
     Vector3.LerpToRef(camera.target, target, 1 - Math.exp(-7 * dt), camera.target);
@@ -1361,6 +1417,7 @@ function toggleMenu() {
   if (!ui.menu.open) canvas.focus();
 }
 window.addEventListener('keydown', (event) => {
+  if (fromVisualTrial(event.target)) return;
   if (import.meta.env.DEV && event.code === 'F2') {
     event.preventDefault();
     if (!game || !ui.ready || event.repeat) return;
@@ -1400,6 +1457,7 @@ window.addEventListener('keydown', (event) => {
     const gameplay =
       !nativeControl(event.target) && !event.metaKey && !event.ctrlKey && !event.altKey;
     if (gameplay) event.preventDefault();
+    if (gameplay && !event.repeat) keys.add(event.code);
     if (game)
       requestDefense(
         game.player.actor,
@@ -1439,9 +1497,10 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyM') ui.transition({ type: 'TOGGLE_MAP' });
 });
 window.addEventListener('keyup', (event) => {
-  keys.delete(event.code);
+  const held = keys.delete(event.code);
   if (event.code === 'KeyR') travel = travelControl(travel, { type: 'up' });
-  if (event.code === 'KeyF') game?.player.actor.entity.get('defense')?.release();
+  if (event.code === 'KeyF' && (held || !fromVisualTrial(event.target)))
+    game?.player.actor.entity.get('defense')?.release();
 });
 window.addEventListener('blur', () => resetMovement('input-lost'));
 window.addEventListener('pagehide', (event) => {
@@ -1481,6 +1540,7 @@ canvas.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || !event.isPrimary || event.ctrlKey || event.metaKey || event.altKey)
     return;
   if (!game || !ui.ready || paused() || game.inspection.active) return;
+  if (!pointerSample(game, event.clientX, event.clientY)) return;
   event.preventDefault();
   canvas.focus();
   pointer.send({
@@ -1640,6 +1700,16 @@ if (import.meta.env.DEV && debug && engine!) {
       },
     ),
     animation: animationReview,
+    visualTrial: {
+      select: visualTrial.send,
+      orbit(alpha, beta, radius) {
+        const game = activeGame();
+        game.camera.alpha = game.desiredAlpha = alpha;
+        game.camera.beta = beta;
+        game.logicalRadius = game.desiredRadius = radius;
+        game.visualTrial.apply(visualTrial.settings, radius, game.inspection.active);
+      },
+    },
     get game() {
       return activeGame();
     },
@@ -1658,7 +1728,9 @@ if (import.meta.env.DEV && debug && engine!) {
     interact,
     pickedObjectAt(clientX, clientY) {
       const current = activeGame();
-      const pick = pickPointer(current, pointerRay(current, clientX, clientY));
+      const ray = pointerRay(current, clientX, clientY);
+      if (!ray) return null;
+      const pick = pickPointer(current, ray);
       return pick.kind === 'object' ? pick.id : null;
     },
     regenerate: start,

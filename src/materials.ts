@@ -1,9 +1,15 @@
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector2, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase';
 import { ShaderMaterial } from '@babylonjs/core/Materials/shaderMaterial';
 import { CustomMaterial } from '@babylonjs/materials/custom/customMaterial';
 import type { Scene } from '@babylonjs/core/scene';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import type { MaterialDefines } from '@babylonjs/core/Materials/materialDefines';
+import type { ViewSettings } from './visualTrial.ts';
+import { roomBandAttribute } from './geometry.ts';
+import { bandThresholds, roomRoles, roomSwatches } from './roomPalette.ts';
 
 export type Materials = ReturnType<typeof createMaterials>;
 export type MaterialName = keyof Materials;
@@ -21,7 +27,87 @@ float aaStep(float edge, float value) {
   return smoothstep(edge-width,edge+width,value);
 }`;
 
-export function createMaterials(scene: Scene) {
+// Only meshes carrying the environment attribute compile the branch. Shared actor
+// materials retain their untouched shader path without a dummy room buffer.
+class RoomBandAttribute extends MaterialPluginBase {
+  constructor(material: CustomMaterial) {
+    super(material, 'RoomBandAttribute', 200, { ROOM_BANDS: false }, true, true);
+  }
+
+  override prepareDefines(defines: MaterialDefines, _scene: Scene, mesh: AbstractMesh) {
+    Object.assign(defines, { ROOM_BANDS: mesh.isVerticesDataPresent(roomBandAttribute) });
+  }
+
+  override getAttributes(attributes: string[], _scene: Scene, mesh: AbstractMesh) {
+    if (mesh.isVerticesDataPresent(roomBandAttribute)) attributes.push(roomBandAttribute);
+  }
+}
+
+export function createRoomBandUniforms() {
+  const cutoffs = new Vector2(-1, 0);
+  const swatches = roomRoles.map(() => [new Color3(), new Color3(), new Color3()]);
+  // diffuseBase includes the shadow map but precedes albedo and vertex tint.
+  // The discard removes cosmetic overlays, not collision or support geometry.
+  const roomShading = `
+    if (vRoomBand.z > 0.5) discard;
+    float incident = dot(diffuseBase, vec3(0.213, 0.715, 0.072)) * 0.68 + vRoomBand.y;
+    float width = clamp(fwidth(incident) * 0.75, 0.0001, 0.05);
+    float mid = smoothstep(roomCutoffs.x - width, roomCutoffs.x + width, incident);
+    float lit = smoothstep(roomCutoffs.y - width, roomCutoffs.y + width, incident);
+    vec3 weights = vec3(1.0 - mid, mid - lit, lit);
+    if (vRoomBand.x < 0.5)
+      color.rgb = mat3(chamberValue0, chamberValue1, chamberValue2) * weights;
+    else if (vRoomBand.x < 1.5)
+      color.rgb = mat3(stairValue0, stairValue1, stairValue2) * weights;
+    else
+      color.rgb = mat3(altarValue0, altarValue1, altarValue2) * weights;
+    // Lift the blue landing mass without losing the incident-light shadow shapes.
+    if (vRoomBand.w > 0.5) color.rgb = mix(color.rgb, stairValue2, 0.6);
+  `;
+  return {
+    attach(material: CustomMaterial) {
+      new RoomBandAttribute(material);
+      material.Vertex_Definitions(`#ifdef ROOM_BANDS
+attribute vec4 ${roomBandAttribute}; varying vec4 vRoomBand;
+#endif`);
+      material.Vertex_MainEnd(`#ifdef ROOM_BANDS
+vRoomBand = ${roomBandAttribute};
+#endif`);
+      material.Fragment_Definitions(`${noise}
+#ifdef ROOM_BANDS
+varying vec4 vRoomBand;
+#endif`);
+      material.AddUniform('roomCutoffs', 'vec2', cutoffs);
+      roomRoles.forEach((role, roleIndex) =>
+        swatches[roleIndex].forEach((rgb, i) => {
+          material.AddUniform(`${role}Value${i}`, 'vec3', rgb);
+        }),
+      );
+    },
+    originalOr(original: string, tuned: string) {
+      return `#ifdef ROOM_BANDS
+if (roomCutoffs.x >= 0.0) { ${tuned} } else
+#endif
+{ ${original} }`;
+    },
+    roomShading,
+    update({ paletteEnabled, roomHue, shadowCoverage }: ViewSettings) {
+      if (!paletteEnabled) {
+        cutoffs.set(-1, 0);
+        return;
+      }
+      cutoffs.set(...bandThresholds(shadowCoverage));
+      roomRoles.forEach((role, roleIndex) => {
+        roomSwatches(role, roomHue).forEach((rgb, i) => swatches[roleIndex][i].set(...rgb));
+      });
+    },
+  };
+}
+
+export function createMaterials(
+  scene: Scene,
+  roomBands: ReturnType<typeof createRoomBandUniforms> | null,
+) {
   const palette = {
     stone: '#657575',
     trim: '#a29a79',
@@ -47,6 +133,7 @@ export function createMaterials(scene: Scene) {
       mat.specularColor = Color3.Black();
       mat.maxSimultaneousLights = 5;
       mat.Fragment_Definitions(noise);
+      roomBands?.attach(mat);
       const pattern =
         name === 'wood'
           ? `
@@ -71,15 +158,18 @@ export function createMaterials(scene: Scene) {
       diffuseColor *= 0.91+blocks*0.16;
       diffuseColor *= 1.0-step(0.977,fleck)*0.24;
     `;
-      mat.Fragment_Custom_Diffuse(pattern);
-      mat.Fragment_Before_Fog(`
+      mat.Fragment_Custom_Diffuse(roomBands ? roomBands.originalOr(pattern, '') : pattern);
+      const originalBand = `
       float luminance=max(0.05,dot(diffuseBase,vec3(0.299,0.587,0.114)));
       float lightWidth=max(0.03,fwidth(luminance)*0.75);
       float band=0.09+0.34*smoothstep(0.29-lightWidth,0.29+lightWidth,luminance)
         +0.39*smoothstep(0.67-lightWidth,0.67+lightWidth,luminance)+0.18*aaStep(1.0,luminance);
       color.rgb *= mix(1.0,band/luminance,0.72);
       color.rgb=mix(vec3(0.018,0.026,0.035),color.rgb,0.95);
-    `);
+    `;
+      mat.Fragment_Before_Fog(
+        roomBands ? roomBands.originalOr(originalBand, roomBands.roomShading) : originalBand,
+      );
       return [name, mat];
     }),
   ) as Record<keyof typeof palette, CustomMaterial>;
@@ -100,31 +190,54 @@ export function createMaterials(scene: Scene) {
     varying vec3 pos; varying vec2 vUV;
     void main(){ pos=(world*vec4(position,1.)).xyz; vUV=uv; gl_Position=worldViewProjection*vec4(position,1.); }
   `;
-  function effect(name: string, code: string): ShaderMaterial {
+  function effect(name: string, code: string, liquid = false): ShaderMaterial {
     const mat = new ShaderMaterial(
       name,
       scene,
       {
         vertexSource: vertex,
         fragmentSource: `precision highp float;
-      uniform float time; uniform vec3 center; uniform vec3 bounds; varying vec3 pos; varying vec2 vUV;
+       uniform float time; uniform vec3 center; uniform vec3 bounds; varying vec3 pos; varying vec2 vUV;
+       ${
+         liquid
+           ? `uniform vec3 liquidInk; uniform float liquidFog; uniform mat4 view;
+       vec4 liquidColor(vec3 surface) {
+         float d = length((view * vec4(pos, 1.)).xyz) * liquidFog;
+         return vec4(mix(liquidInk, surface, exp(-d*d)), 1.);
+       }`
+           : ''
+       }
       ${noise}
       void main(){ ${code} }
     `,
       },
       {
         attributes: ['position', 'normal', 'uv'],
-        uniforms: ['world', 'worldViewProjection', 'time', 'center', 'bounds'],
+        uniforms: [
+          'world',
+          'worldViewProjection',
+          'time',
+          'center',
+          'bounds',
+          ...(liquid ? ['view', 'liquidInk', 'liquidFog'] : []),
+        ],
       },
     );
     mat.setFloat('time', 0);
     mat.setVector3('center', Vector3.Zero());
     mat.setVector3('bounds', new Vector3(4.5, 4.5, 0));
+    if (liquid) mat.setFloat('liquidFog', 0);
     return mat;
   }
   const water = effect(
     'water',
     `
+    if (liquidFog > 0.) {
+      vec2 d = abs(pos.xz - center.xz);
+      float shore = max(d.x - bounds.x, d.y - bounds.y);
+      gl_FragColor = liquidColor(mix(vec3(.035,.28,.33), vec3(.10,.42,.47), aaStep(-.42, shore)));
+      return;
+    }
     vec2 p=pos.xz; float n=noise2(p*1.7+time*0.12);
     float wave=sin(p.x*4.0+p.y*2.0+n*6.0+time*1.4);
     float crest=smoothstep(0.94,1.0,wave);
@@ -135,10 +248,15 @@ export function createMaterials(scene: Scene) {
     c=mix(c,vec3(.28,.49,.40),shore*(.35+.25*sin(time*2.+n*8.)));
     gl_FragColor=vec4(c,1.);
   `,
+    true,
   );
   const lava = effect(
     'lava',
     `
+    if (liquidFog > 0.) {
+      gl_FragColor = liquidColor(vec3(.72,.19,.065));
+      return;
+    }
     vec2 p=pos.xz*1.7;
     p+=vec2(noise2(p*.7+time*.08),noise2(p*.7-time*.09))*.6;
     vec2 g=floor(p), f=fract(p); float first=8., second=8.;
@@ -153,6 +271,7 @@ export function createMaterials(scene: Scene) {
     c+=vec3(.5,.16,.01)*pow(crack,6.);
     gl_FragColor=vec4(c,1.);
   `,
+    true,
   );
   const flameCode = `
     vec2 p=vUV; float sway=sin(time*5.+pos.x*4.+p.y*5.)*.08*p.y;

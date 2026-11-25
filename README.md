@@ -44,6 +44,70 @@ and combat without reloading the page. **[ / ]** rotate the camera. Refresh open
 room again; the bare URL starts the normal dungeon. Edit the layout in
 [`src/practiceRoom.ts`](src/practiceRoom.ts).
 
+### Practice visual trial
+
+The dungeon and The Dojo start in **Tuned**: 60° Lens, 35% Fisheye, 4 px Ink width and 40% Corner wear.
+The palette is off; its saved hue is 360° and shadow coverage is 54.1122213681783%.
+Select **Original** in The Dojo for the untreated view, or launch either room with `view=original` in the query string.
+Open **Visual trial** in The Dojo to drag
+the Lens (25–60° vertical FOV) or Fisheye (0–100%) slider, use its arrow keys, or enter an exact
+value in the adjacent field. Lens changes perspective without changing gameplay zoom; Fisheye
+bends the scene, not the HUD. Switching modes keeps your orbit, zoom and saved Tuned values.
+Enable **Three-value rooms** separately to try broad lit, mid and shadow shapes on dungeon
+architecture. The treatment distinguishes flat stair arrivals from the surrounding floor
+without changing walkable geometry. **Room hue** (0–360°) rotates the room colors
+together. **Shadow coverage** (0–100%) moves the cutoff for the darkest band, not a percentage of
+screen pixels. Both palette controls take effect only when the checkbox is on.
+**Ink width** adds a dark violet contour to living figures, held gear, and framed portraits.
+Set it from **0** (off) to **4** framebuffer pixels in whole-pixel steps. It is independent of
+the palette, Lens, and Fisheye, and does not change what you can click. Visible weapons and shields
+keep a thin rim and brighter fill so a wide figure contour doesn't swallow small gear.
+**Corner wear** (0–100%) leans the masonry, tapers pillars, and chips door and stair
+edges. It uses the same profiles for a given seed at any orbit or zoom. It only changes the
+drawn architecture: picks, clearance, walkable heights, and the saved seed are unchanged.
+**Reset settings** restores the default recipe without restarting the round.
+**Copy settings** copies the mode and saved Tuned settings as JSON; if clipboard access fails, select the
+displayed text. On a short window, scroll inside the open panel to reach the lower controls;
+the wheel won't zoom the camera there. To reproduce a view, enter those values in Tuned and use
+the same orbit and zoom.
+The preset survives practice resets in the same page, not a reload. Normal dungeon play has
+no trial panel.
+
+For the pinned comparisons, start the dev server, then run this on a graphical
+desktop with Playwright Chromium, `ffmpeg` and `ffprobe` installed:
+
+```sh
+node tests/visual-trial-browser.ts           # live controls, picks, paired stills and clips
+```
+
+`--panel` runs just the live practice checks. `DEMO_URL` overrides the dev URL. For the
+ink trial, `node tests/visual-trial-ink.ts` saves matched 0/2/4-pixel views, action and
+occlusion checkpoints, and route/pick parity to `test-results/visual-trial/15.3/ink-run-*/`.
+For Corner wear, `node tests/visual-trial-wear.ts` saves matched Dojo and `MOURNING-731`
+views, stair support and route traces, and screen-coordinate picks to a fresh
+`test-results/visual-trial/15.4/wear-run-*/` directory.
+For the three-value trial, `node tests/visual-trial-palette.ts` captures matched Dojo and seeded dungeon
+views to a fresh `test-results/visual-trial/15.2/palette-run-*/` directory. The lava and altar
+stills use supplemental camera targets, not route progression. Full 15.1 replay
+reads the untouched controls from `test-results/visual-trial/15.1/` (or `VISUAL_TRIAL_OUTPUT`).
+It compares decoded stills and all clip frames, not encoded bytes. Each invocation publishes
+its own `paired-run-*/evidence/` (or `panel-run-*/evidence/`) only after all its checks pass.
+The printed path contains its manifests and captures; no existing captures are replaced.
+
+`--baseline` is only for capturing the untreated build served with the same route fixture. It
+requires a nonexistent `VISUAL_TRIAL_OUTPUT` path and publishes the controls under its
+`evidence/` subdirectory. Point later comparisons at that subdirectory. Do not regenerate
+the pinned controls on the trial build.
+
+The bounded hardware experiment is closed; keep its reports. `--measure` makes no captures and
+rejects either historical timing filename or an existing `timing-run/` before opening Chromium.
+Any future authorized trial needs a separate control directory with the two untouched
+`before-*.json` manifests and no timing reports; it would publish both reports under
+`timing-run/evidence/`. See [verification](VERIFICATION.md#story-151--pinned-visual-comparisons)
+for the decoded-media thresholds and historical timing verdict.
+
+### Production preview
+
 ```sh
 npm run build
 npm run preview

@@ -237,6 +237,234 @@ does not receive keyup. See `test-results/epic14-f1-independent-final.log` for t
   at tick 37, observed a null-destination failure at tick 38, and verified that the next hold
   retried at tick 39 and published a clear endpoint at `x=0.910034` at tick 78 while all three
   competitors still had work. Logs: `test-results/14-2-publication-*.log`.
+## Story 15.2 — Three-value rooms (implementation evidence)
+
+Implemented as an opt-in practice treatment on `epic-15-visual-experiments` (base `6c10c78`).
+Both entry points start in Original; the ordinary dungeon has no panel. The existing visual
+trial statechart owns the recipe. On trial-capable scenes only, tagged architecture gets a
+shader branch using scene-local swatches and cutoffs. A prototype that replaced materials on
+toggle produced blank architecture and incomplete Original frames during shader compilation;
+the final branch keeps the Original materials and draw path in place across toggles. No
+geometry or shader is rebuilt on edits. No 15.1 artifacts were replaced and no timing was run.
+
+- **Red:** `node --test tests/roomPalette.test.ts tests/visualTrial.test.ts` failed for the missing
+  palette policy and missing default. The headed `--panel` run failed on the missing room
+  control. With settings implemented but before rendering, `palette-run-lqMk0w` rejected all
+  seven pairs as having no substantive treatment.
+- **Green:** the focused Node tests passed (7/7), and `npm run test:models` passed (26/26;
+  visual trial 2/2 states, 8/8 branches). `npm run check:full` completed on rerun after the
+  first invocation hit the tool timeout (591/591 tests, typecheck, lint and format check).
+  `npm test` (571/571) and `npm run build` also passed.
+- **Live controls:** `DEMO_URL=http://localhost:5182 VISUAL_TRIAL_OUTPUT=test-results/visual-trial/15.2
+  node tests/visual-trial-browser.ts --panel` passed. It exercised pointer and keyboard edits,
+  exact numeric entry, copy fallback and re-entry, scene/camera/intent isolation, and practice
+  reset. The 844×390 native scroll case reached the controls and selected the fallback JSON.
+  Evidence: `test-results/visual-trial/15.2/panel-run-xH0396/evidence/`.
+- **Matched WebGL:** `DEMO_URL=http://localhost:5182 node tests/visual-trial-palette.ts` passed.
+  Evidence: `test-results/visual-trial/15.2/palette-run-N2Md5x/manifest.json` and adjacent PNGs.
+  Headed Chromium 159.0.8154.6, WebGL2/ANGLE on RTX 2070, High, nominal 1280×720/DPR 1
+  (1279×719 framebuffer). Lens 0.65 rad, Fisheye 0%, hue 275°, coverage 50% unless noted.
+  Same tick, scene, camera target, angles, radius and framebuffer per trio. All seven Tuned
+  frames differed substantively; restored Original met the 15.1 decoded-pixel tolerance in
+  all seven. Dojo used reset + single-foe at tick 344; the stair used the fresh `MOURNING-731`
+  route at tick 430. Lava/bridge and altar were fixed supplemental targets in that same scene,
+  **not** achieved route outcomes.
+
+In the near Dojo crop (295×150, radius 18), horizontal blue-channel jumps of at least eight
+levels fell from 4,655 in Original to zero in Tuned. At radius 36, the fixed Dojo crop counted
+29,786 / 58,111 / 71,377 dark purple pixels at 0 / 50 / 100% coverage; the lit floor sample
+stayed RGB (159,117,191). The void was (10,7,23), with shaded masonry (39,22,54) and lit
+masonry (158,117,190). The captured stair was blue with amber flames nearby; the violet
+Dojo had continuous safe floor and visible cast shadows; the green altar retained its
+violet rune focus. The lava was readable as broad orange pools, with a cross of safe floor.
+
+The implementer indicated the following points on the unlabelled Tuned frames before
+querying the matching geometry. Coordinates are scene pixels and tile `(x, z; support h)`.
+
+| Frame | Indicated position | Matched world feature |
+| --- | --- | --- |
+| Dojo | (615, 560) | Safe stone (3, −5; 0) |
+| Landing | (700, 351), (796, 298) | Passage-13 stair (−1, 16; −1.6), Bakery landing (−1, 21; −2.4). The stair ray picked the cosmetic tread geometry (hidden by the shader) above the actual support tile. |
+| Lava/bridge | (642, 468), (639, 398) | Lava (−24, 26; −0.28), bridge (−26, 28; 0) |
+| Altar | (621, 141) | Floating altar ember above the altar tile (20, 6; 0) |
+
+**Limits:** The three matched stair turn samples show that the steps stay visible, but
+fine shadow stipple changes with the angle near the treads; stills do not establish that
+the effect is shimmer-free in motion. The bridge was located by the safe cross between the
+pools, not by a separate surface color. The evidence is from one seed and one browser/GPU;
+water was not a pinned visual sample. The point-to-world check is implementer evidence, not
+an independent readability review or approval. No roadmap or delivery status changed.
+
+### Stair landing follow-up
+
+**Historical blind result: fail.** The reviewer saw the stairs but did not distinguish the
+flat arrival from the chamber floor in the original Tuned capture. The implementer's pick
+above established where the floor was, not whether the landing read as a separate shape.
+The earlier capture and results are retained.
+
+The Tuned palette now colors a continuous, passage-width patch on existing flat stone at
+both ends of ramped passages. It stops at the first incomplete coplanar row and changes only
+top-face shading. No tiles, meshes, collision, or support heights were added or moved.
+
+- **Red:** The new mask unit tests initially failed for the missing policy. On the unchanged
+  renderer, the new browser probe hit the expected flat floor in all five samples but failed
+  the contrast check (`palette-run-Zug5Ww/manifest.json`, under `test-results/visual-trial/15.2/`).
+- **Green:** `node --test tests/stairLandings.test.ts tests/roomPalette.test.ts tests/visualTrial.test.ts`
+  (9/9), `npm test` (573/573), `npm run check:full` (593/593, typecheck, lint and format),
+  and `npm run build` passed.
+- **Headed Chromium:** `node tests/visual-trial-palette.ts` and
+  `node tests/visual-trial-browser.ts --panel` passed against this worktree's dev server at
+  `http://localhost:5182`. The pinned fresh `MOURNING-731` replay reused tick 430, the same orbit
+  and radius 36, and the same High recipe and 1279×719 framebuffer. All four landing samples
+  separated from nearby coplanar floor, with no chroma jump across the sampled internal seam.
+  Before/after Original stair captures matched exactly in decoded RGB. Evidence is in
+  `test-results/visual-trial/15.2/palette-run-PgvNsr/` and
+  `test-results/visual-trial/15.2/panel-run-VMdhev/evidence/`.
+
+**Independent review verdict: APPROVE 15.2.** On the fresh, unannotated `landing-tuned.png`
+in `palette-run-PgvNsr/`, the reviewer picked pixel `(780, 291)` before consulting the geometry.
+The pick matched the flat Bakery landing at tile `(−1, 21)`, support height `−2.4`.
+The full suite passed 593/593 checks. This approval applies to the follow-up capture;
+the historical blind failure above still stands.
+
+## Story 15.1 — Pinned visual comparisons
+
+Worktree `the-hollow-crown-epic-15`, branch `epic-15-visual-experiments`, Node 26.0.0.
+The inherited untreated controls identify `c00a905c19d7caafde309c99f828ee8191bfd5dc`.
+The resumed run preserved `before-*` and added a guard that rejects existing control
+directories **before** launching the browser. Paired manifests fingerprint the working
+source, record browser/renderer/framebuffer and link back to the control build.
+
+| Route | Inputs (60 Hz simulation ticks) | Checkpoints and captures |
+| --- | --- | --- |
+| The Dojo, empty reset then single foe | `0`: floor `(-6,-4)` past pillar; `120`: `practice-door`; `300`: `skeleton:practice:0` | Floor at tick 100, door closed at 0 and open at 220, skeleton swing at 344; clip starts at 64. |
+| `MOURNING-731`, fresh explicit debug navigation | `0`: floor `(-8,-4)` beside `portrait-15`; `180`: floor `(-1,24)` over passage-13 stairs; `590`: `goblin:bakery:0` | Portrait proximity at 180, intermediate stair height at 430, Bakery `(-1,24,-2.4)` at 580, goblin swing at 680; clip starts at 408. |
+
+Both routes match the untreated control and each other in Original/Tuned at every recorded
+simulation tick (365 practice, 709 dungeon). Moving the first input one tick is rejected.
+The capture inventory contains 16 paired stills (four quarter turns × two logical radii per
+route) and one Original/Tuned motion pair per route. The four paired MP4s decode at 1280×720,
+75 frames at 15 fps (5 s); scene stills are 1279×719 from Chromium's nominal DPR-1, 1280×720
+viewport on this desktop. In the historical successful run, Original stills and clips compared
+byte-for-byte with the untreated controls. Tuned uses 60° / 100%, with the same camera angles,
+logical radii and High quality.
+
+`DEMO_URL=http://localhost:5181 node tests/visual-trial-browser.ts` exercises the real controls
+and picks in headed Chromium 159.0.8154.6 / WebGL2. It checks drag/release, keyboard edits,
+no gameplay intent, same scene, mode/reset, clipboard denial and exact numeric re-entry.
+With Fisheye off, stationary, depth-tested hero silhouette heights are 107/53px (Original at
+18/36), 107/52px (25°) and 108/53px (60°); worst deviation 1.89%. At each Lens/Fisheye
+corner, the same treatment and zoom are held across a quarter turn: foreground walls lower,
+the hero is visible, and all 12 real clicks in the outer 20% reach their intended tile,
+skeleton or door. The test also checks Fisheye does not change FOV or logical zoom.
+
+Artifacts are local and ignored under `test-results/visual-trial/15.1/`: `before-*.json`,
+`paired-*.json`, the stills/clips, `limits.json`, and the panel, rotation and click captures.
+Inspection of all still angles and sampled decoded frames from both clips per route showed the
+practice pillar/door/skeleton and the dungeon descent/Bakery encounter. Strong warping visibly
+bows straight scene edges and can blank out corners; the DOM HUD stays rectangular. At some
+angles the open door and nearby actors overlap; these are matched frames, not a readability
+verdict. The 13 local reference JPEGs are in the primary checkout's `ref/images/`; this story
+did not use or copy them. Palette, ink, and wear are later stories.
+
+**Bounded hardware trial:** `DEMO_URL=http://localhost:5181 node tests/visual-trial-browser.ts
+--measure` exited 0. Headed Chromium 159.0.8154.6, NVIDIA RTX 2070 (ANGLE/WebGL2), driver
+615.78.08, 59.91 Hz display, `balanced-bazzite`. No capture overhead. Three matched pairs per
+route, near then far, with alternating mode order, one untimed full replay per mode and 24
+untimed renders on each measured scene before stepping. The timing metric is Babylon render-loop
+callback interval, not direct scanout, GPU time, or a latency claim. The shared desktop had
+other activity; the observed spread is part of the result, not a reason to retest a budget miss.
+Budgets were fixed at **+2 ms p95** and **+1 draw/frame** for pooled near/far samples per route.
+
+| Route | Paired p95 deltas, ms | Paired mean-draw deltas | Median and min–max | Verdict |
+| --- | --- | --- | --- | --- |
+| Practice | +0.1, 0.0, 0.0 | +0.827, +0.884, +0.840 | 0.0 ms [0.0, +0.1]; +0.840 draws [+0.827, +0.884] | Within both budgets |
+| Dungeon | −10.8, +8.3, +7.3 | +73.251, +73.230, +73.270 | +7.3 ms [−10.8, +8.3]; +73.251 draws [+73.230, +73.270] | Over draw budget in all three pairs; mixed frame interval |
+
+`timing-practice.json` and `timing-dungeon.json` retain per-run absolute near/far and pooled
+values. The initial setup aborted before collecting a pair because Chromium reported nominal
+DPR 1 as `0.9999999812`; the corrected guard preserves the viewport and rejects hidden pages.
+The bounded trial used no replacement pairs and stopped without tuning. It does not support
+promoting the recipe in the dungeon; Original remains the default.
+
+**Historical gates and review:** `node --test tests/visualTrial.test.ts` passed (3/3). `npm run check:full`
+passed (554 tests, typecheck, lint, format). An intermediate capture retry was killed by host OOM
+while exercising the deliberate mismatch; route rejection now reports the first divergent tick
+without formatting a full trace diff. The final headed replay and post-fix typecheck, lint,
+format check, `npm test` (534 tests), and `npm run build` passed. The independent read-only
+Astra follow-up approved that earlier snapshot as an opt-in tool, not promotion of the Tuned
+recipe; see `test-results/visual-trial-final-review.log` and
+`test-results/visual-trial-bounded-browser.log`. That approval is historical, not a current
+delivery verdict: later review found short-viewport clipping, growing camera pass slots, and
+unprotected timing reports. Those fixes were pending independent re-review at that point.
+
+**Follow-up verification:** Regressions went red before the fixes: the 844×390 pointer wheel
+could not reach Fisheye, 12 cycles grew the camera chain from 1 to 13 slots, and either
+occupied timing filename fell through to the browser launch step. The headed Chromium
+`--panel` suite now passes, including real pointer scrolling, Fisheye/reset/copy with a
+selected clipboard fallback, unchanged gameplay zoom, and a stable chain with other passes
+preserved. The short-window capture was inspected (`test-results/visual-trial-fix/practice-panel-short.png`).
+Both timing preflight tests pass with Chromium unavailable by design. `npm run check:full`
+passed (556 tests, typecheck, lint, format), as did `npm test` (536 tests) and `npm run build`.
+An additional non-timed capture replay did not complete: it rejected the practice Original
+`radius-36-turn-3.png` on a byte comparison (five rendered pixels differ from the untouched
+control). The historical comparison evidence above was not replaced. No hardware timing
+was rerun; both historical timing reports are byte-for-byte unchanged.
+
+**Round 2 — Decoded comparisons and publication.** Compare aligned decoded RGB8 pixels. A
+pixel's error is its largest absolute channel difference, in 0–255 steps. Every Original
+frame must have mean error ≤0.5 and at most 0.5% of pixels with error ≥8 against the untreated
+control. This permits isolated raster and encoder noise but not broad drift. To count as
+treated, a Tuned frame must have mean error ≥2 and at least 2% of pixels with error ≥12 against
+current Original. Require this on every paired still and at least 68 of 75 clip frames, so a
+re-encode or isolated clip change cannot stand in for the pinned 60° / 100% recipe. These are
+guards for this strong treatment on these pinned routes, not a general visual-quality metric.
+The replay checks dimensions, frame count and the 15 Hz clip timestamps (to ffprobe's 1 μs
+reporting precision); it compares every frame in order without scaling or resampling. Simulation
+trace matching remains exact, including rejection of a one-tick offset. At each still and raw
+clip frame, the runner reads back the active camera's orbit, logical zoom, compensated radius,
+FOV and distortion state. Tuned must also reproduce the just-captured Original target exactly.
+These checks are separate from the pixel tolerances: a different quarter turn could otherwise
+look sufficiently different without any treatment. The historical control has no per-frame
+camera telemetry; its pinned view manifest, framebuffer and decoded media are still checked.
+
+All writers use one exclusively reserved run directory. Route manifests, stills, raw frames,
+encodes, panel/limit captures and timing reports are written only inside that run's staging
+directory. Rename to `evidence/` only after all requested checks and browser cleanup succeed;
+ordinary failure removes the staging run. Existing flat-layout artifacts remain read-only to
+paired/panel runs. Baseline requires a new root, and timing refuses either historical report
+or a reserved `timing-run/` before browser launch.
+
+The untimed headed replay (`DEMO_URL=http://127.0.0.1:5187 node tests/visual-trial-browser.ts`)
+published `test-results/visual-trial/15.1/paired-run-QEVvw1/evidence/`. The routes matched all
+365/709 simulation ticks respectively. All 16 Tuned stills and all 75 frames of each Tuned
+clip met the treatment threshold. The practice `radius-36-turn-3.png` rejected by the old byte
+check passed with mean decoded error 0.00000544 and no pixels at or above 8 steps. The live
+panel, edge picks, pass lifecycle, and short-window controls passed; sampled panel and Bakery
+stills were inspected. Negative tests cover re-encoded no-op PNG/MP4, sparse one-step noise,
+substantive Original drift, invalid clip cadence/count, wrong capture camera, and a rejected
+rerun after staging output. All 540 historical artifact hashes matched, including both timing
+reports. No hardware timing was rerun.
+
+`npm run check:full` passed (565 tests, typecheck, lint, format); `npm test` passed (545 tests);
+`npm run build` passed with Vite's large-chunk warning. The independent Astra follow-up found
+no remaining blocker for the round-2 findings and independently reran the camera regression
+(`test-results/visual-trial-round2-camera-independent.log`). This does not change the historical
+hardware verdict or promote the Tuned recipe.
+
+**Follow-up 1 — Concurrent rollback.** Before the fix, five output regressions failed:
+baseline rollback deleted three published peer runs, an active panel stage, and an existing
+entry that blocked rename. After the fix, the four focused visual-trial files passed (36 tests),
+including all 16 ordered writer pairs, and `npm test` passed (567 tests). `npm run check:full`
+passed (587 tests, typecheck, lint, format), and `npm run build` passed with Vite's large-chunk
+warning. No browser capture or hardware timing trial was rerun; the historical trial directory
+was not used.
+
+**Final independent review: APPROVE** for the full Story 15.1 and the concurrent rollback
+follow-up. The final verification totals were 36/36 focused tests and 587/587 full tests.
+The approval covers the opt-in comparison tool, not the Tuned recipe's performance. The
+bounded timing trial remains closed: practice met both budgets, and the dungeon exceeded
+the draw-call budget in all three pairs. Original remains the default.
 
 ## Story 14.1 — Edge steering
 
@@ -5271,3 +5499,157 @@ Exploring additional areas can compile additional material variants. Regeneratin
 - Effect simulation uses transient entities with fixed-size thin-instance render pools (192 hit particles and 32 bolts maximum). Corpses retain their rigs rather than allocating replacement meshes.
 
 Current state-machine/social reports include `test-results/machine-model-report.json`, `test-results/chromium-social-report.json`, and `test-results/firefox-social-report.json`. Full browser, targeted movement/combat/inspection, portrait, and hardware reports retain their existing filenames in `test-results/`; the table above distinguishes current runs from earlier baselines.
+## Story 15.3 — Ink contours (implementation evidence)
+
+- **Red → green:** `node --test tests/visualTrial.test.ts` rejected the new Tuned width edit;
+  `npm run test:models` found the missing value on the `SELECT tuned → EDIT inkWidth` edge.
+  The live panel check failed on the missing labeled slider and the first ink pixel check
+  measured `[0, 0]` at widths 2 and 4. The updated unit and model suites passed (visual trial
+  2/2 states and 8/8 branches). `npm run check:full` passed all 594 tests plus typecheck, lint
+  and format; `npm run build` passed with Vite's large-chunk warning.
+- **Untreated comparison:** `DEMO_URL=http://localhost:5183 node tests/visual-trial-browser.ts`
+  passed before and after implementation against the preserved 15.1 controls, including the
+  365-tick Dojo and 709-tick `MOURNING-731` replays, both zooms, four turns, and clips. Separate
+  evidence under `test-results/visual-trial/15.1/`: `paired-run-jk9tGB/evidence/` before and
+  `paired-run-2LdjJw/evidence/` after. No historical captures or tolerances changed.
+- **Live controls:** `DEMO_URL=http://localhost:5183 VISUAL_TRIAL_OUTPUT=test-results/visual-trial/15.3 node tests/visual-trial-browser.ts --panel`
+  passed. Drag, arrow keys, mode switching, copy, numeric entry and reset ran with the real panel,
+  including native scroll at 844×390. Normal-size checks compare frames and scene/input state;
+  a practice reset with ink enabled retired the old pass and target and restored the saved width
+  on the new scene. See `test-results/visual-trial/15.3/panel-run-ezm3cD/evidence/`.
+- **Matched ink only:** `DEMO_URL=http://localhost:5183 node tests/visual-trial-ink.ts`
+  passed in headed Chromium/WebGL2. See `test-results/visual-trial/15.3/ink-run-lbqT5H/manifest.json`
+  and adjacent frames. Palette off, default Lens, Fisheye zero, high quality, 1280×720 CSS viewport,
+  DPR 1; the manifest records actual framebuffer size, pose and orbit for each 0/2/4-pixel set.
+  The width-only route traces matched, as did real floor, skeleton and door clicks in the Dojo.
+  Width 2/4 changed 754/1,496 exposed pixels (RGB channel delta >8), 0/0 behind the intact wall,
+  244/407 under partial cover, and 605/981 after the real cutaway at the same simulation tick.
+  Floor and overlapping body samples stayed unchanged. The isolated `portrait-15` comparison
+  at tick 100 changed 876/1,720 pixels. The resource probe exercised both Fisheye enable orders,
+  positive-width edits, eight disable cycles, and a framebuffer resize.
+- **Visual read:** inspected the matched lit-floor and partition-shadow sequences at approach
+  tick 5, wind-up 30, resolved impact 38, and raised guard 9, plus near/far rotation samples,
+  the portrait, wall transition, and panel captures. The contour separates the actors from
+  lit flooring; the frame reads without inking adjacent masonry. The red target ring remains
+  distinct. Pointer-over was captured at the same pose as targeting; this build has no separate
+  persistent hover marker to validate. At far zoom against the shadowed partition, thin gear
+  still merges visually where hero and foe overlap: the shield raise is easier to read at near
+  zoom, and 4 px is not a recommendation for default play.
+
+The trial remains opt-in. No timing retrial or adoption decision. This initial evidence predates
+the final independent review below; the [original negative 4 px frame](test-results/visual-trial/15.3/ink-run-lbqT5H/shadow-raised-far-4.png)
+is retained.
+
+### Story 15.3 — Blocker follow-up (untimed)
+
+- **Short-panel Copy:** The two earlier full-sequence fallback timeouts remain historical misses.
+  A fresh full replay with trusted-event logging did not reproduce them on demand. The old check
+  could accept a transient DOM hit during wheel scrolling and would report a missing click and a
+  broken fallback as the same timeout. The short test now waits for native `scrollend` when a
+  scroll is needed, checks the actual click point, and requires trusted down/up/click on Copy and
+  exactly one clipboard attempt per click. The stub still denies permission; the real UI exposes
+  the attempted JSON and focuses/selects it. No production clipboard or focus code changed.
+- **Matched shield:** The new regression failed on the historical renderer: at 4 px the sampled
+  shield face fell from 42.8 to 26.9 in weighted RGB luma (0–255). The repair uses only the visible
+  gear pixels in the existing depth-tested mask: a thin inset rim and modest fill lift instead of
+  a full-width dark band. The unlabeled
+  [full-frame pair](test-results/visual-trial/15.3/ink-run-ohb1C2/shadow-raised-far-thick-comparison.png)
+  and [enlarged detail](test-results/visual-trial/15.3/ink-run-ohb1C2/shadow-raised-far-thick-detail.png)
+  show historical 4 px on the left and repaired 4 px on the right. The width-zero PNG is byte-identical
+  to the historical control. The manifests match for camera, walls, actors, drawn gear transforms,
+  tick 9, seed and framebuffer; only the scene IDs differ. The far shot keeps the raised shield
+  matrix even though release clears the guard input flag during the zero-tick orbit settle.
+  The visible shield reads as a distinct red-trimmed face instead of blending into the dark overlap;
+  the part behind the skeleton is still hidden. Face luma is 54.9 at 4 px and mean red-rim separation
+  (`R − max(G, B)`) is 57.7, versus 16.4 at historical 4 px and 58.3 at width zero. This is a pinned
+  view, not a recommendation for 4 px generally. Intact-wall frames stayed byte-identical at 0
+  and 4 px; partial cover and the real cutaway exposed progressively more ink.
+- **Browser checks:** With `DEMO_URL=http://localhost:5183`, headed Chromium passed the full
+  `node tests/visual-trial-browser.ts` sequence and `node tests/visual-trial-ink.ts`. Artifacts:
+  `test-results/visual-trial/15.1/paired-run-cA7Xk9/evidence/` (including both Copy deliveries in
+  `short-panel-copy.json`) and `test-results/visual-trial/15.3/ink-run-ohb1C2/` (including pixel
+  sample positions and results in `manifest.json`). The separate `--panel` run also passed at
+  `test-results/visual-trial/15.3/panel-run-iGj0e8/evidence/`.
+- **Full gate:** `npm run check:full` passed all 594 tests, typecheck, lint, and format.
+  `npm test` passed all 574 core tests. `npm run build` passed with the existing Vite
+  large-chunk warning.
+
+### Story 15.3 — Final independent review
+
+- **APPROVE — full Story 15.3.** The independent `npm run check:full` passed all 594 tests,
+  typecheck, lint, and format. The reviewer also passed the full headed browser sequence
+  (`test-results/visual-trial/15.1/paired-run-amLp6O/evidence/`) and the ink suite
+  (`test-results/visual-trial/15.3/ink-run-87yDky/`).
+- **Minor, nonblocking test hardening:** Use owned copies of the shield and weapon matrices in
+  the pose snapshot so Babylon's mutable matrix storage cannot mask a change between captures.
+  The separate reviewer rerun with owned pose snapshots passed
+  (`test-results/visual-trial/15.3/ink-run-w5JaGQ/manifest.json`). This remains a test-only
+  follow-up; the approval does not replace the earlier negative frame or imply default adoption.
+
+## Story 15.4 — Corner wear
+
+- **Red → green:** Focused tests failed for the missing recipe and profile emitter; the headed
+  panel then failed because input changed the recipe without changing the image. The follow-up
+  midpoint test also reproduced double interpolation of the shared bevel edge before the fix.
+  `node --test tests/cornerWear.test.ts tests/visualTrial.test.ts` passed all 9 tests after the fixes.
+- **Full gate:** `npm run check:full` passed all 598 tests (including model coverage), typecheck,
+  lint, and format. `npm run build` passed with the existing Vite large-chunk warning.
+- **Matched wear:** With `DEMO_URL=http://localhost:5184`, headed Chromium ran
+  `node tests/visual-trial-wear.ts`. The 83 captures and traces are in
+  `test-results/visual-trial/15.4/wear-run-27ZY1w/`. They cover near/far views from four sides,
+  fixed-pose subject details, and paired samples during rotation, door swing, and stair descent.
+  The detail stills and descent samples show tapered pillars, changing wall profiles, and a
+  bevel on the stone riser itself, not just changed lighting. The flat landing remains flat.
+  The door and stair bevels are subtler than masonry at far zoom. The view-mask detector had
+  equal vertical extent in every pair; its far dungeon side 3 measurement includes extraneous
+  pixels and is not an isolated hero-height measurement.
+- **Parity:** Original and full wear matched at 366 Dojo and 710 dungeon route checkpoints,
+  plus 360 stair-ascent checkpoints, including path, support samples, door angles, actor state,
+  sampled rig matrices, layout/placement fingerprints and identical real floor/foe/door
+  clicks. Scrubbing restored the zero-wear PNG and probed geometry exactly; the rotated and
+  freshly navigated stair probes retained their profile. Mesh, batch, material, geometry and
+  thin-instance counts were stable across the matched views.
+- **Earlier controls:** The headed `node tests/visual-trial-browser.ts` replay matched the
+  untouched 15.1 controls and wrote only a new `15.1/paired-run-qFZCeO/evidence/` directory.
+  No baseline or hardware timing rerun. The separate broad `npm run test:browser` attempt
+  stopped at the 15-second wait in `tests/browser.ts:488`; it is not counted as passing.
+- **Panel and independent review:** The final headed `--panel` run passed and wrote
+  `15.1/panel-run-ZyE13z/evidence/`. The feature reviewer approved the opt-in trial on follow-up
+  after checking owned rig snapshots, motion and visibility evidence, midpoint interpolation,
+  and bevel UVs. The reviewer also reran the focused tests, typecheck, lint, and format check.
+
+### Story 15.4 follow-up — Dojo T-junction separation
+
+- **Red → green:** Before changing the profiles, the headed triangle probe reproduced Astra's
+  raised east sample at `y=2.8, z=2.25`: the partition ended at `x=8.5` at all wear levels, but
+  the perimeter face separated by `0 / 0.040149 / 0.080297` world units at `0 / 50 / 100%`.
+  The failing probe also detected separation in the east base course at 50%. Raw pre-fix samples:
+  `test-results/visual-trial/15.4/wear-run-sr44o6/junctions.json`.
+- **Repair and scope:** The visual perimeter stays on its original plane where a perpendicular
+  partition can reach it, including the swept width of the leaning partition and trim. Adjacent
+  segments share the pinned endpoints but can still lean away from the joint. The profile test
+  uses generated Dojo dimensions and checks the same rule on both horizontal axes.
+- **Final headed evidence:** `node tests/visual-trial-wear.ts` passed at `DEMO_URL=http://127.0.0.1:5199`.
+  In `test-results/visual-trial/15.4/wear-run-4hXYnr/junctions.json`, the raised east sample is
+  `0 / 0 / 0`. All 336 world-triangle samples hit both surfaces with no positive separation,
+  covering both ends, base/courses/cap, raised/lowered cutaways and wear 0/50/100. Collider indices,
+  positions and world matrices, plus cutaway ownership, pivots and scales, matched the zero-wear
+  controls. The same run passed matched route/pick checks and saved 89 captures; the junction
+  stills show the flat mating span with visible wear outside it.
+- **Other gates:** The headed `node tests/visual-trial-browser.ts --panel` and the full pinned
+  visual replay passed (`15.1/panel-run-8OIvk1/evidence/` and `15.1/paired-run-qQGCMp/evidence/`).
+  `npm test` passed 579 tests; `npm run check:full` passed typecheck, all 599 tests, lint and format.
+  `npm run build` passed with the existing large-chunk warning. No broad `test:browser` rerun or
+  new timing measurements.
+- **Independent follow-up: APPROVE (Astra 6.2).** The first review reproduced a TypeScript blocker
+  in the probe. Reading the live typed blocker collection resolved it without further geometry
+  changes. Astra reran typecheck and the focused tests and independently checked the red and
+  final headed samples. Logs: `test-results/wear-junction-independent-review.log` and
+  `test-results/wear-junction-independent-followup.log`.
+
+### Story 15.4 — Final independent verdict
+
+**APPROVE — entire Story 15.4**, including the Dojo T-junction repair. The final independent
+review reported `npm run check:full` passing all 599 tests and `npm run test:browser` passing
+23/23 checks. The junction probe found zero gaps in 336 world-triangle samples. The 23/23 result
+is from a later full browser run; the earlier timeout and follow-up results above are retained.

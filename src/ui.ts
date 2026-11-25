@@ -12,6 +12,94 @@ import { inhabitantDiscovery, landmarkDiscovery } from './discoveries.ts';
 import type { DiscoveryRecord } from './discoveries.ts';
 import type { AgendaClock } from './lastEmber.ts';
 import type { PracticeRound } from './practiceRoom.ts';
+import { VIEW_RANGES } from './visualTrial.ts';
+import type { ViewSettings } from './visualTrial.ts';
+import type { ViewMode, VisualTrialEvent } from './machines/ui/visualTrial.ts';
+
+export function bindVisualTrialPanel(send: (event: VisualTrialEvent) => boolean) {
+  const original = element('view-original', HTMLButtonElement);
+  const tuned = element('view-tuned', HTMLButtonElement);
+  const palette = element('view-palette', HTMLInputElement);
+  const text = element('view-copy-text', HTMLTextAreaElement);
+  const status = $('view-copy-status');
+  const inputs = (
+    [
+      ['lensDegrees', 'view-lens'],
+      ['fisheyePercent', 'view-fisheye'],
+      ['roomHue', 'view-hue'],
+      ['shadowCoverage', 'view-coverage'],
+      ['inkWidth', 'view-ink'],
+      ['cornerWear', 'view-wear'],
+    ] as const
+  ).map(([key, id]) => {
+    const range = element(id, HTMLInputElement);
+    const value = element(`${id}-value`, HTMLInputElement);
+    const [min, max] = VIEW_RANGES[key];
+    for (const input of [range, value]) {
+      input.min = String(min);
+      input.max = String(max);
+    }
+    range.oninput = () => send({ type: 'EDIT', key, value: range.valueAsNumber });
+    // step="any" lets a copied value round-trip precisely. Give arrows an explicit step.
+    range.onkeydown = (event) => {
+      const delta = ['ArrowLeft', 'ArrowDown'].includes(event.key)
+        ? -1
+        : ['ArrowRight', 'ArrowUp'].includes(event.key)
+          ? 1
+          : 0;
+      if (!delta) return;
+      event.preventDefault();
+      send({ type: 'EDIT', key, value: range.valueAsNumber + delta });
+    };
+    value.onchange = () => {
+      if (!send({ type: 'EDIT', key, value: value.valueAsNumber })) value.value = range.value;
+    };
+    return { key, range, value };
+  });
+  original.onclick = () => send({ type: 'SELECT', mode: 'original' });
+  tuned.onclick = () => send({ type: 'SELECT', mode: 'tuned' });
+  palette.onchange = () => send({ type: 'PALETTE', enabled: palette.checked });
+  $('view-reset').onclick = () => send({ type: 'RESET' });
+  $('view-copy').onclick = () => send({ type: 'COPY' });
+  let copyRequest = 0;
+  return {
+    update(mode: ViewMode, settings: ViewSettings) {
+      copyRequest++;
+      text.hidden = true;
+      status.textContent = '';
+      original.setAttribute('aria-pressed', String(mode === 'original'));
+      tuned.setAttribute('aria-pressed', String(mode === 'tuned'));
+      palette.disabled = mode === 'original';
+      palette.checked = settings.paletteEnabled;
+      for (const { key, range, value } of inputs) {
+        range.disabled = value.disabled = mode === 'original';
+        range.value = value.value = String(settings[key]);
+      }
+    },
+    async copy(settings: string) {
+      const request = ++copyRequest;
+      try {
+        await navigator.clipboard.writeText(settings);
+        if (request !== copyRequest) return;
+        text.hidden = true;
+        status.textContent = 'Settings copied.';
+      } catch {
+        if (request !== copyRequest) return;
+        status.textContent = 'Select and copy these settings:';
+        text.value = settings;
+        text.hidden = false;
+        if (document.activeElement === $('view-copy')) {
+          text.focus();
+          text.select();
+        }
+      }
+    },
+  };
+}
+
+export function fromVisualTrial(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('#visual-trial') !== null;
+}
 
 export class UI {
   readonly map: HTMLCanvasElement;
