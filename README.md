@@ -60,6 +60,9 @@ their defaults for a palette-only comparison.
 Set it from **0** (off) to **4** framebuffer pixels in whole-pixel steps. It is independent of
 the palette, Lens, and Fisheye, and does not change what you can click. Visible weapons and shields
 keep a thin rim and brighter fill so a wide figure contour doesn't swallow small gear.
+**Corner wear** (0–100%, default 0) leans the masonry, tapers pillars, and chips door and stair
+edges. It uses the same profiles for a given seed at any orbit or zoom. It only changes the
+drawn architecture: picks, clearance, walkable heights, and the saved seed are unchanged.
 **Reset settings** restores the default recipe without restarting the round.
 **Copy settings** copies the mode and saved Tuned settings as JSON; if clipboard access fails, select the
 displayed text. On a short window, scroll inside the open panel to reach the lower controls;
@@ -78,6 +81,9 @@ node tests/visual-trial-browser.ts           # live controls, picks, paired stil
 `--panel` runs just the live practice checks. `DEMO_URL` overrides the dev URL. For the
 ink trial, `node tests/visual-trial-ink.ts` saves matched 0/2/4-pixel views, action and
 occlusion checkpoints, and route/pick parity to `test-results/visual-trial/15.3/ink-run-*/`.
+For Corner wear, `node tests/visual-trial-wear.ts` saves matched Dojo and `MOURNING-731`
+views, stair support and route traces, and screen-coordinate picks to a fresh
+`test-results/visual-trial/15.4/wear-run-*/` directory.
 For the three-value trial, `node tests/visual-trial-palette.ts` captures matched Dojo and seeded dungeon
 views to a fresh `test-results/visual-trial/15.2/palette-run-*/` directory. The lava and altar
 stills use supplemental camera targets, not route progression. Full 15.1 replay

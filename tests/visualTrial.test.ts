@@ -3,6 +3,35 @@ import test from 'node:test';
 import { BASE_FOV, DEFAULT_VIEW, lensRadius, lensFov, sceneSample } from '../src/visualTrial.ts';
 import { createVisualTrial } from '../src/machines/ui/visualTrial.ts';
 
+test('Corner wear is clamped, saved in Original and restored only in Tuned', () => {
+  let copied = '';
+  const trial = createVisualTrial({
+    applyView: () => {},
+    copySettings: (value) => (copied = value),
+  });
+  const edit = (value: number) => trial.send({ type: 'EDIT', key: 'cornerWear', value });
+  assert.equal(trial.settings.cornerWear, 0);
+  assert.equal(edit(50), false);
+  trial.send({ type: 'SELECT', mode: 'tuned' });
+  assert.equal(edit(Infinity), false);
+  for (const [value, expected] of [
+    [-1, 0],
+    [46, 46],
+    [200, 100],
+  ]) {
+    assert.equal(edit(value), true);
+    assert.deepEqual(trial.settings, { ...DEFAULT_VIEW, cornerWear: expected });
+  }
+  trial.send({ type: 'SELECT', mode: 'original' });
+  assert.deepEqual(trial.settings, DEFAULT_VIEW);
+  trial.send({ type: 'COPY' });
+  assert.deepEqual(JSON.parse(copied), { mode: 'original', ...DEFAULT_VIEW, cornerWear: 100 });
+  trial.send({ type: 'SELECT', mode: 'tuned' });
+  assert.equal(trial.settings.cornerWear, 100);
+  trial.send({ type: 'RESET' });
+  assert.deepEqual(trial.settings, DEFAULT_VIEW);
+});
+
 test('ink width is an independent whole-pixel Tuned setting with saved and effective values', () => {
   const applied: unknown[] = [];
   const copied: string[] = [];

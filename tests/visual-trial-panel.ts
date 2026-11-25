@@ -35,10 +35,14 @@ export async function checkPanel(page: Page, output: string) {
   const lens = page.locator('#view-lens');
   const ink = page.getByRole('slider', { name: 'Ink width (framebuffer pixels)' });
   const inkValue = page.locator('#view-ink-value');
+  const wear = page.getByRole('slider', { name: 'Corner wear (%)' });
+  const wearValue = page.getByRole('spinbutton', { name: 'Exact corner wear percent' });
   assert.equal(await panel.getAttribute('open'), null);
   assert.equal(await page.locator('#view-original').getAttribute('aria-pressed'), 'true');
   await panel.locator('summary').click();
   assert.equal(await lens.isDisabled(), true);
+  assert.equal(await wear.count(), 1, 'Corner wear control absent');
+  assert.ok(await wear.isDisabled());
   assert.equal(await ink.count(), 1, 'Ink width control absent');
   assert.ok(await ink.isDisabled());
   assert.equal(await page.locator('#view-palette').count(), 1, 'room palette control absent');
@@ -60,6 +64,38 @@ export async function checkPanel(page: Page, output: string) {
   const neutral = await frame(page);
   await page.locator('#view-tuned').click();
   assert.equal(await frame(page), neutral, 'default Tuned must render identically to Original');
+  await wear.scrollIntoViewIfNeeded();
+  const wearBox = await wear.boundingBox();
+  assert.ok(wearBox);
+  await page.mouse.move(wearBox.x + 8, wearBox.y + wearBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(wearBox.x + wearBox.width - 3, wearBox.y + wearBox.height / 2, {
+    steps: 4,
+  });
+  await page.mouse.up();
+  assert.equal(await wearValue.inputValue(), '100');
+  await wear.press('ArrowLeft');
+  assert.equal(await wearValue.inputValue(), '99');
+  await wearValue.fill('60');
+  await wearValue.press('Tab');
+  assert.equal(await wear.inputValue(), '60');
+  const worn = await frame(page);
+  assert.notEqual(worn, neutral);
+  assert.deepEqual(await state(page), start);
+  await page.locator('#view-original').click();
+  assert.equal(await frame(page), neutral);
+  await page.locator('#view-copy').click();
+  assert.deepEqual(JSON.parse(await page.locator('#view-copy-text').inputValue()), {
+    mode: 'original',
+    ...DEFAULT_VIEW,
+    cornerWear: 60,
+  });
+  await page.locator('#view-tuned').click();
+  assert.equal(await frame(page), worn);
+  await page.locator('#view-reset').click();
+  assert.equal(await wearValue.inputValue(), '0');
+  assert.equal(await frame(page), neutral);
+  await lens.scrollIntoViewIfNeeded();
   const box = await lens.boundingBox();
   assert.ok(box);
   await page.mouse.move(box.x + box.width * 0.45, box.y + box.height / 2);
@@ -185,6 +221,8 @@ export async function checkPanel(page: Page, output: string) {
   assert.equal(await frame(page), editedPalette);
   await page.screenshot({ path: `${output}/practice-panel.png` });
   await ink.press('ArrowRight');
+  await wearValue.fill('60');
+  await wearValue.press('Tab');
   await frame(page);
   const old = await page.evaluateHandle(() => {
     const { camera, scene } = window.__dungeon.game;
@@ -210,6 +248,11 @@ export async function checkPanel(page: Page, output: string) {
   );
   await old.dispose();
   assert.equal(await inkValue.inputValue(), '1');
+  assert.equal(await wearValue.inputValue(), '60');
+  const rebuiltWear = await frame(page);
+  await wearValue.fill('0');
+  await wearValue.press('Tab');
+  assert.ok((await frame(page)) !== rebuiltWear, 'practice reset must rebind the saved wear');
   assert.equal(await palette.isChecked(), true);
   assert.equal(await page.locator('#view-coverage-value').inputValue(), '83.125');
   assert.equal(await page.locator('#view-tuned').getAttribute('aria-pressed'), 'true');

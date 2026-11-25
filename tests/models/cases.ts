@@ -102,7 +102,7 @@ export const modelCases = [
     inputs: [undefined],
     // Width uses the same EDIT branch and does not affect any guard. Check its
     // values in the per-edge invariant without multiplying the preset graph.
-    abstractContext: ({ context }) => ({ ...context.saved, inkWidth: 0 }),
+    abstractContext: ({ context }) => ({ ...context.saved, inkWidth: 0, cornerWear: 0 }),
     events: (): EventFromLogic<typeof visualTrialMachine>[] => [
       { type: 'SELECT', mode: 'original' },
       { type: 'SELECT', mode: 'tuned' },
@@ -111,6 +111,11 @@ export const modelCases = [
       { type: 'EDIT', key: 'unknown', value: 30 },
       { type: 'EDIT', key: 'lensDegrees', value: NaN },
       ...[-1, 2.6, 5, Infinity].map((value) => ({ type: 'EDIT' as const, key: 'inkWidth', value })),
+      ...[-1, 47, 101, Infinity].map((value) => ({
+        type: 'EDIT' as const,
+        key: 'cornerWear',
+        value,
+      })),
       { type: 'PALETTE', enabled: true },
       { type: 'PALETTE', enabled: false },
       ...(['roomHue', 'shadowCoverage'] as const).flatMap((key) =>
@@ -143,6 +148,7 @@ export const modelCases = [
         Number.isFinite(event.value) &&
         (event.key === 'lensDegrees' ||
           event.key === 'fisheyePercent' ||
+          event.key === 'cornerWear' ||
           event.key === 'roomHue' ||
           event.key === 'shadowCoverage')
       ) {

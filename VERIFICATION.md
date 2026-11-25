@@ -5348,3 +5348,71 @@ is retained.
   The separate reviewer rerun with owned pose snapshots passed
   (`test-results/visual-trial/15.3/ink-run-w5JaGQ/manifest.json`). This remains a test-only
   follow-up; the approval does not replace the earlier negative frame or imply default adoption.
+
+## Story 15.4 — Corner wear
+
+- **Red → green:** Focused tests failed for the missing recipe and profile emitter; the headed
+  panel then failed because input changed the recipe without changing the image. The follow-up
+  midpoint test also reproduced double interpolation of the shared bevel edge before the fix.
+  `node --test tests/cornerWear.test.ts tests/visualTrial.test.ts` passed all 9 tests after the fixes.
+- **Full gate:** `npm run check:full` passed all 598 tests (including model coverage), typecheck,
+  lint, and format. `npm run build` passed with the existing Vite large-chunk warning.
+- **Matched wear:** With `DEMO_URL=http://localhost:5184`, headed Chromium ran
+  `node tests/visual-trial-wear.ts`. The 83 captures and traces are in
+  `test-results/visual-trial/15.4/wear-run-27ZY1w/`. They cover near/far views from four sides,
+  fixed-pose subject details, and paired samples during rotation, door swing, and stair descent.
+  The detail stills and descent samples show tapered pillars, changing wall profiles, and a
+  bevel on the stone riser itself, not just changed lighting. The flat landing remains flat.
+  The door and stair bevels are subtler than masonry at far zoom. The view-mask detector had
+  equal vertical extent in every pair; its far dungeon side 3 measurement includes extraneous
+  pixels and is not an isolated hero-height measurement.
+- **Parity:** Original and full wear matched at 366 Dojo and 710 dungeon route checkpoints,
+  plus 360 stair-ascent checkpoints, including path, support samples, door angles, actor state,
+  sampled rig matrices, layout/placement fingerprints and identical real floor/foe/door
+  clicks. Scrubbing restored the zero-wear PNG and probed geometry exactly; the rotated and
+  freshly navigated stair probes retained their profile. Mesh, batch, material, geometry and
+  thin-instance counts were stable across the matched views.
+- **Earlier controls:** The headed `node tests/visual-trial-browser.ts` replay matched the
+  untouched 15.1 controls and wrote only a new `15.1/paired-run-qFZCeO/evidence/` directory.
+  No baseline or hardware timing rerun. The separate broad `npm run test:browser` attempt
+  stopped at the 15-second wait in `tests/browser.ts:488`; it is not counted as passing.
+- **Panel and independent review:** The final headed `--panel` run passed and wrote
+  `15.1/panel-run-ZyE13z/evidence/`. The feature reviewer approved the opt-in trial on follow-up
+  after checking owned rig snapshots, motion and visibility evidence, midpoint interpolation,
+  and bevel UVs. The reviewer also reran the focused tests, typecheck, lint, and format check.
+
+### Story 15.4 follow-up — Dojo T-junction separation
+
+- **Red → green:** Before changing the profiles, the headed triangle probe reproduced Astra's
+  raised east sample at `y=2.8, z=2.25`: the partition ended at `x=8.5` at all wear levels, but
+  the perimeter face separated by `0 / 0.040149 / 0.080297` world units at `0 / 50 / 100%`.
+  The failing probe also detected separation in the east base course at 50%. Raw pre-fix samples:
+  `test-results/visual-trial/15.4/wear-run-sr44o6/junctions.json`.
+- **Repair and scope:** The visual perimeter stays on its original plane where a perpendicular
+  partition can reach it, including the swept width of the leaning partition and trim. Adjacent
+  segments share the pinned endpoints but can still lean away from the joint. The profile test
+  uses generated Dojo dimensions and checks the same rule on both horizontal axes.
+- **Final headed evidence:** `node tests/visual-trial-wear.ts` passed at `DEMO_URL=http://127.0.0.1:5199`.
+  In `test-results/visual-trial/15.4/wear-run-4hXYnr/junctions.json`, the raised east sample is
+  `0 / 0 / 0`. All 336 world-triangle samples hit both surfaces with no positive separation,
+  covering both ends, base/courses/cap, raised/lowered cutaways and wear 0/50/100. Collider indices,
+  positions and world matrices, plus cutaway ownership, pivots and scales, matched the zero-wear
+  controls. The same run passed matched route/pick checks and saved 89 captures; the junction
+  stills show the flat mating span with visible wear outside it.
+- **Other gates:** The headed `node tests/visual-trial-browser.ts --panel` and the full pinned
+  visual replay passed (`15.1/panel-run-8OIvk1/evidence/` and `15.1/paired-run-qQGCMp/evidence/`).
+  `npm test` passed 579 tests; `npm run check:full` passed typecheck, all 599 tests, lint and format.
+  `npm run build` passed with the existing large-chunk warning. No broad `test:browser` rerun or
+  new timing measurements.
+- **Independent follow-up: APPROVE (Astra 6.2).** The first review reproduced a TypeScript blocker
+  in the probe. Reading the live typed blocker collection resolved it without further geometry
+  changes. Astra reran typecheck and the focused tests and independently checked the red and
+  final headed samples. Logs: `test-results/wear-junction-independent-review.log` and
+  `test-results/wear-junction-independent-followup.log`.
+
+### Story 15.4 — Final independent verdict
+
+**APPROVE — entire Story 15.4**, including the Dojo T-junction repair. The final independent
+review reported `npm run check:full` passing all 599 tests and `npm run test:browser` passing
+23/23 checks. The junction probe found zero gaps in 336 world-triangle samples. The 23/23 result
+is from a later full browser run; the earlier timeout and follow-up results above are retained.

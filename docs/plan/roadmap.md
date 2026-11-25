@@ -14,7 +14,7 @@ Epic 15 is a separate opt-in visual study, not a prerequisite for the delivery q
 ## Progress
 
 - Epics: 2/16 complete
-- Stories: 12/59 complete
+- Stories: 13/59 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -362,7 +362,7 @@ Test whether a room composed of a few large color shapes makes the route and the
   - Suppress tile seams and fine noise rather than outlining the grid. At far zoom, identify the stair landing, safe floor, hazard and shrine without relying on texture detail.
 - [x] **Story 15.3 — Outline what the player must follow** — Trial thick, dark chromatic contours on the hero, foes and selected landmark silhouettes, not every voxel or internal joint. **Depends on**: 15.1.
   - Compare the same approach, swing and shield raise with and without contours. Keep weapon and shield distinct against both lit floor and shadow; lines must not flicker on rotation, show through walls or masquerade as hover and target feedback.
-- [ ] **Story 15.4 — Break the visible right angles** — Trial render-only seeded skew on masonry, tapered pillars and chipped door and stair profiles. Aim for no apparent right angles in the room silhouette, not a different floor plan. **Depends on**: 15.1.
+- [x] **Story 15.4 — Break the visible right angles** — Trial render-only seeded skew on masonry, tapered pillars and chipped door and stair profiles. Aim for no apparent right angles in the room silhouette, not a different floor plan. **Depends on**: 15.1.
   - Inspect corners and cutaways from each camera side. Repeat the seed: chips stay put, adjacent faces meet without cracks, and no cosmetic draw changes generation or placement.
   - Click the same floor, door and foe and traverse the same stairs in both versions. Preserve picking, collision, navigation, support heights, actor rigs and grips; keep material/chunk batching and thin instances rather than adding a mesh per chip or outline.
 - [ ] **Story 15.5 — Decide which treatments to keep** — Replay both comparisons with individual treatments and the combined look. **Depends on**: 15.2–15.4.

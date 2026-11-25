@@ -12,7 +12,18 @@ import {
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
-import { Batcher, part, tagRoomBand, thinBoxes } from './geometry.ts';
+import { Batcher, part, tagRoomBand, thinBoxes, wearPart } from './geometry.ts';
+import type { CornerWearRenderer } from './cornerWearRendering.ts';
+import {
+  chipWear,
+  PARTITION_TRIM_OVERHANG,
+  partitionJunctionPins,
+  partitionWear,
+  pillarWear,
+  treadWear,
+  wallWear,
+} from './cornerWear.ts';
+import type { WearProfile } from './cornerWear.ts';
 import { roomRole, roomRoles } from './roomPalette.ts';
 import { stairLandingTops } from './stairLandings.ts';
 import { key, tileAt, heightAt } from './worldSpatial.ts';
@@ -49,10 +60,11 @@ export function buildDungeon(
   shadow: ShadowGenerator,
   glow: GlowLayer,
   withRoomBands: boolean,
+  wear?: CornerWearRenderer,
 ) {
   const { world } = content;
   const random = randomFrom(`${world.seed}:decoration`);
-  const batch = new Batcher(scene, materials, shadow, withRoomBands);
+  const batch = new Batcher(scene, materials, shadow, withRoomBands, wear);
   const walls: Wall[] = [];
   const colliders: Mesh[] = [];
   const flames: Mesh[] = [];
@@ -108,10 +120,11 @@ export function buildDungeon(
     h: number,
     d: number,
     t = 1,
+    profile?: WearProfile,
   ) {
     const p = transform(x, z, w, d);
     const tile = tileAt(world, frame?.x ?? p.x, frame?.z ?? p.z);
-    batch.box(mat, p.x, y, p.z, p.w, h, p.d, t, 63, '', band(tile));
+    batch.box(mat, p.x, y, p.z, p.w, h, p.d, t, 63, '', band(tile), undefined, profile);
   }
   function torch(x: number, y: number, z: number, violet = false) {
     box('dark', x, y - 0.32, z, 0.48, 0.18, 0.48);
@@ -135,9 +148,11 @@ export function buildDungeon(
       phase: random() * 10,
     });
   }
-  function pillar(x: number, h: number, z: number, height = 3.2) {
-    box('dark', x, h + 0.14, z, 1.45, 0.28, 1.45);
-    box('trim', x, h + 0.37, z, 1.2, 0.18, 1.2);
+  function pillar(x: number, h: number, z: number, height = 3.2, id?: string) {
+    // Shrine supports are attached to a shared lintel; only freestanding pillars wear.
+    const profile = wear && id ? pillarWear(`${world.seed}:${id}`, x, z, h, height) : undefined;
+    box('dark', x, h + 0.14, z, 1.45, 0.28, 1.45, 1, profile);
+    box('trim', x, h + 0.37, z, 1.2, 0.18, 1.2, 1, profile);
     for (let i = 0; i < Math.floor((height - 0.5) / 0.5); i++)
       box(
         i % 3 === 1 ? 'trim' : 'stone',
@@ -148,9 +163,10 @@ export function buildDungeon(
         0.47,
         0.85,
         0.85 + random() * 0.2,
+        profile,
       );
-    box('trim', x, h + height - 0.12, z, 1.22, 0.25, 1.22);
-    box('dark', x, h + height + 0.06, z, 1.38, 0.16, 1.38);
+    box('trim', x, h + height - 0.12, z, 1.22, 0.25, 1.22, 1, profile);
+    box('dark', x, h + height + 0.06, z, 1.38, 0.16, 1.38, 1, profile);
   }
   function skull(x: number, y: number, z: number, s = 0.3) {
     box('bone', x, y + s * 0.45, z, s, s * 0.9, s * 0.8);
@@ -163,6 +179,45 @@ export function buildDungeon(
     const h = 0.2 + random() * 0.25;
     box('bone', x, y + h / 2, z, 0.1, h, 0.1);
     box('ember', x, y + h + 0.05, z, 0.06, 0.1, 0.06);
+  }
+
+  function stairChip(t: Tile, across: number, rise: number) {
+    if (!wear) return;
+    for (const axis of [0, 2] as const) {
+      for (const sign of [-1, 1] as const) {
+        const along = axis === 0 ? t.x : t.z;
+        const lane = axis === 0 ? t.z : t.x;
+        const at = (a: number, l: number) => world.tiles.get(axis === 0 ? key(a, l) : key(l, a));
+        const lower = at(along + sign, lane);
+        if (!lower || t.h - lower.h < 0.12 || (t.surface !== 'stair' && lower.surface !== 'stair'))
+          continue;
+        // All coplanar lanes sharing this edge must bevel together. Skip junctions
+        // with an unbroken side floor rather than exposing an unmeshed side seam.
+        let first = lane;
+        let last = lane;
+        while (at(along, first - 1)?.h === t.h) first--;
+        while (at(along, last + 1)?.h === t.h) last++;
+        let drop = t.h - lower.h;
+        for (let l = first; l <= last; l++) {
+          const here = at(along, l);
+          const next = at(along + sign, l);
+          if (!next || (here?.surface !== 'stair' && next.surface !== 'stair')) {
+            drop = 0;
+            break;
+          }
+          drop = Math.min(drop, t.h - next.h);
+        }
+        if (drop >= 0.12)
+          return chipWear(
+            `${world.seed}:step:${axis}:${along}:${first}:${sign}`,
+            axis,
+            sign,
+            1,
+            across,
+            Math.min(rise, drop * 0.6),
+          );
+      }
+    }
   }
 
   // Tile faces are exposed only at the top and at changes in floor elevation.
@@ -187,6 +242,7 @@ export function buildDungeon(
         : t.surface === 'dais'
           ? 'trim'
           : 'floor';
+    const profile = stairChip(t, 0.18, 0.14);
     batch.box(
       mat,
       t.x,
@@ -200,12 +256,27 @@ export function buildDungeon(
       '',
       band(t, t.surface === 'bridge' || t.surface === 'dais' ? 0.09 : 0),
       landingTops?.has(key(t.x, t.z)) ? landingBand : undefined,
+      profile,
     );
     if (t.surface === 'water' || t.surface === 'lava') {
       batch.box(t.surface, t.x, h + 0.09, t.z, 1, 0.04, 1, 1, 1, `liquid-${t.surface}`);
     }
     if (t.surface === 'stair')
-      batch.box('trim', t.x, h + 0.015, t.z, 0.98, 0.03, 0.98, 0.8, 63, '', band(t, 0, true));
+      batch.box(
+        'trim',
+        t.x,
+        h + 0.015,
+        t.z,
+        0.98,
+        0.03,
+        0.98,
+        0.8,
+        63,
+        '',
+        band(t, 0, true),
+        undefined,
+        treadWear(profile),
+      );
   }
   if (content.kind === 'dungeon') {
     const pool = required(content.world.roomById.water.pool, 'Water room needs a pool');
@@ -234,6 +305,36 @@ export function buildDungeon(
         z = t.z + dz * WALL_OFFSET;
       const w = dx ? WALL_THICKNESS : WALL_LENGTH,
         d = dz ? WALL_THICKNESS : WALL_LENGTH;
+      const groupFor = (tile: Tile) =>
+        `${tile.room || 'corridor'}:${dx},${dz}:${Math.floor(tile.x / 18)},${Math.floor(tile.z / 18)}:${tile.h.toFixed(2)}`;
+      const groupId = groupFor(t);
+      const joins = (sign: number) => {
+        const tx = t.x + (dz ? sign : 0);
+        const tz = t.z + (dx ? sign : 0);
+        const next = world.tiles.get(key(tx, tz));
+        return (
+          next &&
+          next.h === t.h &&
+          !world.tiles.has(key(tx + dx, tz + dz)) &&
+          groupFor(next) === groupId
+        );
+      };
+      const axis = dx ? 0 : 2;
+      const line = dx ? x : z;
+      const pins =
+        wear && content.kind === 'practice'
+          ? partitionJunctionPins(axis, dx || dz, line, dx ? z : x, content.world.partition)
+          : undefined;
+      const profile = wear
+        ? wallWear(
+            world.seed,
+            axis,
+            line,
+            t.h,
+            !joins(-1) || !!pins?.low,
+            !joins(1) || !!pins?.high,
+          )
+        : undefined;
       for (const section of WALL_BASE)
         batch.box(
           section.material,
@@ -247,12 +348,13 @@ export function buildDungeon(
           63,
           '',
           band(t),
+          undefined,
+          profile,
         );
       wallColliderBatch.box('collider', x, t.h + 1.7, z, w, 3.4, d);
-      const groupId = `${t.room || 'corridor'}:${dx},${dz}:${Math.floor(t.x / 18)},${Math.floor(t.z / 18)}:${t.h.toFixed(2)}`;
       if (!wallGroups.has(groupId))
         wallGroups.set(groupId, {
-          batch: new Batcher(scene, materials, shadow, withRoomBands),
+          batch: new Batcher(scene, materials, shadow, withRoomBands, wear),
           dx,
           dz,
           base: t.h + 0.72,
@@ -281,6 +383,8 @@ export function buildDungeon(
           63,
           groupId,
           band(t),
+          undefined,
+          profile,
         );
       }
       g.batch.box(
@@ -295,6 +399,8 @@ export function buildDungeon(
         63,
         groupId,
         band(t),
+        undefined,
+        profile,
       );
     }
   }
@@ -387,9 +493,10 @@ export function buildDungeon(
     if (prop.type === 'pillar') {
       height = required(prop.height, 'Pillar needs a height');
       if (content.kind === 'practice') {
-        box('stone', x, h + (height - 0.24) / 2, z, prop.w, height - 0.24, prop.d);
-        box('trim', x, h + height - 0.12, z, prop.w, 0.24, prop.d);
-      } else pillar(x, h, z, height);
+        const profile = wear ? pillarWear(`${world.seed}:${prop.id}`, x, z, h, height) : undefined;
+        box('stone', x, h + (height - 0.24) / 2, z, prop.w, height - 0.24, prop.d, 1, profile);
+        box('trim', x, h + height - 0.12, z, prop.w, 0.24, prop.d, 1, profile);
+      } else pillar(x, h, z, height, prop.id);
       if (prop.torch) torch(x, h + height + 0.12, z, prop.room === 'altar');
     } else if (prop.type === 'shrine') {
       height = 3.9;
@@ -474,8 +581,21 @@ export function buildDungeon(
     });
   } else {
     for (const { x, z, w, d, h, height, id } of content.world.partition) {
-      box('stone', x, h + (height - 0.18) / 2, z, w, height - 0.18, d);
-      box('trim', x, h + height - 0.09, z, w + 0.08, 0.18, d + 0.08);
+      const profile = wear
+        ? partitionWear(`${world.seed}:${id}`, w < d ? 0 : 2, h, height)
+        : undefined;
+      box('stone', x, h + (height - 0.18) / 2, z, w, height - 0.18, d, 1, profile);
+      box(
+        'trim',
+        x,
+        h + height - 0.09,
+        z,
+        w + PARTITION_TRIM_OVERHANG,
+        0.18,
+        d + PARTITION_TRIM_OVERHANG,
+        1,
+        profile,
+      );
       collision(x, h + height / 2, z, w, height, d, id);
     }
   }
@@ -488,26 +608,57 @@ export function buildDungeon(
       const root = new TransformNode(entity.id, scene);
       root.position.set(x, h, z);
       root.rotation.y = alongX ? Math.PI / 2 : 0;
-      const frame = (mat: MaterialName, name: string, size: Triple, pos: Triple) =>
-        tagPart(part(scene, materials[mat], name, size, pos, root, shadow), x, z);
-      for (const sign of [-1, 1]) {
+      const doorPiece = (
+        parent: TransformNode,
+        mat: MaterialName,
+        name: string,
+        size: Triple,
+        pos: Triple,
+        chip?: WearProfile,
+      ) => {
+        const mesh = tagPart(part(scene, materials[mat], name, size, pos, parent, shadow), x, z);
+        if (wear && chip) wearPart(mesh, size, chip, wear);
+        return mesh;
+      };
+      const chip = (name: string, side: -1 | 1, u: number, v: number) =>
+        wear && chipWear(`${world.seed}:${entity.id}:${name}:${side}`, 0, side, 1, u, v);
+      const frame = (
+        mat: MaterialName,
+        name: string,
+        size: Triple,
+        pos: Triple,
+        profile?: WearProfile,
+      ) => doorPiece(root, mat, name, size, pos, profile);
+      for (const sign of [-1, 1] as const) {
         frame('dark', 'door pier', [0.65, 3.3, 0.85], [sign * 1.77, 1.65, 0]);
         frame('trim', 'pier base', [0.86, 0.24, 1], [sign * 1.77, 0.12, 0]);
-        frame('trim', 'pier capital', [0.85, 0.27, 1], [sign * 1.77, 3.1, 0]);
+        frame(
+          'trim',
+          'pier capital',
+          [0.85, 0.27, 1],
+          [sign * 1.77, 3.1, 0],
+          chip('capital', sign, 0.16, 0.1),
+        );
       }
-      frame('dark', 'door lintel', [4.25, 0.5, 0.95], [0, 3.45, 0]);
+      frame('dark', 'door lintel', [4.25, 0.5, 0.95], [0, 3.45, 0], chip('lintel', 1, 0.28, 0.22));
       frame('trim', 'door keystone', [0.5, 0.7, 1.05], [0, 3.5, 0]);
       const pivot = new TransformNode(`${entity.id}-hinge`, scene);
       pivot.parent = root;
       pivot.position.x = -1.45;
-      const doorPart = (mat: MaterialName, name: string, size: Triple, pos: Triple) =>
-        tagPart(part(scene, materials[mat], name, size, pos, pivot, shadow), x, z);
+      const doorPart = (
+        mat: MaterialName,
+        name: string,
+        size: Triple,
+        pos: Triple,
+        profile?: WearProfile,
+      ) => doorPiece(pivot, mat, name, size, pos, profile);
       for (let i = 0; i < 6; i++)
         doorPart(
           entity.locked ? 'iron' : 'wood',
           'door plank',
           [0.47, DOOR_HEIGHT, 0.22],
           [0.25 + i * 0.48, DOOR_HEIGHT / 2, 0],
+          i === 0 || i === 5 ? chip('outer plank', i === 0 ? -1 : 1, 0.2, 0.28) : undefined,
         );
       for (const y of [0.4, 2.3])
         doorPart(entity.locked ? 'gold' : 'iron', 'door band', [2.9, 0.13, 0.3], [1.45, y, 0]);

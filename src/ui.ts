@@ -29,6 +29,7 @@ export function bindVisualTrialPanel(send: (event: VisualTrialEvent) => boolean)
       ['roomHue', 'view-hue'],
       ['shadowCoverage', 'view-coverage'],
       ['inkWidth', 'view-ink'],
+      ['cornerWear', 'view-wear'],
     ] as const
   ).map(([key, id]) => {
     const range = element(id, HTMLInputElement);

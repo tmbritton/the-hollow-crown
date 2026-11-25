@@ -10,6 +10,10 @@ import type { Node } from '@babylonjs/core/node';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Triple } from './worldTypes.ts';
 import { required } from './assert.ts';
+import { boxFaces, profileFaces } from './cornerWear.ts';
+import type { WearProfile } from './cornerWear.ts';
+import { roomBandAttribute } from './cornerWearRendering.ts';
+import type { CornerWearRenderer, WearPatch } from './cornerWearRendering.ts';
 
 interface BatchGroup<Name extends string> {
   material: Name;
@@ -19,8 +23,9 @@ interface BatchGroup<Name extends string> {
   colors: number[];
   uvs: number[];
   roomBands: number[];
+  wear?: WearPatch[];
 }
-export const roomBandAttribute = 'roomBand';
+export { roomBandAttribute } from './cornerWearRendering.ts';
 export type RoomBand = readonly [role: number, lightBias: number, overlay: number, landing: number];
 const neutralRoomBand: RoomBand = [0, 0, 0, 0];
 
@@ -37,81 +42,26 @@ export interface BoxInstance {
   tint?: number;
 }
 
-// CCW when viewed from outside in Babylon's left-handed scene.
-const faces = [
-  {
-    n: [0, 1, 0],
-    v: [
-      [-1, 1, -1],
-      [1, 1, -1],
-      [1, 1, 1],
-      [-1, 1, 1],
-    ],
-  },
-  {
-    n: [0, -1, 0],
-    v: [
-      [-1, -1, 1],
-      [1, -1, 1],
-      [1, -1, -1],
-      [-1, -1, -1],
-    ],
-  },
-  {
-    n: [1, 0, 0],
-    v: [
-      [1, -1, -1],
-      [1, -1, 1],
-      [1, 1, 1],
-      [1, 1, -1],
-    ],
-  },
-  {
-    n: [-1, 0, 0],
-    v: [
-      [-1, -1, 1],
-      [-1, -1, -1],
-      [-1, 1, -1],
-      [-1, 1, 1],
-    ],
-  },
-  {
-    n: [0, 0, 1],
-    v: [
-      [1, -1, 1],
-      [-1, -1, 1],
-      [-1, 1, 1],
-      [1, 1, 1],
-    ],
-  },
-  {
-    n: [0, 0, -1],
-    v: [
-      [-1, -1, -1],
-      [1, -1, -1],
-      [1, 1, -1],
-      [-1, 1, -1],
-    ],
-  },
-];
-
 export class Batcher<Name extends string> {
   private readonly groups = new Map<string, BatchGroup<Name>>();
   private readonly scene: Scene;
   private readonly materials: Record<Name, Material>;
   private readonly shadow: Pick<ShadowGenerator, 'addShadowCaster'>;
   private readonly withRoomBands: boolean;
+  private readonly wear?: CornerWearRenderer;
 
   constructor(
     scene: Scene,
     materials: Record<Name, Material>,
     shadow: Pick<ShadowGenerator, 'addShadowCaster'>,
     withRoomBands = false,
+    wear?: CornerWearRenderer,
   ) {
     this.scene = scene;
     this.materials = materials;
     this.shadow = shadow;
     this.withRoomBands = withRoomBands;
+    this.wear = wear;
   }
   box(
     material: Name,
@@ -126,6 +76,7 @@ export class Batcher<Name extends string> {
     group = '',
     band: RoomBand = neutralRoomBand,
     topBand: RoomBand = band,
+    profile?: WearProfile,
   ): void {
     const id = `${material}:${group || `${Math.floor(x / 10)},${Math.floor(z / 10)}`}`;
     if (!this.groups.has(id))
@@ -139,7 +90,17 @@ export class Batcher<Name extends string> {
         roomBands: [],
       });
     const b = required(this.groups.get(id), 'Missing batch group');
-    faces.forEach((face, f) => {
+    if (profile && this.wear) {
+      const emitted = boxFaces.flatMap((_, f) => (mask & (1 << f) ? [f] : []));
+      (b.wear ??= []).push({
+        vertex: b.positions.length / 3,
+        index: b.indices.length,
+        faceCount: emitted.length,
+        faces: () => profileFaces([x, y, z], [w, h, d], mask, profile, 1),
+        sourceFace: (f) => emitted.indexOf(f),
+      });
+    }
+    boxFaces.forEach((face, f) => {
       if (!(mask & (1 << f))) return;
       const start = b.positions.length / 3;
       face.v.forEach((v, i) => {
@@ -166,6 +127,7 @@ export class Batcher<Name extends string> {
       });
       data.applyToMesh(mesh);
       if (this.withRoomBands) mesh.setVerticesData(roomBandAttribute, b.roomBands, false, 4);
+      if (b.wear) this.wear?.register(mesh, b.wear);
       mesh.material = this.materials[b.material];
       mesh.receiveShadows = true;
       mesh.isPickable = false;
@@ -176,6 +138,40 @@ export class Batcher<Name extends string> {
     this.groups.clear();
     return meshes;
   }
+}
+
+/** Keep MeshBuilder's Original buffer layout, UVs and bounds for a moving part. */
+export function wearPart(mesh: Mesh, size: Triple, profile: WearProfile, wear: CornerWearRenderer) {
+  const original = VertexData.ExtractFromMesh(mesh);
+  const faceIndex = (face: number) => {
+    const { n } = boxFaces[face];
+    for (let i = 0; i < 6; i++)
+      if (n.every((value, axis) => value === original.normals![i * 12 + axis])) return i;
+    throw new Error('Missing door face');
+  };
+  const cornerUV = (face: number, corner: Triple) => {
+    const start = faceIndex(face) * 4;
+    for (let i = start; i < start + 4; i++)
+      if (corner.every((sign, axis) => sign === Math.sign(original.positions![i * 3 + axis])))
+        return [original.uvs![i * 2], original.uvs![i * 2 + 1]];
+    throw new Error('Missing door UV');
+  };
+  wear.register(mesh, [
+    {
+      vertex: 0,
+      index: 0,
+      faceCount: 6,
+      faces: () => profileFaces([0, 0, 0], size, 63, profile, 1),
+      sourceFace: faceIndex,
+      uv: ({ face }, u, v) => {
+        const [a, b, , d] = boxFaces[face].v.map((corner) => cornerUV(face, corner));
+        return [
+          a[0] + (b[0] - a[0]) * u + (d[0] - a[0]) * v,
+          a[1] + (b[1] - a[1]) * u + (d[1] - a[1]) * v,
+        ];
+      },
+    },
+  ]);
 }
 
 export function part(

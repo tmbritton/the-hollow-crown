@@ -53,6 +53,7 @@ export function createVisualTrialRenderer(
   camera: ArcRotateCamera,
   applyPalette: (settings: ViewSettings) => void,
   subjects: readonly InkSubject[],
+  applyWear?: (percent: number) => void,
 ) {
   const engine = camera.getEngine();
   let pass: PostProcess | null = null;
@@ -121,6 +122,7 @@ void main(void) {
   return {
     apply(settings: ViewSettings, logicalRadius: number, inspecting: boolean) {
       applyPalette(settings);
+      applyWear?.(settings.cornerWear);
       setInk(inspecting ? 0 : settings.inkWidth);
       setDistortion(inspecting ? 0 : settings.fisheyePercent);
       if (!inspecting) {

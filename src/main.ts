@@ -58,6 +58,7 @@ import { UI, bindVisualTrialPanel, fromVisualTrial } from './ui.ts';
 import { createVisualTrial } from './machines/ui/visualTrial.ts';
 import { BASE_FOV } from './visualTrial.ts';
 import { createPaletteRenderer, createVisualTrialRenderer } from './visualTrialRendering.ts';
+import { createCornerWearRenderer } from './cornerWearRendering.ts';
 import { InspectionController } from './inspection.ts';
 import { Statechart } from './machines/statechart.ts';
 import { animateChest, progressionMachine } from './machines/world/interactions.ts';
@@ -508,7 +509,8 @@ function assembleScene(
   const bands =
     content.kind === 'practice' || (import.meta.env.DEV && debug) ? createRoomBandUniforms() : null;
   const materials = createMaterials(scene, bands);
-  const dungeon = buildDungeon(scene, content, materials, shadow, glow, bands !== null);
+  const wear = bands ? createCornerWearRenderer(scene) : undefined;
+  const dungeon = buildDungeon(scene, content, materials, shadow, glow, bands !== null, wear);
   const ecs = new ECS();
   const discoveries = new DiscoveryRecord(generationIdentity(world.seed));
   ecs.create('run').add('discoveries', discoveries);
@@ -566,6 +568,7 @@ function assembleScene(
           })),
         ]
       : [],
+    wear?.apply,
   );
   for (const actor of combat.actors) new ActorGeometry(actor.entity);
   // This closed bootstrap builds only authored motor colliders and permanent render meshes
