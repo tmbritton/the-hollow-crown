@@ -99,7 +99,7 @@ const squadTargets = [new Entity('threat-a'), new Entity('threat-b')];
 
 export const modelCases = [
   modelCase(visualTrialMachine, {
-    inputs: [undefined],
+    inputs: [DEFAULT_VIEW],
     // Width uses the same EDIT branch and does not affect any guard. Check its
     // values in the per-edge invariant without multiplying the preset graph.
     abstractContext: ({ context }) => ({ ...context.saved, inkWidth: 0, cornerWear: 0 }),

@@ -5,7 +5,7 @@ type Input =
 
 export const routes = {
   practice: {
-    query: '?debug&room=practice',
+    query: '?debug&room=practice&view=original',
     inputs: [
       { tick: 0, floor: [-6, -4] },
       { tick: 120, door: 'practice-door' },
@@ -15,7 +15,7 @@ export const routes = {
     still: 344,
   },
   dungeon: {
-    query: '?debug&seed=MOURNING-731',
+    query: '?debug&seed=MOURNING-731&view=original',
     inputs: [
       { tick: 0, floor: [-8, -4] }, // portrait-15 at (-9.43, -4)
       { tick: 180, floor: [-1, 24] }, // passage-13, stair tile (-1, 14), into Bakery

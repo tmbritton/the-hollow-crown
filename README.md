@@ -46,21 +46,23 @@ room again; the bare URL starts the normal dungeon. Edit the layout in
 
 ### Practice visual trial
 
-Open **Visual trial** in The Dojo. **Original** is the default. Switch to **Tuned** to drag
+The dungeon and The Dojo start in **Tuned**: 60° Lens, 35% Fisheye, 4 px Ink width and 40% Corner wear.
+The palette is off; its saved hue is 360° and shadow coverage is 54.1122213681783%.
+Select **Original** in The Dojo for the untreated view, or launch either room with `view=original` in the query string.
+Open **Visual trial** in The Dojo to drag
 the Lens (25–60° vertical FOV) or Fisheye (0–100%) slider, use its arrow keys, or enter an exact
 value in the adjacent field. Lens changes perspective without changing gameplay zoom; Fisheye
 bends the scene, not the HUD. Switching modes keeps your orbit, zoom and saved Tuned values.
 Enable **Three-value rooms** separately to try broad lit, mid and shadow shapes on dungeon
 architecture. The treatment distinguishes flat stair arrivals from the surrounding floor
-without changing walkable geometry. **Room hue** (0–360°, default 275°) rotates the room colors
-together. **Shadow coverage** (0–100%, default 50%) moves the cutoff for the darkest band, not a percentage of
-screen pixels. Leave the checkbox off for camera-only comparisons, or keep Lens and Fisheye at
-their defaults for a palette-only comparison.
+without changing walkable geometry. **Room hue** (0–360°) rotates the room colors
+together. **Shadow coverage** (0–100%) moves the cutoff for the darkest band, not a percentage of
+screen pixels. Both palette controls take effect only when the checkbox is on.
 **Ink width** adds a dark violet contour to living figures, held gear, and framed portraits.
 Set it from **0** (off) to **4** framebuffer pixels in whole-pixel steps. It is independent of
 the palette, Lens, and Fisheye, and does not change what you can click. Visible weapons and shields
 keep a thin rim and brighter fill so a wide figure contour doesn't swallow small gear.
-**Corner wear** (0–100%, default 0) leans the masonry, tapers pillars, and chips door and stair
+**Corner wear** (0–100%) leans the masonry, tapers pillars, and chips door and stair
 edges. It uses the same profiles for a given seed at any orbit or zoom. It only changes the
 drawn architecture: picks, clearance, walkable heights, and the saved seed are unchanged.
 **Reset settings** restores the default recipe without restarting the round.

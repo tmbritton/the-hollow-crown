@@ -21,6 +21,17 @@ export const DEFAULT_VIEW: ViewSettings = Object.freeze({
   cornerWear: 0,
 });
 
+// Keep the artist-selected game preset separate from the untreated comparison above.
+export const GAME_VIEW: ViewSettings = Object.freeze({
+  lensDegrees: 60,
+  fisheyePercent: 35,
+  paletteEnabled: false,
+  roomHue: 360,
+  shadowCoverage: 54.1122213681783,
+  inkWidth: 4,
+  cornerWear: 40,
+});
+
 export const VIEW_RANGES = {
   lensDegrees: [25, 60],
   fisheyePercent: [0, 100],

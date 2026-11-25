@@ -1,6 +1,6 @@
 import { assign, setup } from 'xstate';
 import { Statechart } from '../statechart.ts';
-import { DEFAULT_VIEW, VIEW_RANGES, viewKey } from '../../visualTrial.ts';
+import { DEFAULT_VIEW, GAME_VIEW, VIEW_RANGES, viewKey } from '../../visualTrial.ts';
 import type { ViewSettings } from '../../visualTrial.ts';
 
 export type ViewMode = 'original' | 'tuned';
@@ -17,7 +17,8 @@ const tunedSelection = ({ event }: { event: VisualTrialEvent }) =>
 
 export const visualTrialMachine = setup({
   types: {
-    context: {} as { saved: ViewSettings },
+    input: {} as ViewSettings | undefined,
+    context: {} as { saved: ViewSettings; preset: ViewSettings },
     events: {} as VisualTrialEvent,
   },
   actions: {
@@ -28,9 +29,9 @@ export const visualTrialMachine = setup({
 }).createMachine({
   id: 'visualTrial',
   initial: 'original',
-  context: { saved: DEFAULT_VIEW },
+  context: ({ input }) => ({ saved: input ?? DEFAULT_VIEW, preset: input ?? DEFAULT_VIEW }),
   on: {
-    RESET: { actions: [assign({ saved: DEFAULT_VIEW }), 'apply'] },
+    RESET: { actions: [assign({ saved: ({ context }) => context.preset }), 'apply'] },
     COPY: { actions: 'copy' },
   },
   states: {
@@ -84,8 +85,9 @@ export interface VisualTrialPorts {
   copySettings(text: string): void;
 }
 
-export function createVisualTrial(ports: VisualTrialPorts) {
-  const chart = new Statechart(visualTrialMachine);
+export function createVisualTrial(ports: VisualTrialPorts, start: ViewMode = 'tuned') {
+  const chart = new Statechart(visualTrialMachine, start === 'tuned' ? GAME_VIEW : DEFAULT_VIEW);
+  if (start === 'tuned') chart.send({ type: 'SELECT', mode: start });
   const mode = (): ViewMode => (chart.snapshot.matches('tuned') ? 'tuned' : 'original');
   const settings = () => (mode() === 'tuned' ? chart.snapshot.context.saved : DEFAULT_VIEW);
   return {

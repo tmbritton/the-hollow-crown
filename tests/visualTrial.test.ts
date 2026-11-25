@@ -1,7 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BASE_FOV, DEFAULT_VIEW, lensRadius, lensFov, sceneSample } from '../src/visualTrial.ts';
-import { createVisualTrial } from '../src/machines/ui/visualTrial.ts';
+import {
+  createVisualTrial as createTrial,
+  type VisualTrialPorts,
+} from '../src/machines/ui/visualTrial.ts';
+
+const createVisualTrial = (ports: VisualTrialPorts) => createTrial(ports, 'original');
+
+test('new games use the selected Tuned preset and reset restores it after a comparison', () => {
+  const trial = createTrial({ applyView() {}, copySettings() {} });
+  const preset = {
+    lensDegrees: 60,
+    fisheyePercent: 35,
+    paletteEnabled: false,
+    roomHue: 360,
+    shadowCoverage: 54.1122213681783,
+    inkWidth: 4,
+    cornerWear: 40,
+  };
+  assert.equal(trial.mode, 'tuned');
+  assert.deepEqual(trial.settings, preset);
+  trial.send({ type: 'EDIT', key: 'inkWidth', value: 0 });
+  trial.send({ type: 'SELECT', mode: 'original' });
+  assert.deepEqual(trial.settings, DEFAULT_VIEW);
+  trial.send({ type: 'RESET' });
+  trial.send({ type: 'SELECT', mode: 'tuned' });
+  assert.deepEqual(trial.settings, preset);
+});
 
 test('Corner wear is clamped, saved in Original and restored only in Tuned', () => {
   let copied = '';

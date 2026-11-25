@@ -114,13 +114,16 @@ let retryRequest: GenerationRequest | null = null;
 const activeGame = () => required(game, 'No active dungeon');
 const currentGame = () => game;
 const trialPanel = bindVisualTrialPanel((event) => visualTrial.send(event));
-const visualTrial = createVisualTrial({
-  applyView(settings) {
-    if (game) game.visualTrial.apply(settings, game.logicalRadius, game.inspection.active);
-    trialPanel.update(visualTrial.mode, settings);
+const visualTrial = createVisualTrial(
+  {
+    applyView(settings) {
+      if (game) game.visualTrial.apply(settings, game.logicalRadius, game.inspection.active);
+      trialPanel.update(visualTrial.mode, settings);
+    },
+    copySettings: (text) => void trialPanel.copy(text),
   },
-  copySettings: (text) => void trialPanel.copy(text),
-});
+  entry.get('view') === 'original' ? 'original' : 'tuned',
+);
 trialPanel.update(visualTrial.mode, visualTrial.settings);
 let animationReview: import('./animationReview.ts').AnimationReview | undefined;
 let initialGenerationReport: GenerationReport | null = null;
@@ -509,7 +512,7 @@ function assembleScene(
   const bands =
     content.kind === 'practice' || (import.meta.env.DEV && debug) ? createRoomBandUniforms() : null;
   const materials = createMaterials(scene, bands);
-  const wear = bands ? createCornerWearRenderer(scene) : undefined;
+  const wear = createCornerWearRenderer(scene);
   const dungeon = buildDungeon(scene, content, materials, shadow, glow, bands !== null, wear);
   const ecs = new ECS();
   const discoveries = new DiscoveryRecord(generationIdentity(world.seed));
@@ -544,31 +547,29 @@ function assembleScene(
   const trialRenderer = createVisualTrialRenderer(
     camera,
     createPaletteRenderer(scene, materials, bands),
-    bands
-      ? [
-          ...combat.actors.flatMap((actor) => {
-            const rig = actor.entity.require('rig');
-            const shield = rig.shield?.getChildMeshes() ?? [];
-            const weapon = [rig.weapon, rig.spear, rig.javelin].flatMap(
-              (mount) => mount?.getChildMeshes() ?? [],
-            );
-            const gear = new Set([...shield, ...weapon]);
-            const body = actor.entity.require('render').meshes.filter((mesh) => !gear.has(mesh));
-            const visible = () => actor.alive && ecs.get(actor.id) === actor.entity;
-            return [
-              { meshes: body, visible, kind: 'silhouette' as const },
-              { meshes: weapon, visible, kind: 'gear' as const },
-              { meshes: shield, visible, kind: 'gear' as const },
-            ].filter(({ meshes }) => meshes.length > 0);
-          }),
-          ...dungeon.portraits.map(({ root }) => ({
-            meshes: root.getChildMeshes(),
-            visible: () => !root.isDisposed(),
-            kind: 'silhouette' as const,
-          })),
-        ]
-      : [],
-    wear?.apply,
+    [
+      ...combat.actors.flatMap((actor) => {
+        const rig = actor.entity.require('rig');
+        const shield = rig.shield?.getChildMeshes() ?? [];
+        const weapon = [rig.weapon, rig.spear, rig.javelin].flatMap(
+          (mount) => mount?.getChildMeshes() ?? [],
+        );
+        const gear = new Set([...shield, ...weapon]);
+        const body = actor.entity.require('render').meshes.filter((mesh) => !gear.has(mesh));
+        const visible = () => actor.alive && ecs.get(actor.id) === actor.entity;
+        return [
+          { meshes: body, visible, kind: 'silhouette' as const },
+          { meshes: weapon, visible, kind: 'gear' as const },
+          { meshes: shield, visible, kind: 'gear' as const },
+        ].filter(({ meshes }) => meshes.length > 0);
+      }),
+      ...dungeon.portraits.map(({ root }) => ({
+        meshes: root.getChildMeshes(),
+        visible: () => !root.isDisposed(),
+        kind: 'silhouette' as const,
+      })),
+    ],
+    wear.apply,
   );
   for (const actor of combat.actors) new ActorGeometry(actor.entity);
   // This closed bootstrap builds only authored motor colliders and permanent render meshes
