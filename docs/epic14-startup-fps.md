@@ -252,6 +252,8 @@ node --input-type=module -e 'import { withViteServer } from "./tests/testServer.
 
 ### Current restart boundary
 
+Historical boundary before the hardware resume below:
+
 The [review follow-up](../VERIFICATION.md#story-161--review-follow-up-measurement-tooling-only)
 supersedes the initial missing-adapter stop: it adds a pinned diagnostic build, game preflight,
 count and replay capture, and a shared validator for the timed scaling reference. Software smoke
@@ -267,3 +269,67 @@ Inspect the first real capture for native/replay calibration, capture overhead a
 independently review qualifying raw evidence before any 16.2 decision. The archived Epic 14 probe
 recipe is not compatible evidence or a reason to restore the old index. The legacy browser failure
 above is still separate and unresolved.
+
+## Story 16.1 hardware resume on `30b02dd` (2026-11-25)
+
+**Stopped/inconclusive at `shrine-count`, not a negative feasibility result.** Ran
+`node tests/cursor-attribution.ts` without flags or concurrent suites/builds. Start:
+`2026-11-25T18:24:38.747Z`; exit **2**. Preserved the entire fresh run at
+`test-results/epic16/hardware-40phAH/` and the unfiltered output at
+`test-results/epic16/hardware-resume-30b02dd-console-6D5Mt13R.log`.
+
+Last complete hardware stage: headed preflight. Ryzen 5 2600X, RTX 2070 driver `615.78.08`,
+Chromium `159.0.8154.6`, actual WebGL2 renderer `ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX
+2070/PCIe/SSE2, OpenGL ES 3.2)`, visible and focused, measured RAF **59.880 Hz**. Fresh
+`MOURNING-731` at step zero had 24/24 live enemies, High/Tuned (60° lens, 35% fisheye,
+palette off, ink 4, wear 40), 1920×1080 CSS, DPR `0.9999999812016114`, backing 1919×1079.
+`handshake.json` records the entrance camera, matrices, rooms, connections, and ready geometry.
+Fresh lens resolution found the out-of-reach `prop:shrine-entrance-0` / `restore` at
+`(1490,740)` and floor at `(920,580)`; see `preflight.png`. This was not a floor or idle
+count visit. Preflight GPU queries succeeded before and after; the count stop reported a
+tooling fault, not device loss. No replacement, reset, recovery, or corrected capture.
+
+The production inputs pin `3a357535b5e350c8a5ce37483b84d39d22dd9512` while tooling ran at
+`30b02ddf787580783c10d3ad04c532c5170fb8ff`. `provenance.json`, `transformed-sources.json`,
+and `bundle-hashes.json` preserve inputs and instrumentation. The fresh serialized AB/BA/AB
+`scaling.json` passed `validateScaling` on offline readback; it is a software reference only.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Raw console log | `af402c8ec93f0d70ff20cd0e2ba2d384f2391704290a5cfc893c83b42d20e606` |
+| `bundle-hashes.json` | `a1c4514ae225256e13b2c20c328beea426034fcfdb8f12d8da678016b5ffa814` |
+| `tests/cursor-attribution-probe.ts` at capture | `d42f0cda49b7c903cc2d0b1171deec87d19b9a2701dd17246ae5492bb727c9e5` |
+| `readout.json` | `748d0c1954e31615a0a632050c051ef99a33db4f9090aa3cb279c37a12930e0a` |
+
+`shrine-count-writer-header.json.gz` reports `writer trace operand/checkpoint overflow`.
+The two raw writer chunks contain the following partial evidence. Scalar tallies were
+reconstructed from retained before/after operands and checkpoint observations using the
+capture guard's formula; the seed was not included in that guard.
+
+| Native frame | Tick span | Retained writer events | Retained checkpoints | Cumulative retained scalars |
+| --- | --- | ---: | ---: | ---: |
+| 65 | 178 → 183 | 12,982 | 7 | 2,178,114 |
+| 66 | 183 → 188 | 13,006 | 7 | 4,358,244 |
+| 67 | 188 → 192 | 11,641 | 6 | 6,276,722 |
+| 68 | 192 → 197 | 10,157 | 6 | 7,999,970 |
+
+The 8,000,000-scalar guard truncated frame 68 before its render checkpoint, long before
+tick 480. Independently of overflow, at the first fixed checkpoint (tick 179), **14 health-bar
+meshes and the stable hacky sack** already disagreed with the latest writer operands
+(world matrix and bounds). The first pick checkpoint includes 26 steed meshes, floating votives,
+and the altar ember among its 50 disagreements. The raw writer chunks
+and `shrine-count-writer-replay.json.gz` are retained; the runner rejects the writer gaps before
+exporting the partial `take()` rows. Those rows were not saved by the stopped runner.
+
+There are **0/3 complete count visits and 0/5 native timing visits**. The three `(P,R,U,S,Q)`
+rows, floor/idle recurring estimates, matched hit parity and calibration, and spread/error gate
+are **unmeasured**, not zero. No feasibility verdict or 16.2 authorization.
+
+One diagnostic-only health-bar writer hook was added after a focused red test (see
+[verification](../VERIFICATION.md#story-161--hardware-resume-and-tooling-review-boundary)).
+This does not cure the trace-capacity stop or account for the remaining checkpoint differences.
+The [offline follow-up](../VERIFICATION.md#story-161--offline-review-of-hardware-40phah)
+demonstrates bounded disk transport and replay at the retained volume, not a corrected live
+capture. The existing collector is held before hardware preflight: it still retains entire
+traces and mutates same-tick Babylon caches during diagnostic readback. Do not attempt a
+replacement visit with this adapter.

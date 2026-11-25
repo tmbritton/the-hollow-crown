@@ -9,6 +9,11 @@ import { gzipSync } from 'node:zlib';
 import { chromium } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { buildDiagnostic } from './cursor-attribution-build.ts';
+import {
+  archiveNativeRows,
+  captureBoundary,
+  describeNativePasses,
+} from './cursor-capture-archive.ts';
 import { offRayCredit, validateWindow } from './cursor-attribution-model.ts';
 import { transition } from './cursor-evidence.ts';
 import type { RunState, Visit } from './cursor-evidence.ts';
@@ -49,6 +54,9 @@ let stage = 'host';
 let nativeVisits = 0;
 let countVisits = 0;
 const windowTicks: [number, number] = [180, 480];
+function admitHardwareCollector() {
+  throw new Error(captureBoundary);
+}
 const hash = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
 const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 const smi = () => {
@@ -120,6 +128,20 @@ async function serve(dir: string) {
 }
 
 type Ready = NonNullable<ReturnType<Bridge['take']>['ready']>;
+async function saveNative(page: Page, label: string) {
+  const captured = await archiveNativeRows({
+    take: (start, end) =>
+      page.evaluate(
+        ([key, a, b]) =>
+          (window as unknown as Record<string, Bridge | undefined>)[key]?.take(a, b) ?? null,
+        [getBridge, start, end] as const,
+      ),
+    header: (value) => save(`${label}-header`, value),
+    chunk: (start, rows) => archive(`${label}-frames-${start}`, rows),
+  });
+  if (captured) await save(`${label}-native-breakdown`, describeNativePasses(captured.rows));
+  return captured;
+}
 function handshake(meta: Ready, reference: Ready | null) {
   assert.equal(meta.seed, 'MOURNING-731');
   assert.equal(meta.navigation, 'navigate');
@@ -151,7 +173,7 @@ async function withVisit<T>(
   url: string,
   label: string,
   config: CaptureConfig,
-  work: (page: Page) => Promise<T>,
+  work: (page: Page, captured: Awaited<ReturnType<typeof saveNative>>) => Promise<T>,
 ) {
   stage = label;
   const before = smi();
@@ -170,17 +192,36 @@ async function withVisit<T>(
     const client = await context.newCDPSession(page);
     await client.send('Input.setIgnoreInputEvents', { ignore: true });
     await page.bringToFront();
-    await page.goto(url, { timeout: 45000 });
-    await page.waitForFunction(
-      (key) => {
-        const b = (window as unknown as Record<string, Bridge>)[key];
-        return b?.status().done || b?.status().fail || !!document.querySelector('#loading.failed');
-      },
-      getBridge,
-      { timeout: 90000, polling: 250 },
-    );
+    let waitFailure: unknown;
+    try {
+      await page.goto(url, { timeout: 45000 });
+      await page.waitForFunction(
+        (key) => {
+          const b = (window as unknown as Record<string, Bridge>)[key];
+          return (
+            b?.status().done || b?.status().fail || !!document.querySelector('#loading.failed')
+          );
+        },
+        getBridge,
+        { timeout: 90000, polling: 250 },
+      );
+    } catch (error) {
+      waitFailure = error;
+    }
+    // Persist what the page can still return before any admission check or replay.
+    let captured: Awaited<ReturnType<typeof saveNative>> = null;
+    try {
+      if (config.kind !== 'preflight') captured = await saveNative(page, label);
+    } catch (archiveFailure) {
+      await save(`${label}-native-export-error`, {
+        waitFailure: String(waitFailure),
+        archiveFailure: String(archiveFailure),
+      });
+      throw waitFailure ?? archiveFailure;
+    }
+    if (waitFailure) throw waitFailure;
     assert.deepEqual(errors, []);
-    const result = await work(page);
+    const result = await work(page, captured);
     assert.deepEqual(errors, []);
     const after = smi();
     await save(`${label}-gpu-after`, after);
@@ -348,24 +389,16 @@ async function collect() {
     run = transition(run, { type: 'preflightOK' }).state;
     const kinds = ['shrine', 'floor', 'idle'] as const;
     type Kind = (typeof kinds)[number];
-    const read = async (page: Page, kind: Kind, reverse: boolean) => {
-      const meta = await page.evaluate(
-        (key) => (window as unknown as Record<string, Bridge>)[key].take(0, 0),
-        getBridge,
-      );
+    const read = async (
+      page: Page,
+      captured: Awaited<ReturnType<typeof saveNative>>,
+      kind: Kind,
+      reverse: boolean,
+    ) => {
+      assert.ok(captured, 'native capture bridge missing');
+      const { header: meta, rows } = captured;
       assert.ok(meta.ready);
       handshake(meta.ready, preflight.meta);
-      await save(`${stage}-header`, meta);
-      const rows: NativeRow[] = [];
-      for (let i = 0; i < meta.length; i += 4) {
-        const chunk = await page.evaluate(
-          ([key, start]) =>
-            (window as unknown as Record<string, Bridge>)[key].take(start, start + 4).rows,
-          [getBridge, i] as const,
-        );
-        await archive(`${stage}-frames-${i}`, chunk);
-        rows.push(...chunk);
-      }
       assert.ifError(meta.fail ? new Error(meta.fail) : null);
       assert.equal(meta.input, kind === 'idle' ? 0 : 1);
       assert.equal(validateWindow(rows, windowTicks), null);
@@ -399,7 +432,7 @@ async function collect() {
           expectedReady: JSON.stringify(preflight.meta),
           runId,
         },
-        async (page) => {
+        async (page, captured) => {
           const meta = await page.evaluate(
             (key) => (window as unknown as Record<string, Bridge>)[key].writerTrace(),
             getBridge,
@@ -426,7 +459,7 @@ async function collect() {
             await archive(`${stage}-writer-replay`, { frames: reconciled, gaps: trace.gaps });
             throw new Error(trace.gaps.join('; '));
           }
-          const { rows, replay } = await read(page, kind, false);
+          const { rows, replay } = await read(page, captured, kind, false);
           if (
             rows.length !== reconciled.length ||
             rows.some((row, i) => row.from !== reconciled[i].from || row.to !== reconciled[i].to)
@@ -483,8 +516,8 @@ async function collect() {
             window: windowTicks,
             expectedReady: JSON.stringify(preflight.meta),
           },
-          async (page) => {
-            const { rows, replay } = await read(page, kind, i % 2 === 1);
+          async (page, captured) => {
+            const { rows, replay } = await read(page, captured, kind, i % 2 === 1);
             nativeVisits++;
             const counted = countRows.get(kind)!;
             const witness = writerReport!.cases.find((c) => c.kind === kind)!;
@@ -581,7 +614,11 @@ if (arg === '--scaling') await captureScaling();
 else {
   try {
     if (smoke) await softwareSmoke();
-    else await collect();
+    else {
+      stage = 'offline collector hold';
+      admitHardwareCollector();
+      await collect();
+    }
   } catch (error) {
     run = transition(run, {
       type: /context lost|device lost/i.test(String(error)) ? 'fault' : 'invalid',

@@ -80,8 +80,12 @@ export async function buildDiagnostic(outDir: string) {
                 '      for (const [mesh] of pickActors) mesh.computeWorldMatrix(true);',
                 '      epSync(pickActors);',
               ],
+              [
+                '        bar.root.position.set(p.x, p.h + 2.2, p.z);\n        bar.root.billboardMode = TransformNode.BILLBOARDMODE_ALL;\n        bar.fill.scaling.x = Math.max(0.001, bar.actor.health.current / bar.actor.health.max);',
+                "        epWrite('pose', bar.root, () => {\n          bar.root.position.set(p.x, p.h + 2.2, p.z);\n          bar.root.billboardMode = TransformNode.BILLBOARDMODE_ALL;\n          bar.fill.scaling.x = Math.max(0.001, bar.actor.health.current / bar.actor.health.max);\n        });",
+              ],
             ]);
-            const wired = `import { syncDiagnostic as epSync } from '../tests/cursor-attribution-probe.ts';\n${code}`;
+            const wired = `import { syncDiagnostic as epSync } from '../tests/cursor-attribution-probe.ts';\nimport { writerDiagnostic as epWrite } from '../tests/cursor-attribution-writers.ts';\n${code}`;
             probes.set('enemyRendering.ts', wired);
             return wired;
           }

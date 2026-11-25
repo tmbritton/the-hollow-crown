@@ -164,17 +164,14 @@ function apply(index: ReturnType<typeof createOccupancy>, write: Write) {
   };
 }
 
-export function reconcileWriters(trace: WriterTrace) {
-  const malformed = traceProblem(trace);
-  if (malformed) return { frames: [], gaps: [malformed], queries: [] };
+function writerReplay(trace: Omit<WriterTrace, 'frames'>) {
   const gaps = new Set(trace.gaps);
   const index = createOccupancy(occupants(trace.seed));
   const last = new Map(trace.seed.map((o) => [o.id, o]));
   let seq = 0;
   let sweepIncomplete = false;
   type ReplayQuery = { index: ReturnType<typeof createOccupancy>; ray: GroundRay };
-  const queries: (ReplayQuery | null)[] = [];
-  const frames = trace.frames.map((frame) => {
+  const step = (frame: WriterTrace['frames'][number]) => {
     let wi = 0;
     const writes: (Omit<Write, 'before' | 'after'> & ReturnType<typeof apply>)[] = [];
     let query: ReturnType<typeof index.walk> | null = null;
@@ -183,6 +180,12 @@ export function reconcileWriters(trace: WriterTrace) {
     let publicationIncomplete = false;
     let tick = frame.from;
     let phase = 0;
+    const checkpointDifferences: {
+      phase: Write['phase'];
+      tick: number;
+      at: number;
+      meshes: { id: number; name: string; fields: string[] }[];
+    }[] = [];
     function advance(site: { tick: number; phase: Write['phase'] }) {
       const p = phases.indexOf(site.phase);
       if (site.tick < tick || p < phase) gaps.add(`out-of-order sites at frame ${frame.frame}`);
@@ -217,18 +220,37 @@ export function reconcileWriters(trace: WriterTrace) {
       if (seq !== check.at) gaps.add(`checkpoint sequence mismatch at frame ${frame.frame}`);
       advance(check);
       const expected = occupants(check.scene);
-      if (
-        expected.length !== index.occupants.size ||
-        check.scene.some((o) => {
-          const previous = last.get(o.id);
-          return (
-            !previous ||
-            !sameGeometry(previous.input, o.input) ||
-            !same(index.occupants.get(o.id), boundsOf(o))
-          );
-        })
-      )
+      const differences: (typeof checkpointDifferences)[number]['meshes'] = [];
+      const seen = new Set<number>();
+      for (const o of check.scene) {
+        seen.add(o.id);
+        const previous = last.get(o.id);
+        const fields = previous ? [] : ['missing publication'];
+        if (previous && !sameGeometry(previous.input, o.input)) {
+          for (const key of Object.keys(o.input) as (keyof Observation['input'])[])
+            if (!same(previous.input[key], o.input[key])) fields.push(key);
+        }
+        if (previous && !same(previous.world, o.world)) fields.push('observed bounds');
+        if (!same(index.occupants.get(o.id), boundsOf(o))) fields.push('occupancy bounds');
+        if (fields.length)
+          differences.push({ id: o.id, name: trace.identities[o.id].name, fields });
+      }
+      for (const id of index.occupants.keys())
+        if (!seen.has(id))
+          differences.push({
+            id,
+            name: trace.identities[id].name,
+            fields: ['missing from checkpoint'],
+          });
+      if (differences.length) {
+        checkpointDifferences.push({
+          at: check.at,
+          tick: check.tick,
+          phase: check.phase,
+          meshes: differences,
+        });
         gaps.add(`unreconciled ${check.phase} checkpoint at tick ${check.tick}`);
+      }
       if (check.ray) {
         if (picked || trace.kind === 'idle') {
           gaps.add(`unexpected pick at frame ${frame.frame}`);
@@ -257,17 +279,48 @@ export function reconcileWriters(trace: WriterTrace) {
     )
       gaps.add(`incomplete checkpoints at frame ${frame.frame}`);
     while (wi < frame.writes.length) next();
-    queries.push(replayQuery);
     return {
-      frame: frame.frame,
-      from: frame.from,
-      to: frame.to,
-      writes,
-      query,
-      demand: { publish: publicationIncomplete ? null : writes.length, query: Number(picked) },
+      replayQuery,
+      evidence: {
+        frame: frame.frame,
+        from: frame.from,
+        to: frame.to,
+        writes,
+        query,
+        checkpointDifferences,
+        demand: { publish: publicationIncomplete ? null : writes.length, query: Number(picked) },
+      },
     };
-  });
-  return { frames, gaps: [...gaps], queries };
+  };
+  return { step, gaps: () => [...gaps] };
+}
+
+export function reconcileWriters(trace: WriterTrace) {
+  const malformed = traceProblem(trace);
+  if (malformed) return { frames: [], gaps: [malformed], queries: [] };
+  const replay = writerReplay(trace);
+  const result = trace.frames.map(replay.step);
+  return {
+    frames: result.map((r) => r.evidence),
+    gaps: replay.gaps(),
+    queries: result.map((r) => r.replayQuery),
+  };
+}
+
+// Use only for offline, one-frame-at-a-time inspection. Scratch timing still
+// needs its own bounded adapter; this does not admit a native visit.
+export function streamWriterReplay(header: Omit<WriterTrace, 'frames'>) {
+  const problem = traceProblem({ ...header, frames: [] });
+  if (problem) throw new Error(problem);
+  const replay = writerReplay(header);
+  return {
+    frame(frame: WriterTrace['frames'][number]) {
+      const problem = traceProblem({ ...header, seed: [], frames: [frame] });
+      if (problem) throw new Error(problem);
+      return replay.step(frame).evidence;
+    },
+    gaps: replay.gaps,
+  };
 }
 
 type Arm = { units: number; ms: number | null };

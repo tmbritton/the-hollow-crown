@@ -1,5 +1,95 @@
 # Verification — The Hollow Crown
 
+## Story 16.1 — offline review of `hardware-40phAH`
+
+**Do not replace this visit.** Bounded disk transport and incremental offline writer
+reconciliation work at the retained event volume; a corrected live capture is not
+qualified. The unflagged collector is held before GPU probing, browser launch, or
+preflight. The archived run remains stopped/inconclusive, not a negative result.
+
+- **Capacity:** The software transport fixture used the 2,395-mesh retained seed and
+  the first complete frame's 12,982 writer sites, with constant operands. Across 60
+  five-tick frames covering ticks 180–480 it round-tripped 778,920 ordered events and
+  130,686,840 scalar operands/checkpoint values, using one awaited gzip frame at a time
+  (153,966,766 compressed bytes on disk). For the four actual archived frames,
+  incremental replay exactly matched eager replay, including the gaps. The synthetic
+  full window is not a live workload or a scratch timing measurement. No capture cap
+  was raised.
+- **Partial native rows:** The runner archives the available header and chunks before
+  admitting writer, native, or replay evidence; it also attempts export after a failed
+  wait while the page is still accessible. A destroyed bridge cannot supply missing
+  rows. The old run's native rows were never exported and were not reconstructed.
+- **Breakdown:** Reports now distinguish enemy/object/cover invocation counts,
+  per-call work/time, and proxy synchronization. Missing measurements remain `null`;
+  descriptive timings are not added to the ledger. Checkpoint diagnostics name mesh
+  IDs, labels and differing fields. Tick 179 has **14 health meshes and one hacky sack**,
+  not 15 health meshes. The first pick reports 50 differences including **26 steed
+  meshes**, the altar ember and floating votives. This is independent of the overflow.
+- **Writer correctness remains blocked:** Health bars write in `enemyRendering.ts`,
+  the sack writes both rest and flight poses in `socialRendering.ts`, and steed and
+  floating meshes write in `main.ts` presentation. Hooking more sites into the
+  provisional forced-matrix adapter is not a valid reconciliation: a NullEngine
+  hooked/unhooked control reads `9` vs `0` for the same authored parent translation in
+  the same render ID. Forced readback warms the live child matrix/bounds cache, so
+  it can change the native observation it is supposed to witness. The previous
+  health-bar patch is still diagnostic-only and is not certified by its source test.
+
+The current collector inherently requires visit-wide retained writer arrays before
+export, then sends all three traces to one page for scratch timing and materializes
+their replay. The software window exceeds both live guards (500,000 events and
+8,000,000 operand/checkpoint scalars) for one visit alone. Disk compression does not
+remove either residency requirement, and blocking the render thread to drain chunks
+can alter wall-clock catch-up; count/time matching requires exact native tick spans
+and sampled geometry. A successor needs non-mutating capture of writer-site operands
+and an independent checkpoint path with hooked/unhooked parity, plus bounded live
+handoff **and** bounded scratch replay that preserve native scheduling and the frozen
+batch mix. The offline transport is not that successor. No gameplay, workload, visit
+budget, calibration, or numerical gate was changed.
+
+Focused tests were red first for missing archive/breakdown/disk adapters, unnamed
+checkpoint differences, and same-render-ID readback parity (`9 !== 0`). The green
+same-render-ID test preserves the failure as evidence for the hold, not as a fix.
+`npm run check:full` passed **852/852** including the retained archive and full-window
+software test; typecheck, lint and format passed. `node tests/cursor-attribution.ts
+--smoke` passed (`test-results/epic16/smoke-Gnlct3`, software with zero native/count
+visits and no feasibility disposition). `npm run build && npm run test:production`
+passed (production smoke with SwiftShader). No hardware recapture or system changes.
+
+## Story 16.1 — hardware resume and tooling review boundary
+
+**Stopped/inconclusive; not ready for a corrected capture.** The unflagged
+`node tests/cursor-attribution.ts` ran on `main` at `30b02dd`, passed matched RTX 2070/WebGL2
+preflight, and exited **2** at `shrine-count`: writer operand/checkpoint overflow and independent
+checkpoint mismatches. **0/3** complete count visits and **0/5** native timing visits.
+See the [hardware report](docs/epic14-startup-fps.md#story-161-hardware-resume-on-30b02dd-2026-11-25)
+for provenance, captured frame counts and the exact stop. The prior hardware-unavailable
+entries below are historical.
+
+One concrete gap from the archived first fixed checkpoint was reduced to the diagnostic-build
+contract: health-bar position, billboard mode and fill scale mutated without a writer hook.
+`tests/cursor-attribution-build.ts` now wraps those operations at their source site in the
+existing diagnostic `pose` writer, leaving the existing effective-enable observer separate.
+The regression in `tests/cursor-attribution-build.test.ts` checks all three operations are
+inside the hook and retains the CSS/PostCSS and other probe controls. No production file,
+visit count, sampling window, storage guard or numerical gate was changed.
+
+Software checks ran sequentially after the hardware stop. Log filenames below have the prefix
+`test-results/epic16/hardware-40phAH-` and are separate from the preserved run directory.
+
+| Command | Actual result |
+| --- | --- |
+| `node --test tests/cursor-attribution-build.test.ts` (red) | Exit 1: `health-bar transform has no writer publication` (`build-red.log`). |
+| `node --test tests/cursor-attribution-build.test.ts` (green) | Exit 0, 1/1 (`build-green.log`). |
+| `npm run check:full` | Exit 0, 847/847; typecheck, format and lint passed (`check-full.log`). |
+| `npm run test:browser` | Exit 1 after eight passes: `Traversal replan budget exhausted`, `MOURNING-731` step 17784 towards `[-52,20]`, `tests/browser.ts:307` (called at line 594) (`test-browser.log`). |
+| `npm run build && npm run test:production` | Both exit 0; production smoke passed (`build-production.log`). |
+| `npm run dev -- --strictPort`, then `npm run test:epic14` | Exit 1 after two passes, projected floor click at `tests/epic14-browser.ts:216`; position `[4.403284358136046,0,-4.04330325906516]`, X expected within `0.08` of `5`. Same assertion as the historical baseline failure (`dev.log`, `test-epic14.log`). |
+
+No gameplay/browser-suite repair was attempted. Review must cover the hook (including disabled
+descendants and possible readback side effects), the still-unfixed lossless capacity/archiving
+problem and remaining checkpoint mismatches. This is a partial tooling patch, not an independent
+approval, a corrected capture, or an authorization for 16.2.
+
 ## Story 16.1 — writer publications and populated traversal
 
 **Correctness tooling only. Hardware evidence remains pending (host Xid79).** No Chromium,
