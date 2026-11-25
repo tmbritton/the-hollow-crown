@@ -262,6 +262,11 @@ export function createEnemyRendering(
   ring.material = materials.cloth;
   ring.isPickable = false;
   ring.setEnabled(false);
+  const preview = ring.clone('enemy hover ring', null)!;
+  const setRing = (mesh: typeof ring, actor?: Actor) => {
+    mesh.setEnabled(!!actor?.alive);
+    if (actor) mesh.position.set(actor.position.x, actor.position.h + 0.08, actor.position.z);
+  };
   const blood = new StandardMaterial('blood particles', scene);
   blood.diffuseColor = Color3.FromHexString('#ad1832');
   blood.emissiveColor = Color3.FromHexString('#39040a');
@@ -285,6 +290,10 @@ export function createEnemyRendering(
   };
   const social = createSocialRendering(scene, combat, materials, shadow);
   return {
+    preview(actor?: Actor) {
+      const selected = combat.actor(combat.player.attack.target);
+      setRing(preview, actor?.id === selected?.id ? undefined : actor);
+    },
     pick(ray: Ray): { actor: Actor; distance: number } | null {
       for (const [mesh] of pickActors) mesh.computeWorldMatrix(true);
       const hit = scene.pickWithRay(

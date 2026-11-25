@@ -89,7 +89,6 @@ try {
   });
   assert.equal(release.guarded, false);
   assert.ok(release.weight > 0 && release.weight < 1);
-  await page.keyboard.press('x');
   assert.equal(await page.evaluate(() => window.__dungeon.game.player.actor.defending), false);
   await page.keyboard.press('Escape');
   const reset = await page.evaluate(() => {

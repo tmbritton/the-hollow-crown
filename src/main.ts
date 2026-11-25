@@ -31,8 +31,14 @@ import { createMaterials } from './materials.ts';
 import { buildDungeon } from './buildDungeon.ts';
 import { createPlayer, movePlayer, stopPlayer } from './player.ts';
 import { RouteBudget } from './routeBudget.ts';
-import { projectGroundAim } from './navigation.ts';
-import { MOVEMENT_KEYS } from './locomotion.ts';
+import { Navigator, projectGroundAim } from './navigation.ts';
+import { initialTravelControl, travelControl } from './travelControls.ts';
+import { decideUse, idleUse, transitionUse } from './playerInteraction.ts';
+import type { Operation, UseState } from './playerInteraction.ts';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import '@babylonjs/core/Rendering/outlineRenderer';
+import { createGameCursor } from './gameCursor.ts';
+import { pointerFeedback } from './pointerPreview.ts';
 import { ECS } from './ecs.ts';
 import { CombatSystem, clearSight, seedEnemies } from './combat.ts';
 import { cancelAttack, cancelWork, requestDefense, requestJump } from './actors.ts';
@@ -63,37 +69,23 @@ import { inspectorMachine } from './machines/ui/inspector.ts';
 import { required } from './assert.ts';
 import { element, html } from './dom.ts';
 import type { ShowInspector } from '@babylonjs/inspector';
-import type { Entity, PlayableContent, World } from './worldTypes.ts';
+import type { Entity, PlayableContent, Spawn, World } from './worldTypes.ts';
 import type { DungeonScenario, Game } from './gameTypes.ts';
 
 const canvas = element('game', HTMLCanvasElement);
+const cursor = createGameCursor(canvas);
 const loading = html('loading');
 const loadingCaption = required(loading.querySelector('p'), 'Loading caption missing');
 const retryButton = html('retry-generation');
 const ui = new UI(),
   keys = new Set<string>();
-const gameKeys = new Set([
-  'KeyW',
-  'KeyA',
-  'KeyS',
-  'KeyD',
-  'KeyE',
-  'KeyF',
-  'KeyQ',
-  'KeyR',
-  'KeyM',
-  'ArrowUp',
-  'ArrowDown',
-  'ArrowLeft',
-  'ArrowRight',
-  'ShiftLeft',
-  'ShiftRight',
-  'Space',
-  'KeyX',
-]);
+const gameKeys = new Set(['KeyE', 'KeyF', 'KeyR', 'KeyM', 'BracketLeft', 'BracketRight', 'Space']);
+let travel = travelControl(initialTravelControl, { type: 'cancel' });
 const editingText = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || !!target.closest('input,textarea,select'));
+const nativeControl = (target: EventTarget | null) =>
+  editingText(target) || (target instanceof Element && !!target.closest('button,a[href]'));
 let engine: DungeonEngine,
   game: Game | null = null;
 const entry = new URLSearchParams(location.search);
@@ -119,8 +111,37 @@ let inspectorToken: ReturnType<typeof ShowInspector> | null = null;
 const pointer = new Statechart(pointerMachine);
 const inspector = new Statechart(inspectorMachine);
 let lastPointerRoute = 0;
+let useState: UseState = idleUse;
+let hoverPoint: { x: number; y: number } | null = null;
+let outlines: AbstractMesh[] = [];
+let useProbe: {
+  id: string;
+  game: Game;
+  from: Spawn;
+  index: number;
+  nav: Navigator;
+  budget: RouteBudget;
+  retry: number;
+} | null = null;
 
-function resetMovement(): void {
+function clearUseProbe() {
+  useProbe?.nav.cancel();
+  useProbe = null;
+}
+
+function clearPreview() {
+  clearUseProbe();
+  for (const mesh of outlines) mesh.renderOutline = false;
+  outlines = [];
+  cursor.hide();
+  game?.enemyRendering.preview();
+}
+
+function resetMovement(reason: 'cancel' | 'input-lost' = 'cancel'): void {
+  hoverPoint = null;
+  clearPreview();
+  useState = transitionUse(useState, { type: 'cancel' }).state;
+  travel = travelControl(travel, { type: reason });
   keys.clear();
   pointer.send({ type: 'CANCEL' });
   if (game) {
@@ -130,43 +151,216 @@ function resetMovement(): void {
   }
 }
 
+function surfaceOwner(current: Game, mesh: AbstractMesh): string | undefined {
+  const cargo = current.scenario?.tributeRendering.pickOwners.get(mesh);
+  if (cargo) return cargo;
+  if (mesh.name.includes(':use/')) return mesh.name.split(':use/')[1];
+  for (const e of current.world.entities) {
+    if (e.type === 'door' && e.pivot && mesh.isDescendantOf(e.pivot)) return e.id;
+    if (
+      e.type === 'chest' &&
+      mesh.parent &&
+      (mesh.parent.name === e.id || mesh.parent.parent?.name === e.id)
+    )
+      return e.id;
+    if (e.type === 'altar' && mesh === e.crystal) return e.id;
+    if (e.type === 'portrait' && current.ecs.get(e.id)?.get('render')?.meshes.includes(mesh))
+      return e.id;
+  }
+}
+
+const pickOwners = new WeakMap<Game, Map<AbstractMesh, string>>();
+function ownersFor(current: Game) {
+  let owners = pickOwners.get(current);
+  if (!owners) {
+    owners = new Map();
+    for (const mesh of current.scene.meshes) {
+      const id = surfaceOwner(current, mesh);
+      if (id) owners.set(mesh, id);
+    }
+    pickOwners.set(current, owners);
+  }
+  return owners;
+}
+
+function pointerRay(current: Game, clientX: number, clientY: number) {
+  const rect = canvas.getBoundingClientRect();
+  return current.scene.createPickingRay(
+    clientX - rect.left,
+    clientY - rect.top,
+    Matrix.Identity(),
+    current.camera,
+  );
+}
+
+function pickPointer(current: Game, ray: ReturnType<typeof pointerRay>) {
+  const enemy = current.enemyRendering.pick(ray);
+  const meshes = ownersFor(current);
+  const eligibleSurface = (mesh: AbstractMesh) =>
+    mesh.isEnabled() && mesh.isVisible && mesh.visibility >= 0.5;
+  const object = current.scene.pickWithRay(
+    ray,
+    (mesh) => meshes.has(mesh) && eligibleSurface(mesh),
+  );
+  if (!enemy && !object?.hit) return { kind: 'floor' } as const;
+  // Use the drawn surfaces, not the invisible collision proxies. Babylon's predicate
+  // replaces its default visibility/pickability filter, so filter visibility explicitly.
+  const hit = current.scene.pickWithRay(ray, (mesh) => {
+    if (
+      !eligibleSurface(mesh) ||
+      (mesh.hasThinInstances &&
+        !('thinInstanceEnablePicking' in mesh && mesh.thinInstanceEnablePicking)) ||
+      current.player.shadowMeshes.includes(mesh) ||
+      enemy?.actor.entity.get('render')?.meshes.includes(mesh)
+    )
+      return false;
+    return (
+      meshes.has(mesh) ||
+      (!mesh.material?.needAlphaBlending() &&
+        !mesh.name.includes('ring') &&
+        mesh.name !== 'click destination' &&
+        mesh.name !== 'hostile target')
+    );
+  });
+  if (enemy && (!hit?.hit || enemy.distance <= hit.distance + 0.0001))
+    return { kind: 'enemy', actor: enemy.actor } as const;
+  const id = hit?.pickedMesh && meshes.get(hit.pickedMesh);
+  if (id) return { kind: 'object', id } as const;
+  return { kind: 'floor' } as const;
+}
+
+function refreshPreview(current: Game) {
+  const at = hoverPoint;
+  if (
+    !at ||
+    !ui.ready ||
+    paused() ||
+    current.inspection.active ||
+    document.hidden ||
+    document.elementFromPoint(at.x, at.y) !== canvas
+  ) {
+    clearPreview();
+    return;
+  }
+  current.camera.getViewMatrix();
+  const pick = pickPointer(current, pointerRay(current, at.x, at.y));
+  if (pick.kind !== 'object' || pick.id !== useProbe?.id) clearUseProbe();
+  const feedback = pointerFeedback(
+    pick.kind === 'enemy'
+      ? { kind: 'enemy', id: pick.actor.id }
+      : pick.kind === 'object'
+        ? { ...pick, usable: !!useEligibility(current, pick.id, true)?.reachable }
+        : pick,
+  );
+  current.enemyRendering.preview(pick.kind === 'enemy' ? pick.actor : undefined);
+  const next =
+    feedback.kind === 'outline'
+      ? [...ownersFor(current)].filter(([, id]) => id === feedback.id).map(([mesh]) => mesh)
+      : [];
+  for (const mesh of outlines) if (!next.includes(mesh)) mesh.renderOutline = false;
+  for (const mesh of next) {
+    mesh.renderOutline = true;
+    mesh.outlineColor.set(0.83, 0.67, 0.22);
+    mesh.outlineWidth = 0.017;
+  }
+  outlines = next;
+  cursor.draw(at.x, at.y, feedback.kind === 'sword', performance.now());
+}
+
+function useEligibility(current: Game, id: string, preview: boolean) {
+  const operation = currentOperation(current, id);
+  if (!operation || !current.player.actor.alive) {
+    clearUseProbe();
+    return null;
+  }
+  if (inUseReach(current, id)) {
+    clearUseProbe();
+    return { operation, candidates: [], reachable: true };
+  }
+  const from = current.player.actor.position;
+  const nav = current.player.navigator;
+  const candidates = useApproaches(current, id);
+  const direct = candidates.find((p) => nav.liveSegmentClear(from, p));
+  if (direct) {
+    clearUseProbe();
+    return {
+      operation,
+      candidates: [direct, ...candidates.filter((p) => p !== direct)],
+      reachable: true,
+    };
+  }
+  if (!candidates.length) {
+    clearUseProbe();
+    return null;
+  }
+  // Speculative exact routing uses the fixed-tick budget, never the hero's route.
+  // A press can submit the same unresolved candidates; no cue is shown until a route is proven.
+  const now = performance.now();
+  if (
+    useProbe &&
+    (useProbe.game !== current ||
+      useProbe.id !== id ||
+      Math.hypot(from.x - useProbe.from.x, from.z - useProbe.from.z) > 0.2 ||
+      now >= useProbe.retry)
+  )
+    clearUseProbe();
+  if (!useProbe && preview) {
+    const probe = new Navigator(current.world, nav.occupancy);
+    const start = { ...from };
+    const budget = new RouteBudget();
+    probe.scheduleWith(budget, () => start);
+    useProbe = { id, game: current, from: start, index: 0, nav: probe, budget, retry: Infinity };
+    probe.request(start, candidates[0]);
+  }
+  const probe = useProbe;
+  if (preview) probe?.budget.tick();
+  if (probe && !probe.nav.pending && probe.retry === Infinity) {
+    const path = probe.nav.path;
+    const end = path.at(-1);
+    if (
+      probe.nav.planningResult === 'ready' &&
+      end &&
+      candidates.some((p) => p.x === end.x && p.z === end.z) &&
+      path.every((p, i) => nav.liveSegmentClear(path[i - 1] ?? from, p))
+    ) {
+      const proven = candidates.find((p) => p.x === end.x && p.z === end.z)!;
+      return {
+        operation,
+        candidates: [proven, ...candidates.filter((p) => p !== proven)],
+        reachable: true,
+      };
+    }
+    const next = candidates[++probe.index];
+    if (next) probe.nav.request(probe.from, next);
+    else probe.retry = now + 350;
+  }
+  return { operation, candidates, reachable: false };
+}
+
 function navigatePointer(clientX: number, clientY: number, initialPress = false): void {
   if (!game || !ui.ready || paused() || game.inspection.active) return;
   const rect = canvas.getBoundingClientRect();
   if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom)
     return;
-  cancelWork(game.player.actor);
-  const ray = game.scene.createPickingRay(
-    clientX - rect.left,
-    clientY - rect.top,
-    Matrix.Identity(),
-    game.camera,
-  );
+  const actor = game.player.actor;
+  const ray = pointerRay(game, clientX, clientY);
   if (initialPress) {
-    const enemy = game.enemyRendering.pick(ray);
-    const doors = game.ecs
-      .query('door')
-      .map((entity) => entity.require('door'))
-      .filter((door) => !door.open || door.collider?.checkCollisions);
-    const doorHit = game.scene.pickWithRay(ray, (mesh) =>
-      doors.some((door) => door.collider === mesh),
-    );
-    const door = doors.find((door) => door.collider === doorHit?.pickedMesh);
-    if (door && (!enemy || (doorHit?.distance ?? Infinity) < enemy.distance)) {
+    useState = transitionUse(useState, { type: 'cancel' }).state;
+    actor.navigator.cancel();
+    const pick = pickPointer(game, ray);
+    if (pick.kind === 'object') {
       pointer.send({ type: 'SELECT_TARGET' });
-      if (!game.combat.requestDoor(game.player.actor, door.id)) {
-        resetMovement();
-        ui.toast('The gate remembers an oath. Kindle the violet altar.');
-      }
+      beginUse(pick.id);
       return;
     }
-    if (enemy) {
+    cancelWork(actor);
+    if (pick.kind === 'enemy') {
       pointer.send({ type: 'SELECT_TARGET' });
-      game.combat.target(game.player.actor, enemy.actor);
+      game.combat.target(game.player.actor, pick.actor);
       return;
     }
-    cancelAttack(game.player.actor);
-  }
+    cancelAttack(actor);
+  } else cancelWork(actor);
   const referenceHeight = pointer.snapshot.context.referenceHeight;
   const point =
     referenceHeight === null ? null : projectGroundAim(game.world, ray, referenceHeight);
@@ -661,17 +855,16 @@ function assembleScene(
     canvas.focus();
     ui.toast(
       scenario || practiceRound === 'singleFoe'
-        ? 'Click an enemy to pursue and attack. Hold F to defend. Space jumps. X cancels commands.'
-        : 'Click or hold the floor to move. Click the door or press E nearby to open it.',
+        ? 'Click an enemy to pursue and attack. Hold F to defend. Click the floor to break pursuit.'
+        : 'Click or hold the floor to move. Click the door or press E nearby to use it.',
       6500,
     );
   });
 }
 
-function lineOfSight(entity: Entity): boolean {
+function lineOfSight(entity: Entity, p: Spawn): boolean {
   const game = activeGame();
-  const p = game.player.root.position,
-    dx = entity.x - p.x,
+  const dx = entity.x - p.x,
     dz = entity.z - p.z;
   const distance = Math.hypot(dx, dz),
     steps = Math.ceil(distance / 0.15);
@@ -687,22 +880,152 @@ function lineOfSight(entity: Entity): boolean {
   }
   return true;
 }
+function entityInReach(e: Entity, p: Spawn): boolean {
+  return (
+    Math.hypot(e.x - p.x, e.z - p.z) < (e.type === 'altar' || e.type === 'throne' ? 3.1 : 2.6) &&
+    Math.abs(e.h - p.h) < 1.4 &&
+    lineOfSight(e, p)
+  );
+}
 function findInteraction(): Entity | null {
   const game = activeGame();
-  const p = game.player.root.position;
+  const p = playerUsePosition(game);
   return (
     game.ecs
       .query('interaction')
       .map((entity) => entity.require('interaction'))
       .map((e) => ({ e, d: Math.hypot(e.x - p.x, e.z - p.z) }))
-      .filter(
-        ({ e, d }) =>
-          d < (e.type === 'altar' || e.type === 'throne' ? 3.1 : 2.6) &&
-          Math.abs(e.h - p.y) < 1.4 &&
-          lineOfSight(e),
-      )
+      .filter(({ e }) => entityInReach(e, p))
       .sort((a, b) => a.d - b.d)[0]?.e || null
   );
+}
+function playerUsePosition(current: Game): Spawn {
+  const { x, y: h, z } = current.player.root.position;
+  return { x, h, z };
+}
+function emberSite(current: Game, id: string) {
+  const ember = current.scenario?.run.get('lastEmber');
+  if (!ember) return null;
+  for (const kind of ['shrine', 'focus'] as const)
+    if (ember.sites[kind].sourceId === id) return { ember, kind };
+  return null;
+}
+function currentOperation(current: Game, id: string): Operation | null {
+  const e = current.ecs.get(id)?.get('interaction');
+  if (e?.inspection) return 'inspect';
+  switch (e?.type) {
+    case 'door':
+      return e.locked || (e.open && doorOccupied(current, e)) ? null : e.open ? 'close' : 'open';
+    case 'chest':
+      return e.open ? null : 'open';
+    case 'altar':
+      return current.active ? 'rest' : 'kindle';
+    case 'throne':
+      return current.active && !current.complete ? 'claim' : null;
+  }
+  const site = emberSite(current, id);
+  if (site) {
+    const { ember, kind } = site;
+    if (kind === 'focus') return ember.focusEnabled ? 'disable' : null;
+    if (ember.state === 'dormant' || ember.state === 'active') return 'restore';
+    if (ember.focusEnabled) return null;
+    if (ember.state === 'corrupted') return 'cleanse';
+    if (ember.state === 'fractured') return 'repair';
+    return null;
+  }
+  const cargo = current.ecs.get(id)?.get('cargo');
+  return cargo?.state === 'loose' || cargo?.state === 'claimed' ? 'recover' : null;
+}
+function inUseReach(current: Game, id: string, p?: Spawn): boolean {
+  const e = current.ecs.get(id)?.get('interaction');
+  if (e) return entityInReach(e, p ?? playerUsePosition(current));
+  const site = emberSite(current, id);
+  if (site) return site.ember.inReach(site.kind, p);
+  return !!current.scenario?.run.get('tribute')?.nearby(id, p);
+}
+function useApproaches(current: Game, id: string): Spawn[] {
+  const e = current.ecs.get(id)?.get('interaction');
+  const site = emberSite(current, id);
+  const preferred =
+    e && 'approach' in e
+      ? e.approach
+      : (site?.ember.sites[site.kind].approach ?? current.ecs.get(id)?.get('workSite')?.approach);
+  const center = preferred ?? e;
+  if (!center) return [];
+  const p = current.player.actor.position;
+  const points = preferred ? [preferred] : [];
+  // Sample both sides, including both faces of a door, then try exact legal endpoints.
+  for (const r of preferred ? [0.7, 1.4, 2.2] : [1.15, 1.85, 2.35])
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      points.push({ x: center.x + r * Math.cos(a), z: center.z + r * Math.sin(a) });
+    }
+  const result: Spawn[] = [];
+  for (const point of points) {
+    const h = heightAt(current.world, point.x, point.z);
+    if (h === null || !current.player.navigator.canOccupy(point)) continue;
+    const at = { ...point, h };
+    if (inUseReach(current, id, at)) result.push(at);
+  }
+  return result.sort((a, b) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(p.x - b.x, p.z - b.z));
+}
+function advanceUse(current: Game) {
+  if (useState.kind !== 'approaching') return;
+  const { ref } = useState;
+  const result = decideUse(
+    ref.operation,
+    currentOperation(current, ref.id),
+    inUseReach(current, ref.id),
+  );
+  const nav = current.player.navigator;
+  const next = transitionUse(useState, {
+    type: 'check',
+    result,
+    travelling: nav.active || nav.pending,
+  });
+  useState = next.state;
+  if (next.effect?.type === 'route') nav.request(current.player.actor.position, next.effect.point);
+  else if (next.effect) {
+    nav.cancel();
+    if (next.effect.type === 'execute') executeUse(current, next.effect.ref.id);
+  }
+}
+function beginUse(id: string) {
+  const current = activeGame();
+  // A visible target may answer in reach without advertising an available action
+  // (a sealed gate, an unkindled throne, or a spent shrine). Never scan for a neighbor.
+  if (inUseReach(current, id)) {
+    clearUseProbe();
+    cancelAttack(current.player.actor);
+    executeUse(current, id);
+    return;
+  }
+  const eligibility = useEligibility(current, id, false);
+  clearUseProbe();
+  cancelAttack(current.player.actor);
+  if (!eligibility) return;
+  cancelWork(current.player.actor);
+  useState = transitionUse(useState, {
+    type: 'select',
+    ref: { id, operation: eligibility.operation },
+    candidates: eligibility.candidates,
+  }).state;
+  advanceUse(current);
+}
+function doorOccupied(current: Game, e: Extract<Entity, { type: 'door' }>) {
+  return current.combat.enemies.some(
+    (a) =>
+      a.alive &&
+      Math.abs(a.position.h - e.h) < 1.2 &&
+      Math.abs(a.position.x - e.x) < 1.9 &&
+      Math.abs(a.position.z - e.z) < 1.9,
+  );
+}
+function doorRefusal(current: Game, e: Extract<Entity, { type: 'door' }>) {
+  if (e.locked) ui.toast('The gate remembers an oath. Kindle the violet altar.');
+  else if (e.open && doorOccupied(current, e)) ui.toast('Someone is in the doorway.');
+  else return false;
+  return true;
 }
 function promptFor(e: Entity | null): string {
   const game = activeGame();
@@ -722,18 +1045,29 @@ function interact() {
     game.inspection.close();
     return;
   }
+  const tribute = game.scenario?.run.get('tribute')?.nearby();
+  const ember = game.scenario?.run.get('lastEmber');
+  const site = ember?.nearby();
+  const id = tribute?.id ?? (site && ember ? ember.sites[site].sourceId : findInteraction()?.id);
+  if (!id) return;
+  if (useState.kind === 'approaching') game.player.navigator.cancel();
+  useState = transitionUse(useState, { type: 'cancel' }).state;
+  executeUse(game, id);
+}
+function executeUse(game: Game, id: string) {
+  if (!game.player.actor.alive || !inUseReach(game, id)) return;
   const { scenario } = game;
   const tribute = scenario?.run.get('tribute');
-  if (tribute?.recover()) {
+  if (tribute?.recover(id)) {
     ui.setHealth(game.player.health);
     ui.toast(
       `Royal tribute secured · ${tribute.recovered} of 4 recovered (+10 health). Delivered crates remain lost.`,
     );
     return;
   }
-  const ember = scenario?.run.get('lastEmber');
-  const site = ember?.nearby();
-  if (ember && site) {
+  const target = emberSite(game, id);
+  if (target) {
+    const { ember, kind: site } = target;
     if (site === 'focus') {
       if (ember.disableFocus()) {
         const evidence = {
@@ -756,30 +1090,14 @@ function interact() {
     }
     return;
   }
-  const e = findInteraction();
+  const e = game.ecs.get(id)?.get('interaction');
   if (!e) return;
   if (e.inspection) {
     game.inspection.open(e.inspection);
     return;
   }
   if (e.type === 'door') {
-    if (e.locked) {
-      ui.toast('The gate remembers an oath. Kindle the violet altar.');
-      return;
-    }
-    const p = game.player.root.position;
-    // Reserve the full swing area, not just the doorway plane.
-    if (
-      e.open &&
-      ((Math.abs(p.x - e.x) < 1.9 && Math.abs(p.z - e.z) < 1.9) ||
-        game.combat.enemies.some(
-          (a) =>
-            a.alive && Math.abs(a.position.x - e.x) < 1.9 && Math.abs(a.position.z - e.z) < 1.9,
-        ))
-    ) {
-      ui.toast('Step clear of the doorway before closing it.');
-      return;
-    }
+    if (doorRefusal(game, e)) return;
     e.open = !e.open;
     if (!e.open) required(e.collider, 'Door collider missing').checkCollisions = true;
   } else if (scenario && e.type === 'altar') {
@@ -841,10 +1159,6 @@ function tick(dt: number): void {
   const jump = game.player.actor.jump;
   if (keys.has('Space') && !jump.held) requestJump(game.player.actor);
   jump.held = keys.has('Space');
-  if ([...MOVEMENT_KEYS].some((key) => keys.has(key))) {
-    cancelWork(game.player.actor);
-    cancelAttack(game.player.actor);
-  }
   updateDoors(game.ecs, dt);
   game.routeBudget.tick();
   const { scenario } = game;
@@ -870,7 +1184,7 @@ function tick(dt: number): void {
   const work = scenario?.run.get('objectiveWork');
   work?.advance(game.steps, dt);
   const locked = game.combat.pursue(game.player.actor, dt);
-  const tile = movePlayer(game.player, game.world, keys, game.camera, dt, locked);
+  const tile = movePlayer(game.player, game.world, travel.gait, dt, locked);
   game.combat.update(dt);
   const room = tile?.room && game.world.roomById[tile.room];
   if (room) ui.room(room, game.playTime);
@@ -913,6 +1227,7 @@ function tick(dt: number): void {
     const e = entity.require('interaction');
     if (e.type === 'chest') animateChest(e, dt);
   }
+  advanceUse(game);
   cpu?.finish('main.tick', cpuStart);
 }
 
@@ -1033,6 +1348,7 @@ function renderUpdate(dt: number): void {
       );
   }
   cpu?.finish('main.presentation', cpuStart);
+  refreshPreview(game);
 }
 
 function toggleMenu() {
@@ -1082,7 +1398,7 @@ window.addEventListener('keydown', (event) => {
   }
   if (event.code === 'KeyF') {
     const gameplay =
-      !editingText(event.target) && !event.metaKey && !event.ctrlKey && !event.altKey;
+      !nativeControl(event.target) && !event.metaKey && !event.ctrlKey && !event.altKey;
     if (gameplay) event.preventDefault();
     if (game)
       requestDefense(
@@ -1102,53 +1418,34 @@ window.addEventListener('keydown', (event) => {
     toggleMenu();
     return;
   }
-  if (paused() || editingText(event.target) || event.metaKey || event.ctrlKey || event.altKey)
+  if (paused() || nativeControl(event.target) || event.metaKey || event.ctrlKey || event.altKey)
     return;
   if (event.code === 'KeyT') {
     if (!event.repeat && !event.shiftKey && requestPractice('reset')) event.preventDefault();
     return;
   }
-  // Space on a focused native button activates that button, not the hero's jump.
-  if (event.code === 'Space' && event.target instanceof HTMLButtonElement) return;
   // Cancel native text/press-and-hold actions on every event, including repeats.
   // Keep editable fields and browser shortcuts outside gameplay input handling.
   if (gameKeys.has(event.code)) event.preventDefault();
   // A held key cleared at a scene boundary cannot send new intent until pressed again.
-  if (event.repeat) return;
-  if (MOVEMENT_KEYS.has(event.code)) {
-    if (game) cancelWork(game.player.actor);
-    pointer.send({ type: 'CANCEL' });
-    game?.player.navigator.cancel();
-    if (game) {
-      cancelAttack(game.player.actor);
-    }
-  }
-  if (event.code === 'KeyX') {
-    game?.player.actor.entity.get('defense')?.cancel();
-    if (game) cancelWork(game.player.actor);
-    keys.clear();
-    pointer.send({ type: 'CANCEL' });
-    game?.player.navigator.cancel();
-    if (game) {
-      cancelAttack(game.player.actor);
-    }
-    return;
-  }
-  keys.add(event.code);
-  if (!game) return;
+  if (event.repeat || !game || !ui.ready || keys.has(event.code)) return;
+  if (gameKeys.has(event.code)) keys.add(event.code);
   if (event.code === 'Space') requestJump(game.player.actor);
   if (event.code === 'KeyE') interact();
-  if (event.code === 'KeyQ') game.desiredAlpha -= Math.PI / 2;
-  if (event.code === 'KeyR') game.desiredAlpha += Math.PI / 2;
+  if (!event.shiftKey && event.code === 'BracketLeft') game.desiredAlpha -= Math.PI / 2;
+  if (!event.shiftKey && event.code === 'BracketRight') game.desiredAlpha += Math.PI / 2;
+  if (!event.shiftKey && event.code === 'KeyR')
+    travel = travelControl(travel, { type: 'down', repeat: event.repeat });
   if (event.code === 'KeyM') ui.transition({ type: 'TOGGLE_MAP' });
 });
 window.addEventListener('keyup', (event) => {
   keys.delete(event.code);
+  if (event.code === 'KeyR') travel = travelControl(travel, { type: 'up' });
   if (event.code === 'KeyF') game?.player.actor.entity.get('defense')?.release();
 });
-window.addEventListener('blur', resetMovement);
+window.addEventListener('blur', () => resetMovement('input-lost'));
 window.addEventListener('pagehide', (event) => {
-  resetMovement();
+  resetMovement('input-lost');
   // Release GPU resources promptly on a real reload/navigation. A page retained
   // by the back/forward cache keeps its engine so it can resume normally.
   if (!event.persisted) {
@@ -1163,7 +1460,7 @@ window.addEventListener('pagehide', (event) => {
   }
 });
 document.addEventListener('visibilitychange', () => {
-  resetMovement();
+  resetMovement(document.hidden ? 'input-lost' : 'cancel');
   ui.transition({ type: document.hidden ? 'HIDE' : 'SHOW' });
   last = performance.now();
   accumulator = 0;
@@ -1193,7 +1490,13 @@ canvas.addEventListener('pointerdown', (event) => {
   });
   navigatePointer(event.clientX, event.clientY, true);
 });
+canvas.addEventListener('pointerleave', () => {
+  hoverPoint = null;
+  clearPreview();
+});
 window.addEventListener('pointermove', (event) => {
+  if (event.pointerType === 'mouse' && event.target === canvas)
+    hoverPoint = { x: event.clientX, y: event.clientY };
   pointer.send({
     type: 'MOVE',
     pointer: { id: event.pointerId, x: event.clientX, y: event.clientY },
@@ -1348,10 +1651,16 @@ if (import.meta.env.DEV && debug && engine!) {
     },
     teleport(x, z) {
       const game = activeGame();
+      resetMovement();
       game.player.teleport(x, z, game.world);
       game.camera.target.copyFrom(game.player.root.position);
     },
     interact,
+    pickedObjectAt(clientX, clientY) {
+      const current = activeGame();
+      const pick = pickPointer(current, pointerRay(current, clientX, clientY));
+      return pick.kind === 'object' ? pick.id : null;
+    },
     regenerate: start,
     generationReport() {
       return structuredClone(required(initialGenerationReport, 'Generation report unavailable'));
@@ -1364,10 +1673,10 @@ if (import.meta.env.DEV && debug && engine!) {
     },
     step(codes, frames = 1) {
       if (!game || !ui.ready) return;
-      keys.clear();
-      for (const code of codes) keys.add(code);
+      const injected = codes.filter((code) => !keys.has(code));
+      for (const code of injected) keys.add(code);
       for (let i = 0; i < frames; i++) tick(1 / 60);
-      keys.clear();
+      for (const code of injected) keys.delete(code);
       renderUpdate(1 / 60);
     },
     snapshot() {

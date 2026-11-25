@@ -1,5 +1,135 @@
 # Verification — The Hollow Crown
 
+## Epic 14.3–14.6 / 14.8 — Integrated mouse controls (working tree)
+
+Base: `f0b2595` on `main`. No staging, commit, deployment, or roadmap change.
+Start `npm run dev`, then run `npm run test:epic14` for the focused real Chromium input suite.
+The harness freezes the clock and projects fixture coordinates; commands go through browser mouse
+and keyboard events, not debug movement/target setters.
+
+| Story | Observed evidence |
+| --- | --- |
+| 14.3 | Retired keys are inert at rest in both modes and do not interrupt a practice route. Brackets change the requested angle in opposite directions; a real floor click after rotation arrives, and duplicate R down does not undo the faster gait. |
+| 14.4 | The visible practice leaf outlines and opens by a distant click without lowering held defense. A detour can earn the same outline and a concurrent door operation retires the older intent. The seeded E/click matrix exercises portrait, chest, focus, shrine, cargo, gate, altar and throne. |
+| 14.5 | Click and E close the practice door with the hero overlapping the threshold. The stationary hero is not displaced, the collider stays solid after settling, and a real floor click retreats on the same side. Pure tests check outward, inward, stationary and centerline cases on both axes. |
+| 14.6 | Hovering the practice enemy previews a ring and sword without committing a target. Thin cover, stationary-camera changes and pause clear the cue; newly exposed geometry restores it, the hand animates at rest, and selection does not double the ring. Pointer exit leaves pursuit intact. |
+| 14.8 | Real skeleton exchanges in the Dojo and seeded dungeon produce distinct swing/hurt/block captures (`test-results/epic14-*.png`). Fixed inputs with and without publishing the reaction yield equal health, movement, target, swing, guard and cooldown traces. Pure cases cover ignored damage, replaced samples, cleanup and the recoil envelope. |
+
+Earlier on this working diff, root and Pages builds and sequential production smokes passed on
+isolated preview ports, as did the jump, defense and objective-work browser suites.
+
+Review reproductions: before the corrections, a real object click lowered held F and the actual
+smithy focus surface could not resolve its ECS interaction ID. The focused browser tests failed on
+those conditions and subsequently passed. A separate read-only pass found three additional defects:
+hover used terrain instead of live-body segment clearance, press retried earlier candidates instead
+of prioritizing the proven detour, and the throne carpet incorrectly owned a use surface. The fixes
+use live clearance, prioritize the proven endpoint, and leave the carpet to floor travel.
+
+### Resumed verification on `main` (`f0b2595` + working diff)
+
+Ran Chromium/SwiftShader suites serially against an owned strict-port Vite server at
+`http://127.0.0.1:5214`. The legacy fixtures now distinguish an already admitted route from a
+pending one, keep the intended leaf or floor visible to the pick ray, and freeze wall-clock
+advancement during fixed-tick traversal. The old entrance void aim ran through a clickable
+portrait; the new view preserves the same world aim and frontier assertions. The generated-door
+fixture approaches the closed leaf's clearance margin before opening and crossing it; a far-side
+click while closed can legitimately plan a longer route around the door. Travel and object checks
+continue to dispatch actual browser clicks.
+
+| Gate | Result | Evidence under `test-results/` |
+| --- | --- | --- |
+| `npm run test:combat` | 15 checks passed | `epic14-resume-combat-final.log` |
+| `npm run test:browser` | 23 checks passed, including physical completion on three seeds | `epic14-resume-browser-r7.log` |
+| `npm run test:movement` | 30 checks passed at 1.5 DPR, including indexed/full-scan collision parity | `epic14-resume-movement-r7.log` |
+| `npm run test:epic14` | 12 checks passed, including the three focused regressions below | `epic14-resume-focused-final.log` |
+| `npm test` | 560/560 core tests; typecheck clean | `epic14-resume-test.log` |
+| `npm run check:full` | 580/580; typecheck, lint and formatting clean | `epic14-resume-check-full.log` |
+| `npm run build` | Root production bundle built | `epic14-resume-build.log` |
+
+Each focused regression failed when its corresponding correction was temporarily removed, then
+passed with all corrections restored:
+
+- **Stationary cursor / live body:** The only lane to the Dojo leaf is plugged by a living
+  skeleton. Without live segment clearance the outline stays on. With it, the outline clears and
+  returns when the skeleton moves away without pointer motion or hero travel (`epic14-resume-body-red.log`).
+- **Later detour:** The nearest standable endpoint is sealed off, and all straight approaches
+  are blocked. Without endpoint prioritization the first submitted route is unreachable. With it,
+  the first route reaches the later proven endpoint and the click opens the selected door
+  (`epic14-resume-detour-red.log`).
+- **Throne carpet:** With throne ownership restored on the carpet, the real click claims the
+  crown. With carpet ownership removed, the hero reaches the carpet without claiming it, then
+  a separate click on the throne claims it (`epic14-resume-carpet-red.log`).
+
+**CPU comparability:** Historical workload definitions and sampling protocols were neither changed
+nor rerun. Workloads that feed retired movement bindings (including the `movement` case and other
+`KeyW`/`KeyA`/`KeyD` cases in `tests/cpu-workloads.ts`) no longer drive the same travel and are not
+comparable as matched workloads on this tree. Collision replay parity is a correctness result,
+not a CPU performance comparison. No independent delivery-readiness verdict is claimed here.
+
+### Final audit follow-up — exact in-reach use and dungeon door retreat
+
+Run `EPIC14_PART=matrix npm run test:epic14` against the dev server for these regressions.
+The unkindled-throne test was written first: **E** showed “The crown waits for the altar’s flame.”
+but the real click on the throne failed the assertion. The click now dispatches the picked ID
+through the same in-reach executor as **E**, even when there is no available operation to outline
+or approach. The test checks the visible toast, no outline or travel, and unchanged progression,
+checkpoint, evidence, and rewards. The separate carpet click still travels without claiming.
+
+- Two `MOURNING-731` visits compare concrete state and HUD, ordered discovery/event content,
+  HP deltas, objective state, and the active shrine objective and cycle IDs. The shrine completes
+  through fixed simulation ticks. A repeat attempt leaves it spent after another full cycle;
+  disabled focus, opened reliquary, and recovered/delivered cargo do not replay work or loot.
+  The cargo fixture uses real lifecycle transitions to arrange a delivered crate; the input test
+  clicks the now-empty cache position. A spent-chest click with an E-eligible loose crate in
+  range does not recover the neighbor. The dev-only picker readback verifies that the same ray
+  used for the real click names the spent chest, so a miss cannot satisfy the regression.
+- The same generated gate refuses to close with a living NPC in its doorway. With only the hero
+  on the opposite side, the gate closes via **E** and via mouse in matched visits. It stays solid,
+  settles to its closed angle without displacing the hero, and a real floor click reaches a
+  retreat point on that side. The hero reopens the gate from there without teleporting.
+
+Reviewed captures: `test-results/epic14-unkindled-throne.png` (hand cursor and refusal, no outline)
+and `test-results/epic14-gate-after-retreat.png` (closed gate behind the hero). The read-only Astra
+audit identified the original missing exact-pick assertion and confirmed the fix on follow-up
+(`epic14-audit-astra.log`, `epic14-audit-astra-followup.log`). This verdict is scoped to the audit
+findings, not full Epic 14 delivery.
+
+Audit runs are in `test-results/epic14-audit-*.log`. The focused Chromium suite passed all 13
+checks; the matrix passed again after tightening the exact-pick assertion. `npm run check:full`
+passed on the final changes (580 tests, typecheck, lint, formatting). The core suite (560 tests),
+model subset (25 tests), objective-work and combat browser suites, root and Pages
+builds, and both production smokes passed. The production smokes use local preview, not the hosted
+site. The movement rerun passed the closed-door contact/retreat case but failed later on a Dojo
+reset's loading-overlay opacity check; this is not counted as a movement-suite pass. The first
+standalone Last Ember rerun was stopped by the command timeout after its restoration check.
+
+### Story 14.3 follow-up 1 — living worker and lost R keyup
+
+The standalone Last Ember suite completed on Chromium and Firefox. On `MOURNING-731`, arrival
+at the focus without a click or attack made the living `goblin:smithy:0` target the hero, leave
+the focus, and stop work without losing or gaining profanation credit. After withdrawal, that
+worker returned at unchanged health and added credit while working. Only the browser fixture
+changed; worker AI did not.
+
+The Chromium controls test releases R in another tab and measures actual travel on return.
+Before the fix, the first fresh R still walked (1.919 units in 28 ticks; run is 2.959). The pure
+test also failed before the fix. Input loss now restores walk and releases the latch; a focused
+cancel still preserves it, so duplicate and repeated keydowns cannot toggle until keyup.
+
+| Gate | Result |
+| --- | --- |
+| `node --test tests/travel-controls.test.ts` | 2 passed |
+| `npm run test:last-ember` and `BROWSER=firefox npm run test:last-ember` | 14 checks passed in each browser |
+| `npm run test:epic14` | 14 checks passed |
+| `npm run test:movement` | 30 checks passed |
+| `npm run check:full` | 581 passed; typecheck, lint, and formatting clean |
+| `npm run build` and `npm run test:production` | Root build and local preview smoke passed |
+
+Astra 6.2 independently **approved this follow-up**, not the whole epic. It reran the focused
+tests, lint, and typecheck and separately confirmed with two Chromium tabs that the game tab
+does not receive keyup. See `test-results/epic14-f1-independent-final.log` for the verdict and
+`test-results/epic14-f1-final-*.log` for the final gates. No staging or commit.
+
 ## Story 14.2 — Mouse escape from obstacle contact
 
 - **Red → green on `40f2eee`:** The motor-contact unit fixture rejected its first outward

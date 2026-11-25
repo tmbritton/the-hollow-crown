@@ -166,10 +166,14 @@ export class TerrainCandidates {
     }
   }
 
-  move(proxy: AbstractMesh, delta: Vector3): void {
+  move(proxy: AbstractMesh, delta: Vector3, exclude: readonly AbstractMesh[] = []): void {
     const previous = proxy.surroundingMeshes;
     try {
       proxy.surroundingMeshes = this.fullScan ? null : this.candidates(proxy, delta);
+      if (exclude.length)
+        proxy.surroundingMeshes = (proxy.surroundingMeshes ?? this.scene.meshes).filter(
+          (mesh) => !exclude.includes(mesh),
+        );
       if (import.meta.env?.DEV && this.fullScan)
         this.diagnostics?.candidates.push(this.scene.meshes.length);
       const stats = import.meta.env?.DEV ? this.diagnostics : undefined;

@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
+import { clickWorld } from './world-pointer.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { withViteServer } from './testServer.ts';
 import type { DebugWindow } from './browserTypes.ts';
@@ -52,12 +53,11 @@ await withViteServer(base, 'dev', async () => {
     assert.equal(await page.evaluate(() => window.__dungeon.game.world.seed), 'MOURNING-731');
     // Real active frames, input, and menu pause, before the controlled/yielding probe.
     const start = await page.evaluate(() => window.__dungeon.game.player.root.position.asArray());
-    await page.keyboard.down('KeyD');
+    await clickWorld(page, start[0] + 2, start[2], start[1]);
     await page.waitForFunction(([x, , z]) => {
       const p = window.__dungeon.game.player.root.position;
       return Math.hypot(p.x - x, p.z - z) > 0.1;
     }, start);
-    await page.keyboard.up('KeyD');
     assert.notDeepEqual(
       await page.evaluate(() => window.__dungeon.game.player.root.position.asArray()),
       start,

@@ -5,6 +5,7 @@ import type { Locomotion } from './locomotion.ts';
 import type { Attack } from './machines/actors/attack.ts';
 import type { Defense } from './machines/actors/defense.ts';
 import type { BlockFeedback } from './blockFeedback.ts';
+import type { PlayerHurt } from './playerHurt.ts';
 import type { DeathHandoff } from './deathHandoff.ts';
 import type { Ragdoll, TerrainBox } from './ragdoll.ts';
 import type { DeathPhysics } from './deathPhysics.ts';
@@ -75,6 +76,7 @@ export interface Components {
   attack: Attack;
   defense: Defense;
   blockFeedback: BlockFeedback;
+  playerHurt: PlayerHurt;
   deathHandoff: DeathHandoff;
   ragdoll: Ragdoll;
   deathPhysics: DeathPhysics;

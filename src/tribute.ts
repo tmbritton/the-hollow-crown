@@ -1,6 +1,6 @@
 import { Actor, cancelWork } from './actors.ts';
 import type { ECS, Entity } from './ecs.ts';
-import type { World } from './worldTypes.ts';
+import type { Spawn, World } from './worldTypes.ts';
 import { tileAt } from './worldSpatial.ts';
 import { Cargo } from './cargo.ts';
 import { TRIBUTE, tributeBlueprint } from './generation/tribute.ts';
@@ -98,7 +98,7 @@ export class Tribute {
     if (actor && item.require('cargo').claim(actor))
       this.work.assign(new Actor(actor), TRIBUTE.objective);
   }
-  nearby(): Entity | undefined {
+  nearby(id?: string, p: Spawn = this.player.position): Entity | undefined {
     if (
       !this.player.alive ||
       this.player.jump.active ||
@@ -106,11 +106,11 @@ export class Tribute {
       !this.run.has('objectiveWork')
     )
       return;
-    const p = this.player.position;
     return this.cargo.find((e) => {
       const c = e.require('cargo'),
         at = e.require('workSite').approach;
       return (
+        (id === undefined || id === e.id) &&
         (c.state === 'loose' || c.state === 'claimed') &&
         Math.hypot(p.x - at.x, p.z - at.z) < 1.1 &&
         Math.abs(p.h - at.h) < 0.3 &&
@@ -118,8 +118,8 @@ export class Tribute {
       );
     });
   }
-  recover(): boolean {
-    const item = this.nearby();
+  recover(id?: string): boolean {
+    const item = this.nearby(id);
     if (!item?.require('cargo').recover()) return false;
     this.player.health.current = Math.min(100, this.player.health.current + 10);
     return true;

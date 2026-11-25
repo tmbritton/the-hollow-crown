@@ -198,6 +198,9 @@ export function thinBoxes(
   const mesh = MeshBuilder.CreateBox(name, { size: 1 }, scene);
   mesh.material = material;
   mesh.isPickable = false;
+  // Gameplay's custom visibility ray must intersect individual drawn boxes,
+  // not the template at the origin or the batch's combined bounds.
+  mesh.thinInstanceEnablePicking = true;
   mesh.receiveShadows = true;
   const matrices = new Float32Array(entries.length * 16),
     colors = new Float32Array(entries.length * 4);

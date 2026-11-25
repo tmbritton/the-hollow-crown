@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { DebugWindow } from './browserTypes.ts';
+import { clickWorld } from './world-pointer.ts';
 
 declare const window: DebugWindow;
 const browser = await chromium.launch({
@@ -279,25 +280,23 @@ try {
           { id, corpse },
         );
         await page.keyboard.down('f');
-        await page.keyboard.down('w');
-        if (run) await page.keyboard.down('Shift');
-        const samples = await page.evaluate((run) => {
+        if (run) await page.keyboard.press('KeyR');
+        await clickWorld(page, 0, 5);
+        const samples = await page.evaluate(() => {
           const d = window.__dungeon,
             g = d.game,
             samples: number[] = [];
           for (let i = 0; i < 30; i++) {
-            d.step(run ? ['KeyW', 'ShiftLeft'] : ['KeyW'], 1);
+            d.step([], 1);
             if (!g.player.actor.defending) throw new Error('Guard dropped while moving');
             samples.push(g.player.actor.position.z, g.player.motion.actualSpeed);
           }
           return samples;
-        }, run);
+        });
         traces.push(samples);
         assert.ok(Math.abs((await state()).speed - (run ? 7.4 : 4.8)) < 0.02);
-        assert.ok(Math.abs((await state()).position.heading) < 1e-6);
+        assert.ok(Math.abs((await state()).position.heading) < 0.03);
         await capture(`${run ? 'run' : 'walk'}-${corpse ? 'corpse' : 'floor'}`, 0);
-        await page.keyboard.up('w');
-        await page.keyboard.up('Shift');
         await page.keyboard.up('f');
       }
       assert.deepEqual(traces[0], traces[1]);
@@ -343,20 +342,20 @@ try {
     await page.keyboard.down('f');
     await step();
     assert.ok((await state()).defending);
-    await page.keyboard.press('x');
+    await clickWorld(page, 2, -2);
     await page.keyboard.down('f');
     await step();
-    assert.equal((await state()).defending, false);
+    assert.equal((await state()).defending, true);
     await page.keyboard.up('f');
     await page.keyboard.down('f');
     await step();
     assert.ok((await state()).defending);
-    pass('Jump and X lower guard until a fresh press, including held-key repeats after landing');
+    pass('Jump lowers guard until a fresh press; floor clicks preserve held defense');
 
     for (const reset of ['blur', 'menu', 'inspection', 'hidden', 'teleport', 'death'] as const) {
       await fixture();
       await page.keyboard.down('f');
-      await page.keyboard.down('Shift');
+      await page.keyboard.press('KeyR');
       await step();
       if (reset === 'menu') await page.keyboard.press('Escape');
       else
@@ -402,7 +401,6 @@ try {
       await step();
       assert.ok((await state()).defending, `${reset}: genuine fresh press works`);
       await page.keyboard.up('f');
-      await page.keyboard.up('Shift');
     }
     pass(
       'Blur/menu/inspection/hidden/death/teleport snap-reset guard; physically held F repeats cannot resume it',

@@ -1,7 +1,7 @@
 import { Actor, stopActor } from './actors.ts';
 import type { ECS } from './ecs.ts';
 import { EMBER, emberBlueprint } from './generation/lastEmber.ts';
-import type { World } from './worldTypes.ts';
+import type { Spawn, World } from './worldTypes.ts';
 import { tileAt } from './worldSpatial.ts';
 import type { DiscoveryEvidence } from './discoveries.ts';
 import type { ObjectiveOutcome, ObjectivePlan } from './objectives.ts';
@@ -95,21 +95,22 @@ export class LastEmber {
       this.activate()
     );
   }
-  nearby(): 'shrine' | 'focus' | null {
+  nearby(p = this.player.position): 'shrine' | 'focus' | null {
     for (const kind of ['shrine', 'focus'] as const) {
-      const site = this.sites[kind].approach,
-        p = this.player.position;
-      if (
-        Math.hypot(p.x - site.x, p.z - site.z) < 1.1 &&
-        Math.abs(p.h - site.h) < 0.3 &&
-        this.player.navigator.segmentClear(p, site, false)
-      )
-        return kind;
+      if (this.inReach(kind, p)) return kind;
     }
     return null;
   }
+  inReach(kind: 'shrine' | 'focus', p: Spawn = this.player.position): boolean {
+    const site = this.sites[kind].approach;
+    return (
+      Math.hypot(p.x - site.x, p.z - site.z) < 1.1 &&
+      Math.abs(p.h - site.h) < 0.3 &&
+      this.player.navigator.segmentClear(p, site, false)
+    );
+  }
   startHero(): boolean {
-    if (this.nearby() !== 'shrine' || !this.player.alive) return false;
+    if (!this.inReach('shrine') || !this.player.alive) return false;
     const state = this.state;
     const id =
       state === 'dormant' || state === 'active'
@@ -131,7 +132,7 @@ export class LastEmber {
     return this.work.assign(this.player, id);
   }
   disableFocus(): boolean {
-    if (this.nearby() !== 'focus' || !this.focusEnabled || !this.player.alive) return false;
+    if (!this.inReach('focus') || !this.focusEnabled || !this.player.alive) return false;
     this.ecs.get(this.sites.focus.sourceId)!.require('focus').send({ type: 'DISABLE' });
     return true;
   }
@@ -146,7 +147,7 @@ export class LastEmber {
         : this.state === 'corrupted'
           ? 'Cleanse the spent ember (6 seconds)'
           : 'Repair the fractured ward (6 seconds)';
-    return 'Restore the Last Ember · E to work, X to stop';
+    return 'Restore the Last Ember · click or E to work; move to stop';
   }
   shrineEvidence(): DiscoveryEvidence {
     const text = {

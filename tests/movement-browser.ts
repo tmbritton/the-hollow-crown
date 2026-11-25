@@ -114,6 +114,15 @@ async function click(point: Point) {
     if (d.game.player.navigator.pending) throw Error('floor click still pending after two seconds');
   });
 }
+// The conservative floor motor never deliberately approaches physical contact.
+// Place just the starting fixture there, then exercise the escape with the real mouse.
+const placeAtContact = (x: number) =>
+  page.evaluate((x) => {
+    const player = window.__dungeon.game.player;
+    player.actor.entity.setPosition({ ...player.actor.position, x });
+    player.actor.entity.get('collision')?.sync?.(player.actor.position);
+    window.__dungeon.step([], 1);
+  }, x);
 async function arrive(target: Point, frames = 600) {
   const result = await page.evaluate(
     ({ target, frames }) => {
@@ -287,10 +296,7 @@ async function obstacleEscape(dojo: boolean) {
     await click({ x: 6, z: 5 });
     await arrive({ x: 6, z: 5 });
   }
-  // Use the real keyboard motor only to establish the physical contact the
-  // conservative floor frontier normally stops short of. Every escape is mouse-only.
-  await step([dojo ? 'KeyA' : 'KeyD'], 60);
-  await step([], 20);
+  await placeAtContact(dojo ? -1.975 : 6.95);
   const contact = await page.evaluate(() => {
     const { player, world } = window.__dungeon.game;
     const { x, z } = player.actor.position;
@@ -349,8 +355,7 @@ async function crowdedDoorEscape() {
     blocker.entity.get('collision')?.sync?.(blocker.position);
     return blocker.id;
   });
-  await step(['KeyA'], 70);
-  await step([], 20);
+  await placeAtContact(-13.522);
   const contact = await state();
   assert.ok(Math.abs(contact.x + 13.522) < 0.015, JSON.stringify(contact));
   await pinEdgeCamera();
@@ -431,7 +436,7 @@ async function observeHeldSamples(count: number) {
 
 async function heldEdgeSweep(dojo: boolean) {
   if (dojo) await openPractice();
-  else await openSeededDungeon();
+  else await openDungeonEdgeView();
   await pinEdgeCamera();
   const targets = dojo
     ? [
@@ -476,6 +481,17 @@ async function heldEdgeSweep(dojo: boolean) {
   pass(
     `${dojo ? 'Dojo' : 'MOURNING-731'} held void/parallel/return sweep marks each safe endpoint and settles without rerouting`,
   );
+}
+
+async function openDungeonEdgeView() {
+  await openSeededDungeon();
+  // At the default angle the entrance painting is in front of the void aim.
+  await page.evaluate(() => {
+    const g = window.__dungeon.game;
+    g.camera.beta = 0.25;
+    g.camera.target.set(-3, 0, 0);
+    g.camera.lockedTarget = g.camera.target.clone();
+  });
 }
 
 async function dungeonEdgeClick() {
@@ -555,13 +571,13 @@ async function practiceControls() {
 
   await openPractice();
   await pauseClock();
+  const atRest = await state();
   await page.keyboard.down('KeyW');
   await page.keyboard.down('KeyA');
   await tickInput(80);
   await page.keyboard.up('KeyW');
   await page.keyboard.up('KeyA');
-  assert.ok((await state()).x > pillar.x + pillar.w / 2, 'manual travel stops at pillar');
-  assert.ok((await state()).x < -1, 'manual travel reaches pillar');
+  assert.deepEqual(await state(), atRest, 'retired travel keys are inert');
 
   await openPractice();
   await pointerAt({ x: 4, z: -4 });
@@ -574,6 +590,9 @@ async function practiceControls() {
     () => (window.__dungeon.game.player.navigator.destination?.z ?? -4) > -2,
   );
   await page.mouse.up();
+  await page.waitForFunction(
+    () => !window.__dungeon.game.player.navigator.active && !window.__dungeon.game.player.moving,
+  );
   await page.keyboard.press('KeyX');
   await waitForStep(30);
   const stopped = await state();
@@ -586,7 +605,7 @@ async function practiceControls() {
   assert.equal(Math.hypot(after.x - stopped.x, after.z - stopped.z), 0);
 
   await openPractice();
-  await page.keyboard.press('KeyR');
+  await page.keyboard.press('BracketRight');
   await page.waitForFunction(
     () => Math.abs(window.__dungeon.game.camera.alpha - Math.PI / 4) < 0.01,
   );
@@ -598,22 +617,19 @@ async function practiceControls() {
   await page.keyboard.down('ArrowUp');
   await waitForStep(18);
   const walk = await state();
-  assert.ok(walk.x < start.x - 0.4 && walk.z < start.z - 0.4);
-  assert.equal(walk.destination, null);
+  assert.ok(walk.x > start.x + 0.4 && Math.abs(walk.z - start.z) < 0.1);
+  assert.ok(walk.destination);
   await page.keyboard.up('ArrowUp');
 
   const stride = async (running: boolean) => {
     await openPractice();
-    // Freeze wall-clock advancement only. Animation review's fixed clock ticks the
-    // actual held keyboard events; __dungeon.step would overwrite those inputs.
+    // Freeze wall-clock advancement only; dispatch the actual gameplay intents.
     await pauseClock();
     const from = await state();
-    if (running) await page.keyboard.down('ShiftLeft');
-    await page.keyboard.down('KeyD');
+    if (running) await page.keyboard.press('KeyR');
+    await click({ x: 7, z: -4 });
     await tickInput(20);
     const to = await state();
-    await page.keyboard.up('KeyD');
-    if (running) await page.keyboard.up('ShiftLeft');
     return Math.hypot(to.x - from.x, to.z - from.z);
   };
   const walking = await stride(false);
@@ -634,7 +650,7 @@ async function practiceControls() {
     window.__dungeon.game.player.actor.entity.require('defense').chart.snapshot.matches('lowered'),
   );
   pass(
-    'Practice real floor click, pillar detour and motor, held steering, rotated arrows, WASD, Shift, X, Space and F',
+    'Practice real floor click, pillar detour, held steering, rotated clicks, inert old bindings, run toggle, Space and F',
   );
 }
 
@@ -648,20 +664,12 @@ async function practiceDoor() {
       if (e?.type !== 'door') throw Error('No practice door');
       return { x: e.x, z: e.z, open: e.open, collides: e.collider?.checkCollisions };
     });
-  const forward = async (down: boolean) => {
-    const action = down
-      ? page.keyboard.down.bind(page.keyboard)
-      : page.keyboard.up.bind(page.keyboard);
-    await action('KeyW');
-    await action('KeyD');
-  };
   const cross = async () => {
     await tickInput(60);
     assert.equal((await door()).open, true);
     assert.equal((await door()).collides, false);
-    await forward(true);
+    await click(landing);
     for (let i = 0; i < 10 && (await state()).z <= landing.z - 0.4; i++) await tickInput(12);
-    await forward(false);
     const crossed = await state();
     assert.ok(crossed.z > landing.z - 0.4, JSON.stringify(crossed));
     await quietRoom();
@@ -685,16 +693,15 @@ async function practiceDoor() {
   await page.keyboard.press('KeyE');
   await tickInput(6);
   assert.equal((await door()).open, false);
-  await forward(true);
+  await click(landing);
   await tickInput(120);
-  await forward(false);
   const blocked = await state();
   assert.ok(blocked.z < closed.z - 0.3 && blocked.z > closed.z - 1, JSON.stringify(blocked));
   assert.equal((await door()).open, false);
   await page.keyboard.press('KeyE');
   await cross();
   pass(
-    'Practice door blocks manual movement; remote click approaches and opens; E opens only within reach; both admit crossing',
+    'Practice door blocks floor commands; remote click approaches and opens; E opens only within reach; both admit crossing',
   );
 }
 
@@ -799,12 +806,12 @@ async function practiceRounds() {
   await page.mouse.up();
   assert.deepEqual(await sample(), pristine);
 
-  await page.keyboard.down('KeyD');
+  await click({ x: 5, z: -4 });
   await tickInput(16);
   assert.notDeepEqual((await sample()).hero, pristine.hero);
   await quietReset(() => page.keyboard.down('KeyT'));
   await remember();
-  await page.keyboard.down('KeyT'); // Real repeats of both held keys must not start a new round or move.
+  await page.keyboard.down('KeyT'); // A repeat cannot start a new round; legacy D cannot move.
   await page.keyboard.down('KeyD');
   await tickInput(30);
   assert.deepEqual(await sample(), pristine);
@@ -814,9 +821,8 @@ async function practiceRounds() {
   );
   await page.keyboard.up('KeyT');
   await page.keyboard.up('KeyD');
-  await page.keyboard.down('KeyD');
+  await click({ x: 5, z: -4 });
   await tickInput(16);
-  await page.keyboard.up('KeyD');
   assert.notDeepEqual((await sample()).hero, pristine.hero);
   pass(
     'Practice reset reuses page/engine, replaces scene, closes the door, clears travel and held inputs, and allows new commands',
@@ -961,7 +967,7 @@ async function fullMovement() {
   await practiceRounds();
   await practiceControls();
   await practiceDoor();
-  await openSeededDungeon();
+  await openDungeonEdgeView();
   await dungeonEdgeClick();
   const differential = await page.evaluate(async () => {
     const modulePath = '/tests/collision-replay.ts';
@@ -1086,34 +1092,26 @@ async function fullMovement() {
   await click({ x: 4, z: 0 });
   await step([], 10);
   await page.keyboard.down('KeyW');
-  await step(['KeyW'], 12);
+  await step([], 12);
   await page.keyboard.up('KeyW');
-  assert.equal((await state()).destination, null);
-  const release = await state();
-  await step([], 1);
-  const braking = await state();
-  assert.ok(braking.speed > 0 && braking.speed < release.speed);
-  assert.equal(braking.phase, 'stopping');
-  await step([], 30);
-  const stopped = await state();
-  assert.equal(stopped.speed, 0);
-  assert.equal(stopped.phase, 'idle');
-  assert.ok(stopped.z > release.z && stopped.z - release.z < 0.3);
-  pass('WASD overrides the route and release eases into a short stop animation');
+  assert.ok((await state()).destination);
+  await arrive({ x: 4, z: 0 });
+  pass('W cannot override a route; the hero brakes at the clicked destination');
 
   await reset();
-  await step(['KeyD'], 20);
+  await click({ x: 4, z: 0 });
+  await step([], 20);
   const walking = await state();
   await reset();
-  await step(['KeyD', 'ShiftLeft'], 20);
+  await page.keyboard.press('KeyR');
+  await click({ x: 4, z: 0 });
+  await step([], 20);
   const running = await state();
   assert.ok(walking.speed > 4.6 && running.speed > 7.1 && running.x > walking.x * 1.45);
   await click({ x: 0, z: 3 });
   await page.keyboard.press('KeyX');
-  await step([], 40);
-  assert.equal((await state()).destination, null);
-  assert.equal((await state()).speed, 0);
-  pass('Faster walking and Shift-running retain easing; X cancels travel');
+  await arrive({ x: 0, z: 3 });
+  pass('Walk and latched run retain easing; X does not cancel travel');
 
   const obstacle = await page.evaluate(() => {
     const g = window.__dungeon.game,
@@ -1494,11 +1492,11 @@ async function fullMovement() {
     g.camera.radius = g.desiredRadius = 7;
     g.camera.beta = 1;
   });
-  await step(['KeyD'], 6);
+  await click({ x: 1.4, z: 0 });
+  await step([], 6);
   await page.evaluate(() => window.__dungeon.game.scene.render());
   await page.screenshot({ path: `test-results/${browserName}-movement-start.png` });
-  await step(['KeyD'], 20);
-  await step([], 8);
+  await step([], 34);
   await page.evaluate(() => window.__dungeon.game.scene.render());
   await page.screenshot({ path: `test-results/${browserName}-movement-stop.png` });
 }
@@ -1513,7 +1511,7 @@ try {
     await heldEdgeSweep(true);
     await heldEdgeSweep(false);
     if (edgeOnly) {
-      await openSeededDungeon();
+      await openDungeonEdgeView();
       await dungeonEdgeClick();
     } else await fullMovement();
   }

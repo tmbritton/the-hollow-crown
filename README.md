@@ -40,7 +40,7 @@ and attack. For another fight, reset before starting a new round.
 
 Choose **Reset practice** (click it, or focus it and press Space or Enter) or press **T** during
 play. This returns you to the empty room at full health, closes the door, and clears movement
-and combat without reloading the page. **Q / R** still rotate the camera. Refresh opens the empty
+and combat without reloading the page. **[ / ]** rotate the camera. Refresh opens the empty
 room again; the bare URL starts the normal dungeon. Edit the layout in
 [`src/practiceRoom.ts`](src/practiceRoom.ts).
 
@@ -156,21 +156,23 @@ The [P9 breakup contract](docs/skeleton-breakup.md) documents separated bones an
 | Left-click the floor | Follow a safe path; approach the closest reachable point if blocked |
 | Hold left mouse on the floor | Continuously steer toward the cursor |
 | Click / hold an enemy | Pathfind into reach and repeatedly attack until it dies |
-| Click a closed door | Approach and open it if unlocked |
-| WASD / arrow keys | Move relative to the camera |
-| Shift | Run |
+| Click a usable object | Approach and use that specific object, including opening or closing a door |
+| R | Toggle walk/run |
 | Space | Jump (one jump per press) |
 | Hold F | Raise the shield and block frontal melee / bolts |
-| X | Cancel travel, pursuit, attacks, and defense |
 | E | Interact: doors, chests, altar, portraits, throne; begin shrine work, disable its hostile focus, or recover nearby loose tribute |
 | E / Escape while inspecting | Return to the overhead view |
-| Q / R | Rotate the overhead camera by 90° |
+| [ / ] | Rotate the overhead camera by 90° |
 | Mouse wheel | Zoom |
 | M | Toggle the explored-room map |
 | Escape / pause button | Pause, read the within-run record, enter a seed, regenerate, or change quality |
 | F2 | Babylon Inspector, development build only |
 
 **Objective:** find and kindle the violet altar, pass through the newly unsealed throne-room gate, and claim the Hollow Crown. Water slows you down; lava damages you. Death returns you to the entrance, or to the altar after activation. Three optional reliquaries restore health and count toward the completion summary.
+
+The throne stays unhighlighted until the altar is kindled. If you're already in reach, clicking the
+throne itself gives the same refusal as **E**. The carpet is floor, not part of the throne: clicking
+it moves you without trying to claim the crown.
 
 The route changes with the seed: explore the branching passages and watch the minimap for unexplored chambers. Activating the altar reveals the throne's crown marker. The minimap is north-up even when the camera rotates and automatically fits each generated layout.
 
@@ -182,10 +184,10 @@ goblin must walk to the anvil's profaning focus, then complete **six 20-second w
 It defends itself against ordinary hostile species and the player, abandoning unfinished work
 while fighting or moving. It returns after losing a threat and keeps working off-screen.
 
-At the shrine, **E** starts repeated six-second restoration cycles; **X**, movement, targeting,
+At the shrine, click or **E** starts repeated six-second restoration cycles; movement, targeting,
 defending, jumping or damage interrupts unfinished work. Completed seals remain. Reading the inscription
 in the **entrance portrait** teaches the old rite: two seals per cycle instead of one. You can
-also lure or kill the unique worker, or approach the anvil and press **E** to disable its focus.
+also lure or kill the unique worker, or click the anvil (or use **E** in reach) to disable its focus.
 The clock announces the plan, but reveals the worker's name only after its visible target caption.
 
 - **Restore first:** restore six seals, thwart profanation and receive +30 health once.
@@ -212,7 +214,7 @@ that delivery fills one clock segment. The clock remains in the scrolling agenda
 - **Intercept:** ordinary combat interrupts packing/unloading. Killing a carrier drops its
   undelivered crate at its feet. A surviving original pack member must travel to the drop and pack
   it again before carrying it. Goblin/kobold hostility is unchanged.
-- **Recover:** press **E** within reach of a loose crate, including an uncollected cache crate.
+- **Recover:** click a loose crate or press **E** within reach, including at an uncollected cache crate.
   It is secured once for **+10 health**, even if a porter had claimed it but not finished pickup.
   Recovery is immediate; the hero does not acquire a carried inventory item. Delivered crates
   cannot be recovered by killing their former porter.
@@ -235,14 +237,17 @@ entries. Discoveries survive death and checkpoint respawn; every regeneration st
 record, even when you enter the same seed. The new entrance caption is immediately learned again.
 This record is held in memory for the current run.
 
-Click movement routes around furniture, walls, and lava, and respects closed/locked doors. Reachable floor clicks retain their precise destination. For blocked or disconnected floor, the hero approaches the closest safely reachable point toward the request; the **gold ring marks that effective destination**. Holding the mouse keeps steering, but a settled or immobile hero stays still until the request or obstruction changes. Floor commands never open doors or bypass the altar gate. **Click a closed door** to approach and open it, or use **E** in reach. Enemy pursuit can open intervening unlocked doors automatically. A new floor click replaces the command; WASD/arrows immediately take control. Normal speed is **4.8 units/second**, or **7.4 while holding Shift**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
+Click movement routes around furniture, walls, and lava, and respects closed/locked doors. Reachable floor clicks retain their precise destination. For blocked or disconnected floor, the hero approaches the closest safely reachable point toward the request; the **gold ring marks that effective destination**. Holding the mouse keeps steering, but a settled or immobile hero stays still until the request or obstruction changes. Floor commands never open doors or bypass the altar gate. **Click a door** to approach and use it, or press **E** in reach. The leaf may swing through the hero without pushing; a closed threshold still blocks passage. Enemy pursuit can open intervening unlocked doors automatically. A new floor click replaces the old command. **R** toggles **4.8-unit/second walking** and **7.4-unit/second running**, with short acceleration/deceleration easing and a precise arrival brake. Water still slows you down.
 
 You can also aim past the floor edge without releasing the mouse. The cursor still names a
 world destination, but the hero and gold ring stay on reachable floor.
 
 The adventurer briefly loads against travel before pushing off, then braces, recoils and settles on stopping. Running blends into a **longer stride**, forward lean, bent-elbow arm pumps and opposing torso twist, with a short flight phase and compressed landings. Both gaits advance from measured travel and share a continuous phase. Local-axis squash/stretch preserves apparent volume; the cape follows through behind the action. Living actors block each other regardless of allegiance: enemies can be cornered, allies cannot stack, and click/AI routes go around occupied space when possible. **Corpses are passable at full speed** for the player and enemies. Feet lift and bend into procedural stair-like steps over settled bodies while walking or running, including moving attacks. Water still slows grounded travel to **52% speed**, including over corpses; overlapping bodies add no penalty. Pause, inspection, focus loss, and regeneration clear pending travel, momentum and deformed poses.
 
-**Space jumps while preserving movement, a click route, or the selected enemy.** A two-frame preload leads into a constant-gravity arc, about 1.02 units high with 0.64 seconds of flight. You can steer and run in the air; holding Space produces one jump. Takeoff interrupts an unresolved attack while keeping its target, and pursuit/attacking resumes on landing. Airborne elevation is used by melee/projectile hit tests; water slowdown and lava contact damage resume when grounded. Jumping keeps the existing ground-navigation clearance for furniture, living actors, walls, doors and void edges. **X** cancels travel and combat; a jump already in flight still lands normally. Menus, inspection, focus loss, teleport and respawn reset flight safely.
+Leaving the game tab resets the gait to walk. The first fresh **R** press after returning can
+toggle back to run, even if you released the key outside the game.
+
+**Space jumps while preserving movement, a click route, or the selected enemy.** A two-frame preload leads into a constant-gravity arc, about 1.02 units high with 0.64 seconds of flight. You can steer and run in the air; holding Space produces one jump. Takeoff interrupts an unresolved attack while keeping its target, and pursuit/attacking resumes on landing. Airborne elevation is used by melee/projectile hit tests; water slowdown and lava contact damage resume when grounded. Jumping keeps the existing ground-navigation clearance for furniture, living actors, walls, doors and void edges. Menus, inspection, focus loss, teleport and respawn reset flight safely.
 
 Characters turn toward measured velocity and lean into acceleration, braking and turns. Articulated knees and two-bone leg solving keep stance feet near sampled ground heights, with short world-space foot plants released at reach limits or action changes. Running bounce follows cadence and gravity. Analytic damped springs absorb landing speed, ease cover crouches, and carry cape motion through interruptions. Sword interpolation carries velocity through contact instead of stopping at every intermediate pose. The overhead camera and ground ring follow the support plane through jumps.
 
@@ -261,7 +266,7 @@ remain authoritative. See [the grounding contract](docs/rig-grounding.md).
 Each dungeon seeds **24 enemies** outside the entrance and altar rooms:
 
 - **8 skeletons:** slow, lurching wanderers at **1.65 units/second**. They pursue nearby living characters, including goblins and kobolds, but ignore other skeletons. They cannot operate doors.
-- **4 goblins:** take smoke breaks when unaware of threats. In combat, these ranged skirmishers retreat, break line of sight using cover, crouch while hiding, and peek out to fire crossbow bolts. They flee at **5.2 units/second**, slightly faster than your walk; hold **Shift** to close the gap at 7.4. Bolts travel through the world and can be dodged or stopped by walls, furniture, and doors.
+- **4 goblins:** take smoke breaks when unaware of threats. In combat, these ranged skirmishers retreat, break line of sight using cover, crouch while hiding, and peek out to fire crossbow bolts. They flee at **5.2 units/second**, slightly faster than your walk; toggle running with **R** to close the gap at 7.4. Bolts travel through the world and can be dodged or stopped by walls, furniture, and doors.
 - **12 kobolds in three four-member phalanxes:** each starts with **three shield bearers and one long-spearman**, in the existing stable, stairs and treasury rooms. They gather for seeded cards, hacky sack or smoke breaks, with equipment stowed. A shared squad chart assembles a physical three-shield front rank and offset rear spear lane, advancing at **1.1 units/second**. The center bearer visibly moves its shield aside for **0.6 seconds of warning**, then remains vulnerable through the spear action. The rear fighter uses a **3.8-unit long thrust** or throws a **9-unit-range javelin** with real travel and interception. Attack the opening, flank the slow-turning line, dodge the projectile, or use F. Cramped approaches produce a bounded defensive hold rather than overlapping bodies. At **two casualties**, **35% surviving health**, or **loss of the spearman**, survivors withdraw together at **0.85 units/second**, facing the threat with shields raised. Blocked retreats hold; threat loss returns survivors to work/social activity. A lone survivor smokes.
 
 Card mats, dealt cards and stakes remain after a game is interrupted. Hacky-sack passes synchronize with kicks; smoking uses pipes, embers, and a bounded thin-instance puff pool. Gathering positions are validated against the same floor and prop clearance as movement.
@@ -301,9 +306,9 @@ An unseen killer stays unknown; an
 inhabitant whose caption you never read is described only by species. Later discoveries never
 rewrite an earlier uncertain account. Routine unnamed deaths are not journal entries.
 
-Clicking an enemy locks onto it: the player follows its changing position and swings on entering melee reach, **continuing the chase through wind-up, the strike, and recovery**. Walk/run strides continue beneath the upper-body sword animation, and close pursuit continually updates its approach to a moving target. The player stops beside a stationary target rather than running into it. Holding the button keeps that target even as the enemy and camera move; releasing retains the command. Click another enemy to retarget, or click the floor / press WASD or X to cancel. A red ground ring and health display identify the target.
+The animated hand cursor changes to a sword and previews a red ring when pointing at a selectable enemy. Clicking locks onto that enemy: the player follows its changing position and swings on entering melee reach, **continuing the chase through wind-up, the strike, and recovery**. Walk/run strides continue beneath the upper-body sword animation, and close pursuit continually updates its approach to a moving target. The player stops beside a stationary target rather than running into it. Releasing or moving the pointer away retains the command. Click another enemy to retarget, or click the floor to cancel pursuit. A red ground ring and health display identify the target.
 
-Damage occurs at the strike's impact, with range and cover checked again. Living characters emit red blood fragments; skeletons emit pale bone dust. Dead enemies leave persistent, non-blocking remains until regeneration. Skeletons break into eleven anatomical chunks: the skull, ribcage, pelvis and limbs scatter, collide with the world and settle as bone decoration. Death returns the player to the checkpoint with 2.5 seconds of protection. Chests and the altar still restore health.
+Damage occurs at the strike's impact, with range and cover checked again. The hero briefly recoils from accepted nonlethal damage without changing movement, attacks or defense. Living characters emit red blood fragments; skeletons emit pale bone dust. Dead enemies leave persistent, non-blocking remains until regeneration. Skeletons break into eleven anatomical chunks: the skull, ribcage, pelvis and limbs scatter, collide with the world and settle as bone decoration. Death returns the player to the checkpoint with 2.5 seconds of protection. Chests and the altar still restore health.
 
 **Hold F to defend.** The raised shield blocks **100% of melee and bolt damage within a 120°
 frontal arc**, including its ±60° boundaries. The arc follows the hero's authoritative movement
@@ -316,10 +321,10 @@ new invulnerability window.
 Raising the shield interrupts your current sword action and unfinished work, and suspends
 automatic pursuit/attacks while retaining the selected enemy. Raising the shield clears the hero's
 sword cooldown. Release F to resume pursuit immediately; the next swing can start once the shield
-finishes lowering (0.24 seconds), followed by the usual sword wind-up. Floor routes and keyboard walk/run remain available at normal
+finishes lowering (0.24 seconds), followed by the usual sword wind-up. Floor routes and walk/run remain available at normal
 speed; the shield faces travel, so moving away exposes your back. **Jumping lowers the shield
 immediately**, including preload. F pressed during a jump cannot raise it on landing: release
-and press again. **X**, blur, menu, inspection, hidden tabs, death and teleport cancel defense;
+and press again. Blur, menu, inspection, hidden tabs, death and teleport cancel defense;
 release and press F again to resume. Regeneration creates a lowered shield, and key repeats from
 a previous hold cannot raise it. Starting shrine work or a door-approach command also lowers it
 through the shared stop path. Kobold shield bearers use this same capability during formation combat
@@ -402,7 +407,7 @@ page. Unexpected defects are reported separately and do not offer a generation r
 | `src/rigs/history.ts`, `src/deathHandoff.ts` | Final pose/velocity snapshots, death rebasing and pre-stop lethal-hit handoff |
 | `src/ragdoll.ts`, `src/deathPhysics.ts` | Bounded directional/seed-varied death physics, separated skeleton chunks, physical treads/walls, run-owned transfer and retirement |
 | `src/animationCurves.ts` / `src/actionPoses.ts` | Smooth/velocity-continuous curves, analytic springs, volume-preserving deformation, jump/attack/death/social poses |
-| `src/player.ts` | Voxel adventurer, camera-relative input adapter, and destination marker |
+| `src/player.ts` | Voxel adventurer, route-driven motor, and destination marker |
 | `src/main.ts` / `src/gameTypes.ts` | Engine, fixed-step updates, interactions, progression, and game/debug contracts |
 | `src/cpuMetrics.ts` / `src/cpuProfile.ts` | Development-only bounded CPU samples, operation counts, request replay metadata and scene-owned profiling sessions |
 | `src/engine.ts` | Babylon engine with a typed effect-cache diagnostic |

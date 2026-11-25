@@ -11,6 +11,7 @@ import { Health } from './machines/actors/health.ts';
 import { Occupancy } from './occupancy.ts';
 import { Jump } from './jump.ts';
 import { BlockFeedback } from './blockFeedback.ts';
+import { PlayerHurt } from './playerHurt.ts';
 
 /** A checked view over components, not a second copy of actor state. */
 export class Actor {
@@ -104,7 +105,12 @@ export function createActor(
       .add('jump', new Jump())
       .add(
         'navigation',
-        new Navigator(world, occupancy, () => actor.entity.require('actor').opensDoors),
+        new Navigator(
+          world,
+          occupancy,
+          () => actor.entity.require('actor').opensDoors,
+          kind === 'player',
+        ),
       )
       .add('attack', new Attack()),
   );
@@ -116,6 +122,7 @@ export function createActor(
       }),
     );
   actor.entity.add('blockFeedback', new BlockFeedback(ecs, actor.entity));
+  if (kind === 'player') actor.entity.add('playerHurt', new PlayerHurt());
   return actor;
 }
 
@@ -156,6 +163,7 @@ export function requestJump(actor: Actor): boolean {
 export function stopActor(actor: Actor, cancelCombat = true): void {
   if (!actor.entity.has('corpse')) actor.entity.remove('deathHandoff');
   actor.entity.get('blockFeedback')?.reset();
+  actor.entity.get('playerHurt')?.reset();
   actor.entity.get('rigPose')?.invalidateHistory();
   actor.entity.get('defense')?.cancel();
   cancelWork(actor);
@@ -184,6 +192,7 @@ export function teleportActor(actor: Actor, world: NavigationWorld, point: Point
     z: destination.z,
     h: heightAt(world, destination.x, destination.z) ?? 0,
   });
+  actor.navigator.noteDoorSides(actor.position, true);
   if (actor.entity.has('ragdoll')) actor.entity.get('rigPose')?.reset(actor.position);
   actor.entity.get('collision')?.sync?.(actor.position);
 }
@@ -205,6 +214,7 @@ export function moveActor(
 ): void {
   const p = actor.position,
     motion = actor.motion;
+  actor.navigator.noteDoorSides(p);
   motion.supportVelocity = 0;
   const sampleVelocity = (x: number, z: number) => {
     motion.acceleration = { x: (x - motion.velocity.x) / dt, z: (z - motion.velocity.z) / dt };
@@ -267,6 +277,7 @@ export function moveActor(
   motion.supportVelocity = (ground - p.h) / dt;
   actor.jump.advance(dt, ground - p.h);
   actor.entity.setPosition({ x: next.x, z: next.z, h: ground });
+  actor.navigator.noteDoorSides(p);
   collision?.sync?.(p);
   if (travel > 0.001 && moved < travel * 0.05) motion.speed = 0;
   if (!actor.navigator.waitingForDoor) actor.navigator.recordProgress(moved, dt, p);

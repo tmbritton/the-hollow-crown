@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
+import { clickWorld } from './world-pointer.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { DebugWindow } from './browserTypes.ts';
 import type { createReviewStage } from './animation-review-fixture.ts';
@@ -104,7 +105,8 @@ try {
       return rejected;
     });
     assert.equal(invalid, 5);
-    await page.keyboard.down('w');
+    const hero = await page.evaluate(() => ({ ...window.__dungeon.game.player.actor.position }));
+    await clickWorld(page, hero.x + 3, hero.z, hero.h);
     const traveled = await page.evaluate(() => {
       const d = window.__dungeon,
         p = d.game.player.actor.position;
@@ -112,8 +114,7 @@ try {
       d.animation.step(18);
       return Math.hypot(p.x - before.x, p.z - before.z);
     });
-    await page.keyboard.up('w');
-    assert.ok(traveled > 0.5, 'real keyboard input flows through the normal motor tick');
+    assert.ok(traveled > 0.5, 'real mouse input flows through the normal motor tick');
     await page.keyboard.down('f');
     assert.ok(
       await page.evaluate(() => {

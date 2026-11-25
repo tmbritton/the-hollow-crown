@@ -1,6 +1,7 @@
 import { chromium, firefox } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import assert from 'node:assert/strict';
+import { clickWorld } from './world-pointer.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { DebugWindow, TestReport } from './browserTypes.ts';
@@ -201,21 +202,30 @@ try {
       actor.entity.require('rigPose').heading = Math.PI;
     }, named.actorId);
     await capture(`named-${named.kind}-detail`);
-    await page.keyboard.press('KeyX');
+    await clickWorld(page, await page.evaluate(() => window.__dungeon.game.camera.target.x), -2);
     await step(1);
     assert.ok(await page.locator('#combat-target').isHidden());
   }
   pass('Named inhabitant has a bounded visible motif and factual responsive target caption');
 
   const blockingGoblin = await fixture('goblin', 1.3);
-  await page.keyboard.down('KeyD');
+  await page.evaluate((id) => {
+    window.__dungeon.game.combat.actor(id)!.position.x = 1000;
+    window.__dungeon.step([], 1);
+  }, blockingGoblin);
+  await page.keyboard.press('KeyR');
+  await clickWorld(page, 1.3, 0);
+  await step(5);
   const blocked = await page.evaluate((id) => {
     const d = window.__dungeon,
       g = d.game,
       target = g.combat.actor(id)!;
+    target.position.x = 1.3;
+    target.navigator.cancel();
+    target.attack.reset();
     let minDistance = Infinity;
     for (let i = 0; i < 120; i++) {
-      d.step(['KeyD', 'ShiftLeft'], 1);
+      d.step([], 1);
       minDistance = Math.min(
         minDistance,
         Math.hypot(
@@ -232,9 +242,8 @@ try {
       speed: g.player.motion.actualSpeed,
     };
   }, blockingGoblin);
-  await page.keyboard.up('KeyD');
   assert.ok(blocked.minDistance >= 0.9 - 1e-6, JSON.stringify(blocked));
-  assert.ok(blocked.x > 0.35 && blocked.x < 0.41, JSON.stringify(blocked));
+  assert.ok(blocked.x > 0.1 && blocked.x < 0.41, JSON.stringify(blocked));
   assert.equal(blocked.targetX, 1.3);
   assert.equal(blocked.speed, 0);
   assert.ok(Math.abs(blocked.proxyX - blocked.x) < 1e-7);
@@ -242,17 +251,25 @@ try {
     'Running into a hostile stops at its body without pushing it or desynchronizing the collision proxy',
   );
 
-  const corpseMovement = await page.evaluate((id) => {
+  await page.evaluate((id) => {
     const d = window.__dungeon,
       g = d.game,
       target = g.combat.actor(id)!;
     target.position.heading = -Math.PI / 2;
     g.combat.damage(target, 100, g.player.actor);
+    d.teleport(g.player.actor.position.x, 0);
+    d.step([], 0);
+  }, blockingGoblin);
+  await clickWorld(page, 5, 0);
+  const corpseMovement = await page.evaluate((id) => {
+    const d = window.__dungeon,
+      g = d.game,
+      target = g.combat.actor(id)!;
     const start = g.player.actor.position.x;
-    d.step(['KeyD'], 24);
+    d.step([], 24);
     const speed = g.player.motion.speed;
     const travelled = g.player.actor.position.x - start;
-    d.step(['KeyD'], 60);
+    d.step([], 60);
     return {
       speed,
       travelled,
@@ -271,20 +288,26 @@ try {
     'A dead hostile becomes passable at full walking speed without changing support or melee elevation',
   );
 
-  const crossings = await page.evaluate((id) => {
+  const crossingStart = await page.evaluate((id) => {
     const d = window.__dungeon,
       g = d.game,
-      dead = g.combat.actor(id)!,
-      hero = g.player.actor;
+      dead = g.combat.actor(id)!;
     // P8 settles a physical pose at its actual resting location. Keep that one corpse identity
     // across the comparisons; hiding it gives the flat control without replaying its death.
     for (let i = 0; i < 500 && !dead.entity.get('ragdoll')?.settled; i++) d.step([], 1);
     if (!dead.entity.get('ragdoll')?.settled) throw new Error('corpse did not settle');
-    const crossingStart = { x: dead.position.x - 2.2, z: dead.position.z };
-    const tiles = [...g.world.tiles];
-    try {
-      return [false, true].map((run) =>
-        ['flat', 'corpse', 'water-corpse'].map((ground) => {
+    return { x: dead.position.x - 2.2, z: dead.position.z };
+  }, blockingGoblin);
+  const crossings = [];
+  for (const run of [false, true]) {
+    const trials = [];
+    for (const ground of ['flat', 'corpse', 'water-corpse']) {
+      const tiles = await page.evaluate(
+        ({ id, crossingStart, ground }) => {
+          const d = window.__dungeon,
+            g = d.game,
+            dead = g.combat.actor(id)!;
+          const tiles = [...g.world.tiles];
           dead.entity.require('rig').root.setEnabled(ground !== 'flat');
           for (const [key, tile] of tiles)
             g.world.tiles.set(
@@ -293,32 +316,52 @@ try {
             );
           d.teleport(crossingStart.x, crossingStart.z);
           g.camera.alpha = g.desiredAlpha = -Math.PI / 2;
-          const samples = [];
-          for (let i = 0; i < 48; i++) {
-            d.step(run ? ['KeyD', 'ShiftLeft'] : ['KeyD'], 1);
-            const rig = hero.entity.require('rig');
-            const soles = rig.feet.map((foot) => {
-              foot.computeWorldMatrix(true);
-              return foot.getAbsolutePosition().y - 0.05 * rig.root.scaling.y;
-            });
-            samples.push({
-              x: hero.position.x,
-              speed: hero.motion.speed,
-              h: hero.position.h,
-              elevation: hero.elevation,
-              landings: hero.jump.landings,
-              soles,
-            });
-          }
-          return { run, ground, samples };
-        }),
+          d.step([], 0);
+          return tiles;
+        },
+        { id: blockingGoblin, crossingStart, ground },
       );
-    } finally {
-      for (const [key, tile] of tiles) g.world.tiles.set(key, tile);
-      dead.entity.add('corpse', { age: 1 });
-      dead.entity.require('rig').root.setEnabled(true);
+      if (run) await page.keyboard.press('KeyR');
+      await clickWorld(page, crossingStart.x + 7, crossingStart.z);
+      trials.push(
+        await page
+          .evaluate(() => {
+            const d = window.__dungeon,
+              hero = d.game.player.actor;
+            const samples = [];
+            for (let i = 0; i < 48; i++) {
+              d.step([], 1);
+              const rig = hero.entity.require('rig');
+              const soles = rig.feet.map((foot) => {
+                foot.computeWorldMatrix(true);
+                return foot.getAbsolutePosition().y - 0.05 * rig.root.scaling.y;
+              });
+              samples.push({
+                x: hero.position.x,
+                speed: hero.motion.speed,
+                h: hero.position.h,
+                elevation: hero.elevation,
+                landings: hero.jump.landings,
+                soles,
+              });
+            }
+            return samples;
+          })
+          .then((samples) => ({ run, ground, samples })),
+      );
+      await page.evaluate(
+        ({ id, tiles }) => {
+          const { game: g } = window.__dungeon,
+            dead = g.combat.actor(id)!;
+          for (const [key, tile] of tiles) g.world.tiles.set(key, tile);
+          dead.entity.add('corpse', { age: 1 });
+          dead.entity.require('rig').root.setEnabled(true);
+        },
+        { id: blockingGoblin, tiles },
+      );
     }
-  }, blockingGoblin);
+    crossings.push(trials);
+  }
   for (const [flat, corpse, water] of crossings) {
     assert.deepEqual(
       corpse.samples.map(({ x, speed }) => ({ x, speed })),
@@ -471,7 +514,7 @@ try {
     actor.enableAI();
   }, fleeing);
   await clickEnemy(fleeing, true);
-  await page.keyboard.down('ShiftLeft');
+  await page.keyboard.press('KeyR');
   const chase = (frames: number, stopAtWindup = false) =>
     page.evaluate(
       ({ id, frames, stopAtWindup }) => {
@@ -481,7 +524,7 @@ try {
           target = g.combat.actor(id)!;
         const samples = [];
         for (let i = 0; i < frames && target.alive; i++) {
-          d.step(['ShiftLeft'], 1);
+          d.step([], 1);
           const swing = actor.attack.swing;
           samples.push({
             phase: swing ? (swing.resolved ? 'recovery' : 'windup') : 'chasing',
@@ -507,7 +550,6 @@ try {
   const runningContact = await chase(12);
   await capture('running-contact');
   const runningRecovery = await chase(180);
-  await page.keyboard.up('ShiftLeft');
   await page.mouse.up();
   const runningSamples = [...runningWindup, ...runningContact, ...runningRecovery];
   for (const phase of ['windup', 'recovery'])
@@ -525,7 +567,7 @@ try {
   assert.deepEqual([...new Set(runningSamples.map((s) => s.health))], [36, 12, 0]);
   assert.equal(await page.evaluate(() => window.__dungeon.game.player.actor.attack.target), null);
   pass(
-    'Held target lock and Shift chase a live fleeing goblin, striking on the move with an active leg gait',
+    'Held target lock and R chase a live fleeing goblin, striking on the move with an active leg gait',
   );
 
   const moving = await fixture('kobold', 4);
@@ -546,7 +588,7 @@ try {
     'Target lock follows a moving enemy rather than steering toward the original cursor position',
   );
 
-  for (const action of ['KeyX', 'KeyW', 'floor', 'pause', 'blur'] as const) {
+  for (const action of ['floor', 'pause', 'blur'] as const) {
     const id = await fixture('skeleton', 1.3);
     await clickEnemy(id);
     await step(4);
@@ -558,7 +600,6 @@ try {
       await page.keyboard.press('Escape');
     } else if (action === 'blur')
       await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-    else await page.keyboard.press(action);
     await step(60);
     const cancelled = await page.evaluate(
       (id) => ({
@@ -570,7 +611,7 @@ try {
     assert.equal(cancelled.target, null, action);
     assert.equal(cancelled.health, 48, action);
   }
-  pass('Floor commands, WASD, X, pause and focus loss cancel pursuit and unresolved attacks');
+  pass('Floor commands, pause and focus loss cancel pursuit and unresolved attacks');
 
   await fixture('skeleton', 1000);
   const door = await page.evaluate(() => {
@@ -582,22 +623,37 @@ try {
     if (e.collider) e.collider.checkCollisions = true;
     if (e.pivot) e.pivot.rotation.y = 0;
     window.__dungeon.teleport(e.x - (e.axis === 'x' ? 3.5 : 0), e.z - (e.axis === 'z' ? 3.5 : 0));
+    g.camera.alpha = g.desiredAlpha = e.axis === 'x' ? Math.PI : -Math.PI / 2;
+    g.camera.beta = 1.1;
+    g.camera.radius = g.desiredRadius = 6;
+    g.camera.target.set(e.x, e.h + 1.2, e.z);
     g.scene.render();
-    return { id: e.id, x: e.x, z: e.z, h: e.h };
+    const plank = e.pivot!.getChildMeshes().filter((mesh) => mesh.name === 'door plank')[2];
+    const center = plank.computeWorldMatrix(true).getTranslation();
+    return {
+      id: e.id,
+      x: center.x,
+      z: center.z,
+      h: e.h,
+    };
   });
   const doorScreen = await screen(door.x, door.z, door.h + 1.2);
   await page.mouse.click(doorScreen.x, doorScreen.y);
-  assert.equal(
-    await page.evaluate(() => window.__dungeon.game.player.actor.attack.interaction),
-    door.id,
-  );
+  const approach = await page.evaluate(() => {
+    const d = window.__dungeon;
+    const nav = d.game.player.navigator;
+    return { pending: nav.pending, active: nav.active, loops: d.engine.activeRenderLoops.length };
+  });
+  assert.ok(approach.pending || approach.active, JSON.stringify({ approach, errors }));
   await step(180);
   const opened = await page.evaluate((id) => {
     const e = window.__dungeon.game.ecs.get(id)!.require('door');
     return {
       open: e.open,
       solid: e.collider?.checkCollisions,
-      intent: window.__dungeon.game.player.actor.attack.interaction !== null,
+      intent:
+        window.__dungeon.game.player.navigator.pending ||
+        window.__dungeon.game.player.navigator.active,
     };
   }, door.id);
   assert.ok(opened.open && !opened.solid && !opened.intent, JSON.stringify(opened));
@@ -646,9 +702,18 @@ try {
     if (door.collider) door.collider.checkCollisions = true;
     if (door.pivot) door.pivot.rotation.y = 0;
     d.teleport(door.x - (door.axis === 'x' ? 2.2 : 0), door.z - (door.axis === 'z' ? 2.2 : 0));
+    g.camera.alpha = g.desiredAlpha = door.axis === 'x' ? Math.PI : -Math.PI / 2;
+    g.camera.beta = 1.1;
+    g.camera.radius = g.desiredRadius = 5;
+    g.camera.target.set(door.x, door.h + 1.2, door.z);
     d.step([], 1);
     g.scene.render();
-    return { id: door.id, x: door.x, z: door.z, h: door.h };
+    return {
+      id: door.id,
+      x: door.x + (door.axis === 'z' ? 0.18 : 0),
+      z: door.z + (door.axis === 'x' ? 0.18 : 0),
+      h: door.h,
+    };
   });
   const sealedScreen = await screen(sealed.x, sealed.z, sealed.h + 1.2);
   await page.mouse.click(sealedScreen.x, sealedScreen.y);

@@ -9,10 +9,9 @@ import { bindHumanoid } from './rigs/bindings.ts';
 import { SHIELD_GEOMETRY } from './rigs/shield.ts';
 import { profiles } from './rigs/humanoid.ts';
 import type { ECS } from './ecs.ts';
-import { MOVEMENT_KEYS, RUN_SPEED, WALK_SPEED } from './locomotion.ts';
+import { RUN_SPEED, WALK_SPEED } from './locomotion.ts';
 import type { Scene } from '@babylonjs/core/scene';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
-import type { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import type { Materials, MaterialName } from './materials.ts';
 import type { PlayableLayout, Triple } from './worldTypes.ts';
 import '@babylonjs/core/Collisions/collisionCoordinator';
@@ -210,28 +209,15 @@ export function stopPlayer(player: Player): void {
 export function movePlayer(
   player: Player,
   world: PlayableLayout,
-  input: ReadonlySet<string>,
-  camera: ArcRotateCamera,
+  gait: 'walk' | 'run',
   dt: number,
   locked = false,
 ) {
-  const horizontal =
-    (input.has('KeyD') || input.has('ArrowRight') ? 1 : 0) -
-    (input.has('KeyA') || input.has('ArrowLeft') ? 1 : 0);
-  const vertical =
-    (input.has('KeyW') || input.has('ArrowUp') ? 1 : 0) -
-    (input.has('KeyS') || input.has('ArrowDown') ? 1 : 0);
-  const forward = new Vector3(-Math.cos(camera.alpha), 0, -Math.sin(camera.alpha));
-  const right = new Vector3(forward.z, 0, -forward.x);
-  const direction = forward.scale(vertical).add(right.scale(horizontal));
-  const keyboard = [...MOVEMENT_KEYS].some((code) => input.has(code));
-  if (keyboard) player.navigator.cancel();
   moveActor(
     player.actor,
     world,
     {
-      direction: keyboard ? { x: direction.x, z: direction.z } : undefined,
-      speed: input.has('ShiftLeft') || input.has('ShiftRight') ? RUN_SPEED : WALK_SPEED,
+      speed: gait === 'run' ? RUN_SPEED : WALK_SPEED,
       locked,
     },
     dt,

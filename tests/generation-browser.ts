@@ -90,7 +90,7 @@ try {
             return true;
           }
         };
-        d.step(['KeyW'], 3);
+        d.step([], 3);
         return {
           ...retired,
           disposed: old.scene.isDisposed,
@@ -112,7 +112,8 @@ try {
       noGame: true,
       noReport: true,
     });
-    await page.keyboard.press('KeyW');
+    await page.mouse.click(20, 200);
+    await page.keyboard.press('KeyR');
     await page.evaluate(async () => {
       for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
     });

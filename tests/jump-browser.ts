@@ -2,6 +2,7 @@ import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { DebugWindow } from './browserTypes.ts';
+import { clickWorld } from './world-pointer.ts';
 
 declare const window: DebugWindow;
 const browser = await chromium.launch({
@@ -92,7 +93,7 @@ try {
 
   await reset();
   await page.keyboard.down('Space');
-  await step(120, ['Space']);
+  await step(120);
   assert.equal((await state()).landings, 1);
   assert.equal((await state()).phase, 'grounded');
   await page.keyboard.up('Space');
@@ -103,13 +104,11 @@ try {
   pass('Holding Space does not auto-repeat jumps; releasing and pressing again starts a new jump');
 
   await reset(-2);
-  await page.evaluate(() => {
-    const actor = window.__dungeon.game.player.actor;
-    if (!actor.navigator.goTo(actor.position, { x: 3, z: 0 })) throw new Error('Missing route');
-  });
+  await clickWorld(page, 3, 0);
   await step(10);
   await page.keyboard.press('Space');
-  assert.deepEqual((await state()).destination, { x: 3, z: 0 });
+  const destination = (await state()).destination;
+  assert.ok(destination && Math.hypot(destination.x - 3, destination.z) < 0.04);
   await step(22);
   assert.ok((await state()).height > 0.9);
   await step(100);
@@ -117,15 +116,17 @@ try {
   pass('Jump preserves a click route and completes it after landing');
 
   await reset(-2);
-  await step(10, ['KeyD', 'ShiftLeft']);
+  await page.keyboard.press('KeyR');
+  await clickWorld(page, 4, 0);
+  await step(10);
   const before = await state();
   await page.keyboard.press('Space');
-  await step(22, ['KeyD', 'ShiftLeft']);
+  await step(22);
   const running = await state();
   assert.ok(running.x - before.x > 2.5 && running.height > 0.9);
   await step(40);
   assert.equal((await state()).height, 0);
-  pass('Shift-running retains horizontal speed and steering through flight and landing');
+  pass('R-running retains horizontal speed and steering through flight and landing');
 
   const gate = await page.evaluate(() => {
     const g = window.__dungeon.game;
@@ -143,11 +144,10 @@ try {
     };
   });
   await reset(gate.fromX, gate.fromZ);
+  await page.keyboard.press('KeyR');
   await page.keyboard.press('Space');
-  await step(60, [
-    gate.axis === 'x' ? (gate.sign > 0 ? 'KeyD' : 'KeyA') : gate.sign > 0 ? 'KeyW' : 'KeyS',
-    'ShiftLeft',
-  ]);
+  await clickWorld(page, 2 * gate.x - gate.fromX, 2 * gate.z - gate.fromZ, (await state()).ground);
+  await step(60);
   const blocked = await state();
   assert.ok((gate.axis === 'x' ? blocked.x - gate.x : blocked.z - gate.z) * gate.sign < -0.1);
   pass('Jumping cannot bypass the sealed gate or its ground-navigation clearance');
@@ -174,7 +174,7 @@ try {
   await step(8);
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   assert.equal((await state()).height, 0);
-  assert.deepEqual((await state()).scale, [1, 1, 1]);
+  assert.ok((await state()).scale.every((v) => Math.abs(v - 1) < 1e-9));
   await page.keyboard.press('Space');
   await step(8);
   await page.keyboard.press('Escape');

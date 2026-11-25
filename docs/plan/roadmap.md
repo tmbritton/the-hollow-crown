@@ -11,8 +11,8 @@ The Hollow Crown puts one adventurer in a compact living dungeon: Epic 0 adopted
 
 ## Progress
 
-- Epics: 2/15 complete
-- Stories: 10/54 complete
+- Epics: 3/15 complete
+- Stories: 15/54 complete
 
 Stories 0.1–0.4 were independently approved and published at `a423dae`. Story 0.5 closes with generation latency accepted as an unresolved follow-up; the [delivery decision and original performance verdict](../ef4-results.md#epic-0-delivery-closeout) are recorded separately.
 
@@ -86,11 +86,11 @@ Give the user a direct way to play the actual hero without starting a dungeon ru
 
 ### Epic 14 — Make the mouse-driven hero playable
 
-- [ ] **Epic 14 complete**
+- [x] **Epic 14 complete**
 
 Use the same hero and inputs in practice and the dungeon. First make travel reliable with the mouse alone, then teach the player what a click will do and let them switch from attacking to defending without fighting the controls.
 
-- **Depends on**: 13.2 (complete); start 14.1 now.
+- **Depends on**: 13.2 (complete).
 - **Scope**:
   - Floor steering, bindings, object interaction and truthful pointer feedback.
   - Attack and shield response, followed by a distinct reaction to damage received.
@@ -103,22 +103,22 @@ Use the same hero and inputs in practice and the dungeon. First make travel reli
 - [x] **Story 14.2 — Get clear of an obstacle by mouse** — Make a reachable detour work even when the hero starts pressed against scenery. **Depends on**: 14.1.
   - Click beyond the practice pillar, steer around its corner while held, then reverse away from contact without a key or reset. Repeat beside dungeon furniture and a doorway with living blockers present.
   - When no path fits, stop without repeated retries; a clear new request or a blocker moving away permits progress. No clipping, teleport or change to the shared route budget.
-- [ ] **Story 14.3 — Switch to mouse travel and toggle running** — After both travel checks pass, retire WASD and its arrow-key movement alias. Use the [Diablo II PC shortcut guide](https://www.wowhead.com/diablo-2/guide/keyboard-shortcuts-pc) to reserve future menu keys (notably C for character and I for inventory) rather than binding movement to them. **Depends on**: 14.2.
+- [x] **Story 14.3 — Switch to mouse travel and toggle running** — After both travel checks pass, retire WASD and its arrow-key movement alias. Use the [Diablo II PC shortcut guide](https://www.wowhead.com/diablo-2/guide/keyboard-shortcuts-pc) to reserve future menu keys (notably C for character and I for inventory) rather than binding movement to them. **Depends on**: 14.2.
   - In both modes, rotate left/right with `[` / `]` instead of Q/R; press the run toggle once to run after release and again to walk. Held-key repeat must not flip it. Check bindings, including practice reset, for conflicts; align help, README and real-input checks with the delivered map.
   - Remove the explicit X stop command, not cancellation itself: replace pursuit with a floor click and interrupt shrine work by moving. Preserve cleanup of pending travel, attacks, work, held defense and poses on pause/inspection, blur/hidden tab, teleport, death/respawn, practice reset and regeneration. No stale held input resumes play.
-- [ ] **Story 14.4 — Click what E can use** — Give each world interaction a mouse approach to the picked object and the same eligibility and outcome as E in reach. **Depends on**: 14.3.
+- [x] **Story 14.4 — Click what E can use** — Give each world interaction a mouse approach to the picked object and the same eligibility and outcome as E in reach. **Depends on**: 14.3.
   - Hover the practice door before clicking: distinguish an actionable object from scenery (try a yellow geometry outline). The cue and click use the same pick; neighboring objects, occlusion and changing eligibility must not redirect or falsely promise an action.
   - Compare E and click in equivalent dungeon states: doors, chests, altar, portraits, throne, shrine work, disabling the focus and recovering loose tribute. Approach legally, recheck reach and state on arrival, and never double-claim, inspect through cover or skip progression.
-- [ ] **Story 14.5 — Close a door from its swing path** — Let the closing leaf sweep through the hero just as the opening leaf can, without requiring precise positioning. **Depends on**: 14.4.
+- [x] **Story 14.5 — Close a door from its swing path** — Let the closing leaf sweep through the hero just as the opening leaf can, without requiring precise positioning. **Depends on**: 14.4.
   - In practice, stand in the sweep, close by click, then repeat with E. The hero is neither pushed through the threshold nor trapped; once closed the door blocks travel until reopened.
   - Repeat from the other side in a dungeon. Closed doors still block routes and attacks; floor steering cannot operate them and the locked throne gate still requires the altar.
-- [ ] **Story 14.6 — Preview the actual enemy pick** — Show a locally generated animated pixel-art skeleton hand in ordinary play. Over a pickable enemy switch to a pixel-art sword and put a red ground ring beneath that enemy before the click. **Depends on**: 14.5.
+- [x] **Story 14.6 — Preview the actual enemy pick** — Show a locally generated animated pixel-art skeleton hand in ordinary play. Over a pickable enemy switch to a pixel-art sword and put a red ground ring beneath that enemy before the click. **Depends on**: 14.5.
   - Hover, leave and return to the practice skeleton: preview alone never starts pursuit or changes selection. Click engages exactly the previewed foe; release retains the command.
   - Rotate over overlapping enemies and an interactable in the dungeon. Sword/ring, object highlight and click agree on one actual pick; clear obsolete cues on occlusion, death, modal entry or reset without losing a valid committed target merely on pointer exit.
 - [x] **Story 14.7 — Attack on reach and defend on demand** — Accepted in the Practice Room playtest: defense still requires timing, but the player can interrupt a swing to guard and get back into the fight. Delivered in `9364596` ahead of the hover feedback in 14.6.
   - Clicking selects the enemy; the hero pursues into reach and starts the usual sword wind-up. Damage still requires a valid target in reach at impact.
   - Raising the shield interrupts the swing and clears its cooldown. Releasing F ends protection immediately and resumes pursuit; the next swing can start when the shield finishes lowering (240 ms). See [shield timing verification](../../VERIFICATION.md#player-shield-release-timing).
-- [ ] **Story 14.8 — Show the hero taking a hit** — Follow the responsiveness playtest with a readable player hit reaction driven by accepted damage, not the hero's own attack animation. **Depends on**: 14.7.
+- [x] **Story 14.8 — Show the hero taking a hit** — Follow the responsiveness playtest with a readable player hit reaction driven by accepted damage, not the hero's own attack animation. **Depends on**: 14.7.
   - At gameplay zoom compare the hero swinging, taking an unblocked skeleton hit, and blocking it frontally in practice. Only damage received produces the hurt pose; a block keeps its shield recoil and no HP loss.
   - Repeat during a dungeon exchange. The pose must not determine damage, interrupt eligibility, delay defense or change attack clocks; death/respawn and reset leave no lingering flinch.
 

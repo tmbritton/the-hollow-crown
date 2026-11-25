@@ -1,5 +1,6 @@
 import { chromium, firefox } from '@playwright/test';
 import assert from 'node:assert/strict';
+import { clickWorld } from './world-pointer.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { DebugWindow, TestReport } from './browserTypes.ts';
@@ -237,7 +238,6 @@ try {
     'selected but camera-occluded actors cannot present biography',
   );
   assert.ok(!(await snapshot()).discoveries.some((entry) => entry.kind === 'inhabitant'));
-  await page.keyboard.press('KeyX');
   await page.evaluate(() => {
     window.__dungeon.game.desiredAlpha = -Math.PI / 2;
   });
@@ -370,7 +370,7 @@ try {
   }, named.actorId);
   assert.ok(!(await snapshot()).discoveries.some((d) => d.kind === 'inhabitant'));
   assert.ok(await page.locator('#combat-target').isHidden());
-  await page.keyboard.press('KeyX');
+  await clickWorld(page, 1, -3);
   await page.evaluate((id) => {
     const d = window.__dungeon;
     Object.assign(d.game.combat.actor(id)!.position, { x: 4, z: 0, h: 0 });
@@ -423,9 +423,8 @@ try {
   await page.evaluate(() => {
     for (const loop of window.discoveryTestLoops) window.__dungeon.engine.runRenderLoop(loop);
   });
-  await page.keyboard.down('KeyW');
+  await clickWorld(page, position[0] + 2, position[2], position[1]);
   await page.waitForTimeout(200);
-  await page.keyboard.up('KeyW');
   assert.equal(await page.evaluate(() => window.__dungeon.game.playTime), time);
   assert.deepEqual(
     await page.evaluate(() => window.__dungeon.game.player.root.position.asArray()),

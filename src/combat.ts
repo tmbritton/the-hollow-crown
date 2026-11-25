@@ -801,6 +801,8 @@ export class CombatSystem {
       return false;
     }
     if (!target.health.damage(amount)) return false;
+    if (target.health.current > 0 && this.ecs.get(target.id) === target.entity)
+      target.entity.get('playerHurt')?.publish(this.time);
     target.entity.get('work')?.interrupt('Executor hurt');
     this.hitParticles(target, source, impact?.travel);
     if (target.health.current === 0) {

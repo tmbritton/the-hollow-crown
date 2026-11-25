@@ -9,7 +9,7 @@
     <title>The Hollow Crown · A Procedural Dungeon</title>
   </head>
   <body>
-    <canvas id="game" aria-label="The Hollow Crown. Click the floor to move, enemies to attack, or doors to open. WASD also moves." tabindex="0"></canvas>
+    <canvas id="game" aria-label="The Hollow Crown. Click the floor to move, enemies to attack, or highlighted objects to use." tabindex="0"></canvas>
     <div id="loading">
       <span class="sigil" aria-hidden="true">♜</span><p role="status">Carving the hollow…</p>
       <button id="retry-generation" class="dialog-button" hidden>Retry this seed</button>
@@ -50,7 +50,7 @@
     <aside id="agenda" hidden aria-label="Announced objectives"></aside>
     <footer class="bottom-bar">
       <div class="vitals"><div class="portrait" aria-hidden="true">♟</div><div><div class="vital-title">THE WANDERER <span id="health-text">100 / 100</span></div><div class="health-track"><div id="health-fill"></div></div><div class="vital-subtitle">A little flame against the dark.</div></div></div>
-      <div class="controls"><span>Click / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span><span><kbd>E</kbd> Interact</span><span><kbd>F</kbd> Defend</span><span><kbd>Q</kbd><kbd>R</kbd> Rotate</span><span><kbd>⇧</kbd> Run</span><span><kbd>Space</kbd> Jump</span><span class="extra-control"><kbd>X</kbd> Stop</span></div>
+      <div class="controls"><span>Click / hold to move</span><span><kbd>E</kbd> Interact</span><span><kbd>F</kbd> Defend</span><span><kbd>[</kbd><kbd>]</kbd> Rotate</span><span><kbd>R</kbd> Toggle run</span><span><kbd>Space</kbd> Jump</span></div>
       <div class="world-status"><span class="live-dot"></span> <span id="world-label">SEED-BORN WORLD</span> <small id="fps"></small></div>
     </footer>
     <div id="damage-flash"></div>
@@ -65,7 +65,7 @@
     <dialog id="menu">
       <form method="dialog" class="menu-card">
         <div class="eyebrow">A MOMENT IN THE DARK</div><h2>The keep can wait.</h2>
-        <p>Click the floor or use WASD / arrows to move<br /><span id="enemy-tip">Click / hold an enemy to pursue and repeatedly attack<br /></span>Hold F to raise the shield · Release to lower it<br />Click a door to approach and open it · E to interact<br />Hold floor to steer · Shift to run · Space to jump · X to cancel<br />Q / R to rotate · Scroll to zoom · M for map · Escape to pause</p>
+        <p>Click the floor to move · Hold to steer<br /><span id="enemy-tip">Click an enemy to pursue and repeatedly attack<br /></span>Hold F to raise the shield · Release to lower it<br />Click an object to approach and use it · E uses a nearby object<br />R to toggle run · Space to jump<br />[ / ] to rotate · Scroll to zoom · M for map · Escape to pause</p>
         <div id="dungeon-menu-content">
         <details id="discovery-record">
           <summary>Within-run record <span id="discovery-count">0</span></summary>

@@ -5,8 +5,9 @@ import { withViteServer } from './testServer.ts';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Entity, EntityType, RoomId } from '../src/worldTypes.ts';
 import type { BrowserReport, DebugWindow } from './browserTypes.ts';
+import { clickWorld } from './world-pointer.ts';
 
-declare const window: DebugWindow;
+declare const window: DebugWindow & { clickTravel(x: number, y: number): Promise<void> };
 
 const base = process.env.DEMO_URL || 'http://localhost:5173',
   browserName = process.env.BROWSER || 'chromium',
@@ -21,6 +22,7 @@ await withViteServer(base, 'dev', async () => {
   });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.exposeFunction('clickTravel', (x: number, y: number) => page.mouse.click(x, y));
     page.setDefaultNavigationTimeout(90000);
     const errors: string[] = [],
       requests: string[] = [];
@@ -94,11 +96,11 @@ await withViteServer(base, 'dev', async () => {
       }, id);
     }
 
-    // Tile routes are proposals, not proof a swept keyboard move can traverse each edge.
+    // Tile routes are proposals, not proof a floor command can traverse each edge.
     // Keep live physics/AI, retry around failed edges, and use ordinary combat for blockers.
     async function walkTo(x: number, z: number) {
       const result = await page.evaluate(
-        ({ x, z }) => {
+        async ({ x, z }) => {
           const d = window.__dungeon,
             g = d.game,
             p = g.player.root.position,
@@ -106,6 +108,10 @@ await withViteServer(base, 'dev', async () => {
           const immunity = g.player.actor.health.invulnerable;
           const proxy = g.scene.getMeshByName(`${g.player.actor.id} collision proxy`)!;
           const contacts = new Set<string>();
+          const loops = [...d.engine.activeRenderLoops];
+          d.engine.stopRenderLoop();
+          const beta = g.camera.beta;
+          g.camera.beta = 0.12;
           const observer = proxy.onCollideObservable.add((mesh) => contacts.add(mesh.name));
           const occupancy = g.player.navigator.occupancy!;
           const previousProbe = occupancy.contactProbe;
@@ -182,7 +188,31 @@ await withViteServer(base, 'dev', async () => {
                 const finalWaypoint = index === route.length - 1;
                 let reached = false,
                   stuck = 0;
-                for (let i = 0; i < 150; i++) {
+                const clickWaypoint = async () => {
+                  const V = g.camera.target.constructor as typeof Vector3;
+                  const M = g.camera.getWorldMatrix().constructor as typeof Matrix;
+                  const width = d.engine.getRenderWidth(),
+                    height = d.engine.getRenderHeight();
+                  const h = w.tiles.get(key(tx, tz))!.h;
+                  g.camera.getViewMatrix();
+                  g.scene.setTransformMatrix(
+                    g.camera.getViewMatrix(),
+                    g.camera.getProjectionMatrix(),
+                  );
+                  const s = V.Project(
+                    new V(tx, h, tz),
+                    M.Identity(),
+                    g.scene.getTransformMatrix(),
+                    g.camera.viewport.toGlobal(width, height),
+                  );
+                  const rect = d.engine.getRenderingCanvas()!.getBoundingClientRect();
+                  await window.clickTravel(
+                    rect.left + (s.x * rect.width) / width,
+                    rect.top + (s.y * rect.height) / height,
+                  );
+                };
+                if (Math.hypot(tx - p.x, tz - p.z) >= 0.075) await clickWaypoint();
+                for (let i = 0; i < 150; i += 3) {
                   const remaining = Math.hypot(tx - p.x, tz - p.z);
                   if (remaining < 0.075 && (!finalWaypoint || g.player.motion.speed === 0)) {
                     reached = true;
@@ -191,20 +221,14 @@ await withViteServer(base, 'dev', async () => {
                   const door = g.nearest;
                   if (door?.type === 'door' && !door.locked && !door.open) {
                     d.interact();
-                    if (door.open) d.step([], 40);
+                    if (door.open) {
+                      d.step([], 40);
+                      await clickWaypoint();
+                    }
                   }
-                  const codes = [];
-                  if (tx - p.x > 0.045) codes.push('KeyD');
-                  else if (tx - p.x < -0.045) codes.push('KeyA');
-                  if (tz - p.z > 0.045) codes.push('KeyW');
-                  else if (tz - p.z < -0.045) codes.push('KeyS');
-                  // Release before the final waypoint and let the real controller brake.
-                  // Merely passing the point at full speed is no longer a settled arrival.
-                  if (finalWaypoint && remaining < g.player.motion.speed * 0.06 + 0.03)
-                    codes.length = 0;
                   const old = p.clone();
-                  d.step(codes, 1);
-                  if (old.subtract(p).lengthSquared() < 1e-7) stuck++;
+                  d.step([], 3);
+                  if (old.subtract(p).lengthSquared() < 1e-7) stuck += 3;
                   else stuck = 0;
                   if (stuck > 15) break;
                 }
@@ -237,9 +261,9 @@ await withViteServer(base, 'dev', async () => {
                     for (
                       let frame = 0;
                       frame < 600 && blocker.alive && g.player.actor.attack.target;
-                      frame++
+                      frame += 4
                     )
-                      d.step([], 1);
+                      d.step([], 4);
                     g.player.actor.attack.cancel();
                     g.player.actor.navigator.cancel();
                     stalls.push({ ...stall, resumedAt: g.steps, defeated: !blocker.alive });
@@ -267,6 +291,8 @@ await withViteServer(base, 'dev', async () => {
             proxy.onCollideObservable.remove(observer);
             occupancy.contactProbe = previousProbe;
             g.player.actor.health.invulnerable = immunity;
+            g.camera.beta = beta;
+            for (const loop of loops) d.engine.runRenderLoop(loop);
           }
         },
         { x, z },
@@ -484,37 +510,71 @@ await withViteServer(base, 'dev', async () => {
       report.renderer = await page.evaluate(() => window.__dungeon.engine.getGlInfo().renderer);
       await north();
       const start = (await snapshot()).position;
-      await page.keyboard.down('KeyD');
+      await clickWorld(page, start[0] + 2, start[2], start[1]);
       await page.waitForFunction(
         (x) => window.__dungeon.game.player.root.position.x > x + 0.3,
         start[0],
         { timeout: 15000 },
       );
-      await page.keyboard.up('KeyD');
-      pass('Real keyboard movement');
+      pass('Real mouse movement');
       await page.keyboard.press('Escape');
       const paused = (await snapshot()).position;
-      await page.keyboard.down('KeyW');
+      await clickWorld(page, paused[0], paused[2] + 3, paused[1]);
       await page.waitForTimeout(350);
-      await page.keyboard.up('KeyW');
       assert.deepEqual((await snapshot()).position, paused);
       await page.keyboard.press('Escape');
       pass('Pause freezes movement');
       const door = await entity('door'),
-        alongX = door.axis === 'x',
-        positive = alongX ? 'KeyD' : 'KeyW';
+        alongX = door.axis === 'x';
+      await page.evaluate(() => window.__dungeon.engine.stopRenderLoop());
       await teleport(door.x - (alongX ? 2.3 : 0), door.z - (alongX ? 0 : 2.3));
-      await step([positive], 100);
-      assert.ok((await snapshot()).position[alongX ? 0 : 2] < (alongX ? door.x : door.z) - 0.3);
+      // Aim at the far-side ground from the far side, not through the clickable leaf.
+      const camera = await page.evaluate(
+        ({ x, z, h, alongX }) => {
+          const g = window.__dungeon.game;
+          const saved = { alpha: g.desiredAlpha, beta: g.camera.beta, radius: g.desiredRadius };
+          g.camera.alpha = g.desiredAlpha = alongX ? 0 : Math.PI / 2;
+          g.camera.beta = 0.12;
+          g.camera.radius = g.desiredRadius = 10;
+          g.camera.target.set(x, h + 0.75, z);
+          return saved;
+        },
+        { ...door, alongX },
+      );
+      const cross = () =>
+        clickWorld(page, door.x + (alongX ? 2.3 : 0), door.z + (alongX ? 0 : 2.3), door.h);
+      // This point is on our side of the visible leaf but inside its clearance margin.
+      // An across-map aim can legitimately plan around the closed door instead.
+      await clickWorld(page, door.x - (alongX ? 0.35 : 0), door.z - (alongX ? 0 : 0.35), door.h);
+      await step([], 100);
+      const blockedAxis = (await snapshot()).position[alongX ? 0 : 2];
+      assert.ok(
+        blockedAxis < (alongX ? door.x : door.z) - 0.3 &&
+          blockedAxis > (alongX ? door.x : door.z) - 1,
+        JSON.stringify({ blockedAxis, door, after: (await snapshot()).position }),
+      );
+      const blocked = await snapshot();
       await interact();
       await step([], 60);
-      await step([positive], 70);
+      assert.equal(
+        (await snapshot()).doors.find((d) => d.id === door.id)?.open,
+        true,
+        JSON.stringify({ door, blocked: blocked.position, after: (await snapshot()).position }),
+      );
+      await cross();
+      await step([], 70);
       assert.ok((await snapshot()).position[alongX ? 0 : 2] > (alongX ? door.x : door.z) + 1);
       pass('Generated door blocks and then allows passage');
       await teleport(door.x, door.z);
       await interact();
-      assert.equal((await snapshot()).doors.find((d) => d.id === door.id)?.open, true);
-      pass('Door cannot close on player');
+      assert.equal((await snapshot()).doors.find((d) => d.id === door.id)?.open, false);
+      pass('Hero alone does not prevent closing the door');
+      await page.evaluate(({ alpha, beta, radius }) => {
+        const g = window.__dungeon.game;
+        g.camera.alpha = g.desiredAlpha = alpha;
+        g.camera.beta = beta;
+        g.camera.radius = g.desiredRadius = radius;
+      }, camera);
       const stair = await page.evaluate(() => {
         const c = window.__dungeon.game.world.connections.find((c) => c.ramp);
         if (!c?.ramp) throw new Error('Missing stairs');
@@ -553,10 +613,12 @@ await withViteServer(base, 'dev', async () => {
       });
       assert.ok(wet);
       await teleport(wet.x, wet.z);
-      await step(['KeyD'], 20);
+      await clickWorld(page, wet.x + 2, wet.z, wet.h);
+      await step([], 20);
       const wetDistance = (await snapshot()).position[0] - wet.x;
       await teleport(0, 0);
-      await step(['KeyD'], 20);
+      await clickWorld(page, 2, 0);
+      await step([], 20);
       assert.ok(wetDistance < (await snapshot()).position[0] * 0.75);
       pass('Water slows movement');
       const lava = await page.evaluate(() =>
@@ -572,8 +634,9 @@ await withViteServer(base, 'dev', async () => {
       assert.equal((await snapshot()).health, 100);
       assert.ok(Math.hypot((await snapshot()).position[0], (await snapshot()).position[2]) < 0.1);
       pass('Lava damage and respawn');
+      // Start the next live-world fixture in a fresh visit, with its render loop running.
+      await page.goto(`${base}/?debug&seed=MOURNING-731`);
       // Regression: a static terrain route cannot walk through a stationary living body.
-      await page.evaluate(() => window.__dungeon.regenerate('MOURNING-731'));
       await settle();
       await north();
       const blockingActor = await page.evaluate(() => {

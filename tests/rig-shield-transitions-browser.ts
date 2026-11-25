@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
+import { clickWorld } from './world-pointer.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh.js';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector.js';
@@ -39,7 +40,9 @@ try {
     d.step([], 1);
   });
   await page.keyboard.down('f');
-  await page.evaluate(() => window.__dungeon.step(['KeyD', 'ShiftLeft'], 40));
+  await page.keyboard.press('KeyR');
+  await clickWorld(page, 6, 0);
+  await page.evaluate(() => window.__dungeon.step([], 40));
   await page.keyboard.up('f');
   const report = await page.evaluate(async () => {
     const fixturePath = '/tests/animation-review-fixture.ts',
@@ -191,7 +194,7 @@ try {
     };
     const realRelease: Record<string, number> = {};
     for (let frame = 0; frame < 30; frame++) {
-      window.__dungeon.step(['KeyD', 'ShiftLeft'], 1);
+      window.__dungeon.step([], 1);
       for (const [name, amount] of Object.entries(measure(g.player.actor).overlaps))
         realRelease[name] = Math.max(realRelease[name] ?? 0, amount);
     }

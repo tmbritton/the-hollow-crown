@@ -155,13 +155,8 @@ try {
       Object.assign(a.position, { x: direction > 0 ? 0.49 : 0.51, z: 0, h: 0 });
       g.player.root.position.set(a.position.x, 0, 0);
       a.motion.speed = 4.8;
-      const tile = movePlayer(
-        g.player,
-        world,
-        new Set([direction > 0 ? 'KeyD' : 'KeyA']),
-        g.camera,
-        1 / 60,
-      );
+      a.navigator.request(a.position, { x: direction > 0 ? 1 : 0, z: 0 });
+      const tile = movePlayer(g.player, world, 'walk', 1 / 60);
       return { direction, x: a.position.x, surface: tile?.surface };
     });
   });

@@ -47,7 +47,7 @@ try {
     const canvas = document.getElementById('game'),
       results = [];
     if (!canvas) throw new Error('Missing game canvas');
-    for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD'])
+    for (const code of ['KeyE', 'KeyF', 'KeyR', 'KeyM'])
       for (const repeat of [false, true]) {
         const event = new KeyboardEvent('keydown', {
           key: code.slice(-1).toLowerCase(),
@@ -138,10 +138,9 @@ try {
     true,
   );
   pass('Inspection enters an eye-level close view and activates 128 × 160 detail');
-  await page.keyboard.down('KeyW');
+  await page.mouse.click(640, 475);
   await page.waitForTimeout(300);
-  await page.keyboard.up('KeyW');
-  await page.keyboard.press('KeyQ');
+  await page.keyboard.press('BracketLeft');
   await page.keyboard.press('KeyR');
   await page.mouse.wheel(0, 600);
   const held = await page.evaluate(() => {

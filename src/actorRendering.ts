@@ -44,8 +44,24 @@ export function bindActorCollision(actor: Actor, scene: Scene, world: Navigation
       if (!supported(from.x + delta.x, from.z + delta.z)) delta.setAll(0);
       proxy.computeWorldMatrix(true);
       const terrain = collisionTerrain(scene);
-      if (terrain) terrain.move(proxy, delta);
+      const retreat = actor.navigator.retreatingDoors(from, {
+        x: from.x + delta.x,
+        z: from.z + delta.z,
+      });
+      if (terrain)
+        terrain.move(
+          proxy,
+          delta,
+          retreat.flatMap((door) => (door.collider ? [door.collider] : [])),
+        );
       else proxy.moveWithCollisions(delta);
+      if (
+        retreat.length &&
+        !retreat.every((door) =>
+          actor.navigator.retreatingDoors(from, proxy.position).includes(door),
+        )
+      )
+        proxy.position.set(from.x, from.h + 0.72, from.z);
       proxy.position.y = (heightAt(world, proxy.position.x, proxy.position.z) ?? from.h) + 0.72;
       proxy.computeWorldMatrix(true);
       return { x: proxy.position.x, z: proxy.position.z };

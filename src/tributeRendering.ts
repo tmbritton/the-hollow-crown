@@ -108,6 +108,11 @@ export function createTributeRendering(
   }
   cargoWriters.set(ecs, updateCrates);
   return {
+    pickOwners: new Map(
+      crates.flatMap(({ entity, geometry }) =>
+        geometry.meshes.map((mesh) => [mesh, entity.id] as const),
+      ),
+    ),
     update() {
       const current = ecs.get('run')?.get('tribute') === tribute;
       hatch.setEnabled(current);

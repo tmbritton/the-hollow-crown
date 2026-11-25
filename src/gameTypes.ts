@@ -30,7 +30,7 @@ export interface DungeonScenario {
   run: EcsEntity;
   clue: ReturnType<typeof emberClue>;
   emberRendering: { update(): void };
-  tributeRendering: { update(): void };
+  tributeRendering: ReturnType<typeof import('./tributeRendering.ts').createTributeRendering>;
   progression: Statechart<typeof progressionMachine>;
 }
 
@@ -95,6 +95,7 @@ export interface DungeonDebug {
   readonly engine: Engine;
   teleport(x: number, z: number): void;
   interact(): void;
+  pickedObjectAt(clientX: number, clientY: number): string | null;
   regenerate(seed: string, options?: { pinSeed?: boolean }): void;
   step(codes: string[], frames?: number): void;
   snapshot(): Snapshot;

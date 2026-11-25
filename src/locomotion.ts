@@ -8,16 +8,6 @@ import type { GaitStyle } from './skeletonGait.ts';
 
 export const WALK_SPEED = 4.8;
 export const RUN_SPEED = 7.4;
-export const MOVEMENT_KEYS = new Set([
-  'KeyW',
-  'KeyA',
-  'KeyS',
-  'KeyD',
-  'ArrowUp',
-  'ArrowDown',
-  'ArrowLeft',
-  'ArrowRight',
-]);
 
 export type LocomotionPhase = 'idle' | 'starting' | 'moving' | 'stopping';
 export class Locomotion {

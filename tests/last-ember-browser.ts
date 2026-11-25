@@ -39,6 +39,20 @@ const state = () =>
   });
 const progress = async (id: string) =>
   (await state()).objectives.objectives.find((o) => o.id === `ember:${id}`)!.progress;
+const workerAtFocus = () =>
+  page.evaluate(() => {
+    const g = window.__dungeon.game;
+    const worker = g.combat.actor('goblin:smithy:0')!;
+    const at = g.ecs.get('run')!.require('lastEmber').sites.focus.approach;
+    return {
+      alive: worker.alive,
+      hp: worker.health.current,
+      work: worker.entity.get('work')?.snapshot(),
+      targetsHero: worker.attack.target === g.player.actor.id,
+      heroTarget: g.player.actor.attack.target,
+      distance: Math.hypot(worker.position.x - at.x, worker.position.z - at.z),
+    };
+  });
 async function reset(seed = 'MOURNING-731', liveWorker = false) {
   await page.evaluate((seed) => window.__dungeon.regenerate(seed), seed);
   await page.waitForFunction(() => window.__dungeon.ready, {}, { timeout: 90000 });
@@ -153,11 +167,12 @@ try {
   );
   assert.ok(pose.every((x) => x < -0.9));
   await capture('working');
-  await page.keyboard.press('x');
+  await page.keyboard.down('f');
+  await page.keyboard.up('f');
   await step();
   assert.equal((await state()).hero, undefined);
   assert.equal(await progress('restore'), 0);
-  pass('real E starts readable work; X cancels incomplete credit');
+  pass('real E starts readable work; guard cancels incomplete credit');
 
   await page.keyboard.press('e');
   await step(361);
@@ -311,27 +326,39 @@ try {
   await reset('MOURNING-731', true);
   await at('shrine');
   await step(2400);
-  const beforeLure = await progress('profane');
+  const beforeArrival = await workerAtFocus();
+  const credited = await progress('profane');
+  assert.ok(beforeArrival.alive && beforeArrival.distance < 0.5);
+  assert.equal(beforeArrival.work?.objectiveId, 'ember:profane');
+  assert.equal(beforeArrival.work?.status, 'working');
+  assert.ok(credited > 0);
   await at('focus');
-  await page.keyboard.down('w');
-  await page.keyboard.up('w');
   await step(60);
-  assert.notEqual((await state()).worker?.status, 'working');
-  const rival = await page.evaluate(() => {
-    const g = window.__dungeon.game,
-      a = g.combat.actor('goblin:smithy:0')!;
-    const at = g.ecs.get('run')!.require('lastEmber').sites.focus.approach;
-    return {
-      target: a.attack.target,
-      distance: Math.hypot(a.position.x - at.x, a.position.z - at.z),
-    };
-  });
-  assert.ok(rival.target && rival.distance > 0.5);
-  assert.equal(await progress('profane'), beforeLure);
+  const interrupted = await workerAtFocus();
+  assert.ok(
+    interrupted.alive && interrupted.targetsHero && interrupted.distance > 0.5,
+    JSON.stringify(interrupted),
+  );
+  assert.equal(interrupted.heroTarget, null);
+  assert.equal(interrupted.hp, beforeArrival.hp);
+  assert.notEqual(interrupted.work?.status, 'working');
+  assert.equal(await progress('profane'), credited);
   await capture('interrupted');
   await at('shrine');
-  await step(3600);
-  assert.ok((await progress('profane')) > beforeLure);
+  let resumed = await workerAtFocus();
+  for (let frames = 0; frames < 3600; frames += 60) {
+    await step(60);
+    resumed = await workerAtFocus();
+    if (resumed.work?.status === 'working' && (await progress('profane')) > credited) break;
+  }
+  assert.ok(
+    resumed.alive && resumed.distance < 0.5 && !resumed.targetsHero,
+    JSON.stringify(resumed),
+  );
+  assert.equal(resumed.hp, beforeArrival.hp);
+  assert.equal(resumed.work?.objectiveId, 'ember:profane');
+  assert.equal(resumed.work?.status, 'working');
+  assert.ok((await progress('profane')) > credited);
   pass(
     'living worker defends and leaves focus on player approach; it returns and resumes after losing the threat',
   );

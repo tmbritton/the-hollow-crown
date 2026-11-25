@@ -112,6 +112,7 @@ export class LivingCandidates {
   }
 
   private publishDoorCenter(entity: Entity, p?: Spawn): void {
+    if (entity.get('actor')?.kind === 'player') return;
     const old = this.doorPositions.get(entity);
     if (!p) {
       if (this.doorPositions.delete(entity)) this.doorCenters.delete(entity);
@@ -137,7 +138,12 @@ export class LivingCandidates {
     if (this.fullScan || this.unsupportedCenters.size || !indexable(bounds))
       return this.ecs
         .query('actor', 'transform', 'health')
-        .some((e) => e.require('health').current > 0 && inside(e.require('transform')));
+        .some(
+          (e) =>
+            e.require('actor').kind !== 'player' &&
+            e.require('health').current > 0 &&
+            inside(e.require('transform')),
+        );
     return this.doorCenters.query(bounds).some(inside);
   }
 

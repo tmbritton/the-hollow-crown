@@ -2,6 +2,7 @@ import type { Actor } from '../actors.ts';
 import type { ECS } from '../ecs.ts';
 import type { LocomotionPose } from '../locomotion.ts';
 import { attackPose, socialPose, workPose, hackySackKick, deathPose } from '../actionPoses.ts';
+import { hurtWeight } from '../playerHurt.ts';
 import { volumeScale, smoothStep } from '../animationCurves.ts';
 import { ATTACKS } from '../attackKinds.ts';
 import { spearPose } from '../phalanxPoses.ts';
@@ -293,6 +294,13 @@ export class ActionRig {
       (Math.max(0, this.shield.brace) * 0.45 + Math.abs(this.shield.recoil) * 0.25) * groundedBrace;
     pose.roll += this.shield.side * 0.5;
     pose.twist += this.shield.side * 0.6 + this.shield.counter;
+    const hit = actor.entity.get('playerHurt')?.sample;
+    if (hit && actor.alive) {
+      const recoil = hurtWeight(time - hit.time);
+      pose.lean -= recoil * 0.36;
+      pose.roll += recoil * 0.12;
+      pose.twist -= recoil * 0.1;
+    }
   }
 
   /** Included in grounding's retained-input key, including same-clock release/role changes. */

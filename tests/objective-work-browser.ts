@@ -1,5 +1,6 @@
 import { chromium, firefox } from '@playwright/test';
 import assert from 'node:assert/strict';
+import { clickWorld } from './world-pointer.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { DebugWindow } from './browserTypes.ts';
@@ -203,12 +204,11 @@ try {
   pass('Runtime prework/commit phases advance real ECS assignments');
 
   await step(5);
-  await page.keyboard.down('w');
-  await step(1, ['KeyW']);
-  await page.keyboard.up('w');
+  await clickWorld(page, 0, -3);
+  await step(1);
   assert.equal((await snapshot()).objectives.objectives.find((o) => o.id === 'hero')!.progress, 1);
   assert.equal((await snapshot()).hero, undefined);
-  pass('Real keyboard movement cancels an almost-complete hero cycle');
+  pass('Real floor click cancels an almost-complete hero cycle');
 
   await fixture(0.5);
   await step(10);
@@ -309,7 +309,7 @@ try {
   );
   assert.equal((await snapshot()).objectives.objectives.find((o) => o.id === 'enemy')!.progress, 1);
   assert.equal((await snapshot()).objectives.objectives.find((o) => o.id === 'hero')!.progress, 0);
-  await page.keyboard.press('x');
+  await clickWorld(page, 0, -3);
   const resumed = (await snapshot()).worker!.cycleId;
   await step(30);
   const resumedRecord = (await snapshot()).objectives;

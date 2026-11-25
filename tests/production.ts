@@ -173,15 +173,14 @@ await withViteServer(base.href, 'preview', async () => {
         return map.toDataURL();
       });
     const beforeMove = await mapImage();
-    await page.keyboard.down('KeyD');
+    // A visible floor point to the right of the hero in this fixed seed and viewport.
+    await page.mouse.click(565, 350);
     await expect.poll(mapImage).not.toBe(beforeMove);
-    await page.keyboard.up('KeyD');
-    await page.keyboard.press('KeyX');
-    checks.push('real map toggle and keyboard movement update the minimap');
+    checks.push('real map toggle and floor click update the minimap');
 
     // Production exposes no actor introspection. Capture ordinary held-F/release presentation
     // for visual review; detailed damage/latch assertions belong to the defense suite.
-    await page.keyboard.press('KeyR');
+    await page.keyboard.press('BracketRight');
     await page.mouse.move(480, 320);
     for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -100);
     await page.waitForTimeout(700);

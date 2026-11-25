@@ -58,6 +58,7 @@ export function buildDungeon(
   const creatures: Creature[] = [];
   const obstacles: Obstacle[] = [];
   let frame: Frame | null = null;
+  let owner = '';
   function transform(x: number, z: number, w = 0, d = 0) {
     if (!frame) return { x, z, w, d };
     const p = localPoint(frame, x - frame.x, z - frame.z);
@@ -95,7 +96,7 @@ export function buildDungeon(
     t = 1,
   ) {
     const p = transform(x, z, w, d);
-    batch.box(mat, p.x, y, p.z, p.w, h, p.d, t);
+    batch.box(mat, p.x, y, p.z, p.w, h, p.d, t, 63, owner);
   }
   function torch(x: number, y: number, z: number, violet = false) {
     box('dark', x, y - 0.32, z, 0.48, 0.18, 0.48);
@@ -332,6 +333,7 @@ export function buildDungeon(
   }
   for (const prop of world.props) {
     frame = prop;
+    owner = prop.type === 'shrine' || prop.type === 'anvil' ? `use/prop:${prop.id}` : '';
     const { x, z, h } = prop;
     let height = 1.5;
     if (prop.type === 'pillar') {
@@ -431,6 +433,7 @@ export function buildDungeon(
   }
 
   for (const entity of world.entities) {
+    owner = entity.type === 'altar' || entity.type === 'throne' ? `use/${entity.id}` : '';
     const { x, z, h } = entity;
     frame = ['altar', 'throne'].includes(entity.type) ? entity : null;
     if (entity.type === 'door') {
@@ -551,6 +554,7 @@ export function buildDungeon(
       box('rune', x, h + 3.3, z + 0.36, 0.25, 0.45, 0.08);
       entity.collider = collision(x, h + 1, z, 2.7, 2.2, 2.2, 'throne collider');
       for (const dx of [-1, 1]) torch(x + dx, h + 2.15, z - 0.1);
+      owner = ''; // The carpet is traversable floor, not part of the throne's use surface.
       for (let dz = -4; dz <= -2; dz++) {
         const p = transform(x, z + dz),
           floor = heightAt(world, p.x, p.z);

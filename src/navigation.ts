@@ -36,6 +36,8 @@ export interface SteeringTarget {
   floor: boolean;
 }
 
+import { doorRetreat } from './doorEscape.ts';
+
 const SAMPLE_SPACING = 0.18;
 const FRONTIER_REACH = 1.5;
 const FRONTIER_TIE = 0.001;
@@ -166,6 +168,8 @@ export class Navigator {
   readonly occupancy?: Occupancy;
   private readonly staticCells = new Map<string, boolean>();
   private readonly doors: DoorEntity[];
+  private readonly doorSides = new Map<DoorEntity, number>();
+  private readonly hero: boolean;
   private grid: ReturnType<typeof routeGrid>;
   // Input/search caches only. The chart remains the authority for active travel.
   private floorCommand: FloorCommand | null = null;
@@ -192,12 +196,35 @@ export class Navigator {
     world: NavigationWorld,
     occupancy?: Occupancy,
     capability: () => boolean = () => true,
+    hero = false,
   ) {
     this.capability = capability;
+    this.hero = hero;
     this.world = world;
     this.occupancy = occupancy;
     this.doors = world.entities.filter((entity) => entity.type === 'door');
     this.grid = routeGrid(world, this.doors);
+  }
+
+  noteDoorSides(p: Point, teleport = false): void {
+    if (!this.hero) return;
+    if (teleport) this.doorSides.clear();
+    for (const door of this.doors) {
+      const offset = p[door.axis] - door[door.axis];
+      if (offset) this.doorSides.set(door, Math.sign(offset));
+    }
+  }
+  retreatingDoors(from: Spawn, to: Point): DoorEntity[] {
+    return this.hero ? this.doors.filter((door) => this.canRetreat(door, from, to)) : [];
+  }
+  private canRetreat(door: DoorEntity, from: Point, to: Point): boolean {
+    return (
+      this.hero &&
+      !door.open &&
+      !door.locked &&
+      Math.abs((heightAt(this.world, from.x, from.z) ?? Infinity) - door.h) < 1.2 &&
+      doorRetreat(door, from, to, this.doorSides.get(door))
+    );
   }
 
   private refreshGrid(): void {
@@ -697,7 +724,11 @@ export class Navigator {
       ? []
       : doors.filter((door) => {
           const box = doorFootprint(door);
-          return nearSegment(bounds, box, CLEARANCE) && !escaping(box);
+          return (
+            nearSegment(bounds, box, CLEARANCE) &&
+            !escaping(box) &&
+            !this.canRetreat(door, from, to)
+          );
         });
     if (witness) {
       for (const door of sweptDoors)
@@ -937,7 +968,8 @@ export class Navigator {
       const footprint = this.occupancy
         ? new Occupancy({ ...this.occupancy.size }, () => bodies ?? [])
         : undefined;
-      const draft = new Navigator(this.world, footprint);
+      const draft = new Navigator(this.world, footprint, undefined, this.hero);
+      for (const [door, side] of this.doorSides) draft.doorSides.set(door, side);
       draft.proof = new RouteProof();
       draft.gates = new Map();
       if (options.partial) draft.rejectedExits = [];
